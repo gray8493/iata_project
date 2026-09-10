@@ -12,7 +12,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 +-------------------------------------------------------------------------+
 |                  GIAO DIỆN DESKTOP (Desktop UI Layer)                   |
 |  - Ngôn ngữ: Python 3.11+                                               |
-|  - GUI Framework: PyQt6 / PySide6 (hoặc CustomTkinter)                  |
+|  - GUI Framework: PyQt6 / PySide6 (Chuẩn giao diện Desktop công nghiệp)  |
 +-------------------------------------------------------------------------+
                                     ↕
 +-------------------------------------------------------------------------+
@@ -41,9 +41,10 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
   - Khả năng xử lý chuỗi (String manipulation), phân tích cú pháp (Regex) và đọc/ghi file cực kỳ mạnh mẽ.
   - Hỗ trợ tốt việc tương tác sâu với hệ điều hành thông qua các module chuẩn.
 
-### 2.2. Khung giao diện Desktop (GUI Framework): **PyQt6 / PySide6** (hoặc **CustomTkinter**)
+### 2.2. Khung giao diện Desktop (GUI Framework): **PyQt6 / PySide6** (Đã chốt)
 
-- **Mục đích**: Xây dựng giao diện máy tính chuyên nghiệp cho Giảng viên.
+- **Mục đích**: Xây dựng giao diện máy tính chuẩn mực, hỗ trợ Dark/Light theme, khả năng phản hồi mượt mà và xử lý đa luồng qua `QThread`.
+
 - **Tính năng giao diện**:
   - Chọn thư mục bài nộp của lớp dạng kéo thả (Drag & Drop).
   - Bảng hiển thị kết quả chấm theo thời gian thực (Real-time Progress Bar & Data Table).

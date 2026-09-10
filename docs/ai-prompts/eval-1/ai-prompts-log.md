@@ -122,3 +122,25 @@ AI đã triển khai:
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Lý do nhóm yêu cầu đổi từ bảng ngang sang hàng dọc**: Khi viết dữ liệu input/output phức tạp của các bài tập lập trình, việc viết trong bảng ngang rất khó đọc và dễ vỡ giao diện Markdown. Chuyển sang hàng dọc giúp từng kịch bản rõ ràng, mạch lạc và dễ bổ sung các lần test sau này.
+
+---
+
+### 🔹 PROMPT 06: Tinh Chỉnh Nghiệp Vụ Thực Tế Của Giảng Viên & Mở Rộng Strategy Pattern
+
+#### 1. Mục tiêu
+Tối ưu hóa các thao tác thực tế của giảng viên (đơn giản hóa định dạng file Excel đầu vào, nạp testcase linh hoạt, chọn GUI PyQt6/PySide6) và làm sâu sắc thêm mô hình thiết kế Strategy Pattern với 7 chế độ so khớp.
+
+#### 2. Câu Prompt đã gửi
+> *"Giảng viên import file excel gồm có mssv và file thôi. Testcase cho phép input bằng tay và file json. Chọn PyQt6 / PySide6. Nêu cho tôi các steps bạn nghĩ một giáo viên sẽ thực hiện. Bước 4: Chọn chế độ so khớp (Matching Options) chỗ nào thì xử lý như thế nào, phải nhiều kiểu chứ?"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã hoàn thiện thiết kế chi tiết:
+- Đơn giản hóa file Excel đầu vào đúng **2 cột cốt lõi**: `MSSV` và `File`.
+- Cho phép nạp Testcase linh hoạt cả 2 hình thức: **Nhập trực tiếp trên GUI** VÀ **Import/Export file JSON** (`testcases.json`).
+- Chốt sử dụng **PyQt6 / PySide6** làm GUI Framework chính.
+- Xây dựng quy trình **8 bước tuần tự của Giảng viên** chia thành 4 giai đoạn rõ ràng.
+- Mở rộng **Strategy Pattern thành 7 chế độ so khớp chuyên nghiệp**: *Exact Match, Ignore Whitespace, Case-Insensitive, Float Tolerance, Unordered Match, Regex Pattern Match, Special Judge (Custom Checker)*.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Đánh giá của nhóm**: Việc mở rộng ra 7 chế độ so khớp giải quyết triệt để các bài toán thực tế của sinh viên (không bị chấm sai oan khi thừa khoảng trắng, làm tròn số thực hoặc bài toán có nhiều đáp án). Đây là minh chứng mẫu mực cho việc nhóm hiểu sâu và làm chủ (Mastery) mẫu thiết kế **Strategy Pattern** trong đề bài môn SWD392.
+
