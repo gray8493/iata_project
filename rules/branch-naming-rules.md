@@ -107,3 +107,60 @@ git checkout -b test-integration-linh
 # Đẩy nhánh lên remote
 git push -u origin test-unit-namnv
 ```
+
+---
+
+## 5. QUY TẮC VÀNG: TUYỆT ĐỐI KHÔNG COMMIT VÀO NHÁNH `master`
+
+> [!CAUTION]
+> **CẤM HOÀN TOÀN**: Không được `git commit` trực tiếp trên nhánh `master`. Không được chạy lệnh `git push origin master` từ máy cá nhân (trừ commit khởi tạo ban đầu).
+
+### 5.1. Lý do
+- Nhánh `master` là nhánh lưu trữ **mã nguồn ổn định nhất**, nơi giảng viên và người ngoài vào xem sản phẩm chạy thật.
+- Bất kỳ lỗi chưa qua kiểm tra nào đẩy thẳng lên `master` sẽ làm hỏng dự án của cả nhóm.
+
+### 5.2. Quy trình làm việc chuẩn (Pull Request Flow)
+Mọi thành viên bắt buộc tuân theo quy trình 4 bước sau:
+
+```text
+[Máy cá nhân]                  [GitHub Remote]
+Nhánh riêng (docs/code/test) ───> Push nhánh riêng ───> Tạo Pull Request (PR) ───> Review & Merge vào master
+```
+
+1. **Bước 1: Luôn tạo nhánh riêng trước khi làm việc**
+   ```bash
+   git checkout master
+   git pull origin master                    # Cập nhật code mới nhất từ master
+   git checkout -b code-login-form-namnv     # Tạo nhánh làm việc của mình
+   ```
+
+2. **Bước 2: Commit và Push lên nhánh riêng đó**
+   ```bash
+   git add .
+   git commit -m "feat(auth): hoan thanh giao dien dang nhap"
+   git push -u origin code-login-form-namnv
+   ```
+
+3. **Bước 3: Mở GitHub và tạo Pull Request (PR)**
+   - Truy cập vào repository trên GitHub.
+   - Bấm nút **"Compare & pull request"**.
+   - Đặt tiêu đề và mô tả ngắn gọn những gì đã làm.
+   - Chọn người review (Assignee / Reviewer) là bạn cùng nhóm hoặc Nhóm trưởng.
+
+4. **Bước 4: Review và Hợp nhất (Merge)**
+   - Người được gán review kiểm tra code, xác nhận không có xung đột (conflict) và không có lỗi.
+   - Bấm nút **"Merge pull request"** để hợp nhất code vào nhánh `master`.
+
+---
+
+## 6. Khuyến nghị: Cài đặt Khóa Nhánh (Branch Protection) trên GitHub
+
+Nhóm trưởng nên thiết lập tính năng bảo vệ nhánh trên GitHub để hệ thống tự động chặn:
+1. Vào GitHub Repo ➔ **Settings** ➔ **Branches**.
+2. Bấm **Add branch protection rule**.
+3. Tại ô **Branch name pattern**: điền `master`.
+4. Tích chọn:
+   - ✅ **Require a pull request before merging** (Bắt buộc phải qua PR mới được vào master).
+   - ✅ **Require approvals** (Ít nhất 1 người duyệt mới được merge).
+5. Bấm **Save changes**. Sau khi cài xong, kể cả thành viên gõ nhầm lệnh push lên `master` cũng sẽ bị GitHub từ chối tự động.
+
