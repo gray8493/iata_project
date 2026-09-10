@@ -43,29 +43,44 @@ Hệ thống được thiết kế theo mô hình mô-đun (Modular Runner), h�
 
 ## 3. Quy trình vận hành cốt lõi (Core Grading Pipeline)
 
-Quy trình tự động hóa chấm điểm của AITA diễn ra qua 5 bước liên hoàn:
+Quy trình tự động hóa chấm điểm của AITA diễn ra qua 5 bước liên hoàn, hỗ trợ tối đa cho việc chấm hàng loạt cả lớp:
 
 ```text
-[1. Nạp bài nộp sinh viên] ───> [2. Nạp bộ Testcase]
-                                        │
-                                        ▼
-                           [3. Biên dịch & Thực thi an toàn (Sandbox Runner)]
-                           - Giới hạn thời gian (Time Limit Exceeded - TLE)
-                           - Giới hạn bộ nhớ (Memory Limit Exceeded - MLE)
-                           - Bắt lỗi biên dịch (Compile Error - CE) / Lỗi chạy (Runtime Error - RE)
-                                        │
-                                        ▼
-                           [4. Động cơ So khớp Kết quả (Grading Engine)]
-                           - Exact Match / Trim Whitespace / Regex Match / Float Tolerance
-                                        │
-                                        ▼
-                           [5. Kết xuất Báo cáo & Đánh giá]
-                           - Hiển thị bảng điểm trực quan trên Desktop UI
-                           - Nhận xét chi tiết từ AI (AI Feedback)
-                           - Xuất file Excel (.xlsx) / CSV nộp phòng đào tạo
+[1. Import File Excel Danh Sách Lớp] ───> [2. Tự động đối chiếu bài nộp trong Thư mục]
+(MSSV, Họ tên, Tên file bài làm)          (Auto-mapping sinh viên với file nộp)
+                                                         │
+                                                         ▼
+                                            [3. Nạp Bộ Testcase Chuẩn]
+                                            (Input, Expected Output, Time Limit, Memory Limit)
+                                                         │
+                                                         ▼
+                                            [4. Chấm Hàng Loạt Song Song (Parallel Batch Runner)]
+                                            - Chạy đa tiến trình: 4 - 8 sinh viên cùng lúc
+                                            - Bắt lỗi CE, RE, TLE (quá giờ), MLE (tràn RAM)
+                                            - So khớp kết quả (Matching Engine)
+                                                         │
+                                                         ▼
+                                            [5. Cập nhật & Xuất File Excel Bảng Điểm Hoàn Chỉnh]
+                                            - Điền trực tiếp: Điểm, Số TC đạt, Thời gian chạy, Verdict
+                                            - Ghi nhận xét chi tiết từ AI (AI Feedback)
 ```
 
-### Chi tiết các trạng thái kết quả (Verdict Codes):
+### 3.1. Cơ chế Import Excel & Tự động đối chiếu (Excel Import & Auto-Mapping)
+
+- **Định dạng tiếp nhận**: File bảng tính `.xlsx` chuẩn xuất từ hệ thống đào tạo của trường (Canvas, LMS, Google Classroom).
+- **Các trường dữ liệu**:
+  - `MSSV`: Mã số sinh viên (ví dụ: `SE180001`).
+  - `Họ và tên`: Tên sinh viên (ví dụ: `Nguyễn Văn A`).
+  - `Tên file bài làm`: Tên file cụ thể (ví dụ: `SE180001_Lab1.c`). Nếu không có cột này, tool sẽ tự động tìm kiếm file trong thư mục dựa theo tiền tố `MSSV`.
+- **Phát hiện ngoại lệ**: Tự động đánh dấu sinh viên chưa nộp bài (Điểm 0) hoặc sinh viên nộp sai định dạng bài làm.
+
+### 3.2. Chấm đồng thời đa tiến trình (Parallel Batch Processing)
+
+- Thay vì chấm tuần tự từng người gây mất thời gian, tool tận dụng vi xử lý đa nhân trên máy tính giảng viên để **chấm đồng thời 4 – 8 sinh viên cùng lúc**.
+- Giảng viên quan sát được thanh tiến trình thời gian thực: *"Đang chấm: 35/50 sinh viên (70%)"*.
+- Toàn bộ lớp học 50 sinh viên được chấm xong trọn vẹn chỉ trong **15 – 30 giây**.
+
+### 3.3. Chi tiết các trạng thái kết quả (Verdict Codes):
 
 - **AC (Accepted)**: Bài nộp cho kết quả đầu ra khớp 100% với testcase.
 - **WA (Wrong Answer)**: Đầu ra thực tế khác với đầu ra kỳ vọng.
@@ -73,6 +88,16 @@ Quy trình tự động hóa chấm điểm của AITA diễn ra qua 5 bước l
 - **MLE (Memory Limit Exceeded)**: Tràn bộ nhớ quy định (ví dụ: đệ quy vô hạn `StackOverflow`).
 - **CE (Compile Error)**: Lỗi cú pháp không thể biên dịch thành công.
 - **RE (Runtime Error)**: Chương trình crash trong lúc chạy (truy cập mảng ngoài giới hạn, chia cho 0, null pointer).
+
+### 3.4. Xuất bảng điểm Excel tự động
+
+- Sau khi chấm xong, hệ thống tự động sinh file Excel kết quả (ví dụ: `KetQua_SE1801_Assignment1.xlsx`) đã được điền sẵn đầy đủ các cột:
+  - Cột `Điểm số`: Tính theo trọng số testcase (thang điểm 10).
+  - Cột `Số testcase đạt`: Ví dụ `9/10`.
+  - Cột `Trạng thái chung`: `AC`, `WA`, `TLE`,...
+  - Cột `Thời gian chạy (ms)`: Thời gian thực thi trung bình.
+  - Cột `Nhận xét từ AI`: Đoạn văn nhận xét sư phạm gợi ý sửa lỗi cho sinh viên.
+- Giảng viên chỉ việc lấy file này nộp thẳng về cho phòng đào tạo mà không cần sao chép thủ công.
 
 ---
 

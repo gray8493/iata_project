@@ -164,3 +164,11 @@ Nhóm trưởng nên thiết lập tính năng bảo vệ nhánh trên GitHub đ
    - ✅ **Require approvals** (Ít nhất 1 người duyệt mới được merge).
 5. Bấm **Save changes**. Sau khi cài xong, kể cả thành viên gõ nhầm lệnh push lên `master` cũng sẽ bị GitHub từ chối tự động.
 
+---
+
+## 7. Quy Tắc Kiểm Thử (Testing Rules)
+
+Quy tắc đặt mã định danh testcase (ví dụ: `UT01_MatchingStrategy_TC001`) và chuẩn định dạng soạn thảo kịch bản kiểm thử theo hàng dọc đã được tách thành tài liệu riêng biệt:
+👉 **Xem chi tiết tại: [rules/testcase-rules.md](file:///e:/AITA/rules/testcase-rules.md)**
+
+
