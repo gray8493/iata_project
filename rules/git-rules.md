@@ -1,6 +1,6 @@
-# Quy tắc đặt tên nhánh Git (Git Branch Naming Rules)
+# Bộ Quy Tắc Chung Khi Làm Việc Với Git (General Git & Workflow Rules)
 
-Tài liệu này quy định chuẩn đặt tên nhánh Git khi làm việc với tài liệu, đặc tả thiết kế và API trong dự án **AITA Desktop App**.
+Tài liệu này quy định toàn bộ chuẩn mực và quy trình bắt buộc khi làm việc với Git (đặt tên nhánh, cam kết mã nguồn, quy trình Pull Request và bảo vệ nhánh chính) cho tất cả các thành viên trong dự án **AITA Desktop App**.
 
 ---
 
