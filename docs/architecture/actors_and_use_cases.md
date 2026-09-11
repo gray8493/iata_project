@@ -48,6 +48,7 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 ## 2. Xác Định & Phân Tích Tác Nhân (Actors Identification & Analysis)
 
 Hệ thống AITA tuân thủ chặt chẽ chuẩn mực **Kỹ nghệ phần mềm & Mô hình hóa UML**:
+
 - **Tác nhân người dùng (Primary Human Actors)**: Người dùng thực tế trực tiếp thao tác trên các giao diện người dùng của hệ thống.
 - **Tác nhân ngoài hỗ trợ (External Supporting Actors)**: Các hệ thống, dịch vụ hoặc tiến trình nằm ngoài ranh giới phần mềm ứng dụng tương tác trao đổi thông tin.
 - *(Chuẩn UML)*: Cơ sở dữ liệu nội bộ (SQLite) và hệ thống tệp tin cục bộ (File System) là **thành phần kiến trúc nội bộ (Internal Data Layer)**, không được coi là External Actor.
@@ -74,18 +75,18 @@ classDiagram
 
 ### 2.1. Tác nhân Người dùng (Primary Human Actors)
 
-| Tác nhân | Giao diện sử dụng | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA |
-| :--- | :--- | :--- |
-| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | - Đăng nhập tài khoản Quản trị viên trên giao diện Web.<br />- Quản lý tài khoản Giảng viên (Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu, vô hiệu hóa, gán vai trò `Admin`/`Instructor`).<br />- Quản lý danh mục môn học lập trình cốt lõi của trường: **PRF** (C), **PRO** (Java, Python), **DSA** (Java, Python), **PHP** (Python).<br />- Cấu hình tập trung Google Gemini API Key tại máy chủ Web Backend (ngăn chặn lộ key ra client).<br />- Cấu hình hạn mức gọi (Quota limit / Rate limit) cho từng giảng viên.<br />- Giám sát nhật ký tiêu thụ Token AI toàn trường qua biểu đồ trực quan.<br />- Xem báo cáo tổng hợp và lịch sử các đợt chấm bài toàn hệ thống. |
-| **Giảng viên (Instructor / Lecturer)** | **Desktop App Client (PyQt6)** | - Đăng nhập tài khoản Giảng viên bằng JWT qua Desktop App.<br />- Cấu hình đường dẫn trình biên dịch cục bộ (`gcc`, `javac`, `python`) và thông số Sandbox (`Time Limit`, `Memory Limit`).<br />- Tạo đợt chấm bài, nạp danh sách sinh viên từ file `students.csv` chuẩn 2 cột (`MSSV,File`).<br />- Quản lý bộ testcase theo nguyên lý Black-box (chỉ cần cặp `INPUT` và `OUTPUT kỳ vọng`, hoàn toàn không cần file code giải mẫu).<br />- Sử dụng AI sinh tự động testcase biên (Corner cases, Boundary values).<br />- Lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`MatchingStrategy`).<br />- Kích hoạt chấm bài tự động hàng loạt: thực thi đa tiến trình qua hàm `main()` của từng file câu hỏi riêng biệt, cộng dồn tổng điểm.<br />- Giám sát tiến độ chấm thời gian thực.<br />- Xem chi tiết kết quả, log thực thi (`stdout`, `stderr`) của từng bài.<br />- Kích hoạt AI phân tích lỗi & viết nhận xét sư phạm theo cơ chế **On-Demand (Lazy Loading)** cho các bài bị lỗi `WA` (bỏ qua `CE`).<br />- Quét đạo văn qua cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 lọc AST cục bộ 100% offline, Vòng 2 gửi cặp nghi vấn (> 80%) lên Gemini AI.<br />- Xuất kết quả ra file `results.csv` và Excel `.xlsx`.<br />- Đồng bộ kết quả chấm lên Web Server Backend qua REST API. |
+| Tác nhân                                                | Giao diện sử dụng                 | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| :-------------------------------------------------------- | :----------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard**        | - Đăng nhập tài khoản Quản trị viên trên giao diện Web.<br />- Quản lý tài khoản Giảng viên (Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu, vô hiệu hóa, gán vai trò `Admin`/`Instructor`).<br />- Quản lý danh mục môn học lập trình cốt lõi của trường: **PRF** (C), **PRO** (Java, Python), **DSA** (Java, Python), **PHP** (Python).<br />- Cấu hình tập trung Google Gemini API Key tại máy chủ Web Backend (ngăn chặn lộ key ra client).<br />- Cấu hình hạn mức gọi (Quota limit / Rate limit) cho từng giảng viên.<br />- Giám sát nhật ký tiêu thụ Token AI toàn trường qua biểu đồ trực quan.<br />- Xem báo cáo tổng hợp và lịch sử các đợt chấm bài toàn hệ thống.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Giảng viên (Instructor / Lecturer)**            | **Desktop App Client (PyQt6)** | - Đăng nhập tài khoản Giảng viên bằng JWT qua Desktop App.<br />- Cấu hình đường dẫn trình biên dịch cục bộ (`gcc`, `javac`, `python`) và thông số Sandbox (`Time Limit`, `Memory Limit`).<br />- Tạo đợt chấm bài, nạp danh sách sinh viên từ file `students.csv` chuẩn 2 cột (`MSSV,File`).<br />- Quản lý bộ testcase theo nguyên lý Black-box (chỉ cần cặp `INPUT` và `OUTPUT kỳ vọng`, hoàn toàn không cần file code giải mẫu).<br />- Sử dụng AI sinh tự động testcase biên (Corner cases, Boundary values).<br />- Lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`MatchingStrategy`).<br />- Kích hoạt chấm bài tự động hàng loạt: thực thi đa tiến trình qua hàm `main()` của từng file câu hỏi riêng biệt, cộng dồn tổng điểm.<br />- Giám sát tiến độ chấm thời gian thực.<br />- Xem chi tiết kết quả, log thực thi (`stdout`, `stderr`) của từng bài.<br />- Kích hoạt AI phân tích lỗi & viết nhận xét sư phạm theo cơ chế **On-Demand (Lazy Loading)** cho các bài bị lỗi `WA` (bỏ qua `CE`).<br />- Quét đạo văn qua cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 lọc AST cục bộ 100% offline, Vòng 2 gửi cặp nghi vấn (> 80%) lên Gemini AI.<br />- Xuất kết quả ra file `results.csv` và Excel `.xlsx`.<br />- Đồng bộ kết quả chấm lên Web Server Backend qua REST API. |
 
 ### 2.2. Tác nhân Hệ thống & Dịch vụ Ngoài (External Supporting Actors)
 
-| Tác nhân ngoài | Bản chất kỹ thuật | Vai trò tương tác đối với hệ thống AITA |
-| :--- | :--- | :--- |
-| **AI Service Provider (Google Gemini API Hub)** | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp `INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép. |
-| **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error). |
-| **Web Server Backend (FastAPI Central Server)** | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung | - Cung cấp cơ chế xác thực tập trung (JWT token, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục môn học, tài khoản người dùng và hạn ngạch AI.<br />- Cung cấp API đồng bộ danh sách lớp học và lưu trữ kết quả các đợt chấm bài từ Desktop Client. |
+| Tác nhân ngoài                                                   | Bản chất kỹ thuật                                                                                                                                         | Vai trò tương tác đối với hệ thống AITA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AI Service Provider (Google Gemini API Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép. |
+| **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error).                                                        |
+| **Web Server Backend (FastAPI Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (JWT token, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục môn học, tài khoản người dùng và hạn ngạch AI.<br />- Cung cấp API đồng bộ danh sách lớp học và lưu trữ kết quả các đợt chấm bài từ Desktop Client.                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -93,33 +94,33 @@ classDiagram
 
 Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức năng (Subsystems)** với tổng cộng **19 Use Cases**, bao quát trọn vẹn cả 2 giao diện người dùng (Web Admin Dashboard và Desktop App Client):
 
-| Mã UC | Tên Use Case (Vietnamese) | Tên tiếng Anh | Tác nhân chính (Primary Actor) | Nơi thực hiện | Tác nhân hỗ trợ ngoài (External Actor) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | | |
-| **UC-01** | Đăng nhập & Xác thực Hệ thống | Login & System Authentication | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
-| **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Manage Instructor Accounts & RBAC | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-03** | Quản lý Danh mục Môn học (PRF, PRO, DSA, PHP) | Manage Course Catalog | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-04** | Cấu hình API Key & Giám sát Hạn ngạch AI | Configure Centralized AI Key & Monitor Quotas | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
-| **UC-05** | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | View School-wide Grading Reports & Logs | Admin | Web Admin Dashboard | Web Server Backend |
-| **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | | |
-| **UC-06** | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ | Configure Local Compilers & Sandbox Settings | Giảng viên | Desktop App Client | Sandbox Execution Runner |
-| **UC-07** | Quản lý Đợt Chấm & Lớp học | Manage Classes & Grading Sessions | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **UC-08** | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV | Import Submissions via `students.csv` (MSSV, File) | Giảng viên | Desktop App Client | *(Tương tác File System)* |
-| **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)** | | | | | |
-| **UC-09** | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công | Manage Black-box Testcases Manually (Input/Output) | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **UC-10** | Tự động Sinh Testcase Biên bằng AI | Auto-Generate Boundary Testcases with Gemini AI | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **UC-11** | Thiết lập Động cơ So khớp 7 Chế độ | Configure 7 Output Matching Strategies | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **Phân hệ 4: Tự động Thực thi & Chấm điểm (Execution & Automated Grading Pipeline)** | | | | | |
-| **UC-12** | Thực thi Chấm điểm Tự động Hàng loạt | Execute Batch Grading (Parallel Subprocess, `main()`) | Giảng viên | Desktop App Client | Sandbox Execution Runner |
-| **UC-13** | Giám sát Tiến độ Chấm Thời gian thực | Monitor Real-Time Grading Progress | Giảng viên | Desktop App Client | Sandbox Execution Runner |
-| **UC-14** | Xem Chi tiết Kết quả & Nhật ký Bài nộp | View Submission Result & Execution Logs | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **UC-15** | Chấm lại & Điều chỉnh Điểm thủ công | Re-grade & Override Scores Manually | Giảng viên | Desktop App Client | Sandbox Execution Runner |
-| **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)** | | | | | |
-| **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Generate On-Demand AI Code Review (WA Only) | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **Phân hệ 6: Báo cáo, Đánh giá & Đồng bộ (Reporting, Export & Cloud Sync)** | | | | | |
-| **UC-18** | Xuất Báo cáo Kết quả Điểm | Export Gradebook (`results.csv` & Excel) | Giảng viên | Desktop App Client | *(Tương tác File System)* |
-| **UC-19** | Đồng bộ Dữ liệu với Web Cloud Backend | Synchronize Grading Data with Cloud API | Giảng viên | Desktop App Client | Web Server Backend |
+| Mã UC                                                                                                       | Tên Use Case (Vietnamese)                                | Tên tiếng Anh                                        | Tác nhân chính (Primary Actor) | Nơi thực hiện        | Tác nhân hỗ trợ ngoài (External Actor) |
+| :----------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------- | :----------------------------------------------------- | :-------------------------------- | :---------------------- | :------------------------------------------ |
+| **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** |                                                           |                                                        |                                   |                         |                                             |
+| **UC-01**                                                                                              | Đăng nhập & Xác thực Hệ thống                      | Login & System Authentication                          | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
+| **UC-02**                                                                                              | Quản lý Tài khoản & Phân quyền Giảng viên         | Manage Instructor Accounts & RBAC                      | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
+| **UC-03**                                                                                              | Quản lý Danh mục Môn học (PRF, PRO, DSA, PHP)        | Manage Course Catalog                                  | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
+| **UC-04**                                                                                              | Cấu hình API Key & Giám sát Hạn ngạch AI            | Configure Centralized AI Key & Monitor Quotas          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
+| **UC-05**                                                                                              | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | View School-wide Grading Reports & Logs                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
+| **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
+| **UC-06**                                                                                              | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ   | Configure Local Compilers & Sandbox Settings           | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
+| **UC-07**                                                                                              | Quản lý Đợt Chấm & Lớp học                         | Manage Classes & Grading Sessions                      | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
+| **UC-08**                                                                                              | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV       | Import Submissions via`students.csv` (MSSV, File)    | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
+| **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)**      |                                                           |                                                        |                                   |                         |                                             |
+| **UC-09**                                                                                              | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công    | Manage Black-box Testcases Manually (Input/Output)     | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
+| **UC-10**                                                                                              | Tự động Sinh Testcase Biên bằng AI                   | Auto-Generate Boundary Testcases with Gemini AI        | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
+| **UC-11**                                                                                              | Thiết lập Động cơ So khớp 7 Chế độ               | Configure 7 Output Matching Strategies                 | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
+| **Phân hệ 4: Tự động Thực thi & Chấm điểm (Execution & Automated Grading Pipeline)**          |                                                           |                                                        |                                   |                         |                                             |
+| **UC-12**                                                                                              | Thực thi Chấm điểm Tự động Hàng loạt             | Execute Batch Grading (Parallel Subprocess,`main()`) | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
+| **UC-13**                                                                                              | Giám sát Tiến độ Chấm Thời gian thực              | Monitor Real-Time Grading Progress                     | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
+| **UC-14**                                                                                              | Xem Chi tiết Kết quả & Nhật ký Bài nộp             | View Submission Result & Execution Logs                | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
+| **UC-15**                                                                                              | Chấm lại & Điều chỉnh Điểm thủ công              | Re-grade & Override Scores Manually                    | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
+| **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)**              |                                                           |                                                        |                                   |                         |                                             |
+| **UC-16**                                                                                              | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand    | Generate On-Demand AI Code Review (WA Only)            | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
+| **UC-17**                                                                                              | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng            | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
+| **Phân hệ 6: Báo cáo, Đánh giá & Đồng bộ (Reporting, Export & Cloud Sync)**                  |                                                           |                                                        |                                   |                         |                                             |
+| **UC-18**                                                                                              | Xuất Báo cáo Kết quả Điểm                          | Export Gradebook (`results.csv` & Excel)             | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
+| **UC-19**                                                                                              | Đồng bộ Dữ liệu với Web Cloud Backend               | Synchronize Grading Data with Cloud API                | Giảng viên                      | Desktop App Client      | Web Server Backend                          |
 
 ---
 
@@ -165,6 +166,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Tạo Testcase bằng AI" (Generate with AI)** trên màn hình Quản lý Testcase.
 
 #### Luồng sự kiện chính (Main Flow):
+
 1. Giảng viên mở màn hình Quản lý Testcase của đợt chấm và chọn chức năng **"AI Testcase Generator"**.
 2. Hệ thống hiển thị hộp thoại nhập thông tin bài toán: Tên bài toán, mô tả đề bài (Problem Statement), định dạng input/output và ràng buộc dữ liệu.
 3. Giảng viên nhập nội dung hoặc nạp file đề bài dạng Markdown/Text và nhấn **"Bắt đầu sinh Testcase"**.
@@ -181,6 +183,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 10. Hệ thống lưu các cặp testcase đã chọn vào SQLite cục bộ và cập nhật danh sách hiển thị trên giao diện chính. Use Case kết thúc.
 
 #### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+
 * **A1 - Chỉnh sửa trước khi lưu**: Tại bước 8, Giảng viên có thể nhấp đúp vào ô input/output để sửa nhanh dữ liệu mẫu trước khi nhấn lưu.
 * **E1 - Vượt hạn ngạch AI (Quota Limit Exceeded)**: Tại bước 5, nếu hạn ngạch token của Giảng viên đã hết, hệ thống trả về thông báo lỗi: "Hạn ngạch AI của bạn đã hết cho hôm nay, vui lòng liên hệ Admin hoặc nhập testcase thủ công".
 * **E2 - Lỗi mạng / API gián đoạn**: Tại bước 5, nếu mất kết nối Internet, hệ thống bắt ngoại lệ và hiển thị thông báo lỗi rõ ràng, cho phép thử lại hoặc chuyển sang nạp testcase thủ công (`UC-09`).
@@ -204,6 +207,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên bấm nút **"Bắt đầu chấm bài" (Start Batch Grading)**.
 
 #### Luồng sự kiện chính (Main Flow):
+
 1. Giảng viên kiểm tra danh sách sinh viên nạp từ `students.csv`, chọn chiến lược so khớp trong 7 chiến lược (`MatchingStrategy`), sau đó nhấn **"Bắt đầu chấm bài"**.
 2. Hệ thống kiểm tra môi trường biên dịch (`gcc`, `javac`, `python`).
 3. Hệ thống khởi tạo hàng đợi chấm và kích hoạt luồng xử lý nền (`QThread` Worker Pool: chạy song song 4-8 subprocess) để đảm bảo không làm đơ giao diện Desktop UI.
@@ -226,6 +230,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 6. Khi hàng đợi xử lý xong toàn bộ sinh viên, hệ thống lưu bảng điểm vào SQLite cục bộ và hiển thị thông báo hoàn thành (thời gian chấm 40-50 bài chỉ từ 15-30 giây). Bảng điểm tự động làm mới. Use Case kết thúc.
 
 #### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+
 * **A1 - Hủy hoặc Tạm dừng đợt chấm**: Giảng viên có thể bấm **"Dừng chấm"**. Hệ thống gửi tín hiệu kết thúc an toàn đến các subprocess đang chạy, lưu kết quả những bài đã xong và đánh dấu các bài còn lại là `Pending`.
 * **E1 - Thiếu trình biên dịch**: Tại bước 2, nếu máy trạm chưa cài GCC hoặc JDK, hệ thống bật cảnh báo và mở ngay cửa sổ **Cấu hình Môi trường** (`UC-06`).
 
@@ -246,6 +251,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên bấm nút **`[✨ AI Phân tích lỗi]`** trong cửa sổ Chi tiết bài nộp (`UC-14`).
 
 #### Luồng sự kiện chính (Main Flow):
+
 1. Giảng viên mở cửa sổ Chi tiết bài nộp của một sinh viên có kết quả `WA` (`UC-14`).
 2. Giảng viên bấm nút **`[✨ AI Phân tích lỗi]`**.
 3. Hệ thống Desktop App tổng hợp ngữ cảnh gồm: mã nguồn câu hỏi bị sai, ngôn ngữ lập trình, dữ liệu testcase bị sai (`INPUT`, `Expected Output`, `Actual Output`).
@@ -258,6 +264,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 10. Hệ thống lưu nội dung phản hồi vào cơ sở dữ liệu SQLite cục bộ. Use Case kết thúc.
 
 #### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+
 * **A1 - Bỏ qua bài lỗi biên dịch (`CE`)**: Nếu giảng viên nhấn nút trên một bài bị `CE`, hệ thống hiển thị thông báo hướng dẫn: "Bài nộp đã có sẵn thông báo lỗi cú pháp chi tiết từ trình biên dịch bên dưới, không cần sử dụng AI để phân tích."
 
 ---
@@ -276,6 +283,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Quét Đạo Văn" (Check Plagiarism)** trên thanh công cụ Desktop App.
 
 #### Luồng sự kiện chính (Main Flow):
+
 1. Giảng viên chọn đợt chấm cần kiểm tra, thiết lập ngưỡng cảnh báo (mặc định $\ge 80\%$) và nhấn **"Bắt đầu phân tích"**.
 2. **Vòng 1 - Lọc cục bộ 100% Offline (Local AST Scanning)**:
    - Hệ thống tiền xử lý mã nguồn: loại bỏ comment, chuẩn hóa khoảng trắng, biến đổi mã nguồn thành chuỗi token của cây cú pháp trừu tượng (Abstract Syntax Tree - AST).
@@ -299,12 +307,15 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tác nhân hỗ trợ ngoài**: Không *(Tương tác trực tiếp với File System)*
 * **Mô tả tóm tắt**: Cho phép Giảng viên xuất bảng điểm của lớp sau khi chấm ra file định dạng chuẩn `results.csv` và file Excel (`.xlsx`) phục vụ việc nộp điểm cho phòng đào tạo và lưu trữ.
 * **Tiền điều kiện (Preconditions)**:
+
   1. Đợt chấm đã có kết quả điểm của sinh viên.
 * **Hậu điều kiện (Postconditions)**:
+
   1. File `results.csv` hoặc file `.xlsx` được lưu trữ thành công trên thư mục máy tính của Giảng viên.
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Xuất Báo Cáo" (Export Gradebook)**.
 
 #### Luồng sự kiện chính (Main Flow):
+
 1. Giảng viên nhấn nút **"Xuất Báo Cáo"** trên màn hình kết quả của Desktop App.
 2. Hệ thống hiển thị hộp thoại lựa chọn định dạng xuất:
    - File kết quả chuẩn `results.csv` (gồm các cột: `MSSV`, `Score_Q1`, `Score_Q2`, ..., `Total_Score`, `Verdict`).
@@ -354,7 +365,7 @@ rectangle "Hệ Sinh Thái Toàn Diện AITA" {
 
     ' Phân hệ dành riêng cho Giảng viên trên Desktop App
     package "Phân hệ Desktop App Client (Dành cho Giảng viên)" {
-        
+    
         package "Cấu hình & Quản lý Đợt Chấm" {
             usecase "UC-06: Cấu hình Trình biên dịch & Sandbox Cục bộ" as UC06
             usecase "UC-07: Quản lý Đợt Chấm & Lớp học" as UC07
@@ -436,33 +447,3 @@ UC15 --> Sandbox : Chạy lại bài nộp đơn lẻ
 ```
 
 ---
-
-## 7. Nhật Ký Sử Dụng AI & Dấu Vết Minh Bạch (AI Traceability Log)
-
-> Tuân thủ quy định tại **Mục 2: Quy định & Tiêu chí sử dụng AI** của môn học SWD392, toàn bộ lịch sử các Prompt và quá trình tiếp nhận / tinh chỉnh kết quả từ AI được ghi nhận chi tiết và minh bạch trong tài liệu nhật ký riêng biệt:
->
-> 📄 **[docs/ai-prompts/eval-1/ai-prompts-log.md](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md)**
-
-Các Prompt liên quan trực tiếp đến giai đoạn xây dựng tài liệu này bao gồm:
-
-| STT | Nhiệm vụ / Thành phần | Tham chiếu Prompt |
-| :---: | :--- | :--- |
-| **01** | Xác định danh sách Tác nhân (Actors) chuẩn UML | [🔹 PROMPT 16](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
-| **02** | Xây dựng danh mục Use Case theo 6 phân hệ nghiệp vụ | [🔹 PROMPT 17](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
-| **03** | Viết bản đặc tả Use Case chi tiết (Use Case Specifications) | [🔹 PROMPT 18](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
-| **04** | Sinh mã nguồn PlantUML Sơ đồ Use Case Diagram | [🔹 PROMPT 19](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
-| **05** | Đồng bộ hóa toàn diện theo Flow Kiến trúc mới từ System Overview | [🔹 PROMPT 15](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
-
-
----
-
-## 8. Kết Luận & Các Bước Tiếp Theo (Next Steps)
-
-Tài liệu Đặc tả Tác nhân & Use Cases này đã bao phủ toàn diện các yêu cầu nghiệp vụ của hệ sinh thái AITA với mô hình người dùng chuẩn mực, phân định rõ ràng giữa Web Admin và Desktop App Client, đồng thời bám sát tuyệt đối các nguyên lý kiểm thử và tích hợp AI thông minh của dự án.
-
-### Kế hoạch tiếp theo cho Đánh giá 1 (Evaluation 1):
-
-1. **Render hình ảnh sơ đồ Use Case** thành file `.png` / `.svg` đặt tại `docs/diagrams/puml/` để hiển thị trong báo cáo.
-2. **Xây dựng Sơ đồ Hoạt động (Activity Diagram)**: Đặc tả chi tiết luồng nghiệp vụ Chấm bài tự động hàng loạt qua hàm `main()` (UC-12) và luồng Sinh testcase biên bằng AI (UC-10).
-3. **Xây dựng Sơ đồ Tuần tự (Sequence Diagram)**: Đặc tả tương tác giữa PyQt6 UI, `RunnerFactory`, `CompilerAdapter`, `SandboxRunner` (`psutil`), và 7 `MatchingStrategy`.
-4. **Xây dựng Sơ đồ Giao tiếp (Communication Diagram)**: Mô hình hóa sự cộng tác giữa các đối tượng trong quy trình chấm bài và xác thực đạo văn 2 vòng.
