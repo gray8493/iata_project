@@ -439,15 +439,20 @@ UC15 --> Sandbox : Chạy lại bài nộp đơn lẻ
 
 ## 7. Nhật Ký Sử Dụng AI & Dấu Vết Minh Bạch (AI Traceability Log)
 
-> Tuân thủ quy định tại **Mục 2: Quy định & Tiêu chí sử dụng AI** của môn học SWD392, bảng dưới đây lưu vết các Prompt và quá trình tiếp nhận/tinh chỉnh kết quả từ AI của nhóm:
+> Tuân thủ quy định tại **Mục 2: Quy định & Tiêu chí sử dụng AI** của môn học SWD392, toàn bộ lịch sử các Prompt và quá trình tiếp nhận / tinh chỉnh kết quả từ AI được ghi nhận chi tiết và minh bạch trong tài liệu nhật ký riêng biệt:
+>
+> 📄 **[docs/ai-prompts/eval-1/ai-prompts-log.md](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md)**
 
-| STT | Nhiệm vụ / Thành phần | Prompt đầu vào cho AI | Output chính từ AI | Đánh giá & Tinh chỉnh của Nhóm (Justification) |
-| :---: | :--- | :--- | :--- | :--- |
-| **01** | Xác định danh sách Tác nhân (Actors) | *"Dựa trên bài toán Desktop App chấm thi lập trình AITA cho giảng viên đại học, hãy xác định các Primary Actors và Supporting Actors phù hợp chuẩn UML."* | Đề xuất ban đầu: Giảng viên, Trợ giảng, Quản trị viên, Compiler/Sandbox, AI Service, Local Storage, Web Backend. | **Quyết định thiết kế của Nhóm**:<br />1. *Lược bỏ Trợ giảng (TA)*: Giảng viên trực tiếp phụ trách lớp là người toàn quyền chấm điểm, tinh gọn phân quyền.<br />2. *Chuẩn hóa UML*: Loại bỏ Local Storage (SQLite) khỏi danh sách External Actor vì SQLite là tầng dữ liệu nội bộ (Internal Data Layer) của phần mềm. |
-| **02** | Xây dựng danh mục Use Case theo phân hệ | *"Phân rã các tính năng của AITA (nạp bài, nạp testcase, sandbox đa ngôn ngữ C/Java/Python, 3 design pattern, AI testcase/feedback/plagiarism) thành danh mục Use Case chuẩn."* | Danh mục các Use Case chia thành 6 phân hệ nghiệp vụ. | **Chấp nhận & Bổ sung**: Nhóm chuẩn hóa mã định danh `UC-01` đến `UC-17`, bổ sung các quan hệ `<<include>>` giữa Thực thi Chấm bài và Chiến lược So khớp nhằm gắn kết trực tiếp với mẫu thiết kế Strategy Pattern. |
-| **03** | Viết đặc tả Use Case chi tiết (Use Case Specs) | *"Viết Use Case Specification hoàn chỉnh theo chuẩn Kỹ nghệ phần mềm cho Use Case Tự động sinh Testcase bằng AI và Thực thi Chấm hàng loạt."* | Cung cấp khung mẫu: Actor, Preconditions, Trigger, Main Flow, Alternative Flows, Postconditions. | **Tùy biến sâu**: Bổ sung chi tiết kỹ thuật riêng của AITA: tích hợp `RunnerFactory` và `Process Watcher` để kiểm soát TLE/MLE, cơ chế bắt ngoại lệ khi API AI hết quota/lỗi mạng. |
-| **04** | Sinh mã nguồn PlantUML Sơ đồ Use Case | *"Chuyển đổi toàn bộ danh mục Use Case và các tác nhân của AITA thành mã nguồn sơ đồ PlantUML Use Case Diagram chuẩn cú pháp."* | Đoạn mã PlantUML với các package và actor. | **Tinh chỉnh layout**: Thêm các chỉ dẫn liên kết `<<include>>`, `<<extend>>` và phân nhóm trực quan theo package giúp sơ đồ dễ đọc khi render đồ họa. |
-| **05** | Đồng bộ hóa toàn diện theo Flow Kiến trúc mới từ System Overview | *"file overview của tôi có sự thay đổi và hãy xem có thay đổi gì sửa cho tôi đó đúng flow của dự án..."* | Phân tích các thay đổi kiến trúc trong `system-overview.md` và tái cấu trúc toàn bộ tài liệu Use Cases: phân định Web Admin (cho Admin) và Desktop App (cho Giảng viên), quy chuẩn bài nộp qua hàm `main()`, Black-box không cần solution code, mở rộng 7 chiến lược so khớp, cơ chế On-Demand cho AI Code Review và Lọc 2 vòng cho Đạo văn. | **Đồng bộ hóa triệt để**: Cập nhật danh mục thành 19 Use Cases hoàn chỉnh, viết lại toàn bộ mã nguồn PlantUML chuẩn xác theo bảng RBAC, đảm bảo tính nhất quán tuyệt đối giữa tài liệu phân tích nghiệp vụ và tài liệu kiến trúc kỹ thuật của đồ án SWD392. |
+Các Prompt liên quan trực tiếp đến giai đoạn xây dựng tài liệu này bao gồm:
+
+| STT | Nhiệm vụ / Thành phần | Tham chiếu Prompt |
+| :---: | :--- | :--- |
+| **01** | Xác định danh sách Tác nhân (Actors) chuẩn UML | [🔹 PROMPT 16](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
+| **02** | Xây dựng danh mục Use Case theo 6 phân hệ nghiệp vụ | [🔹 PROMPT 17](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
+| **03** | Viết bản đặc tả Use Case chi tiết (Use Case Specifications) | [🔹 PROMPT 18](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
+| **04** | Sinh mã nguồn PlantUML Sơ đồ Use Case Diagram | [🔹 PROMPT 19](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
+| **05** | Đồng bộ hóa toàn diện theo Flow Kiến trúc mới từ System Overview | [🔹 PROMPT 15](file:///c:/AITA/iata_project/docs/ai-prompts/eval-1/ai-prompts-log.md) |
+
 
 ---
 

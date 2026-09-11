@@ -329,3 +329,92 @@ AI đã phân tích các thay đổi kiến trúc và cập nhật toàn diện 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tính nhất quán kiến trúc tuyệt đối (Architecture Consistency)**: Đảm bảo giữa tài liệu kiến trúc tổng quan (`system-overview.md`), tài liệu công nghệ (`tech-stack.md`) và tài liệu phân tích nghiệp vụ (`actors_and_use_cases.md`) không có bất kỳ mâu thuẫn hay điểm lệch nào.
 - **Tuân thủ chặt chẽ tiêu chí AI Rubric của môn SWD392**: Việc lưu vết minh bạch Prompt 15 thể hiện khả năng làm chủ thiết kế hệ thống, nhanh chóng phát hiện sự thay đổi yêu cầu để điều chỉnh tài liệu mô hình hóa tương ứng.
+
+---
+
+### 🔹 PROMPT 16: Xác Định Danh Sách Tác Nhân (Primary Actors & Supporting Actors Chuẩn UML)
+
+#### 1. Mục tiêu
+Xác định chính xác ranh giới hệ thống và phân loại danh sách các Tác nhân người dùng (Primary Human Actors) cùng các Tác nhân hệ thống ngoài hỗ trợ (External Supporting Actors) theo đúng quy chuẩn mô hình hóa Kỹ nghệ phần mềm và UML.
+
+#### 2. Câu Prompt đã gửi
+> *"Dựa trên bài toán Desktop App chấm thi lập trình AITA cho giảng viên đại học, hãy xác định các Primary Actors và Supporting Actors phù hợp chuẩn UML."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã đề xuất danh sách sơ bộ bao gồm:
+- Tác nhân người dùng: Giảng viên (Instructor), Trợ giảng (Teaching Assistant - TA), Quản trị viên (System Administrator - Admin).
+- Tác nhân hệ thống ngoài: Môi trường biên dịch / Sandbox (GCC, Javac, Python Runtime), Dịch vụ AI (Google Gemini API), Bộ lưu trữ cục bộ (Local Storage / SQLite), Máy chủ Web Backend (Web API Server).
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Quyết định thiết kế của Nhóm (Design Decisions)**:
+  1. *Lược bỏ vai trò Trợ giảng (TA)*: Trong thực tế giảng dạy và thi cử tại các trường đại học đối với các môn nền tảng, Giảng viên trực tiếp phụ trách lớp là người toàn quyền chấm điểm, cấu hình testcase và xuất bảng điểm. Việc lược bỏ vai trò TA giúp tinh gọn ma trận phân quyền RBAC và tập trung tối đa vào trải nghiệm của Giảng viên.
+  2. *Chuẩn hóa theo đúng lý thuyết UML*: AI ban đầu đưa Local Storage (SQLite) vào nhóm External Actor. Nhóm đã phản biện và loại bỏ SQLite khỏi danh sách External Supporting Actors vì cơ sở dữ liệu SQLite và hệ thống tệp tin cục bộ (File System) là tầng dữ liệu nội bộ (Internal Data Layer) nằm bên trong ranh giới của phần mềm ứng dụng, không thể coi là một tác nhân bên ngoài.
+
+---
+
+### 🔹 PROMPT 17: Phân Rã & Xây Dựng Danh Mục Use Case Theo 6 Phân Hệ Nghiệp Vụ
+
+#### 1. Mục tiêu
+Phân rã toàn diện các tính năng của hệ sinh thái AITA thành danh mục Use Case chuẩn kỹ nghệ phần mềm, phân nhóm theo các phân hệ chức năng rõ ràng và thiết lập mối quan hệ bao hàm (`<<include>>`) / mở rộng (`<<extend>>`).
+
+#### 2. Câu Prompt đã gửi
+> *"Phân rã các tính năng của AITA (nạp bài, nạp testcase, sandbox đa ngôn ngữ C/Java/Python, 3 design pattern, AI testcase/feedback/plagiarism) thành danh mục Use Case chuẩn."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã tổ chức danh mục Use Case thành 6 phân hệ chức năng:
+1. Quản trị Hệ thống & Quản lý Xác thực.
+2. Quản lý Đợt Chấm & Dữ liệu Sinh viên.
+3. Quản lý Bộ Kiểm thử & Chiến lược So khớp.
+4. Tự động Thực thi & Chấm điểm Pipeline.
+5. Tính năng Thông minh có AI Hỗ trợ.
+6. Báo cáo, Đánh giá & Đồng bộ.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Chấp nhận & Bổ sung kiến trúc**:
+  - Nhóm chuẩn hóa mã định danh thống nhất từ `UC-01` đến `UC-17` (sau này mở rộng thành 19 Use Cases khi bổ sung đầy đủ chức năng Web Admin và Cloud Sync).
+  - Bổ sung quan hệ bắt buộc `<<include>>` từ Use Case Chấm điểm tự động (`UC-12`) tới Thiết lập Động cơ So khớp (`UC-11`) nhằm liên kết chặt chẽ nghiệp vụ với mẫu thiết kế **Strategy Pattern**.
+  - Thiết lập quan hệ `<<extend>>` cho tính năng AI Code Review và Phân tích đạo văn chuyên sâu để phản ánh đúng bản chất kích hoạt có điều kiện (On-Demand).
+
+---
+
+### 🔹 PROMPT 18: Viết Bản Đặc Tả Use Case Chi Tiết (Use Case Specifications Chuẩn Kỹ Nghệ Phần Mềm)
+
+#### 1. Mục tiêu
+Xây dựng bản đặc tả chi tiết (Use Case Specification) cho các Use Case trọng tâm của dự án theo cấu trúc chuẩn quốc tế: Tác nhân, Tiền điều kiện, Hậu điều kiện, Tác nhân kích hoạt, Luồng sự kiện chính (Main Flow) và các Luồng rẽ nhánh / Ngoại lệ (Alternative & Exception Flows).
+
+#### 2. Câu Prompt đã gửi
+> *"Viết Use Case Specification hoàn chỉnh theo chuẩn Kỹ nghệ phần mềm cho Use Case Tự động sinh Testcase bằng AI và Thực thi Chấm hàng loạt."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã cung cấp khung mẫu đặc tả hoàn chỉnh cho các Use Case:
+- `UC-10`: Tự động sinh Testcase biên bằng AI (AI Black-box Testcase Generator).
+- `UC-12`: Thực thi Chấm điểm Tự động Hàng loạt (Batch Automated Grading Pipeline).
+Bao gồm đầy đủ các bước tuần tự từ khi người dùng thao tác đến phản hồi của hệ thống.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tùy biến sâu theo đặc thù kỹ thuật của AITA**:
+  - Tích hợp chi tiết các thành phần kiến trúc nội bộ của AITA vào kịch bản: `RunnerFactory`, `CompilerAdapter`, `SandboxRunner` và thư viện `psutil` để kiểm soát thời gian chạy (Time Limit) và dung lượng RAM (Memory Limit).
+  - Bổ sung các kịch bản ngoại lệ thực tế (`E1`, `E2`): xử lý khi trình biên dịch chưa được cài đặt, mất kết nối mạng, hoặc tài khoản Giảng viên vượt quá hạn ngạch gọi AI (Rate Limit / Quota Exceeded).
+
+---
+
+### 🔹 PROMPT 19: Sinh Mã Nguồn Sơ Đồ PlantUML Use Case Diagram Chuẩn Cú Pháp
+
+#### 1. Mục tiêu
+Chuyển hóa toàn bộ danh mục 19 Use Cases, các tác nhân người dùng và hệ thống ngoài thành mã nguồn sơ đồ PlantUML Use Case Diagram chuẩn cú pháp, trực quan và dễ bảo trì.
+
+#### 2. Câu Prompt đã gửi
+> *"Chuyển đổi toàn bộ danh mục Use Case và các tác nhân của AITA thành mã nguồn sơ đồ PlantUML Use Case Diagram chuẩn cú pháp."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã sinh đoạn mã PlantUML mô tả đầy đủ:
+- 2 Primary Actors: Admin, Instructor.
+- 3 External Supporting Actors: Gemini AI Hub, Sandbox Runner, Web Server Backend.
+- Các use case được nhóm theo các package trực quan: Web Admin Dashboard và Desktop App Client.
+- Các mũi tên tương tác người dùng, mũi tên `<<include>>`, `<<extend>>` và kết nối tác nhân ngoài.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tinh chỉnh giao diện & Bố cục sơ đồ**:
+  - Áp dụng cấu hình skinparam hiện đại (`!theme plain`, màu viền và nền trang nhã, biểu tượng actor dạng `awesome`).
+  - Định hướng layout rõ ràng: phân tách 2 cụm chức năng riêng biệt giúp sơ đồ không bị chồng chéo mũi tên khi render ra ảnh vector `.svg` và ảnh `.png` để đưa vào báo cáo Đánh giá 1 (Evaluation 1).
+
