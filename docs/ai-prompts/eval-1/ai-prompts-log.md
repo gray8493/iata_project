@@ -301,11 +301,120 @@ AI đã chuẩn hóa lại ma trận phân quyền RBAC và danh mục chức n�
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tập trung hóa mục tiêu sản phẩm (Scope Definitiveness)**: Đúng với tên gọi của dự án **AITA - Automated Grading & Assessment Tool for Instructors**, hệ thống hướng tới người dùng mục tiêu là Nhà trường (Admin) và Giảng viên (Instructor). Việc tinh gọn phạm vi giúp đồ án tập trung sâu vào chất lượng công cụ chấm thi và AI hỗ trợ, tránh phân tán nguồn lực vào các tính năng cổng sinh viên không cần thiết.
 
+---
 
+### 🔹 PROMPT 15: Đồng Bộ Hóa Toàn Diện Tài Liệu Tác Nhân & Use Cases Theo Luồng Kiến Trúc Dự Án Mới Nhất
 
+#### 1. Mục tiêu
+Rà soát, chuẩn hóa và tái thiết kế tài liệu Đặc tả Tác nhân & Use Cases ([docs/architecture/actors_and_use_cases.md](file:///c:/AITA/iata_project/docs/architecture/actors_and_use_cases.md)) sao cho khớp 100% với kiến trúc 3 thành phần (Desktop App PyQt6, Web Admin Dashboard, FastAPI Backend) và các quyết định kỹ thuật mới nhất trong [docs/architecture/system-overview.md](file:///c:/AITA/iata_project/docs/architecture/system-overview.md).
 
+#### 2. Câu Prompt đã gửi
+> *"file overview của tôi có sự thay đổi và hãy xem có thay đổi gì sửa cho tôi đó đúng flow của dự án, và trong cuộc trò chuyện hiện tại tôi đang promt gì foramt vào thêm vào file docs/ai-prompts/eval-1/ai-prompts-log.md@[c:\AITA\iata_project\docs\architecture\actors_and_use_cases.md]"*
 
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã phân tích các thay đổi kiến trúc và cập nhật toàn diện tài liệu [docs/architecture/actors_and_use_cases.md](file:///c:/AITA/iata_project/docs/architecture/actors_and_use_cases.md):
+- **Phân định rõ 2 giao diện người dùng theo chuẩn RBAC**: 
+  - *Web Admin Dashboard*: Dành riêng cho **Quản trị viên (Admin)** quản lý tài khoản Giảng viên, quản lý danh mục môn học (PRF, PRO, DSA, PHP), cấu hình API Key & Quota Gemini AI tập trung, giám sát token toàn trường và xem lịch sử chấm.
+  - *Desktop App Client (PyQt6)*: Dành riêng cho **Giảng viên (Instructor)** thực hiện toàn bộ quy trình chấm bài offline-first tốc độ cao từ file `students.csv` (chuẩn 2 cột: `MSSV,File`), cấu hình sandbox và xuất `results.csv`.
+  - Khẳng định rõ: **Sinh viên không có tài khoản** và không truy cập vào Web/Desktop.
+- **Chuẩn hóa nguyên lý chấm Black-box & hàm `main()` độc lập**:
+  - Mỗi câu hỏi là một file mã nguồn riêng biệt chứa hàm `main()` độc lập (`Q1.c`, `Q2.c`, `Q1.java`, `q1.py`), nạp `INPUT` qua `stdin`, in `OUTPUT` qua `stdout`, không bọc code wrapper. Tổng điểm bài thi là tổng điểm các câu.
+  - Giảng viên chỉ cần nạp cặp `INPUT` và `OUTPUT kỳ vọng`, hoàn toàn không cần code giải mẫu (solution code).
+- **Mở rộng động cơ so khớp 7 chiến lược (Strategy Pattern)**: Bổ sung đầy đủ 7 chiến lược so khớp (`ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`).
+- **Tối ưu hóa cơ chế AI thông minh**:
+  - *AI Code Review*: Cơ chế **On-Demand (Lazy Loading)**, chỉ bấm nút `[✨ AI Phân tích lỗi]` khi xem chi tiết bài bị lỗi logic `WA`, bỏ qua bài lỗi biên dịch `CE` vì đã có log của compiler.
+  - *AI Plagiarism Detection*: Cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 quét AST/Winnowing cục bộ 100% offline; Vòng 2 chỉ gửi 1-3 cặp nghi vấn vượt ngưỡng (> 80%) lên Gemini AI.
+- **Tái cấu trúc ma trận 19 Use Cases & Sơ đồ PlantUML**: Cập nhật ma trận phân hệ rõ ràng và mã nguồn PlantUML Use Case Diagram chuẩn xác theo phân quyền.
 
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tính nhất quán kiến trúc tuyệt đối (Architecture Consistency)**: Đảm bảo giữa tài liệu kiến trúc tổng quan (`system-overview.md`), tài liệu công nghệ (`tech-stack.md`) và tài liệu phân tích nghiệp vụ (`actors_and_use_cases.md`) không có bất kỳ mâu thuẫn hay điểm lệch nào.
+- **Tuân thủ chặt chẽ tiêu chí AI Rubric của môn SWD392**: Việc lưu vết minh bạch Prompt 15 thể hiện khả năng làm chủ thiết kế hệ thống, nhanh chóng phát hiện sự thay đổi yêu cầu để điều chỉnh tài liệu mô hình hóa tương ứng.
 
+---
 
+### 🔹 PROMPT 16: Xác Định Danh Sách Tác Nhân (Primary Actors & Supporting Actors Chuẩn UML)
+
+#### 1. Mục tiêu
+Xác định chính xác ranh giới hệ thống và phân loại danh sách các Tác nhân người dùng (Primary Human Actors) cùng các Tác nhân hệ thống ngoài hỗ trợ (External Supporting Actors) theo đúng quy chuẩn mô hình hóa Kỹ nghệ phần mềm và UML.
+
+#### 2. Câu Prompt đã gửi
+> *"Dựa trên bài toán Desktop App chấm thi lập trình AITA cho giảng viên đại học, hãy xác định các Primary Actors và Supporting Actors phù hợp chuẩn UML."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã đề xuất danh sách sơ bộ bao gồm:
+- Tác nhân người dùng: Giảng viên (Instructor), Trợ giảng (Teaching Assistant - TA), Quản trị viên (System Administrator - Admin).
+- Tác nhân hệ thống ngoài: Môi trường biên dịch / Sandbox (GCC, Javac, Python Runtime), Dịch vụ AI (Google Gemini API), Bộ lưu trữ cục bộ (Local Storage / SQLite), Máy chủ Web Backend (Web API Server).
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Quyết định thiết kế của Nhóm (Design Decisions)**:
+  1. *Lược bỏ vai trò Trợ giảng (TA)*: Trong thực tế giảng dạy và thi cử tại các trường đại học đối với các môn nền tảng, Giảng viên trực tiếp phụ trách lớp là người toàn quyền chấm điểm, cấu hình testcase và xuất bảng điểm. Việc lược bỏ vai trò TA giúp tinh gọn ma trận phân quyền RBAC và tập trung tối đa vào trải nghiệm của Giảng viên.
+  2. *Chuẩn hóa theo đúng lý thuyết UML*: AI ban đầu đưa Local Storage (SQLite) vào nhóm External Actor. Nhóm đã phản biện và loại bỏ SQLite khỏi danh sách External Supporting Actors vì cơ sở dữ liệu SQLite và hệ thống tệp tin cục bộ (File System) là tầng dữ liệu nội bộ (Internal Data Layer) nằm bên trong ranh giới của phần mềm ứng dụng, không thể coi là một tác nhân bên ngoài.
+
+---
+
+### 🔹 PROMPT 17: Phân Rã & Xây Dựng Danh Mục Use Case Theo 6 Phân Hệ Nghiệp Vụ
+
+#### 1. Mục tiêu
+Phân rã toàn diện các tính năng của hệ sinh thái AITA thành danh mục Use Case chuẩn kỹ nghệ phần mềm, phân nhóm theo các phân hệ chức năng rõ ràng và thiết lập mối quan hệ bao hàm (`<<include>>`) / mở rộng (`<<extend>>`).
+
+#### 2. Câu Prompt đã gửi
+> *"Phân rã các tính năng của AITA (nạp bài, nạp testcase, sandbox đa ngôn ngữ C/Java/Python, 3 design pattern, AI testcase/feedback/plagiarism) thành danh mục Use Case chuẩn."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã tổ chức danh mục Use Case thành 6 phân hệ chức năng:
+1. Quản trị Hệ thống & Quản lý Xác thực.
+2. Quản lý Đợt Chấm & Dữ liệu Sinh viên.
+3. Quản lý Bộ Kiểm thử & Chiến lược So khớp.
+4. Tự động Thực thi & Chấm điểm Pipeline.
+5. Tính năng Thông minh có AI Hỗ trợ.
+6. Báo cáo, Đánh giá & Đồng bộ.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Chấp nhận & Bổ sung kiến trúc**:
+  - Nhóm chuẩn hóa mã định danh thống nhất từ `UC-01` đến `UC-17` (sau này mở rộng thành 19 Use Cases khi bổ sung đầy đủ chức năng Web Admin và Cloud Sync).
+  - Bổ sung quan hệ bắt buộc `<<include>>` từ Use Case Chấm điểm tự động (`UC-12`) tới Thiết lập Động cơ So khớp (`UC-11`) nhằm liên kết chặt chẽ nghiệp vụ với mẫu thiết kế **Strategy Pattern**.
+  - Thiết lập quan hệ `<<extend>>` cho tính năng AI Code Review và Phân tích đạo văn chuyên sâu để phản ánh đúng bản chất kích hoạt có điều kiện (On-Demand).
+
+---
+
+### 🔹 PROMPT 18: Viết Bản Đặc Tả Use Case Chi Tiết (Use Case Specifications Chuẩn Kỹ Nghệ Phần Mềm)
+
+#### 1. Mục tiêu
+Xây dựng bản đặc tả chi tiết (Use Case Specification) cho các Use Case trọng tâm của dự án theo cấu trúc chuẩn quốc tế: Tác nhân, Tiền điều kiện, Hậu điều kiện, Tác nhân kích hoạt, Luồng sự kiện chính (Main Flow) và các Luồng rẽ nhánh / Ngoại lệ (Alternative & Exception Flows).
+
+#### 2. Câu Prompt đã gửi
+> *"Viết Use Case Specification hoàn chỉnh theo chuẩn Kỹ nghệ phần mềm cho Use Case Tự động sinh Testcase bằng AI và Thực thi Chấm hàng loạt."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã cung cấp khung mẫu đặc tả hoàn chỉnh cho các Use Case:
+- `UC-10`: Tự động sinh Testcase biên bằng AI (AI Black-box Testcase Generator).
+- `UC-12`: Thực thi Chấm điểm Tự động Hàng loạt (Batch Automated Grading Pipeline).
+Bao gồm đầy đủ các bước tuần tự từ khi người dùng thao tác đến phản hồi của hệ thống.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tùy biến sâu theo đặc thù kỹ thuật của AITA**:
+  - Tích hợp chi tiết các thành phần kiến trúc nội bộ của AITA vào kịch bản: `RunnerFactory`, `CompilerAdapter`, `SandboxRunner` và thư viện `psutil` để kiểm soát thời gian chạy (Time Limit) và dung lượng RAM (Memory Limit).
+  - Bổ sung các kịch bản ngoại lệ thực tế (`E1`, `E2`): xử lý khi trình biên dịch chưa được cài đặt, mất kết nối mạng, hoặc tài khoản Giảng viên vượt quá hạn ngạch gọi AI (Rate Limit / Quota Exceeded).
+
+---
+
+### 🔹 PROMPT 19: Sinh Mã Nguồn Sơ Đồ PlantUML Use Case Diagram Chuẩn Cú Pháp
+
+#### 1. Mục tiêu
+Chuyển hóa toàn bộ danh mục 19 Use Cases, các tác nhân người dùng và hệ thống ngoài thành mã nguồn sơ đồ PlantUML Use Case Diagram chuẩn cú pháp, trực quan và dễ bảo trì.
+
+#### 2. Câu Prompt đã gửi
+> *"Chuyển đổi toàn bộ danh mục Use Case và các tác nhân của AITA thành mã nguồn sơ đồ PlantUML Use Case Diagram chuẩn cú pháp."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã sinh đoạn mã PlantUML mô tả đầy đủ:
+- 2 Primary Actors: Admin, Instructor.
+- 3 External Supporting Actors: Gemini AI Hub, Sandbox Runner, Web Server Backend.
+- Các use case được nhóm theo các package trực quan: Web Admin Dashboard và Desktop App Client.
+- Các mũi tên tương tác người dùng, mũi tên `<<include>>`, `<<extend>>` và kết nối tác nhân ngoài.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tinh chỉnh giao diện & Bố cục sơ đồ**:
+  - Áp dụng cấu hình skinparam hiện đại (`!theme plain`, màu viền và nền trang nhã, biểu tượng actor dạng `awesome`).
+  - Định hướng layout rõ ràng: phân tách 2 cụm chức năng riêng biệt giúp sơ đồ không bị chồng chéo mũi tên khi render ra ảnh vector `.svg` và ảnh `.png` để đưa vào báo cáo Đánh giá 1 (Evaluation 1).
 
