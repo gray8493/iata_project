@@ -301,11 +301,31 @@ AI đã chuẩn hóa lại ma trận phân quyền RBAC và danh mục chức n�
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tập trung hóa mục tiêu sản phẩm (Scope Definitiveness)**: Đúng với tên gọi của dự án **AITA - Automated Grading & Assessment Tool for Instructors**, hệ thống hướng tới người dùng mục tiêu là Nhà trường (Admin) và Giảng viên (Instructor). Việc tinh gọn phạm vi giúp đồ án tập trung sâu vào chất lượng công cụ chấm thi và AI hỗ trợ, tránh phân tán nguồn lực vào các tính năng cổng sinh viên không cần thiết.
 
+---
 
+### 🔹 PROMPT 15: Đồng Bộ Hóa Toàn Diện Tài Liệu Tác Nhân & Use Cases Theo Luồng Kiến Trúc Dự Án Mới Nhất
 
+#### 1. Mục tiêu
+Rà soát, chuẩn hóa và tái thiết kế tài liệu Đặc tả Tác nhân & Use Cases ([docs/architecture/actors_and_use_cases.md](file:///c:/AITA/iata_project/docs/architecture/actors_and_use_cases.md)) sao cho khớp 100% với kiến trúc 3 thành phần (Desktop App PyQt6, Web Admin Dashboard, FastAPI Backend) và các quyết định kỹ thuật mới nhất trong [docs/architecture/system-overview.md](file:///c:/AITA/iata_project/docs/architecture/system-overview.md).
 
+#### 2. Câu Prompt đã gửi
+> *"file overview của tôi có sự thay đổi và hãy xem có thay đổi gì sửa cho tôi đó đúng flow của dự án, và trong cuộc trò chuyện hiện tại tôi đang promt gì foramt vào thêm vào file docs/ai-prompts/eval-1/ai-prompts-log.md@[c:\AITA\iata_project\docs\architecture\actors_and_use_cases.md]"*
 
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã phân tích các thay đổi kiến trúc và cập nhật toàn diện tài liệu [docs/architecture/actors_and_use_cases.md](file:///c:/AITA/iata_project/docs/architecture/actors_and_use_cases.md):
+- **Phân định rõ 2 giao diện người dùng theo chuẩn RBAC**: 
+  - *Web Admin Dashboard*: Dành riêng cho **Quản trị viên (Admin)** quản lý tài khoản Giảng viên, quản lý danh mục môn học (PRF, PRO, DSA, PHP), cấu hình API Key & Quota Gemini AI tập trung, giám sát token toàn trường và xem lịch sử chấm.
+  - *Desktop App Client (PyQt6)*: Dành riêng cho **Giảng viên (Instructor)** thực hiện toàn bộ quy trình chấm bài offline-first tốc độ cao từ file `students.csv` (chuẩn 2 cột: `MSSV,File`), cấu hình sandbox và xuất `results.csv`.
+  - Khẳng định rõ: **Sinh viên không có tài khoản** và không truy cập vào Web/Desktop.
+- **Chuẩn hóa nguyên lý chấm Black-box & hàm `main()` độc lập**:
+  - Mỗi câu hỏi là một file mã nguồn riêng biệt chứa hàm `main()` độc lập (`Q1.c`, `Q2.c`, `Q1.java`, `q1.py`), nạp `INPUT` qua `stdin`, in `OUTPUT` qua `stdout`, không bọc code wrapper. Tổng điểm bài thi là tổng điểm các câu.
+  - Giảng viên chỉ cần nạp cặp `INPUT` và `OUTPUT kỳ vọng`, hoàn toàn không cần code giải mẫu (solution code).
+- **Mở rộng động cơ so khớp 7 chiến lược (Strategy Pattern)**: Bổ sung đầy đủ 7 chiến lược so khớp (`ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`).
+- **Tối ưu hóa cơ chế AI thông minh**:
+  - *AI Code Review*: Cơ chế **On-Demand (Lazy Loading)**, chỉ bấm nút `[✨ AI Phân tích lỗi]` khi xem chi tiết bài bị lỗi logic `WA`, bỏ qua bài lỗi biên dịch `CE` vì đã có log của compiler.
+  - *AI Plagiarism Detection*: Cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 quét AST/Winnowing cục bộ 100% offline; Vòng 2 chỉ gửi 1-3 cặp nghi vấn vượt ngưỡng (> 80%) lên Gemini AI.
+- **Tái cấu trúc ma trận 19 Use Cases & Sơ đồ PlantUML**: Cập nhật ma trận phân hệ rõ ràng và mã nguồn PlantUML Use Case Diagram chuẩn xác theo phân quyền.
 
-
-
-
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tính nhất quán kiến trúc tuyệt đối (Architecture Consistency)**: Đảm bảo giữa tài liệu kiến trúc tổng quan (`system-overview.md`), tài liệu công nghệ (`tech-stack.md`) và tài liệu phân tích nghiệp vụ (`actors_and_use_cases.md`) không có bất kỳ mâu thuẫn hay điểm lệch nào.
+- **Tuân thủ chặt chẽ tiêu chí AI Rubric của môn SWD392**: Việc lưu vết minh bạch Prompt 15 thể hiện khả năng làm chủ thiết kế hệ thống, nhanh chóng phát hiện sự thay đổi yêu cầu để điều chỉnh tài liệu mô hình hóa tương ứng.
