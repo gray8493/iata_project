@@ -1,0 +1,271 @@
+@startuml
+autonumber "<b>[00]</b>"
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam SequenceArrowThickness 1.2
+skinparam RoundCorner 8
+skinparam defaultFontSize 11
+
+title Sơ Đồ Tuần Tự Tổng Thể Toàn Hệ Sinh Thái (System-Wide Sequence Diagram) - AITA Ecosystem
+
+' ==============================================================================
+' 1. ĐỊNH NGHĨA CÁC THÀNH PHẦN THEO TỪNG PHÂN HỆ KIẾN TRÚC
+' ==============================================================================
+
+box "Phân Hệ Quản Trị Web (Admin Layer)" #E3F2FD
+actor "Quản trị viên\n(Admin)" as Admin
+boundary "Web Admin\nDashboard" as WebUI
+end box
+
+box "Phân Hệ Giảng Viên (Desktop App Client - PyQt6)" #F3E5F5
+actor "Giảng viên\n(Instructor)" as Instructor
+boundary "Desktop App\nUI Layer" as DeskUI
+control "Desktop Core\n(QThread & Runner)" as DeskCore
+database "CSDL Cục bộ\n(Local SQLite)" as LocalDB
+control "Sandbox Runner\n(GCC/Javac & psutil)" as Sandbox
+end box
+
+box "Phân Hệ Máy Chủ Trung Tâm (Web Backend & AI Hub)" #E8F5E9
+boundary "Web API Gateway\n(FastAPI Server)" as Backend
+control "Auth & Quota\nService (JWT)" as AuthService
+database "CSDL Trung Tâm\n(Central Database)" as CentralDB
+control "Gemini AI\nGateway Hub" as AIHub
+end box
+
+box "Dịch Vụ AI Đám Mây (Cloud AI)" #FFF3E0
+boundary "Google Gemini\n1.5 Flash API" as Gemini
+end box
+
+' ==============================================================================
+' 2. GIAI ĐOẠN 1: QUẢN TRỊ HỆ THỐNG & CẤU HÌNH TẬP TRUNG TRÊN WEB ADMIN
+' ==============================================================================
+== GIAI ĐOẠN 1: Quản Trị Hệ Thống & Cấu Hình Tập Trung Trên Web Admin ==
+
+Admin -> WebUI : 1. Đăng nhập tài khoản Quản trị viên
+activate WebUI
+WebUI -> Backend : 2. HTTP POST /api/v1/auth/login (username, password)
+activate Backend
+Backend -> AuthService : 3. Xác thực thông tin & kiểm tra vai trò ADMIN
+activate AuthService
+AuthService --> Backend : 4. Cấp phát JWT Access Token (role="admin")
+deactivate AuthService
+Backend --> WebUI : 5. HTTP 200 OK (JWT Token)
+WebUI --> Admin : 6. Chuyển hướng vào trang Quản trị Dashboard
+
+Admin -> WebUI : 7. Tạo tài khoản Giảng viên & Cấu hình Môn học (PRF, PRO, DSA, PHP)
+WebUI -> Backend : 8. HTTP POST /api/v1/admin/users & /courses
+Backend -> CentralDB : 9. Lưu trữ tài khoản Giảng viên và danh mục môn học
+activate CentralDB
+CentralDB --> Backend : 10. Đã ghi nhận dữ liệu
+deactivate CentralDB
+Backend --> WebUI : 11. HTTP 201 Created
+
+Admin -> WebUI : 12. Cấu hình Gemini API Key bí mật & Gán trần hạn ngạch (Token Quota)
+WebUI -> Backend : 13. HTTP POST /api/v1/admin/ai-quota (API_KEY, dailyTokenLimit)
+Backend -> AIHub : 14. Thiết lập hạn ngạch gọi AI cho từng tài khoản Giảng viên
+activate AIHub
+AIHub --> Backend : 15. Hạn ngạch đã được kích hoạt
+deactivate AIHub
+Backend --> WebUI : 16. HTTP 200 OK (Cấu hình AI thành công)
+deactivate Backend
+deactivate WebUI
+
+' ==============================================================================
+' 3. GIAI ĐOẠN 2: GIẢNG VIÊN ĐĂNG NHẬP & THIẾT LẬP BÀI THI TRÊN DESKTOP APP
+' ==============================================================================
+== GIAI ĐOẠN 2: Giảng Viên Đăng Nhập & Thiết Lập Bộ Testcase Trên Desktop App ==
+
+Instructor -> DeskUI : 17. Mở Desktop App PyQt6 & Nhập thông tin đăng nhập
+activate DeskUI
+DeskUI -> DeskCore : 18. authenticate(username, password)
+activate DeskCore
+DeskCore -> Backend : 19. HTTP POST /api/v1/auth/login (JWT Request)
+activate Backend
+Backend -> AuthService : 20. Xác thực tài khoản Giảng viên
+activate AuthService
+AuthService --> Backend : 21. Trả về JWT Access Token (role="instructor")
+deactivate AuthService
+Backend --> DeskCore : 22. HTTP 200 OK (JWT Token)
+deactivate Backend
+DeskCore --> DeskUI : 23. Đăng nhập thành công & Lưu JWT vào bộ nhớ tạm
+deactivate DeskCore
+
+Instructor -> DeskUI : 24. Nạp file danh sách sinh viên `students.csv` (MSSV, File)
+DeskUI -> DeskCore : 25. parseCSVAndVerifyFiles(folderPath, "students.csv")
+activate DeskCore
+DeskCore -> LocalDB : 26. Lưu danh sách bài nộp vào CSDL cục bộ của lớp
+activate LocalDB
+LocalDB --> DeskCore : 27. Đã lưu danh sách sinh viên
+deactivate LocalDB
+DeskCore --> DeskUI : 28. Hiển thị bảng danh sách bài nộp sẵn sàng
+deactivate DeskCore
+
+Instructor -> DeskUI : 29. Dán đề bài & Nhấn nút [✨ Sinh Testcase bằng AI]
+DeskUI -> DeskCore : 30. triggerAIGenerateTestcases(problemStatement)
+activate DeskCore
+DeskCore -> Backend : 31. HTTP POST /api/v1/ai/generate-testcases\nHeader: Authorization: Bearer <JWT>
+activate Backend
+Backend -> AuthService : 32. Kiểm tra tính hợp lệ của Token & Hạn ngạch Quota còn lại
+activate AuthService
+AuthService --> Backend : 33. Quota hợp lệ
+deactivate AuthService
+
+Backend -> AIHub : 34. Chuyển tiếp prompt nghiệp vụ đề bài
+activate AIHub
+AIHub -> Gemini : 35. generateContent(prompt sinh 5-10 cặp [INPUT, OUTPUT biên])
+activate Gemini
+Gemini --> AIHub : 36. Trả về JSON danh sách testcase biên
+deactivate Gemini
+AIHub -> AuthService : 37. Ghi nhận số Token đã tiêu thụ vào nhật ký
+activate AuthService
+AuthService --> AIHub : 38. Đã ghi nhận token usage
+deactivate AuthService
+AIHub --> Backend : 39. Danh sách testcase chuẩn
+deactivate AIHub
+Backend --> DeskCore : 40. HTTP 200 OK (Danh sách [INPUT, OUTPUT])
+deactivate Backend
+DeskCore --> DeskUI : 41. Hiển thị danh sách testcase biên đề xuất
+deactivate DeskCore
+
+Instructor -> DeskUI : 42. Xem lướt bảng testcase & Nhấn nút [Lưu bộ Testcase]
+DeskUI -> DeskCore : 43. saveTestcases(testcaseList)
+activate DeskCore
+DeskCore -> LocalDB : 44. Lưu bộ Testcase chuẩn vào SQLite cục bộ
+activate LocalDB
+LocalDB --> DeskCore : 45. Bộ testcase đã sẵn sàng cho cả lớp
+deactivate LocalDB
+DeskCore --> DeskUI : 46. Xác nhận đã lưu dữ liệu bài thi
+deactivate DeskCore
+
+' ==============================================================================
+' 4. GIAI ĐOẠN 3: THỰC THI CHẤM BÀI TỰ ĐỘNG OFFLINE-FIRST (ĐA TIẾN TRÌNH)
+' ==============================================================================
+== GIAI ĐOẠN 3: Thực Thi Chấm Bài Hàng Loạt Qua Hàm main() (Hoàn toàn Offline) ==
+
+Instructor -> DeskUI : 47. Chọn 1 trong 7 chế độ so khớp & Bấm [BẮT ĐẦU CHẤM BÀI]
+DeskUI -> DeskCore : 48. startBatchGradingAsync(QThread Worker Pool)
+activate DeskCore
+note over DeskCore
+  Quá trình chấm chạy đa tiến trình song song (4-8 bài đồng thời).
+  Hoàn toàn OFFLINE, không gọi API, dồn 100% CPU để đạt tốc độ cao.
+end note
+
+loop Cho từng sinh viên và từng file câu hỏi độc lập (Q1.c, Q2.java, q3.py)
+    DeskCore -> Sandbox : 49. compileSourceCode(gcc / javac)
+    activate Sandbox
+    Sandbox --> DeskCore : 50. Kết quả biên dịch (Binary Path hoặc lỗi CE)
+    deactivate Sandbox
+
+    alt Biên dịch thành công
+        loop Cho từng Testcase [INPUT, OUTPUT kỳ vọng]
+            DeskCore -> Sandbox : 51. runMainProcess(stdin=INPUT, timeLimit=1000ms, memLimit=256MB)
+            activate Sandbox
+            note over Sandbox
+              - Nạp dữ liệu vào stdin của hàm main()
+              - psutil giám sát RAM (bắt MLE) và CPU (bắt TLE)
+              - Lấy actualOutput từ stdout của sinh viên
+            end note
+            Sandbox --> DeskCore : 52. actualOutput & resourceUsage
+            deactivate Sandbox
+            DeskCore -> DeskCore : 53. So khớp actualOutput với OUTPUT kỳ vọng (AC / WA)
+        end
+    end
+
+    DeskCore -> DeskCore : 54. Tính tổng điểm bài thi = Tổng điểm các câu
+    DeskCore -> LocalDB : 55. Ghi kết quả bài làm (Score, Verdict, Runtime)
+    activate LocalDB
+    LocalDB --> DeskCore : 56. Đã lưu kết quả
+    deactivate LocalDB
+    DeskCore -> DeskUI : 57. emitProgress(completedCount, totalCount)
+    DeskUI --> Instructor : 58. Cập nhật thanh tiến độ thời gian thực (Real-time Progress)
+end
+
+DeskCore --> DeskUI : 59. notifyBatchCompleted("Chấm xong 40 bài trong 18.2 giây")
+deactivate DeskCore
+DeskUI --> Instructor : 60. Hiển thị bảng điểm hoàn chỉnh cả lớp
+
+' ==============================================================================
+' 5. GIAI ĐOẠN 4: TÍNH NĂNG AI NÂNG CAO, XUẤT CSV & ĐỒNG BỘ MÁY CHỦ
+' ==============================================================================
+== GIAI ĐOẠN 4: Tính Năng AI Hỗ Trợ, Xuất File CSV & Đồng Bộ Lên Máy Chủ ==
+
+opt Giảng viên cần phân tích lỗi cho sinh viên bị sai (WA)
+    Instructor -> DeskUI : 61. Chọn bài bị lỗi WA & Bấm nút [✨ AI Phân tích lỗi] (On-Demand)
+    DeskUI -> DeskCore : 62. triggerOnDemandCodeReview(studentId)
+    activate DeskCore
+    DeskCore -> Backend : 63. HTTP POST /api/v1/ai/code-review (mã nguồn, log sai)
+    activate Backend
+    Backend -> AIHub : 64. Chuyển tiếp yêu cầu phân tích sư phạm
+    activate AIHub
+    AIHub -> Gemini : 65. generateContent(đọc code, giải thích logic dòng sai)
+    activate Gemini
+    Gemini --> AIHub : 66. Nhận xét sư phạm ngắn gọn
+    deactivate Gemini
+    AIHub --> Backend : 67. Nội dung nhận xét
+    deactivate AIHub
+    Backend --> DeskCore : 68. HTTP 200 OK (Nhận xét từ AI)
+    deactivate Backend
+    DeskCore --> DeskUI : 69. Hiển thị nhận xét lên giao diện chi tiết bài nộp
+    deactivate DeskCore
+end
+
+opt Giảng viên kiểm tra đạo văn lớp học (Hai vòng lọc)
+    Instructor -> DeskUI : 70. Bấm nút [Quét Đạo Văn]
+    DeskUI -> DeskCore : 71. checkPlagiarism2Stage()
+    activate DeskCore
+    DeskCore -> DeskCore : 72. Vòng 1: Quét cây cú pháp AST 100% Offline trên máy trạm
+    DeskCore --> DeskUI : 73. Kết quả lọc: Chỉ có cặp bài nghi vấn vượt ngưỡng > 80%
+    DeskUI -> DeskCore : 74. triggerAIVerifyPlagiarism(suspiciousPairs)
+    DeskCore -> Backend : 75. Vòng 2: HTTP POST /api/v1/ai/verify-plagiarism (Gửi cặp nghi vấn > 80%)
+    activate Backend
+    Backend -> Gemini : 76. Phân tích đối chiếu cấu trúc biến/hàm
+    activate Gemini
+    Gemini --> Backend : 77. Trích xuất bằng chứng sao chép
+    deactivate Gemini
+    Backend --> DeskCore : 78. Trả về kết quả xác thực & bằng chứng
+    deactivate Backend
+    DeskCore --> DeskUI : 79. Hiển thị bảng đối sánh Side-by-Side kèm bằng chứng
+    deactivate DeskCore
+end
+
+Instructor -> DeskUI : 80. Bấm nút [XUẤT BẢNG ĐIỂM CSV]
+DeskUI -> DeskCore : 81. exportGradebook("results.csv")
+activate DeskCore
+DeskCore -> LocalDB : 82. Truy vấn bảng điểm kết quả
+activate LocalDB
+LocalDB --> DeskCore : 83. Dữ liệu bảng điểm
+deactivate LocalDB
+DeskCore --> DeskUI : 84. Ghi file hoàn tất `results.csv` (7 cột)
+deactivate DeskCore
+DeskUI -> Instructor : 85. Thông báo file `results.csv` đã sẵn sàng tại thư mục lớp
+
+Instructor -> DeskUI : 86. Bấm nút [Đồng bộ lên Máy chủ]
+DeskUI -> DeskCore : 87. syncSessionResults()
+activate DeskCore
+DeskCore -> Backend : 88. HTTP POST /api/v1/sync/grading-session (Kết quả đợt chấm)
+activate Backend
+Backend -> CentralDB : 89. Lưu phiên chấm vào CSDL trung tâm toàn trường
+activate CentralDB
+CentralDB --> Backend : 90. Lưu trữ thành công
+deactivate CentralDB
+Backend --> DeskCore : 91. HTTP 200 OK ("Đồng bộ thành công")
+deactivate Backend
+DeskCore --> DeskUI : 92. Cập nhật trạng thái "Đã đồng bộ lên Cloud"
+deactivate DeskCore
+DeskUI --> Instructor : 93. Hiển thị thông báo hoàn tất đồng bộ Cloud
+
+Admin -> WebUI : 94. Mở Web Admin Dashboard xem báo cáo & audit log
+activate WebUI
+WebUI -> Backend : 95. HTTP GET /api/v1/admin/reports
+activate Backend
+Backend -> CentralDB : 96. Truy vấn số liệu thống kê chấm điểm toàn trường
+activate CentralDB
+CentralDB --> Backend : 97. Dữ liệu báo cáo
+deactivate CentralDB
+Backend --> WebUI : 98. HTTP 200 OK (Biểu đồ & bảng thống kê)
+deactivate Backend
+WebUI --> Admin : 99. Hiển thị bức tranh tổng thể hoạt động chấm thi toàn trường
+deactivate WebUI
+deactivate DeskUI
+
+@enduml

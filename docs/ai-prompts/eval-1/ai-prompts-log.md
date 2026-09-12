@@ -491,4 +491,58 @@ AI đã phân tích và làm sáng tỏ 3 vấn đề:
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tư duy phản biện và làm chủ hệ thống (Mastery & Critical Thinking)**: Việc chủ động chất vấn và làm sáng tỏ các thông số hiệu năng và cơ chế bảo mật tài nguyên giúp nhóm tự tin giải trình trước giảng viên phản biện. Đây là bằng chứng rõ nét thể hiện sự thấu hiểu sâu sắc bản chất vận hành của hệ thống chứ không chỉ sao chép output từ AI một cách thụ động.
 
+---
+
+### 🔹 PROMPT 22: Quy Chuẩn Mã Phản Hồi API (200, 400, 401, 429...) & Định Nghĩa Cấu Trúc Dữ Liệu Trước Khi Lập Trình
+
+#### 1. Mục tiêu
+Thực hiện phương pháp tiếp cận thiết kế API chuẩn mực (Contract-First API Design): Định nghĩa rõ ràng cấu trúc vỏ bọc phản hồi JSON (Response Envelope Pattern), danh mục toàn bộ mã trạng thái HTTP (200, 400, 401, 403, 404, 422, 429, 500) và từ điển mã lỗi nghiệp vụ (Business Error Codes) trước khi bước vào giai đoạn viết code thực tế.
+
+#### 2. Câu Prompt đã gửi
+> *"Trong docs/architecture tạo file code trả về 200 400 define trước khi code"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã khởi tạo tài liệu kỹ thuật hoàn chỉnh [docs/architecture/api-response-codes.md](file:///e:/AITA/docs/architecture/api-response-codes.md):
+- **Cấu trúc JSON chuẩn nhất quán (Consistent Envelope Pattern)**:
+  - `SuccessResponse`: gồm `success: true`, `status_code: 200/201`, `message`, `data`, `timestamp`.
+  - `ErrorResponse`: gồm `success: false`, `status_code: 400/401/403/404/422/429/500`, `error_code`, `message`, `details`, `timestamp`.
+  - `PaginatedData`: hỗ trợ phân trang cho danh sách User, Môn học, Lịch sử chấm.
+- **Bảng tra cứu HTTP Status Codes chuẩn RFC 9110**: Quy định rõ ràng khi nào trả về 200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500.
+- **Từ điển mã lỗi nghiệp vụ (Business Error Codes)**: Phân loại theo 6 nhóm nghiệp vụ trọng yếu (`AUTH_xxx`, `USER_xxx`, `COURSE_xxx`, `CSV_xxx`, `TEST_xxx`, `AI_xxx`, `EXEC_xxx`).
+- **Quy tắc ứng xử phía Client**: Hướng dẫn xử lý hiển thị toast/alert, xử lý tự động khi dính lỗi `401 Unauthorized` và `429 Too Many Requests` (AI Quota). Tài liệu tập trung thuần túy vào đặc tả kiến trúc (Architecture Specification), chưa nhúng mã nguồn code Pydantic.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tách biệt giữa Đặc tả Kiến trúc và Lập trình (Separation of Design and Implementation)**: 
+  - Tài liệu kiến trúc cần giữ tính khái quát, độc lập với framework code cụ thể và tập trung vào đặc tả giao thức dữ liệu (Data Protocol). Việc lược bỏ các đoạn code Python Pydantic giúp tài liệu ngắn gọn, dễ đọc, đúng chuẩn tài liệu thiết kế của giai đoạn Evaluation 1.
+  - Trong một hệ thống tích hợp gồm nhiều thành phần chạy song song (FastAPI Backend, Web Admin, Desktop App PyQt6), việc định nghĩa mã lỗi nghiệp vụ dạng chuỗi hằng (`error_code`: ví dụ `AI_QUOTA_EXCEEDED`, `CSV_INVALID_COLUMNS`) giúp Client (Desktop App) có thể bắt lỗi chính xác và hiển thị hộp thoại cảnh báo phù hợp mà không bị phụ thuộc vào chuỗi thông điệp `message`.
+
+---
+
+### 🔹 PROMPT 23: Thiết Kế Sơ Đồ Tuần Tự (Sequence Diagram) & Sơ Đồ Giao Tiếp (Communication Diagram) Chuẩn UML
+
+#### 1. Mục tiêu
+Thiết kế và đóng gói mã nguồn PlantUML cho 2 loại sơ đồ mô hình hóa hành vi cốt lõi theo yêu cầu của Đánh giá 1 (Evaluation 1: Requirement Analysis & Modeling) môn học SWD392: **Sequence Diagram (Sơ đồ tuần tự)** và **Communication Diagram (Sơ đồ giao tiếp / cộng tác)** cho các Use Case trọng tâm nhất của hệ thống.
+
+#### 2. Câu Prompt đã gửi
+> *"Sequence Diagram
+> Communication Diagram"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã thiết kế và lưu trữ đúng **2 file mã nguồn PlantUML tổng thể toàn dự án** trong thư mục [docs/diagrams/puml/](file:///e:/AITA/docs/diagrams/puml/):
+1. **[sequence_diagram.puml](file:///e:/AITA/docs/diagrams/puml/sequence_diagram.puml)**: Sơ đồ tuần tự tổng thể toàn hệ sinh thái (System-Wide Sequence Diagram) mô tả trọn vẹn 4 giai đoạn vòng đời của hệ thống:
+   - *Giai đoạn 1*: Admin quản trị tài khoản Giảng viên, cấu hình môn học và cấp hạn ngạch Quota Gemini trên Web Admin Dashboard.
+   - *Giai đoạn 2*: Giảng viên đăng nhập Desktop App, nạp `students.csv` và gọi AI sinh bộ Testcase `(Input, Output)`.
+   - *Giai đoạn 3*: Thực thi chấm bài tự động đa tiến trình offline-first qua hàm `main()`, `psutil` đo tài nguyên, so khớp 7 chế độ và xuất `results.csv`.
+   - *Giai đoạn 4*: AI phân tích lỗi On-demand, quét đạo văn 2 vòng và đồng bộ kết quả chấm lên Cloud Backend để Admin xem báo cáo.
+2. **[communication_diagram.puml](file:///e:/AITA/docs/diagrams/puml/communication_diagram.puml)**: Sơ đồ giao tiếp tổng thể toàn hệ sinh thái (System-Wide Communication Diagram) thể hiện sự cộng tác liên phân hệ qua 4 nhóm chu trình nghiệp vụ được đánh số tuần tự giữa: Web Admin, Desktop App Client, FastAPI Gateway, AI Hub và Sandbox Runner.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tầm nhìn hệ sinh thái tích hợp (Ecosystem-Level Modeling)**: Việc xây dựng cả **Sequence Diagram và Communication Diagram ở cấp độ Toàn Dự Án** mang lại cái nhìn bao quát toàn diện về kiến trúc tích hợp của đồ án SWD392. Sơ đồ chứng minh sự gắn kết chặt chẽ và dòng chảy dữ liệu thông suốt giữa Quản trị viên (Web Admin), Giảng viên (Desktop App) và Máy chủ trung tâm (FastAPI & Google Gemini AI Hub), đáp ứng trọn vẹn điểm số phần mềm tích hợp (30%) và phân tích mô hình hóa của giai đoạn Evaluation 1.
+
+
+
+
+
+
+
 
