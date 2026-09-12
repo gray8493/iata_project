@@ -418,3 +418,77 @@ AI đã sinh đoạn mã PlantUML mô tả đầy đủ:
   - Áp dụng cấu hình skinparam hiện đại (`!theme plain`, màu viền và nền trang nhã, biểu tượng actor dạng `awesome`).
   - Định hướng layout rõ ràng: phân tách 2 cụm chức năng riêng biệt giúp sơ đồ không bị chồng chéo mũi tên khi render ra ảnh vector `.svg` và ảnh `.png` để đưa vào báo cáo Đánh giá 1 (Evaluation 1).
 
+---
+
+### 🔹 PROMPT 20: Viết Đặc Tả Chi Tiết Từng Bước Cho Toàn Bộ 19 Use Cases Và Tách Thành File Độc Lập
+
+#### 1. Mục tiêu
+Hoàn thiện toàn diện nhiệm vụ Đánh giá 1 (Evaluation 1: Requirement Analysis & Modeling) của môn học SWD392 theo yêu cầu: *"Viết bản mô tả chi tiết cho từng Use Case (Use Case Descriptions)"*. Bản mô tả cần bao phủ trọn vẹn toàn bộ 19 Use Cases thuộc 6 phân hệ chức năng, tuân thủ cấu trúc chuẩn kỹ nghệ phần mềm quốc tế (IEEE 830 / RUP Template), đồng thời đóng gói thành file tài liệu chuyên biệt [docs/architecture/use_case_descriptions.md](file:///d:/Java%20FPT/AITA/docs/architecture/use_case_descriptions.md) để giữ cho file [docs/architecture/actors_and_use_cases.md](file:///d:/Java%20FPT/AITA/docs/architecture/actors_and_use_cases.md) tập trung vào danh mục tác nhân và sơ đồ PlantUML.
+
+#### 2. Câu Prompt đã gửi
+> *"Dựa trên các base file liên quan đến các nội dung trong nội dung dưới đây có sẵn của project hãy thực hiện task sau: Write step-by-step descriptions for each use case, including preconditions, main flow, alternate flows, and postconditions."*
+>
+> *(Prompt tinh chỉnh cấu trúc file tiếp theo)*:
+> *"Hãy tạo ra 1 file mới để làm nội dung này, và khôi phục nội dung cũ của file @[d:\Java FPT\AITA\docs\architecture\actors_and_use_cases.md] đi"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã biên soạn đặc tả chi tiết và hoàn chỉnh cho toàn bộ 19 Use Cases:
+- **Cấu trúc chuẩn RUP/IEEE cho mỗi Use Case**:
+  - Mã và Tên Use Case (Song ngữ Việt - Anh).
+  - Tác nhân chính (Primary Actor) & Tác nhân hỗ trợ ngoài (External Supporting Actors).
+  - Mô tả tóm tắt (Summary).
+  - Tiền điều kiện (Preconditions) & Hậu điều kiện (Postconditions).
+  - Tác nhân kích hoạt (Trigger).
+  - Luồng sự kiện chính từng bước (Step-by-step Main Flow): Mô tả tường minh các bước tương tác qua lại giữa Người dùng và Hệ thống.
+  - Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows): Xử lý chi tiết các tình huống lỗi mạng, hết hạn ngạch AI (429), thiếu compiler, sai định dạng file CSV, v.v.
+- **Bao phủ đủ 6 phân hệ**:
+  1. Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (`UC-01` đến `UC-05` trên Web Admin & Backend).
+  2. Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (`UC-06` đến `UC-08` trên Desktop App).
+  3. Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (`UC-09` đến `UC-11` trên Desktop App).
+  4. Phân hệ 4: Tự động Thực thi & Chấm điểm (`UC-12` đến `UC-15` trên Desktop App).
+  5. Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (`UC-16` đến `UC-17` trên Desktop App & AI Hub).
+  6. Phân hệ 6: Báo cáo, Đánh giá & Đồng bộ (`UC-18` đến `UC-19` trên Desktop App & Cloud).
+- **Tổ chức tài liệu**: Khôi phục nguyên trạng file gốc `actors_and_use_cases.md` và tạo file chuyên biệt mới [docs/architecture/use_case_descriptions.md](file:///d:/Java%20FPT/AITA/docs/architecture/use_case_descriptions.md).
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tách biệt High-Level và Detailed Specification**: 
+  - File `actors_and_use_cases.md` đóng vai trò là tài liệu kiến trúc mức cao (High-Level Specification), tập trung vào định nghĩa Tác nhân, ma trận phạm vi, các quan hệ `<<include>>`/`<<extend>>` và mã nguồn sơ đồ PlantUML.
+  - File `use_case_descriptions.md` đóng vai trò là đặc tả kỹ thuật chi tiết (Detailed Specification), phục vụ đội ngũ phát triển lập trình chi tiết các luồng giao diện và xử lý ngoại lệ.
+- **Tính khả thi và độ hoàn thiện đồ án**: Việc đặc tả đủ 19 Use Cases thay vì chỉ mô tả sơ sài một vài tính năng giúp nhóm tự tin nắm bắt toàn bộ ngóc ngách của hệ thống khi bước vào các giai đoạn thiết kế kiến trúc (Evaluation 2) và lập trình tích hợp (Final Presentation).
+
+---
+
+### 🔹 PROMPT 21: Phản Biện & Làm Rõ Cơ Chế Phân Quyền Đăng Nhập, Cấp Tài Khoản Giảng Viên & Tính Khả Thi Của Sandbox Runner
+
+#### 1. Mục tiêu
+Thực hiện phản biện kỹ thuật (Technical Review) đối với 3 câu hỏi kiến trúc mang tính sống còn:
+1. Phân định rõ ràng mục đích đăng nhập giữa Web Admin và Desktop App theo mô hình RBAC.
+2. Xác định quy trình cấp phát tài khoản Giảng viên tập trung, ngăn chặn nguy cơ rò rỉ quota AI.
+3. Kiểm chứng và chứng minh tính khả thi khoa học của chỉ số hiệu năng chấm bài (45 bài trong 18.2 giây) thông qua các rào chắn kiểm soát "độ nặng" (Sandbox Guardrails).
+
+#### 2. Câu Prompt đã gửi
+> *"1. Tại sao ở web admin cần có đăng nhập của giảng viên nhỉ để làm gì có khác nhau gì khi phải đăng nhập với admin 
+2. Tài khoản của giảng viên được đăng kí ở đâu 
+3. Nếu chấm Đã chấm xong 45 bài trong 18.2 giây hệ thống có thể sử lí được không vậy vì chưa có setup được độ nặng của file đến đâu để hệ thống xử lí mà"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã phân tích và làm sáng tỏ 3 vấn đề:
+- **Vấn đề 1 (Phân quyền Đăng nhập Web Admin vs Desktop App)**:
+  - Khẳng định: Giảng viên **KHÔNG** có quyền truy cập vào Web Admin Dashboard. Web Admin là không gian làm việc độc quyền của Admin.
+  - `UC-01` là endpoint Backend chung (`/api/v1/auth/login`). Khi tài khoản Giảng viên (`role: "instructor"`) cố đăng nhập vào Web Admin, hệ thống chặn lại với lỗi `403 Forbidden`. Giảng viên chỉ đăng nhập trên Desktop App Client để lấy JWT phục vụ đồng bộ dữ liệu và gọi AI.
+- **Vấn đề 2 (Quy trình Cấp phát Tài khoản Giảng viên)**:
+  - Giảng viên **KHÔNG** tự đăng ký tự do (No Self-Registration) nhằm bảo vệ hạn ngạch Google Gemini API của nhà trường.
+  - Toàn bộ tài khoản Giảng viên do Admin khởi tạo tập trung trên Web Admin (`UC-02`) dựa trên danh sách phân công của Phòng Đào tạo, sau đó cấp phát về email nội bộ của trường (`@fpt.edu.vn`).
+- **Vấn đề 3 (Chứng minh Tính Khả Thi Hiệu Năng 18.2s & Thiết Lập Độ Nặng Sandbox)**:
+  - *Bản chất bài thi lập trình*: File sinh viên rất nhẹ (30-150 dòng, 2-10 KB); biên dịch C (`gcc`) 50-100ms, Java (`javac`) 200-400ms, Python <20ms; mỗi testcase chạy 1-20ms.
+  - *Xử lý song song*: Desktop App dùng pool 4-8 tiến trình song song (`ProcessPoolExecutor`) trên CPU đa nhân $\rightarrow$ 45 sinh viên chỉ cần ~7-8 lượt chạy gối đầu $\rightarrow$ Tổng thời gian 16-18 giây là hoàn toàn thực tế.
+  - *Cơ chế kiểm soát độ nặng (Sandbox Guardrails)*:
+    1. **Time Limit (1000 ms)**: Giám sát bằng `psutil`, cưỡng chế kill ngay nếu code lặp vô hạn `while(true)`, bắt lỗi `TLE`.
+    2. **Memory Limit (256 MB)**: Kill ngay nếu tràn stack đệ quy hoặc mảng quá lớn, bắt lỗi `MLE`.
+    3. **File Size Limit (1 MB)**: Từ chối nạp các file vượt kích thước cho phép.
+    4. **Offline-first**: Hoàn toàn không gọi mạng hay API AI khi đang chấm hàng loạt, dồn 100% CPU cho việc chấm.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tư duy phản biện và làm chủ hệ thống (Mastery & Critical Thinking)**: Việc chủ động chất vấn và làm sáng tỏ các thông số hiệu năng và cơ chế bảo mật tài nguyên giúp nhóm tự tin giải trình trước giảng viên phản biện. Đây là bằng chứng rõ nét thể hiện sự thấu hiểu sâu sắc bản chất vận hành của hệ thống chứ không chỉ sao chép output từ AI một cách thụ động.
+
+
