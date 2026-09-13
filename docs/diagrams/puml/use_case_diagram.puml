@@ -1,0 +1,167 @@
+@startuml
+skinparam defaultTextAlignment center
+skinparam roundCorner 8
+skinparam BoxPadding 10
+skinparam packageStyle rectangle
+
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #1E88E5
+    FontSize 11
+    FontStyle bold
+}
+
+skinparam usecase {
+    BackgroundColor #F8F9FA
+    BorderColor #1565C0
+    ArrowColor #2E7D32
+    FontSize 11
+}
+
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontSize 10
+}
+
+title Sơ Đồ Use Case Toàn Hệ Sinh Thái (System-Wide Use Case Diagram) - AITA Ecosystem\n(Desktop App Client, Web Admin Dashboard & FastAPI Central Backend)
+
+' ==============================================================================
+' 1. ĐỊNH NGHĨA CÁC TÁC NHÂN (ACTORS)
+' ==============================================================================
+
+' Tác nhân người dùng chính (Primary Human Actors)
+actor "Quản trị viên\n(System Admin)" as Admin
+actor "Giảng viên\n(Instructor)" as Instructor
+
+' Tác nhân hệ thống ngoài hỗ trợ (External Supporting Systems / Actors)
+actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
+actor "Sandbox Execution Runner\n(GCC / Javac / Python / psutil)" as Sandbox <<System>>
+actor "Web Server Backend\n(FastAPI Central REST API)" as Cloud <<System>>
+
+' ==============================================================================
+' 2. RANH GIỚI HỆ THỐNG & CÁC USE CASE THEO PHÂN HỆ
+' ==============================================================================
+
+rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Boundary)" {
+
+    ' --------------------------------------------------------------------------
+    ' PHÂN HỆ 1: DÀNH RIÊNG CHO ADMIN TRÊN WEB ADMIN DASHBOARD
+    ' --------------------------------------------------------------------------
+    package "Phân Hệ Web Admin Dashboard (Dành cho Quản trị viên)" #E3F2FD {
+        usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
+        usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
+        usecase "UC-03: Quản lý Danh mục Môn học (PRF / PRO / DSA / PHP)" as UC03
+        usecase "UC-04: Cấu hình API Key & Giám sát Hạn ngạch AI" as UC04
+        usecase "UC-05: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường" as UC05
+    }
+
+    ' --------------------------------------------------------------------------
+    ' PHÂN HỆ 2: DÀNH RIÊNG CHO GIẢNG VIÊN TRÊN DESKTOP APP CLIENT (PyQt6)
+    ' --------------------------------------------------------------------------
+    package "Phân Hệ Desktop App Client (Dành cho Giảng viên - PyQt6)" #F3E5F5 {
+    
+        package "1. Cấu hình & Quản lý Đợt Chấm" {
+            usecase "UC-06: Cấu hình Môi trường Biên dịch & Sandbox Cục bộ" as UC06
+            usecase "UC-07: Quản lý Đợt Chấm & Lớp học" as UC07
+            usecase "UC-08: Nạp Danh sách Sinh viên từ File CSV (students.csv)" as UC08
+        }
+
+        package "2. Quản lý Testcase & Chiến lược So khớp" {
+            usecase "UC-09: Quản lý Bộ Testcase Kiểm thử Black-box" as UC09
+            usecase "UC-10: Tự động Sinh Testcase Biên bằng AI (Gemini)" as UC10
+            usecase "UC-11: Thiết lập Động cơ So khớp 7 Chế độ (Strategy)" as UC11
+        }
+
+        package "3. Thực thi Chấm điểm Tự động (Grading Pipeline)" {
+            usecase "UC-12: Thực thi Chấm điểm Hàng loạt (main(), đa tiến trình)" as UC12
+            usecase "UC-13: Giám sát Tiến độ Chấm Thời gian thực" as UC13
+            usecase "UC-14: Xem Chi tiết Kết quả & Nhật ký Bài nộp" as UC14
+            usecase "UC-15: Chấm lại & Điều chỉnh Điểm thủ công" as UC15
+        }
+
+        package "4. Tính năng Thông minh có AI Hỗ trợ" {
+            usecase "UC-16: Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand" as UC16
+            usecase "UC-17: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (AST + AI)" as UC17
+        }
+
+        package "5. Báo cáo, Đánh giá & Đồng bộ" {
+            usecase "UC-18: Xuất Báo cáo Điểm (results.csv & Excel .xlsx)" as UC18
+            usecase "UC-19: Đồng bộ Dữ liệu với Web Cloud Backend" as UC19
+        }
+    }
+}
+
+' ==============================================================================
+' 3. QUAN HỆ TƯƠNG TÁC CỦA TÁC NHÂN NGƯỜI DÙNG (ASSOCIATIONS)
+' ==============================================================================
+
+' Quản trị viên (Admin) tương tác qua Web Admin Dashboard
+Admin --> UC01
+Admin --> UC02
+Admin --> UC03
+Admin --> UC04
+Admin --> UC05
+
+' Giảng viên (Instructor) tương tác qua Desktop App Client
+Instructor --> UC01
+Instructor --> UC06
+Instructor --> UC07
+Instructor --> UC08
+Instructor --> UC09
+Instructor --> UC10
+Instructor --> UC11
+Instructor --> UC12
+Instructor --> UC14
+Instructor --> UC17
+Instructor --> UC18
+Instructor --> UC19
+
+' ==============================================================================
+' 4. QUAN HỆ NỘI BỘ GIỮA CÁC USE CASE (INCLUDE & EXTEND)
+' ==============================================================================
+
+' Quan hệ <<include>>: Thực thi bắt buộc phải có
+UC12 ..> UC11 : <<include>>\n(áp dụng chiến lược so khớp)
+UC12 ..> UC13 : <<include>>\n(tự động cập nhật tiến độ)
+UC10 ..> UC01 : <<include>>\n(yêu cầu JWT xác thực quota)
+
+' Quan hệ <<extend>>: Hành động kích hoạt mở rộng có điều kiện
+UC16 ..> UC14 : <<extend>>\n(On-Demand khi bài thi bị lỗi WA)
+UC15 ..> UC14 : <<extend>>\n(khi giảng viên muốn điều chỉnh điểm)
+
+' ==============================================================================
+' 5. TƯƠNG TÁC VỚI CÁC TÁC NHÂN HỆ THỐNG NGOÀI (SUPPORTING ACTORS)
+' ==============================================================================
+
+' Kết nối với Máy chủ Trung tâm (Web Server Backend - FastAPI)
+UC01 --> Cloud : Xác thực OAuth2 & Cấp mã JWT
+UC02 --> Cloud : CRUD tài khoản qua REST API
+UC03 --> Cloud : Cập nhật danh mục môn học tập trung
+UC04 --> Cloud : Lưu khóa API & thống kê token quota
+UC05 --> Cloud : Truy vấn lịch sử chấm toàn trường
+UC19 --> Cloud : Đồng bộ bảng điểm & logs lên CSDL trung tâm
+
+' Kết nối với Trí tuệ nhân tạo (Google Gemini AI Hub)
+UC10 --> AIService : Prompt sinh cặp Input/Output biên
+UC16 --> AIService : Gửi code lỗi WA phân tích sư phạm
+UC17 --> AIService : Phân tích ngữ nghĩa cặp bài nghi vấn >80% (Vòng 2)
+
+' Kết nối với Môi trường Sandbox Cục bộ (Local Sandbox Runner)
+UC06 --> Sandbox : Thẩm định đường dẫn gcc/javac/python & psutil
+UC12 --> Sandbox : Thực thi subprocess qua hàm main() & bắt TLE/MLE
+UC15 --> Sandbox : Biên dịch & chạy lại bài nộp đơn lẻ
+
+' Ghi chú kiến trúc
+note bottom of UC12
+  Quá trình chấm chạy đa tiến trình song song (4-8 bài đồng thời),
+  hoàn toàn OFFLINE trên máy cục bộ để tối ưu hiệu năng (15-30s / 45 bài).
+end note
+
+note right of UC17
+  Cơ chế phát hiện sao chép 2 vòng:
+  - Vòng 1: Quét AST / Winnowing 100% Offline (0.5s).
+  - Vòng 2: Chỉ gửi cặp bài nghi vấn >80% lên Gemini AI.
+end note
+
+@enduml
