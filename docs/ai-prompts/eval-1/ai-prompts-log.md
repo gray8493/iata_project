@@ -539,6 +539,37 @@ AI đã thiết kế và lưu trữ đúng **2 file mã nguồn PlantUML tổng 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tầm nhìn hệ sinh thái tích hợp (Ecosystem-Level Modeling)**: Việc xây dựng cả **Sequence Diagram và Communication Diagram ở cấp độ Toàn Dự Án** mang lại cái nhìn bao quát toàn diện về kiến trúc tích hợp của đồ án SWD392. Sơ đồ chứng minh sự gắn kết chặt chẽ và dòng chảy dữ liệu thông suốt giữa Quản trị viên (Web Admin), Giảng viên (Desktop App) và Máy chủ trung tâm (FastAPI & Google Gemini AI Hub), đáp ứng trọn vẹn điểm số phần mềm tích hợp (30%) và phân tích mô hình hóa của giai đoạn Evaluation 1.
 
+---
+
+### 🔹 PROMPT 24: Đóng Gói Mã Nguồn PlantUML Sơ Đồ Trường Hợp Sử Dụng (Use Case Diagram) & Sơ Đồ Hoạt Động (Activity Diagram)
+
+#### 1. Mục tiêu
+Hoàn tất trọn bộ 4 sơ đồ UML bắt buộc của giai đoạn Đánh giá 1 (Evaluation 1: Requirement Analysis & Modeling) môn học SWD392 bằng cách thiết kế và đóng gói mã nguồn PlantUML độc lập cho:
+1. **Use Case Diagram** (`use_case_diagram.puml`): Mô hình hóa trực quan toàn bộ 19 Use Cases, phân định ranh giới 3 phân hệ (Web Admin, Desktop App Client, Central Backend) và các tác nhân người dùng / tác nhân ngoài.
+2. **Activity Diagram** (`activity_diagram.puml`): Mô hình hóa chi tiết quy trình nghiệp vụ cốt lõi xuyên suốt toàn hệ thống bằng kỹ thuật phân vùng Swimlanes chuẩn UML (Giảng viên, Desktop UI, Sandbox Engine, Backend API, Gemini AI).
+
+#### 2. Câu Prompt đã gửi
+> *"Được rồi bây giờ tạo 2 file docs/diagrams/puml/use_case_diagram.puml và docs/diagrams/puml/activity_diagram.puml khi prompt thì đọc file này @docs/ai-prompts/eval-1/ai-prompts-log.md"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã thiết kế và tạo thành công 2 file mã nguồn PlantUML trong thư mục [docs/diagrams/puml/](file:///d:/SWD_Project/docs/diagrams/puml/):
+1. **[use_case_diagram.puml](file:///d:/SWD_Project/docs/diagrams/puml/use_case_diagram.puml)**:
+   - Thể hiện đầy đủ 2 Tác nhân con người chính: `Admin` (Web Admin) và `Instructor` (Desktop App).
+   - Thể hiện 3 Tác nhân hệ thống ngoài: `FastAPI Central API`, `Google Gemini AI Hub`, `Sandbox Execution Runner`.
+   - Gom cụm 19 Use Cases theo các package phân hệ logic, biểu diễn chuẩn xác các liên kết tương tác, quan hệ `<<include>>` (áp dụng chiến lược so khớp, giám sát tiến độ thời gian thực) và `<<extend>>` (phân tích lỗi AI on-demand khi gặp WA, điều chỉnh điểm).
+2. **[activity_diagram.puml](file:///d:/SWD_Project/docs/diagrams/puml/activity_diagram.puml)**:
+   - Ứng dụng cấu trúc **Swimlanes (5 phân vùng trực quan)**: `Giảng viên`, `Desktop App UI (PyQt6)`, `Desktop Core & Sandbox Runner`, `Web Server Backend (FastAPI)`, `Google Gemini AI Hub`.
+   - Mô hình hóa khép kín 4 giai đoạn hoạt động:
+     1. Khởi động, xác thực JWT và thiết lập đợt chấm (nạp `students.csv`, sinh testcase biên bằng AI hoặc nạp tay, chọn 1 trong 7 chiến lược so khớp).
+     2. Thực thi chấm bài tự động hàng loạt đa tiến trình offline-first (biên dịch GCC/Javac/Python, chạy subprocess qua hàm `main()`, `psutil` bắt TLE/MLE/RE, so khớp Strategy Pattern ra verdict AC/WA, cập nhật progress bar thời gian thực qua Qt Signal/Slot).
+     3. Đánh giá chuyên sâu, phân tích lỗi sư phạm bằng AI On-demand (UC-16) và kiểm tra đạo văn 2 vòng (AST Offline + AI Semantic >80%).
+     4. Xuất báo cáo điểm (`results.csv` 7 cột, Excel `.xlsx`) và đồng bộ dữ liệu đợt chấm lên Cloud Backend (UC-18 & UC-19).
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Hoàn thiện 100% yêu cầu 4 sơ đồ UML của Evaluation 1**: Dự án hiện đã sở hữu đầy đủ bộ tứ sơ đồ cốt lõi theo chuẩn IEEE/RUP (`use_case_diagram.puml`, `activity_diagram.puml`, `sequence_diagram.puml`, `communication_diagram.puml`), tạo tiền đề vững chắc cho giai đoạn Thiết kế Kiến trúc phần mềm (Evaluation 2).
+- **Tối ưu hóa Bố cục Swimlanes**: Việc sử dụng Swimlanes trong Activity Diagram giúp người đọc và hội đồng chấm thi thấy rõ ranh giới trách nhiệm của từng thành phần: phần nào chạy cục bộ offline tốc độ cao trên Desktop trạm, phần nào gửi bảo mật qua Backend REST API và phần nào do AI Gemini xử lý, minh chứng cho năng lực thiết kế hệ thống phần mềm phân tán hiện đại.
+
+
 
 
 
