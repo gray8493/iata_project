@@ -20,27 +20,26 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 
 ```text
 +------------------------------------+       +------------------------------------+
-|     WEB ADMIN DASHBOARD (Web UI)   |       |   DESKTOP APP CLIENT (PyQt6/PySide6)|
+| WEB ADMIN DASHBOARD (Next.js FE)   |       | DESKTOP APP CLIENT (PyQt6 / Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
-|  - Quản lý User, Lớp, Môn học      |       |  - Chấm bài CSV hàng loạt tốc độ cao|
-|  - Giám sát hạn ngạch Gemini AI    |       |  - Chạy Sandbox Runner C/Java/Py   |
+|  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài Offline, 7 chế độ so   |
+|  - Báo cáo thống kê toàn trường    |       |  - Đa tiến trình qua hàm main()    |
 +------------------------------------+       +------------------------------------+
                   │                                             │
-                  │ (HTTP / JSON RESTful API)                   │ (REST API & Sync)
+                  │ (HTTPS / RESTful API)                       │ (HTTPS / Sync Session)
                   ▼                                             ▼
 +---------------------------------------------------------------------------------+
-|                   WEB SERVER BACKEND (Python FastAPI Service)                   |
-|  - Tầng API Gateway & Định tuyến: FastAPI RESTful Endpoints                     |
-|  - Xác thực & Phân quyền (Auth & RBAC): JWT (JSON Web Token), Bcrypt Hashing    |
-|  - Quản lý nghiệp vụ: Danh mục Môn học, Lớp học, Lịch sử chấm toàn trường       |
-|  - Tích hợp AI Hub: Cầu nối bảo mật điều phối hạn ngạch gọi Google Gemini API   |
-|  - Cơ sở dữ liệu tập trung: SQLite / PostgreSQL qua SQLAlchemy ORM              |
+|                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
+|  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
+|  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, RBAC Guards (@Roles)      |
+|  - Quản trị CSDL Trung tâm: Prisma ORM / TypeORM (PostgreSQL / SQLite)          |
+|  - Điều phối AI: Gemini AI Hub (Bảo mật API Key, kiểm soát Token Quota)         |
 +---------------------------------------------------------------------------------+
 ```
 
-1. **Phân hệ Web Admin Dashboard (Web UI)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quản lý danh mục môn học, cấu hình API Key và giám sát hạn ngạch tiêu thụ Token AI tập trung.
-2. **Phân hệ Desktop App Client (PyQt6/PySide6)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
-3. **Phân hệ Web Server Backend (Python FastAPI)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của Google Gemini và lưu trữ cơ sở dữ liệu học thuật tập trung.
+1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quản lý danh mục môn học, cấu hình API Key và giám sát hạn ngạch tiêu thụ Token AI tập trung.
+2. **Phân hệ Desktop App Client (PyQt6 / Python)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
+3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của Google Gemini và lưu trữ cơ sở dữ liệu học thuật tập trung.
 4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV (`students.csv`) mà Giảng viên thực hiện chấm điểm.
 
 ---
@@ -86,7 +85,7 @@ classDiagram
 | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **AI Service Provider (Google Gemini API Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép. |
 | **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error).                                                        |
-| **Web Server Backend (FastAPI Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (JWT token, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục môn học, tài khoản người dùng và hạn ngạch AI.<br />- Cung cấp API đồng bộ danh sách lớp học và lưu trữ kết quả các đợt chấm bài từ Desktop Client.                                                                                                                                                                                                                                                    |
+| **Web Server Backend (NestJS Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (Passport-JWT, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục môn học, tài khoản người dùng và hạn ngạch AI.<br />- Cung cấp API đồng bộ danh sách lớp học và lưu trữ kết quả các đợt chấm bài từ Desktop Client.                                                                                                                                                                                                                                                    |
 
 ---
 

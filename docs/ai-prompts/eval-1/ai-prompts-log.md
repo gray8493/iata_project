@@ -567,7 +567,35 @@ AI đã thiết kế và tạo thành công 2 file mã nguồn PlantUML trong th
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Hoàn thiện 100% yêu cầu 4 sơ đồ UML của Evaluation 1**: Dự án hiện đã sở hữu đầy đủ bộ tứ sơ đồ cốt lõi theo chuẩn IEEE/RUP (`use_case_diagram.puml`, `activity_diagram.puml`, `sequence_diagram.puml`, `communication_diagram.puml`), tạo tiền đề vững chắc cho giai đoạn Thiết kế Kiến trúc phần mềm (Evaluation 2).
-- **Tối ưu hóa Bố cục Swimlanes**: Việc sử dụng Swimlanes trong Activity Diagram giúp người đọc và hội đồng chấm thi thấy rõ ranh giới trách nhiệm của từng thành phần: phần nào chạy cục bộ offline tốc độ cao trên Desktop trạm, phần nào gửi bảo mật qua Backend REST API và phần nào do AI Gemini xử lý, minh chứng cho năng lực thiết kế hệ thống phần mềm phân tán hiện đại.
+---
+
+### 🔹 PROMPT 25: Chuyển Đổi & Chuẩn Hóa Ngăn Xếp Công Nghệ (Next.js cho Web Admin FE & NestJS cho Web Backend)
+
+#### 1. Mục tiêu
+Nâng cấp và chuyển đổi kiến trúc phân hệ Web từ FastAPI sang **NestJS (TypeScript)** cho Web Server Backend và **Next.js (TypeScript)** cho Web Admin Dashboard, đồng thời đồng bộ hóa toàn bộ tài liệu kỹ thuật và 4 sơ đồ UML.
+
+#### 2. Câu Prompt đã gửi
+> *"tôi dùng nextjs cho FE web, Nestjs for web backend dk"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã phân tích tính khả thi và hoàn tất cập nhật đồng bộ toàn bộ hệ sinh thái dự án:
+1. **[tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md)**: 
+   - Backend chuyển sang **NestJS (>= 10.x)** với TypeScript, Passport-JWT, Guards, Prisma ORM / TypeORM, class-validator và Swagger OpenAPI tự động (`@nestjs/swagger`).
+   - Web Admin chuyển sang **Next.js 14+ (App Router)** với TypeScript, TailwindCSS và Lucide-react.
+   - Desktop App giữ vững **Python 3.11+ (PyQt6)** để tối ưu khả năng can thiệp hệ điều hành, đo `psutil` và biên dịch GCC/Javac qua hàm `main()`.
+2. **Cập nhật đồng bộ các tài liệu kiến trúc**:
+   - [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md)
+   - [actors_and_use_cases.md](file:///e:/AITA/docs/architecture/actors_and_use_cases.md)
+   - [api-response-codes.md](file:///e:/AITA/docs/architecture/api-response-codes.md)
+3. **Cập nhật đồng bộ bộ 4 sơ đồ UML PlantUML**:
+   - [sequence_diagram.puml](file:///e:/AITA/docs/diagrams/puml/sequence_diagram.puml)
+   - [communication_diagram.puml](file:///e:/AITA/docs/diagrams/puml/communication_diagram.puml)
+   - [use_case_diagram.puml](file:///e:/AITA/docs/diagrams/puml/use_case_diagram.puml)
+   - [activity_diagram.puml](file:///e:/AITA/docs/diagrams/puml/activity_diagram.puml)
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tối ưu hóa cho tiêu chí Clean Architecture của SWD392**: NestJS là framework mẫu mực trong thế giới Node.js áp dụng triệt để kiến trúc phân tầng (Clean / Modular Architecture) và Dependency Injection (DI) tương tự Spring Boot và ASP.NET Core, giúp nâng cao điểm số kiến trúc phần mềm trong Đánh giá 2 (Evaluation 2).
+- **Phân tách trách nhiệm chuyên biệt hóa**: Next.js giúp xây dựng Dashboard quản trị nhanh chóng, đẹp mắt; trong khi PyQt6 (Python) đảm nhiệm tốt nhất việc chấm bài offline đa tiến trình. Sự kết hợp này tạo nên một hệ sinh thái phần mềm tích hợp đa nền tảng hiện đại và chặt chẽ.
 
 
 

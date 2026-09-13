@@ -12,9 +12,9 @@ title Sơ Đồ Tuần Tự Tổng Thể Toàn Hệ Sinh Thái (System-Wide Sequ
 ' 1. ĐỊNH NGHĨA CÁC THÀNH PHẦN THEO TỪNG PHÂN HỆ KIẾN TRÚC
 ' ==============================================================================
 
-box "Phân Hệ Quản Trị Web (Admin Layer)" #E3F2FD
+box "Phân Hệ Quản Trị Web (Next.js Admin Layer)" #E3F2FD
 actor "Quản trị viên\n(Admin)" as Admin
-boundary "Web Admin\nDashboard" as WebUI
+boundary "Web Admin\n(Next.js Dashboard)" as WebUI
 end box
 
 box "Phân Hệ Giảng Viên (Desktop App Client - PyQt6)" #F3E5F5
@@ -25,8 +25,8 @@ database "CSDL Cục bộ\n(Local SQLite)" as LocalDB
 control "Sandbox Runner\n(GCC/Javac & psutil)" as Sandbox
 end box
 
-box "Phân Hệ Máy Chủ Trung Tâm (Web Backend & AI Hub)" #E8F5E9
-boundary "Web API Gateway\n(FastAPI Server)" as Backend
+box "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" #E8F5E9
+boundary "Web API Gateway\n(NestJS Server)" as Backend
 control "Auth & Quota\nService (JWT)" as AuthService
 database "CSDL Trung Tâm\n(Central Database)" as CentralDB
 control "Gemini AI\nGateway Hub" as AIHub

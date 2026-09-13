@@ -17,7 +17,7 @@ skinparam note {
     FontSize 10
 }
 
-title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, FastAPI Backend & Gemini AI)
+title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, NestJS Backend & Gemini AI)
 
 ' ==============================================================================
 ' ĐỊNH NGHĨA CÁC VÙNG PHÂN QUYỀN (SWIMLANES)
@@ -26,7 +26,7 @@ title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity
 |#E1F5FE|Giảng viên (Instructor)|
 |#EDE7F6|Desktop App UI (PyQt6 Client)|
 |#E8F5E9|Desktop Core & Sandbox Runner (Local Engine)|
-|#FFF3E0|Web Server Backend (FastAPI Central API)|
+|#FFF3E0|Web Server Backend (NestJS Central API)|
 |#FCE4EC|Google Gemini AI Hub (Cloud AI)|
 
 ' ==============================================================================
@@ -41,7 +41,7 @@ start
 |Desktop App UI (PyQt6 Client)|
 :Gửi thông tin xác thực lên máy chủ;
 
-|Web Server Backend (FastAPI Central API)|
+|Web Server Backend (NestJS Central API)|
 :Xác thực OAuth2 & Cấp JWT Token;
 
 |Desktop App UI (PyQt6 Client)|
@@ -65,7 +65,7 @@ else ([Tự động sinh bằng AI (UC-10)])
     |Desktop App UI (PyQt6 Client)|
     :Đóng gói prompt gửi yêu cầu POST /api/v1/ai/generate-testcases;
 
-    |Web Server Backend (FastAPI Central API)|
+    |Web Server Backend (NestJS Central API)|
     :Thẩm định JWT Token & Kiểm tra hạn ngạch (AI Quota);
     if (Hạn ngạch Quota còn khả dụng?) then ([Hết Quota])
         :Trả về HTTP 429 Too Many Requests;
@@ -80,7 +80,7 @@ else ([Tự động sinh bằng AI (UC-10)])
         |Google Gemini AI Hub (Cloud AI)|
         :Phân tích đề bài & Sinh 5-10 cặp [INPUT, OUTPUT biên];
 
-        |Web Server Backend (FastAPI Central API)|
+        |Web Server Backend (NestJS Central API)|
         :Nhận kết quả JSON testcase từ Gemini;
         :Trả về HTTP 200 OK cho Desktop App;
 
@@ -199,7 +199,7 @@ fork
         |Desktop App UI (PyQt6 Client)|
         :Đóng gói mã nguồn & testcase sai gửi lên Web Backend;
         
-        |Web Server Backend (FastAPI Central API)|
+        |Web Server Backend (NestJS Central API)|
         :Kiểm tra token & Trừ quota AI;
         :Gửi prompt sư phạm sang Google Gemini;
         
@@ -238,7 +238,7 @@ fork again
             |Giảng viên (Instructor)|
             :Bấm nút **[✨ AI Phân tích bằng chứng]** (Vòng 2 - AI Semantic);
             
-            |Web Server Backend (FastAPI Central API)|
+            |Web Server Backend (NestJS Central API)|
             :Chuyển tiếp cấu trúc code 2 bài nghi vấn sang Gemini AI;
             
             |Google Gemini AI Hub (Cloud AI)|
@@ -285,9 +285,9 @@ end fork
 :Đóng gói toàn bộ bảng điểm & logs thành payload JSON;
 :Gửi yêu cầu POST /api/v1/sync/grading-session kèm JWT Token;
 
-|Web Server Backend (FastAPI Central API)|
+|Web Server Backend (NestJS Central API)|
 :Xác thực danh tính giảng viên;
-:Lưu đợt chấm vào CSDL trung tâm qua SQLAlchemy ORM;
+:Lưu đợt chấm vào CSDL trung tâm qua Prisma / TypeORM;
 :Trả về HTTP 200 OK kèm sync_id;
 
 |Desktop App UI (PyQt6 Client)|

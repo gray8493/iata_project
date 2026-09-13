@@ -24,7 +24,7 @@ skinparam note {
     FontSize 10
 }
 
-title Sơ Đồ Use Case Toàn Hệ Sinh Thái (System-Wide Use Case Diagram) - AITA Ecosystem\n(Desktop App Client, Web Admin Dashboard & FastAPI Central Backend)
+title Sơ Đồ Use Case Toàn Hệ Sinh Thái (System-Wide Use Case Diagram) - AITA Ecosystem\n(Desktop App Client, Next.js Web Admin & NestJS Central Backend)
 
 ' ==============================================================================
 ' 1. ĐỊNH NGHĨA CÁC TÁC NHÂN (ACTORS)
@@ -37,7 +37,7 @@ actor "Giảng viên\n(Instructor)" as Instructor
 ' Tác nhân hệ thống ngoài hỗ trợ (External Supporting Systems / Actors)
 actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
 actor "Sandbox Execution Runner\n(GCC / Javac / Python / psutil)" as Sandbox <<System>>
-actor "Web Server Backend\n(FastAPI Central REST API)" as Cloud <<System>>
+actor "Web Server Backend\n(NestJS Central REST API)" as Cloud <<System>>
 
 ' ==============================================================================
 ' 2. RANH GIỚI HỆ THỐNG & CÁC USE CASE THEO PHÂN HỆ
@@ -134,7 +134,7 @@ UC15 ..> UC14 : <<extend>>\n(khi giảng viên muốn điều chỉnh điểm)
 ' 5. TƯƠNG TÁC VỚI CÁC TÁC NHÂN HỆ THỐNG NGOÀI (SUPPORTING ACTORS)
 ' ==============================================================================
 
-' Kết nối với Máy chủ Trung tâm (Web Server Backend - FastAPI)
+' Kết nối với Máy chủ Trung tâm (Web Server Backend - NestJS)
 UC01 --> Cloud : Xác thực OAuth2 & Cấp mã JWT
 UC02 --> Cloud : CRUD tài khoản qua REST API
 UC03 --> Cloud : Cập nhật danh mục môn học tập trung

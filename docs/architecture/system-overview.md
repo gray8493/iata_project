@@ -137,21 +137,21 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 
 ```text
 +------------------------------------+       +------------------------------------+
-|     WEB ADMIN DASHBOARD (Web UI)   |       |   DESKTOP APP CLIENT (PyQt6/PySide6)|
+|  WEB ADMIN DASHBOARD (Next.js FE)  |       |   DESKTOP APP CLIENT (PyQt6/Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
-|  - Quản lý User, Lớp, Môn học      |       |  - Chấm bài CSV hàng loạt tốc độ cao|
+|  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài CSV hàng loạt tốc độ cao|
 |  - Giám sát hạn ngạch Gemini AI    |       |  - Chạy Sandbox Runner C/Java/Py   |
 +------------------------------------+       +------------------------------------+
                   │                                             │
-                  │ (HTTP / JSON RESTful API)                   │ (REST API & Sync)
+                  │ (HTTPS / RESTful API)                       │ (HTTPS / REST API & Sync)
                   ▼                                             ▼
 +---------------------------------------------------------------------------------+
-|                   WEB SERVER BACKEND (Python FastAPI Service)                   |
-|  - Tầng API Gateway & Định tuyến: FastAPI RESTful Endpoints                     |
-|  - Xác thực & Phân quyền (Auth & RBAC): JWT (JSON Web Token), OAuth2 Password   |
-|  - Quản lý nghiệp vụ: Quản lý ngân hàng Testcase, Lớp học, Lịch sử chấm         |
+|                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
+|  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
+|  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, Guards (@Roles)           |
+|  - Quản lý nghiệp vụ: Quản lý ngân hàng Testcase, Môn học, Lịch sử chấm         |
 |  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi Google Gemini API           |
-|  - Cơ sở dữ liệu tập trung: SQLite / PostgreSQL qua SQLAlchemy ORM              |
+|  - Cơ sở dữ liệu tập trung: PostgreSQL / SQLite qua Prisma ORM / TypeORM        |
 +---------------------------------------------------------------------------------+
 ```
 
@@ -185,18 +185,18 @@ Khi Giảng viên sử dụng Desktop App, ứng dụng vận hành theo mô hì
 
 ---
 
-### 5.3. Kiến trúc & Nhiệm vụ của Web Server Backend (FastAPI & RBAC Engine)
+### 5.3. Kiến trúc & Nhiệm vụ của Web Server Backend (NestJS & RBAC Engine)
 Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điều phối toàn bộ luồng dữ liệu của hệ sinh thái AITA:
-1. **Dịch vụ RESTful API & Swagger UI**: Cung cấp các endpoint chuẩn mực, tự động sinh tài liệu kiểm thử tương tác tại `/docs` (OpenAPI Spec).
+1. **Dịch vụ RESTful API & Swagger UI**: Cung cấp các endpoint chuẩn mực, tự động sinh tài liệu kiểm thử tương tác tại `/api/docs` qua `@nestjs/swagger`.
 2. **Cơ chế Phân quyền & Xác thực tập trung (Authentication & RBAC)**:
-   - Cấp phát và thẩm định **JWT (JSON Web Token)** với thời hạn sống an toàn (Access Token + Refresh Token).
+   - Cấp phát và thẩm định **JWT (JSON Web Token)** bằng `@nestjs/passport` và `@nestjs/jwt` với thời hạn sống an toàn (Access Token + Refresh Token).
    - Mã hóa mật khẩu một chiều chuẩn công nghiệp bằng **Bcrypt**.
-   - Kiểm soát quyền truy cập tài nguyên thông qua FastAPI Dependency Injection (`get_current_active_user`, `require_role(["admin"])`).
+   - Kiểm soát quyền truy cập tài nguyên thông qua NestJS Guards & Decorators (`@UseGuards(JwtAuthGuard, RolesGuard)`, `@Roles('admin')`).
 3. **AI Hub & Hạn ngạch (Quota Management)**:
    - Lưu trữ bí mật Google Gemini API Key tại máy chủ, ngăn chặn lộ key ra phía client.
    - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
 4. **Quản lý Dữ liệu Học thuật & Bảng điểm trung tâm**:
-   - Lưu trữ lịch sử toàn bộ các phiên chấm từ Desktop Client đồng bộ lên.
+   - Lưu trữ lịch sử toàn bộ các phiên chấm từ Desktop Client đồng bộ lên qua Prisma ORM / TypeORM.
    - Quản lý danh mục 4 môn cốt lõi: PRF (C), PRO (Java, Python), DSA (Java, Python), PHP (Python).
 
 ---
