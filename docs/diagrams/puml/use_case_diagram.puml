@@ -1,10 +1,8 @@
 @startuml
-!theme plain
 skinparam defaultTextAlignment center
 skinparam roundCorner 8
 skinparam BoxPadding 10
 skinparam packageStyle rectangle
-skinparam actorStyle awesome
 
 skinparam actor {
     BackgroundColor #FFFFFF
