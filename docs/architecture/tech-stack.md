@@ -77,8 +77,8 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
   - **`psutil` (>= 5.9.0)**: Giám sát tài nguyên RAM (bắt lỗi `MLE`), CPU và kill tiến trình khi bị vòng lặp vô hạn (bắt lỗi `TLE`).
 - **Động cơ so khớp kết quả 7 chế độ (Strategy Pattern)**:
   - Sử dụng các module `difflib`, `re`, `math` để triển khai 7 chiến lược so khớp đầu ra linh hoạt.
-- **Đồng bộ hóa mạng (Network Sync)**:
-  - Sử dụng thư viện `httpx` để đăng nhập JWT, kéo danh mục môn học từ NestJS Backend và đồng bộ kết quả đợt chấm lên máy chủ trung tâm.
+- **Kết nối Mạng & Ủy quyền API (API Client)**:
+  - Sử dụng thư viện `httpx` để đăng nhập JWT, kéo danh mục môn học từ NestJS Backend và gửi yêu cầu tới AI Gateway (sinh testcase, review lỗi, quét đạo văn).
 
 ---
 
@@ -87,21 +87,20 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 | Phân hệ | Công nghệ cốt lõi | Các thư viện / Công cụ chính | Vai trò trong hệ thống AITA |
 | :--- | :--- | :--- | :--- |
 | **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`/`typeorm`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý Gemini Quota. |
-| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Môn học, Quota AI, Báo cáo. |
-| **Desktop App** | **Python (PyQt6)** | `psutil`, `subprocess`, `csv`, `httpx`, `difflib`, `pytest` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, 7 chế độ so khớp. |
-| **CSDL Trung tâm**| **PostgreSQL / SQLite**| Prisma Client / TypeORM Migrations | Lưu trữ tập trung tài khoản, danh mục môn học, hạn ngạch AI và phiên chấm đồng bộ. |
-| **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu tạm danh sách bài nộp, bộ testcase và kết quả chấm ngay trên máy tính giảng viên. |
+| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Môn học, Quota AI, Báo cáo kiểm toán. |
+| **Desktop App** | **Python (PyQt6)** | `psutil`, `subprocess`, `csv`, `httpx`, `difflib`, `pytest` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, 7 chế độ so khớp, xuất CSV. |
+| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / TypeORM Migrations | Lưu trữ tập trung tài khoản, danh mục môn học, cấu hình hạn ngạch và nhật ký AI. |
+| **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase và kết quả chấm điểm trên máy tính giảng viên. |
 | **AI Cloud Hub** | **Google Gemini** | `@google/genai` (trên NestJS Backend) | Gemini 1.5 Flash: Tự động sinh testcase biên, AI Code Review On-Demand, kiểm tra đạo văn. |
 
 ---
 
-## 4. Cơ Sở Dữ Liệu Trung Tâm Quản Lý Bởi NestJS Server
+## 4. Cơ Sở Dữ Liệu Trung Tâm Quản Lý Bởi NestJS Server (Neon Cloud)
 
 1. **`User`**: Tài khoản người dùng (`id`, `username`, `password_hash`, `full_name`, `email`, `role`, `is_active`, `created_at`).
 2. **`Course`**: Danh mục môn học (`id`, `code`, `name`, `language`) - PRF (C), PRO (Java/Python), DSA (Java/Python), PHP (Python).
-3. **`GradingSession`**: Phiên chấm điểm do Desktop App đồng bộ lên (`id`, `course_id`, `instructor_id`, `graded_at`, `total_submissions`, `avg_score`).
-4. **`SubmissionResult`**: Kết quả chi tiết từng bài nộp (`id`, `session_id`, `mssv`, `score`, `verdict`, `passed_tests`, `runtime_ms`, `teacher_feedback`).
-5. **`AiQuotaLog`**: Nhật ký sử dụng AI (`id`, `instructor_id`, `model`, `prompt_tokens`, `completion_tokens`, `cost_estimate`, `created_at`).
+3. **`AiQuotaConfig`**: Cấu hình trần hạn ngạch Token Quota hàng ngày cho từng Giảng viên (`id`, `user_id`, `daily_token_limit`, `used_tokens_today`, `last_reset_date`).
+4. **`AiQuotaLog`**: Nhật ký sử dụng AI (`id`, `user_id`, `feature_type`, `model_name`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `created_at`).
 
 ---
 

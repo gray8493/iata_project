@@ -85,9 +85,8 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
             usecase "UC-17: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (AST + AI)" as UC17
         }
 
-        package "5. Báo cáo, Đánh giá & Đồng bộ" {
+        package "5. Báo cáo & Xuất Bảng Điểm Cục Bộ" {
             usecase "UC-18: Xuất Báo cáo Điểm (results.csv & Excel .xlsx)" as UC18
-            usecase "UC-19: Đồng bộ Dữ liệu với Web Cloud Backend" as UC19
         }
     }
 }
@@ -115,7 +114,6 @@ Instructor --> UC12
 Instructor --> UC14
 Instructor --> UC17
 Instructor --> UC18
-Instructor --> UC19
 
 ' ==============================================================================
 ' 4. QUAN HỆ NỘI BỘ GIỮA CÁC USE CASE (INCLUDE & EXTEND)
@@ -139,8 +137,7 @@ UC01 --> Cloud : Xác thực OAuth2 & Cấp mã JWT
 UC02 --> Cloud : CRUD tài khoản qua REST API
 UC03 --> Cloud : Cập nhật danh mục môn học tập trung
 UC04 --> Cloud : Lưu khóa API & thống kê token quota
-UC05 --> Cloud : Truy vấn lịch sử chấm toàn trường
-UC19 --> Cloud : Đồng bộ bảng điểm & logs lên CSDL trung tâm
+UC05 --> Cloud : Truy vấn nhật ký sử dụng AI & audit logs toàn trường
 
 ' Kết nối với Trí tuệ nhân tạo (Google Gemini AI Hub)
 UC10 --> AIService : Prompt sinh cặp Input/Output biên

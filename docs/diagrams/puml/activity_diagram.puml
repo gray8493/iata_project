@@ -259,7 +259,7 @@ fork again
 end fork
 
 ' ==============================================================================
-' 4. GIAI ĐOẠN BÁO CÁO & ĐỒNG BỘ DỮ LIỆU CLOUD (UC-18 & UC-19)
+' 4. GIAI ĐOẠN XUẤT BÁO CÁO BẢNG ĐIỂM CỤC BỘ (UC-18)
 ' ==============================================================================
 
 |Giảng viên (Instructor)|
@@ -279,22 +279,7 @@ end fork
 :Thông báo xuất file thành công kèm nút [Mở Thư Mục];
 
 |Giảng viên (Instructor)|
-:Nhấn nút **[Đồng bộ lên Cloud]** (UC-19);
-
-|Desktop App UI (PyQt6 Client)|
-:Đóng gói toàn bộ bảng điểm & logs thành payload JSON;
-:Gửi yêu cầu POST /api/v1/sync/grading-session kèm JWT Token;
-
-|Web Server Backend (NestJS Central API)|
-:Xác thực danh tính giảng viên;
-:Lưu đợt chấm vào CSDL trung tâm qua Prisma / TypeORM;
-:Trả về HTTP 200 OK kèm sync_id;
-
-|Desktop App UI (PyQt6 Client)|
-:Cập nhật trạng thái đợt chấm thành "Đã đồng bộ lên Cloud" (biểu tượng đám mây xanh);
-
-|Giảng viên (Instructor)|
-:Hoàn tất phiên làm việc;
+:Mở thư mục kiểm tra file bảng điểm & Hoàn tất phiên chấm;
 stop
 
 @enduml

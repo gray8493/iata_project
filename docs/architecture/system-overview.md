@@ -149,9 +149,9 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 |                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
 |  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
 |  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, Guards (@Roles)           |
-|  - Quản lý nghiệp vụ: Quản lý ngân hàng Testcase, Môn học, Lịch sử chấm         |
+|  - Quản lý nghiệp vụ: Quản lý Tài khoản Giảng viên, Danh mục Môn học, Hạn ngạch AI |
 |  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi Google Gemini API           |
-|  - Cơ sở dữ liệu tập trung: PostgreSQL / SQLite qua Prisma ORM / TypeORM        |
+|  - Cơ sở dữ liệu trung tâm: PostgreSQL trên Neon Serverless Cloud qua Prisma   |
 +---------------------------------------------------------------------------------+
 ```
 
@@ -167,12 +167,11 @@ Web Admin Dashboard là hệ thống quản trị nội bộ **dành riêng cho 
 | **Quản lý danh mục Môn học (PRF, PRO, DSA, PHP)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Cấu hình API Key & Quota Gemini AI tập trung**| ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Giám sát nhật ký sử dụng Token AI toàn trường** | ✅ Xem toàn bộ logs | ❌ | Web Admin Dashboard |
-| **Xem báo cáo & Lịch sử chấm toàn hệ thống** | ✅ Xem tổng hợp | ❌ | Web Admin Dashboard |
 | **Nạp Testcase & Cấu hình bài tập** | ❌ | ✅ Toàn quyền trên lớp | Desktop App Client |
 | **Chấm bài tự động từ file CSV (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
 | **Xuất bảng điểm CSV kết quả (results.csv)** | ❌ | ✅ Xuất lớp phụ trách | Desktop App Client |
 
-*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách nạp từ file CSV mà Giảng viên thực hiện chấm điểm).*
+*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách nạp từ file CSV mà Giảng viên thực hiện chấm điểm cục bộ. Bảng điểm và mã nguồn sinh viên được bảo vệ tuyệt đối trên máy tính cá nhân của Giảng viên - Local-First Data Privacy).*
 
 ---
 
@@ -181,7 +180,7 @@ Khi Giảng viên sử dụng Desktop App, ứng dụng vận hành theo mô hì
 - **Tầng Giao diện (UI)**: PyQt6 / PySide6 hiện đại, xử lý đa luồng qua `QThread` để không đơ màn hình khi chấm bài.
 - **Tầng Nghiệp vụ**: Động cơ so khớp 7 chế độ (`MatchingStrategy`), quản lý đọc/ghi file CSV (`students.csv`, `results.csv`).
 - **Tầng Thực thi an toàn (Sandbox)**: Subprocess cô lập gọi `gcc`, `java`, `python` kết hợp thư viện `psutil` để kiểm soát RAM (bắt `MLE`) và cưỡng chế kill khi quá giờ (bắt `TLE`).
-- **Tầng Đồng bộ (Network Sync)**: Kết nối với Web Server Backend qua REST API để kéo danh sách lớp và đồng bộ kết quả chấm lên máy chủ trung tâm.
+- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi dịch vụ Gemini AI (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2).
 
 ---
 
@@ -195,16 +194,16 @@ Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điề
 3. **AI Hub & Hạn ngạch (Quota Management)**:
    - Lưu trữ bí mật Google Gemini API Key tại máy chủ, ngăn chặn lộ key ra phía client.
    - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
-4. **Quản lý Dữ liệu Học thuật & Bảng điểm trung tâm**:
-   - Lưu trữ lịch sử toàn bộ các phiên chấm từ Desktop Client đồng bộ lên qua Prisma ORM / TypeORM.
+4. **Quản lý Danh mục Môn học & Lưu trữ CSDL Trung tâm (Neon PostgreSQL)**:
    - Quản lý danh mục 4 môn cốt lõi: PRF (C), PRO (Java, Python), DSA (Java, Python), PHP (Python).
+   - Đảm bảo nguyên tắc bảo mật Local-First: Toàn bộ bảng điểm thi cử và mã nguồn sinh viên được lưu giữ cục bộ 100% trên máy Giảng viên, Backend không lưu giữ bài thi của sinh viên.
 
 ---
 
 ### 5.4. Các Phân Hệ Trên Trang Web Admin Quản Lý (Web Admin Management Dashboard)
 Giao diện Web Admin chuyên dụng dành riêng cho Quản trị viên (Admin) với các phân hệ chức năng:
 1. **Phân hệ Tổng quan (Executive Overview Dashboard)**:
-   - Thống kê thời gian thực: Tổng số tài khoản, số lớp đang hoạt động, tổng bài nộp đã chấm, biểu đồ tiêu thụ Token Gemini AI.
+   - Thống kê thời gian thực: Tổng số tài khoản, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ Token Gemini AI toàn trường.
 2. **Phân hệ Quản trị Tài khoản & Phân quyền (User & Role Management)**:
    - Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu hoặc vô hiệu hóa tài khoản Giảng viên.
    - Gán quyền hệ thống (`Admin`, `Instructor`).

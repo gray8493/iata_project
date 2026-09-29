@@ -71,19 +71,19 @@ DesktopCore -- LocalDB : 3.8: saveBatchResult(studentId, score, verdict, runtime
 
 DesktopCore -- DesktopUI : 3.9: emitRealtimeProgress(completed, total)\n3.10: displayResultsTable()
 
-' --- NHÓM 4: Trí Tuệ Nhân Tạo Thông Minh & Đồng Bộ Kết Quả ---
-Instructor -- DesktopUI : 4.1: requestAITestcase(problemStatement)\n4.4: requestAICodeReview(WA_studentId)\n4.7: checkPlagiarism2Stage()\n4.10: exportGradebook("results.csv")\n4.11: clickSyncToCloud()
+' --- NHÓM 4: Trí Tuệ Nhân Tạo Thông Minh & Xuất Bảng Điểm Cục Bộ ---
+Instructor -- DesktopUI : 4.1: requestAITestcase(problemStatement)\n4.4: requestAICodeReview(WA_studentId)\n4.7: checkPlagiarism2Stage()\n4.10: exportGradebook("results.csv")
 
-DesktopUI -- DesktopCore : 4.2: triggerAIGenerateTestcases()\n4.5: triggerOnDemandCodeReview()\n4.8: runLocalASTScan()\n4.12: syncSessionResults()
+DesktopUI -- DesktopCore : 4.2: triggerAIGenerateTestcases()\n4.5: triggerOnDemandCodeReview()\n4.8: runLocalASTScan()\n4.11: exportToDisk("results.csv")
 
-DesktopCore -- WebBackend : 4.3: HTTP POST /ai/generate-testcases\n4.6: HTTP POST /ai/code-review (On-Demand)\n4.9: HTTP POST /ai/verify-plagiarism (>80% only)\n4.13: HTTP POST /api/v1/sync/session
+DesktopCore -- WebBackend : 4.3: HTTP POST /ai/generate-testcases\n4.6: HTTP POST /ai/code-review (On-Demand)\n4.9: HTTP POST /ai/verify-plagiarism (>80% only)
 
-WebBackend -- AIHub : 4.14: validateQuotaAndForward(token, promptJson)
+WebBackend -- AIHub : 4.12: validateQuotaAndForward(token, promptJson)
 
-AIHub -- GeminiCloud : 4.15: generateContent(Multimodal 1.5 Flash)\n4.16: returnStructuredJSON()
+AIHub -- GeminiCloud : 4.13: generateContent(Multimodal 1.5 Flash)\n4.14: returnStructuredJSON()
 
-AIHub -- WebBackend : 4.17: returnAIFeedbackAndTrackTokens()
+AIHub -- WebBackend : 4.15: returnAIFeedbackAndTrackTokens()
 
-WebBackend -- CentralDB : 4.18: saveSyncedSession(results, aiLogs)
+WebBackend -- CentralDB : 4.16: saveAILogs(tokenUsage, timestamp)
 
 @enduml

@@ -181,7 +181,7 @@ Client (Desktop App PyQt6 & Web Admin) sử dụng trường **`error_code`** đ
 
 ### 3.6. Nhóm Thực thi Sandbox & Chấm điểm (Execution & Sandbox - `EXEC_xxx`)
 
-*(Chủ yếu trả về nội bộ trên Desktop App Runner hoặc đóng gói khi đồng bộ)*
+*(Chủ yếu trả về nội bộ trên Desktop App Runner hoặc xuất báo cáo cục bộ)*
 
 | Mã HTTP | Mã lỗi (`error_code`) | Thông điệp gợi ý (`message`) | Giải thích kỹ thuật |
 | :---: | :--- | :--- | :--- |

@@ -242,11 +242,6 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
         + check_plagiarism_semantic(pair_payload: PlagiarismPairRequest): PlagiarismReport
     }
 
-    class SyncController {
-        - sync_service: GradingSessionSyncService
-        + sync_grading_session(session_data: SessionSyncPayload): SyncResponse
-    }
-
     class AuthService {
         - secret_key: str
         - algorithm: str
@@ -270,12 +265,6 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
         + call_semantic_plagiarism_analysis(code_a: str, code_b: str): PlagiarismReport
     }
 
-    class GradingSessionSyncService {
-        - db_session: sqlalchemy.orm.Session
-        + save_session_results(session_data: SessionSyncPayload): str
-        + get_school_wide_reports(): List[GradingReport]
-    }
-
     class User <<Entity>> {
         + user_id: str
         + username: str
@@ -293,23 +282,20 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
         + default_language: str
     }
 
-    class GradingSessionRecord <<Entity>> {
-        + session_id: str
-        + instructor_id: str
-        + course_id: str
-        + session_time: datetime
-        + total_students: int
-        + synced_at: datetime
+    class AIQuotaLog <<Entity>> {
+        + log_id: str
+        + user_id: str
+        + feature_used: str
+        + tokens_consumed: int
+        + timestamp: datetime
     }
 
     AuthController --> AuthService
     AIGatewayController --> QuotaManager
     AIGatewayController --> GeminiGatewayService
-    SyncController --> GradingSessionSyncService
 
     AuthService ..> User : manages
-    GradingSessionSyncService ..> GradingSessionRecord : persists
-    GradingSessionSyncService ..> Course : references
+    QuotaManager ..> AIQuotaLog : persists
 }
 
 ' ==============================================================================
@@ -319,8 +305,7 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
 ' Desktop Batch Grading Manager kết nối với Sandbox Engine
 BatchGradingManager --> BaseRunner : executes code
 
-' Desktop App kết nối mạng với Backend API qua RESTful Calls
-BatchGradingManager ..> SyncController : HTTP POST /sync/grading-session
+' Desktop App kết nối mạng với Backend API qua RESTful Calls (Chỉ cho Auth và AI Gateway)
 GradingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
 
 ' Ghi chú làm nổi bật 3 Mẫu thiết kế bắt buộc theo Rubric SWD392

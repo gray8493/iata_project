@@ -51,9 +51,8 @@ Mỗi Use Case được đặc tả bao gồm:
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)** | | | | |
 | **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Giảng viên | Desktop App Client | Gemini AI Hub |
 | **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **Phân hệ 6: Báo cáo, Đánh giá & Đồng bộ (Reporting, Export & Cloud Sync)** | | | | |
+| **Phân hệ 6: Báo cáo, Đánh giá Cục Bộ (Reporting & Local Export)** | | | | |
 | **UC-18** | Xuất Báo cáo Kết quả Điểm | Giảng viên | Desktop App Client | *(Tương tác File System)* |
-| **UC-19** | Đồng bộ Dữ liệu với Web Cloud Backend | Giảng viên | Desktop App Client | Web Server Backend |
 
 ---
 
@@ -92,11 +91,11 @@ Mỗi Use Case được đặc tả bao gồm:
 7. Backend phản hồi mã trạng thái `HTTP 200 OK` kèm dữ liệu token và thông tin hồ sơ người dùng (`id`, `full_name`, `role`).
 8. Client lưu trữ token:
    - **Web Admin**: Lưu token vào bộ nhớ an toàn (HttpOnly Cookie hoặc sessionStorage) và chuyển hướng tới Dashboard Quản trị.
-   - **Desktop App**: Lưu token vào phiên làm việc `SessionManager` trong RAM để đính kèm vào header `Authorization: Bearer <token>` cho mọi request gọi API đồng bộ và AI Hub tiếp theo.
+   - **Desktop App**: Lưu token vào phiên làm việc `SessionManager` trong RAM để đính kèm vào header `Authorization: Bearer <token>` cho mọi request gọi API AI Gateway tiếp theo.
 9. Hệ thống thông báo đăng nhập thành công. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Đăng nhập Offline trên Desktop App**: Tại bước 4, nếu không có kết nối Internet tới Web Backend, Desktop App cung cấp chế độ **"Offline Mode"**: Giảng viên vẫn có thể vào ứng dụng để chấm bài cục bộ bằng Sandbox (`UC-12`) và xuất file CSV (`UC-18`), nhưng các tính năng gọi AI Cloud (`UC-10`, `UC-16`, `UC-17 Vòng 2`) và đồng bộ Cloud (`UC-19`) sẽ tạm thời bị vô hiệu hóa.
+* **A1 - Đăng nhập Offline trên Desktop App**: Tại bước 4, nếu không có kết nối Internet tới Web Backend, Desktop App cung cấp chế độ **"Offline Mode"**: Giảng viên vẫn có thể vào ứng dụng để chấm bài cục bộ bằng Sandbox (`UC-12`) và xuất file CSV (`UC-18`), nhưng các tính năng gọi AI Cloud (`UC-10`, `UC-16`, `UC-17 Vòng 2`) sẽ tạm thời bị vô hiệu hóa.
 * **E1 - Sai tên đăng nhập hoặc mật khẩu**: Tại bước 5, nếu không tìm thấy username hoặc mật khẩu không khớp, Backend trả về `HTTP 401 Unauthorized` ("Tên đăng nhập hoặc mật khẩu không chính xác"). Client hiển thị thông báo lỗi màu đỏ và cho phép người dùng thử lại.
 * **E2 - Tài khoản bị khóa (Disabled Account)**: Tại bước 5, nếu tài khoản có cờ `is_active = False`, Backend trả về `HTTP 403 Forbidden` ("Tài khoản đã bị vô hiệu hóa bởi Quản trị viên"). Client thông báo người dùng liên hệ Admin.
 
@@ -147,7 +146,7 @@ Mỗi Use Case được đặc tả bao gồm:
   1. Quản trị viên đã đăng nhập thành công vào Web Admin Dashboard với quyền `Admin`.
 * **Hậu điều kiện (Postconditions)**:
   1. Danh mục môn học trong CSDL trung tâm được cập nhật.
-  2. Các ứng dụng Desktop App của Giảng viên khi đồng bộ sẽ nhận được danh sách môn học mới nhất để lựa chọn khi tạo đợt chấm.
+  2. Các ứng dụng Desktop App của Giảng viên khi kết nối sẽ nhận được danh sách môn học mới nhất để lựa chọn khi tạo đợt chấm.
 * **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Danh mục Môn học" (Course Catalog)** trên thanh điều hướng Web Admin.
 
 ##### Luồng sự kiện chính (Main Flow):
@@ -211,8 +210,8 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-05`
 * **Tên Use Case**: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
 * **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật trên hệ thống: tổng số đợt chấm đã thực hiện, tỷ lệ đạt/trượt bài thi, lịch sử đồng bộ từ các Desktop App của giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, Prisma ORM)
+* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật và sử dụng AI trên hệ thống: tổng số tài khoản giảng viên, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ hạn ngạch Token Gemini theo giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập vào Web Admin Dashboard với quyền Admin.
 * **Hậu điều kiện (Postconditions)**:
@@ -222,18 +221,18 @@ Mỗi Use Case được đặc tả bao gồm:
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên truy cập mục **"Báo cáo & Thống kê"**.
 2. Hệ thống gửi yêu cầu `GET /api/v1/admin/reports/overview` lên Backend.
-3. Backend tổng hợp dữ liệu từ bảng đợt chấm (`grading_sessions`), bảng bài nộp (`submissions`), và bảng nhật ký (`audit_logs`).
+3. Backend tổng hợp dữ liệu từ bảng người dùng (`users`), bảng môn học (`courses`), và bảng nhật ký tiêu thụ AI (`ai_quota_logs`).
 4. Giao diện hiển thị các khối trực quan:
-   - Các chỉ số KPI tổng thể: Tổng số bài nộp đã chấm, Số đợt thi đã hoàn tất, Tỷ lệ Pass trung bình toàn trường.
-   - Biểu đồ phân bố điểm thi theo từng môn học (PRF, PRO, DSA, PHP).
-   - Biểu đồ tần suất xuất hiện các lỗi (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`).
-   - Bảng danh sách các đợt chấm bài gần nhất (Tên đợt chấm, Giảng viên phụ trách, Lớp, Môn học, Thời gian đồng bộ, Số sinh viên).
+   - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng số môn học đang mở, Tổng token AI đã tiêu thụ trong tháng.
+   - Biểu đồ phân bổ mức độ sử dụng AI theo từng môn học (PRF, PRO, DSA, PHP).
+   - Biểu đồ tần suất sử dụng các tính năng AI (Sinh testcase, Code review lỗi WA, Quét đạo văn Vòng 2).
+   - Bảng nhật ký hoạt động hệ thống và kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
 5. Quản trị viên có thể sử dụng bộ lọc: Lọc theo Môn học, theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
-6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ họp nghiệm thu đào tạo. Use Case kết thúc.
+6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ quản lý chi phí API và nghiệm thu đào tạo. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Xem chi tiết một đợt chấm bài của Giảng viên**: Quản trị viên nhấp vào một đợt chấm cụ thể trong danh sách để xem bảng điểm tổng hợp của lớp đó mà giảng viên đã đồng bộ lên cloud (`UC-19`).
-* **E1 - Chưa có dữ liệu thống kê**: Nếu hệ thống mới triển khai hoặc chưa có đợt chấm nào được đồng bộ, giao diện hiển thị thông báo rỗng thân thiện (Empty State): "Chưa có dữ liệu đợt chấm được đồng bộ trong khoảng thời gian đã chọn".
+* **A1 - Xem chi tiết mức sử dụng Token của Giảng viên**: Quản trị viên nhấp vào một giảng viên cụ thể trong danh sách để xem chi tiết lịch sử các lần gọi AI trong tháng.
+* **E1 - Chưa có dữ liệu thống kê**: Nếu hệ thống mới triển khai hoặc chưa có lượt gọi AI nào, giao diện hiển thị thông báo rỗng thân thiện (Empty State): "Chưa có dữ liệu nhật ký sử dụng trong khoảng thời gian đã chọn".
 
 ---
 
@@ -659,7 +658,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-### 3.6. Phân Hệ 6: Báo Cáo, Đánh Giá & Đồng Bộ (Reporting, Export & Cloud Sync)
+### 3.6. Phân Hệ 6: Báo Cáo, Đánh Giá Cục Bộ (Reporting & Local Export)
 
 ---
 
@@ -694,39 +693,3 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **E1 - File đang bị mở bởi ứng dụng khác**: Tại bước 5, nếu file đích đang được mở bằng Microsoft Excel khiến hệ thống không thể ghi đè (Permission Denied), Desktop App cảnh báo: "Không thể ghi file. File kết quả đang được mở bởi ứng dụng khác. Vui lòng đóng file và thử lại".
-
----
-
-#### 3.6.2. UC-19: Đồng Bộ Dữ Liệu Với Web Cloud Backend (Synchronize Grading Data with Cloud API)
-
-* **Mã Use Case**: `UC-19`
-* **Tên Use Case**: Đồng bộ Dữ liệu với Web Cloud Backend (Synchronize Grading Data with Cloud API)
-* **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Central Server, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cho phép Giảng viên đồng bộ toàn bộ bảng điểm, thống kê lỗi và nhật ký của đợt chấm bài từ Desktop App lên máy chủ trung tâm Web Server Backend thông qua RESTful API. Dữ liệu này giúp nhà trường lưu trữ dữ liệu học thuật tập trung và phục vụ việc Quản trị viên xem báo cáo toàn trường trên Web Admin (`UC-05`).
-* **Tiền điều kiện (Preconditions)**:
-  1. Giảng viên đã hoàn thành đợt chấm điểm trên Desktop App.
-  2. Desktop App có kết nối mạng Internet và phiên đăng nhập hợp lệ với JWT token (`UC-01`).
-* **Hậu điều kiện (Postconditions)**:
-  1. Toàn bộ dữ liệu đợt chấm được đồng bộ lên CSDL trung tâm của Web Server Backend.
-  2. Trạng thái đợt chấm trên Desktop App được chuyển thành `Synced` (Đã đồng bộ) kèm mốc thời gian.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Đồng bộ lên Cloud" (Sync with Cloud)** trên Desktop App.
-
-##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên nhấn nút **"Đồng bộ lên Cloud"** trên thanh công cụ Desktop App.
-2. Desktop App kiểm tra kết nối mạng và tính hợp lệ của JWT token hiện tại:
-   - Nếu token sắp hết hạn, tự động gửi refresh token để gia hạn phiên làm việc.
-3. Desktop App đóng gói dữ liệu đợt chấm thành payload JSON:
-   - Thông tin đợt chấm: Mã môn học, Tên lớp, Thời gian chấm, Tổng số bài.
-   - Danh sách kết quả điểm chi tiết từng sinh viên (MSSV, Điểm từng câu, Tổng điểm, Verdict, Thời gian chạy, Nhận xét).
-4. Desktop App gửi yêu cầu `POST /api/v1/sync/grading-session` kèm header `Authorization: Bearer <token>` lên Web Server Backend.
-5. Web Server Backend tiếp nhận yêu cầu:
-   - Xác thực danh tính giảng viên từ JWT.
-   - Kiểm tra trùng lặp đợt chấm (nếu đã từng đồng bộ thì cập nhật phiên bản mới).
-   - Lưu thông tin vào các bảng `grading_sessions` và `submissions` trong CSDL trung tâm qua SQLAlchemy ORM.
-6. Backend trả về phản hồi thành công `HTTP 200 OK` kèm `sync_id` và mốc thời gian ghi nhận tại máy chủ.
-7. Desktop App cập nhật trạng thái đợt chấm thành "Đã đồng bộ lên hệ thống lúc [Thời gian]" với biểu tượng đám mây màu xanh. Use Case kết thúc.
-
-##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **E1 - Mất kết nối mạng**: Tại bước 2 hoặc 4, nếu mất kết nối Internet, hệ thống báo lỗi: "Không thể kết nối đến máy chủ trung tâm. Dữ liệu của bạn vẫn được lưu an toàn trên máy cục bộ. Vui lòng thử đồng bộ lại khi có kết nối".
-* **E2 - Phiên làm việc hết hạn**: Tại bước 2, nếu refresh token cũng hết hạn, hệ thống hiển thị hộp thoại yêu cầu Giảng viên nhập lại mật khẩu đăng nhập nhanh mà không làm mất dữ liệu hiện tại.

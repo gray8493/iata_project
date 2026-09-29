@@ -59,24 +59,21 @@ package "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" as CentralB
     component "API Gateway Controller\n(NestJS Routing & Swagger)" as APIGateway
     component "Auth & RBAC Service\n(Passport-JWT & Guards)" as AuthRBAC
     component "Course & Academic Service" as CourseService
-    component "Grading Sync Service" as GradingSyncService
     component "AI Hub Gateway\n(Quota Guard & Token Counter)" as AIHubGateway
 
     IRestAPI - APIGateway
     APIGateway ..> AuthRBAC : verifyToken / role
     APIGateway ..> CourseService
-    APIGateway ..> GradingSyncService
     APIGateway ..> AIHubGateway
 
     interface "Prisma / TypeORM\nData Access" as IPrismaORM
     CourseService ..> IPrismaORM
-    GradingSyncService ..> IPrismaORM
     AuthRBAC ..> IPrismaORM
     AIHubGateway ..> IPrismaORM
 }
 
-database "Cơ Sở Dữ Liệu Trung Tâm\n(PostgreSQL / SQLite Central)" as CentralDB #E0F2F1 {
-    [Users, Courses,\nGradingSessions, AIQuotaLogs] as CentralTables
+database "Cơ Sở Dữ Liệu Trung Tâm\n(PostgreSQL / Neon Serverless Cloud)" as CentralDB #E0F2F1 {
+    [Users, Courses,\nAIQuotaConfigs, AIQuotaLogs] as CentralTables
 }
 IPrismaORM -- CentralTables
 
@@ -113,12 +110,12 @@ package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)"
     package "Application Core & Orchestration" #EDE7F6 {
         [Grading Controller\n(Workflow Coordinator)] as GradingController
         [Plagiarism Detector\n(2-Stage: AST & AI)] as PlagiarismDetector
-        [Network Sync Client\n(HTTPX Client)] as SyncClient
+        [API & AI Gateway Client\n(HTTPX Client)] as APIClient
         [Local Storage Engine\n(SQLite & CSV Handler)] as LocalStoreEngine
 
         ProgressWorker ..> GradingController : executes
         GradingController ..> PlagiarismDetector
-        GradingController ..> SyncClient
+        GradingController ..> APIClient
         GradingController ..> LocalStoreEngine
     }
 
@@ -219,7 +216,7 @@ package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)"
 ' LIÊN KẾT GIAO TIẾP GIỮA CÁC PHÂN HỆ CHÍNH (Cross-Subsystem Interconnections)
 ' ==============================================================================
 AdminUI ..> IRestAPI : HTTPS / JWT Bearer
-SyncClient ..> IRestAPI : HTTPS / Sync Session & Quota
+APIClient ..> IRestAPI : HTTPS / Auth & AI Gateway
 
 ' ==============================================================================
 ' CÁC GHI CHÚ CHỈ DẪN 3 MẪU THIẾT KẾ (Design Pattern Annotation Notes)
