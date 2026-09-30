@@ -48,6 +48,7 @@ Mỗi Use Case được đặc tả bao gồm:
 | **UC-13** | Giám sát Tiến độ Chấm Thời gian thực | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-14** | Xem Chi tiết Kết quả & Nhật ký Bài nộp | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
 | **UC-15** | Chấm lại & Điều chỉnh Điểm thủ công | Giảng viên | Desktop App Client | Sandbox Execution Runner |
+| **UC-19** | Chấm Điểm Bài Tập Web Tự Động | Giảng viên | Desktop App Client | Headless Browser, W3C Parser, Gemini AI Hub |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)** | | | | |
 | **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Giảng viên | Desktop App Client | Gemini AI Hub |
 | **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Giảng viên | Desktop App Client | Gemini AI Hub |
@@ -133,41 +134,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **E1 - Trùng lặp Email hoặc Username**: Tại bước 6, nếu Email hoặc Username đã tồn tại trong CSDL, Backend trả về `HTTP 409 Conflict` ("Email hoặc Tên đăng nhập đã được sử dụng"). Giao diện Web hiển thị cảnh báo ngay tại ô nhập liệu tương ứng.
 * **E2 - Admin tự khóa tài khoản của chính mình**: Nếu Quản trị viên cố gắng chuyển trạng thái tài khoản đang đăng nhập của mình thành vô hiệu hóa hoặc hạ quyền, hệ thống chặn lại và cảnh báo "Không thể tự vô hiệu hóa tài khoản Quản trị viên đang kích hoạt".
 
----
 
-#### 3.1.3. UC-03: Quản Lý Danh Mục Môn Học (Manage Course Catalog)
-
-* **Mã Use Case**: `UC-03`
-* **Tên Use Case**: Quản lý Danh mục Môn học (Manage Course Catalog)
-* **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Course Service, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cho phép Quản trị viên quản lý danh mục các môn học lập trình cốt lõi của trường (**PRF** - C, **PRO** - Java/Python, **DSA** - Java/Python, **PHP** - Python). Quản trị viên có thể thêm môn mới, cấu hình ngôn ngữ lập trình cho phép, định dạng file nộp chấp nhận và quy chuẩn cấu trúc câu hỏi thi.
-* **Tiền điều kiện (Preconditions)**:
-  1. Quản trị viên đã đăng nhập thành công vào Web Admin Dashboard với quyền `Admin`.
-* **Hậu điều kiện (Postconditions)**:
-  1. Danh mục môn học trong CSDL trung tâm được cập nhật.
-  2. Các ứng dụng Desktop App của Giảng viên khi kết nối sẽ nhận được danh sách môn học mới nhất để lựa chọn khi tạo đợt chấm.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Danh mục Môn học" (Course Catalog)** trên thanh điều hướng Web Admin.
-
-##### Luồng sự kiện chính (Main Flow):
-1. Quản trị viên truy cập mục **"Danh mục Môn học"**.
-2. Hệ thống gửi yêu cầu `GET /api/v1/courses` và hiển thị danh sách các môn học hiện có (Mã môn, Tên môn học, Ngôn ngữ hỗ trợ: C/Java/Python, Cấu hình sandbox mặc định).
-3. Quản trị viên bấm nút **"Thêm môn học mới"** hoặc chọn một môn học hiện có để **"Chỉnh sửa"**.
-4. Biểu mẫu xuất hiện yêu cầu thiết lập:
-   - Mã môn học (ví dụ: `PRF192`, `PRO192`, `CSD201`).
-   - Tên môn học (ví dụ: `Lập trình C cơ bản`, `Cấu trúc Dữ liệu & Giải thuật`).
-   - Ngôn ngữ lập trình áp dụng: Checkbox chọn `C`, `Java`, `Python`.
-   - Giới hạn tài nguyên khuyến nghị: Timeout mặc định (ms), Memory Limit mặc định (MB).
-5. Quản trị viên kiểm tra thông số và bấm **"Xác nhận lưu"**.
-6. Web Client gửi yêu cầu (`POST` hoặc `PUT /api/v1/courses/{id}`) kèm JWT token lên Backend.
-7. Backend kiểm tra quyền Admin, xác thực dữ liệu qua Pydantic schema, lưu thông tin môn học vào bảng `courses` trong CSDL.
-8. Backend trả về mã thành công `HTTP 200/201`. Giao diện Web hiển thị thông báo thành công và cập nhật danh sách hiển thị. Use Case kết thúc.
-
-##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Xóa / Vô hiệu hóa môn học**: Quản trị viên chọn "Vô hiệu hóa" môn học không còn giảng dạy. Hệ thống chuyển cờ `is_active = False` để môn này không còn xuất hiện trong danh sách tạo đợt chấm mới của Giảng viên, nhưng giữ nguyên lịch sử chấm các kỳ trước.
-* **E1 - Trùng mã môn học**: Tại bước 6, nếu mã môn học đã tồn tại, Backend trả về `HTTP 400 Bad Request` ("Mã môn học đã tồn tại trong hệ thống"). Web UI cảnh báo lỗi.
-
----
 
 #### 3.1.4. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
 
@@ -221,13 +188,12 @@ Mỗi Use Case được đặc tả bao gồm:
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên truy cập mục **"Báo cáo & Thống kê"**.
 2. Hệ thống gửi yêu cầu `GET /api/v1/admin/reports/overview` lên Backend.
-3. Backend tổng hợp dữ liệu từ bảng người dùng (`users`), bảng môn học (`courses`), và bảng nhật ký tiêu thụ AI (`ai_quota_logs`).
+3. Backend tổng hợp dữ liệu từ bảng người dùng (`users`) và bảng nhật ký tiêu thụ AI (`ai_quota_logs`).
 4. Giao diện hiển thị các khối trực quan:
-   - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng số môn học đang mở, Tổng token AI đã tiêu thụ trong tháng.
-   - Biểu đồ phân bổ mức độ sử dụng AI theo từng môn học (PRF, PRO, DSA, PHP).
+   - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng token AI đã tiêu thụ trong tháng.
    - Biểu đồ tần suất sử dụng các tính năng AI (Sinh testcase, Code review lỗi WA, Quét đạo văn Vòng 2).
    - Bảng nhật ký hoạt động hệ thống và kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
-5. Quản trị viên có thể sử dụng bộ lọc: Lọc theo Môn học, theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
+5. Quản trị viên có thể sử dụng bộ lọc: theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
 6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ quản lý chi phí API và nghiệm thu đào tạo. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
@@ -586,6 +552,62 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **E1 - Nhập điểm ngoài thang điểm hợp lệ**: Tại bước 1, nếu Giảng viên nhập điểm âm hoặc lớn hơn 10.0, hệ thống báo lỗi: "Điểm số phải nằm trong thang điểm từ 0.0 đến 10.0".
+
+---
+
+#### 3.4.5. UC-19: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+
+* **Mã Use Case**: `UC-19`
+* **Tên Use Case**: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+* **Tác nhân chính**: Giảng viên (Instructor)
+* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser (`BeautifulSoup4` / `tinycss2` / `html-validate`), Google Gemini AI Hub (API Gateway)
+* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế và phát triển web (HTML5, CSS3, JavaScript, PHP) trực tiếp trên Desktop App của Giảng viên. Hệ thống tự động thẩm định mã nguồn giao diện và hành vi theo khung tiêu chí (Rubric) 4 thành phần: Cấu trúc DOM & ngữ nghĩa thẻ HTML, Chuẩn W3C & Linter, Kiểm thử hành vi tương tác bằng Headless Browser (Playwright), và Đánh giá chất lượng/thẩm mỹ giao diện trực quan bằng AI Multimodal (Gemini Vision). Kết quả được quy đổi chính xác về thang điểm 10 kèm báo cáo lỗi chi tiết từng tiêu chí.
+* **Tiền điều kiện (Preconditions)**:
+  1. Giảng viên đã nạp danh sách sinh viên (`students.csv`) và thư mục chứa bài nộp mã nguồn web (mỗi sinh viên một thư mục con chứa `index.html` hoặc `index.php`).
+  2. Môi trường Python trên máy trạm đã tích hợp thư viện parser (`BeautifulSoup4`) và binary Headless Chromium của `playwright`.
+* **Hậu điều kiện (Postconditions)**:
+  1. Điểm số tổng hợp (thang điểm 10) và điểm chi tiết từng tiêu chí thành phần được lưu vào cơ sở dữ liệu SQLite cục bộ.
+  2. Ảnh chụp màn hình giao diện (Screenshots) ở các kích thước màn hình (Desktop/Mobile) cùng nhật ký kiểm thử được lưu trữ để phục vụ phúc khảo.
+  3. Bảng điểm Desktop App hiển thị trạng thái đạt/lỗi trực quan.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chuyển sang chế độ "Chấm Bài Web" và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
+
+##### Luồng sự kiện chính (Main Flow):
+1. Giảng viên chọn đợt chấm thuộc môn học có nội dung lập trình web (ví dụ: `PHP`, `Web Development / PRF`).
+2. Giảng viên mở bảng cấu hình **"Tiêu chí & Rubric Chấm Web" (Web Grading Rubric)** và thiết lập các trọng số:
+   - **$w_1$ (DOM Structure & Semantics)**: Kiểm tra thẻ HTML ngữ nghĩa, cấu trúc layout, form attributes (Mặc định: 30%).
+   - **$w_2$ (W3C Validation & Code Style)**: Kiểm tra chuẩn cú pháp W3C HTML5/CSS3 offline (Mặc định: 10%).
+   - **$w_3$ (Interactive Functional Testing)**: Kịch bản kiểm thử hành vi Playwright giả lập người dùng (Mặc định: 40%).
+   - **$w_4$ (Visual & Quality Assessment)**: Điểm Audit Lighthouse hoặc Gemini Vision chấm bố cục thẩm mỹ (Mặc định: 20%).
+3. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
+4. Desktop App khởi tạo luồng chạy ngầm đa tiến trình `QThread` và tiến hành chấm tuần tự từng bài nộp:
+   - **Bước 4.1 - Khởi tạo môi trường chạy bài nộp**:
+     - Với bài tĩnh (HTML/CSS/JS): Xác định đường dẫn file `index.html` cục bộ (`file:///path/to/submission/index.html`).
+     - Với bài động (PHP): Desktop App tự động khởi động một máy chủ PHP nhúng cục bộ tạm thời (`php -S 127.0.0.1:<random_port> -t <sub_folder>`).
+   - **Bước 4.2 - Kiểm tra cấu trúc DOM & Ngữ nghĩa (HTML Semantic Analysis)**:
+     - Parser `BeautifulSoup4` quét cây phân cấp DOM: kiểm tra sự hiện diện của các thẻ bắt buộc theo checklist đề bài (ví dụ: `<header>`, `<nav>`, `<footer>`, `<form>`, `<table>`, `<input type="email">`, thuộc tính `required`, thuộc tính `alt` cho thẻ `<img>`).
+     - Tính điểm $S_{DOM} = \frac{\text{Số tiêu chí DOM đạt}}{\text{Tổng số tiêu chí DOM}} \times 10$.
+   - **Bước 4.3 - Quét chuẩn cú pháp W3C & Linter (Static Linting)**:
+     - Trình quét W3C offline phân tích file `.html` và `.css`. Đếm số lượng lỗi nghiêm trọng (`Errors`) và cảnh báo (`Warnings`).
+     - Tính điểm $S_{Lint} = \max(0, 10 - \text{Errors} \times 1.0 - \text{Warnings} \times 0.2)$.
+   - **Bước 4.4 - Kiểm thử chức năng tương tác (Playwright Headless Testing)**:
+     - Mở trang web sinh viên bằng trình duyệt không đầu Chromium (`playwright-python`).
+     - Tự động thực thi kịch bản kiểm thử đã định nghĩa trong đề bài: nhập dữ liệu vào ô input, click button, bắt sự kiện click menu, kiểm tra kết quả tính toán hiển thị trên màn hình, kiểm tra responsive layout ở 2 viewport (`1920x1080` và `375x667`).
+     - Tính điểm $S_{Func} = \frac{\text{Số test case tương tác Pass}}{\text{Tổng số test case tương tác}} \times 10$.
+   - **Bước 4.5 - Chụp ảnh giao diện & Đánh giá chất lượng (Visual & AI Multimodal)**:
+     - Playwright tự động chụp ảnh màn hình bài nộp (screenshot full-page).
+     - Nếu có kết nối mạng và bật chế độ AI Review: Desktop App gửi ảnh chụp kèm rubric lên Gemini AI Hub để đánh giá độ hài hòa màu sắc, tính cân đối của bố cục và phát hiện gian lận dùng template có sẵn.
+     - Tính điểm $S_{UI}$ (thang điểm 10).
+5. **Tổng hợp điểm số**: Hệ thống áp dụng công thức Rubric:
+   $$\text{Final Score} = w_1 \times S_{DOM} + w_2 \times S_{Lint} + w_3 \times S_{Func} + w_4 \times S_{UI}$$
+6. Hệ thống lưu điểm thành phần, điểm tổng kết và đường dẫn ảnh chụp màn hình vào CSDL SQLite cục bộ.
+7. Thanh tiến độ chấm trên giao diện cập nhật thời gian thực (`UC-13`).
+8. Sau khi chấm xong toàn bộ lớp, bảng điểm tổng kết cập nhật đầy đủ điểm số và cho phép giảng viên nhấp vào từng sinh viên để xem ảnh chụp màn hình giao diện web cùng chi tiết lỗi từng tiêu chí. Use Case kết thúc.
+
+##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+* **A1 - Chấm bài web không cần AI (Hoàn toàn Offline)**: Nếu máy trạm của giảng viên không có Internet hoặc muốn tiết kiệm Quota AI, giảng viên bỏ chọn tiêu chí $w_4$ (AI Multimodal). Hệ thống tự động phân bổ lại trọng số cho 3 tiêu chí offline ($w_1, w_2, w_3$) để đạt tổng 100%. Quá trình chấm diễn ra 100% offline với tốc độ siêu tốc (1-2 giây / bài).
+* **A2 - Điều chỉnh điểm từng tiêu chí thủ công**: Tương tự như `UC-15`, tại màn hình xem chi tiết kết quả web, Giảng viên có thể ghi đè điểm của bất kỳ tiêu chí thành phần nào (ví dụ: cộng điểm sáng tạo giao diện) kèm ghi chú giải trình.
+* **E1 - Không tìm thấy file `index.html` hoặc `index.php`**: Tại bước 4.1, nếu thư mục nộp bài của sinh viên không có file entry point chuẩn, hệ thống tự động tìm kiếm file `.html` bất kỳ trong thư mục. Nếu vẫn không thấy, ghi nhận điểm 0 với mã lỗi `ERR_NO_ENTRYPOINT` ("Không tìm thấy tệp tin giao diện index.html").
+* **E2 - Vòng lặp vô tận trong JavaScript (Infinite Loop / TLE)**: Tại bước 4.4, nếu mã JavaScript của sinh viên chứa vòng lặp vô tận gây treo trình duyệt, Playwright Timeout Guard (cấu hình mặc định 5000ms) sẽ tự động ngắt tab, ghi nhận tiêu chí $S_{Func} = 0$ với verdict `TLE` (Time Limit Exceeded) và tiếp tục chấm các tiêu chí khác bình thường.
 
 ---
 

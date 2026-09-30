@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: AITA User Management API
+  version: 1.0.0
+  description: Phân hệ API Quản lý Người dùng dành cho Admin (CRUD Giảng viên, phân quyền).
+paths:
+  /admin/users:
+    get:
+      summary: Lấy danh sách tài khoản
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy danh sách thành công
+                data:
+                  items: []
+                  pagination: { page: 1, page_size: 10, total_items: 0, total_pages: 0 }
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '403':
+          description: Không có quyền truy cập
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 403
+                error_code: FORBIDDEN_ADMIN_ONLY
+                message: Chỉ Quản trị viên mới có quyền truy cập.
+                timestamp: '2026-09-30T12:00:00.000Z'
+    post:
+      summary: Tạo mới tài khoản
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, full_name, email, role]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                password:
+                  type: string
+                  minLength: 8
+                full_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [ADMIN, INSTRUCTOR]
+      responses:
+        '201':
+          description: Tạo thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 201
+                message: Tạo tài khoản thành công
+                data:
+                  id: 2
+                  username: teacher_lan
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '409':
+          description: Trùng tên hoặc email
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 409
+                error_code: USER_ALREADY_EXISTS
+                message: Tên đăng nhập hoặc email đã tồn tại.
+                timestamp: '2026-09-30T12:00:00.000Z'
+  /admin/users/{id}:
+    get:
+      summary: Chi tiết tài khoản
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Thành công
+        '404':
+          description: Không tìm thấy
+    put:
+      summary: Cập nhật tài khoản
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Thành công
+        '404':
+          description: Không tìm thấy
+    delete:
+      summary: Xóa tài khoản
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Xóa thành công

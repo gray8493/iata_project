@@ -52,9 +52,9 @@ deactivate AuthService
 Backend --> WebUI : 5. HTTP 200 OK (JWT Token)
 WebUI --> Admin : 6. Chuyển hướng vào trang Quản trị Dashboard
 
-Admin -> WebUI : 7. Tạo tài khoản Giảng viên & Cấu hình Môn học (PRF, PRO, DSA, PHP)
-WebUI -> Backend : 8. HTTP POST /api/v1/admin/users & /courses
-Backend -> CentralDB : 9. Lưu trữ tài khoản Giảng viên và danh mục môn học
+Admin -> WebUI : 7. Quản lý tài khoản Giảng viên (Tạo mới, phân quyền, khóa)
+WebUI -> Backend : 8. HTTP POST /api/v1/admin/users
+Backend -> CentralDB : 9. Lưu trữ tài khoản Giảng viên
 activate CentralDB
 CentralDB --> Backend : 10. Đã ghi nhận dữ liệu
 deactivate CentralDB

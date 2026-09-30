@@ -27,6 +27,8 @@ erDiagram
         varchar email UK "Email liên hệ"
         varchar role "Vai trò: ADMIN | INSTRUCTOR"
         boolean is_active "Trạng thái tài khoản"
+        boolean is_deleted "Cờ xóa mềm (Soft delete)"
+        timestamptz deleted_at "Thời điểm xóa mềm"
         timestamptz created_at "Thời điểm tạo"
         timestamptz updated_at "Thời điểm cập nhật"
     }
@@ -37,6 +39,8 @@ erDiagram
         integer daily_token_limit "Hạn ngạch Token tối đa mỗi ngày"
         integer used_tokens_today "Số Token đã tiêu thụ trong ngày"
         date last_reset_date "Ngày làm mới hạn ngạch gần nhất"
+        boolean is_deleted "Cờ xóa mềm (Soft delete)"
+        timestamptz deleted_at "Thời điểm xóa mềm"
         timestamptz updated_at "Thời điểm cập nhật cấu hình"
     }
 
@@ -48,16 +52,9 @@ erDiagram
         integer prompt_tokens "Số token đầu vào"
         integer completion_tokens "Số token đầu ra"
         integer total_tokens "Tổng số token tiêu thụ"
+        boolean is_deleted "Cờ xóa mềm (Soft delete)"
+        timestamptz deleted_at "Thời điểm xóa mềm"
         timestamptz created_at "Thời điểm gọi API"
-    }
-
-    COURSES {
-        uuid id PK "Khóa chính"
-        varchar code UK "Mã môn: PRF | PRO | DSA | PHP"
-        varchar name "Tên môn học chuẩn"
-        varchar default_language "C | Java | Python"
-        boolean is_active "Trạng thái môn học"
-        timestamptz created_at "Thời điểm tạo"
     }
 ```
 
@@ -77,6 +74,8 @@ erDiagram
         varchar class_name "Tên lớp: SE1801, IA1802..."
         varchar course_code "PRF | PRO | DSA | PHP"
         varchar source_folder_path "Đường dẫn thư mục bài nộp"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
         timestamptz created_at "Thời điểm tạo đợt chấm"
     }
 
@@ -87,6 +86,8 @@ erDiagram
         varchar file_name "Tên file bài nộp: Q1.c, Q2.java..."
         varchar file_path "Đường dẫn tuyệt đối trên đĩa"
         text source_code "Nội dung mã nguồn đọc từ file"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
         timestamptz imported_at "Thời điểm nạp từ CSV"
     }
 
@@ -100,6 +101,8 @@ erDiagram
         integer time_limit_ms "Giới hạn thời gian (mặc định 1000ms)"
         integer memory_limit_mb "Giới hạn bộ nhớ RAM (mặc định 256MB)"
         varchar generated_by "MANUAL | GEMINI_AI"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
     }
 
     LOCAL_GRADING_RESULTS {
@@ -110,6 +113,8 @@ erDiagram
         varchar final_verdict "AC | WA | TLE | MLE | CE | RE"
         text compile_log "Thông báo lỗi biên dịch (nếu có CE)"
         text ai_feedback "Gợi ý sửa lỗi từ Gemini AI (On-Demand)"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
         timestamptz graded_at "Thời điểm chấm xong"
     }
 
@@ -120,6 +125,8 @@ erDiagram
         varchar student_b_mssv "Sinh viên 2 nghi vấn"
         numeric similarity_percentage "Tỷ lệ tương đồng AST (0 - 100%)"
         text ai_evidence_details "Biên bản đối chiếu ngữ nghĩa từ AI"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
         timestamptz checked_at "Thời điểm quét"
     }
 ```
@@ -142,6 +149,8 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `email` | `VARCHAR(120)`| **UNIQUE, NOT NULL** | | Địa chỉ email liên hệ / khôi phục mật khẩu. |
 | `role` | `VARCHAR(20)` | **NOT NULL** | `'INSTRUCTOR'` | Vai trò: `ADMIN` (Web) hoặc `INSTRUCTOR` (Desktop). |
 | `is_active` | `BOOLEAN` | **NOT NULL** | `TRUE` | Trạng thái tài khoản (khóa/mở). |
+| `is_deleted` | `BOOLEAN` | **NOT NULL** | `FALSE` | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa). |
+| `deleted_at` | `TIMESTAMPTZ` | | `NULL` | Thời điểm xóa mềm tài khoản. |
 | `created_at` | `TIMESTAMPTZ` | **NOT NULL** | `CURRENT_TIMESTAMP` | Thời điểm khởi tạo tài khoản. |
 | `updated_at` | `TIMESTAMPTZ` | **NOT NULL** | `CURRENT_TIMESTAMP` | Thời điểm cập nhật thông tin gần nhất. |
 
@@ -161,6 +170,8 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `daily_token_limit`| `INTEGER`| **NOT NULL** | `100000` | Giới hạn Token mỗi ngày (mặc định 100k token/ngày).|
 | `used_tokens_today`| `INTEGER`| **NOT NULL** | `0` | Tổng token đã tiêu thụ trong ngày hiện tại. |
 | `last_reset_date` | `DATE` | **NOT NULL** | `CURRENT_DATE` | Ngày tự động reset hạn ngạch về 0. |
+| `is_deleted` | `BOOLEAN` | **NOT NULL** | `FALSE` | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa). |
+| `deleted_at` | `TIMESTAMPTZ` | | `NULL` | Thời điểm xóa mềm cấu hình. |
 | `updated_at` | `TIMESTAMPTZ` | **NOT NULL** | `CURRENT_TIMESTAMP` | Thời điểm Admin cập nhật hạn ngạch. |
 
 ---
@@ -177,21 +188,9 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `prompt_tokens` | `INTEGER` | **NOT NULL** | `0` | Số token của prompt gửi đi. |
 | `completion_tokens`|`INTEGER` | **NOT NULL** | `0` | Số token phản hồi nhận về từ Gemini. |
 | `total_tokens` | `INTEGER` | **NOT NULL** | `0` | Tổng token = prompt + completion. |
+| `is_deleted` | `BOOLEAN` | **NOT NULL** | `FALSE` | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa). |
+| `deleted_at` | `TIMESTAMPTZ` | | `NULL` | Thời điểm xóa mềm nhật ký. |
 | `created_at` | `TIMESTAMPTZ` | **NOT NULL** | `CURRENT_TIMESTAMP` | Thời điểm gọi API. |
-
----
-
-### 2.4. Bảng `courses` (Danh mục môn học cốt lõi)
-* **Mục đích**: Quản lý danh mục 4 môn học lập trình nền tảng của trường đại học.
-
-| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Giá Trị Mặc Định | Ý Nghĩa Nghiệp Vụ |
-| :--- | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | **PRIMARY KEY** | `gen_random_uuid()` | Khóa chính. |
-| `code` | `VARCHAR(10)` | **UNIQUE, NOT NULL** | | Mã môn: `PRF`, `PRO`, `DSA`, `PHP`. |
-| `name` | `VARCHAR(100)`| **NOT NULL** | | Tên đầy đủ của môn học. |
-| `default_language`|`VARCHAR(20)`| **NOT NULL** | | Ngôn ngữ mặc định (`C`, `Java`, `Python`). |
-| `is_active` | `BOOLEAN` | **NOT NULL** | `TRUE` | Trạng thái đang giảng dạy. |
-| `created_at` | `TIMESTAMPTZ` | **NOT NULL** | `CURRENT_TIMESTAMP` | Thời điểm khởi tạo. |
 
 ---
 
@@ -208,6 +207,8 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `class_name` | `TEXT` | **NOT NULL** | Tên lớp học (VD: `SE1801`, `IA1802`). |
 | `course_code` | `TEXT` | **NOT NULL** | Mã môn học (`PRF`, `PRO`, `DSA`, `PHP`). |
 | `source_folder_path`| `TEXT` | **NOT NULL** | Đường dẫn thư mục chứa toàn bộ bài nộp sinh viên. |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm đợt chấm. |
 | `created_at` | `DATETIME` | **DEFAULT CURRENT_TIMESTAMP**| Thời điểm khởi tạo đợt chấm. |
 
 ### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ `students.csv`)
@@ -221,6 +222,8 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `file_name` | `TEXT` | **NOT NULL** | Tên file câu hỏi (`Q1.c`, `Q2.java`...). |
 | `file_path` | `TEXT` | **NOT NULL** | Đường dẫn tuyệt đối của file trên đĩa cứng. |
 | `source_code` | `TEXT` | | Nội dung mã nguồn đọc sẵn phục vụ quét AST. |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm bài nộp. |
 | `imported_at`| `DATETIME` | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm nạp file CSV. |
 
 ### 3.3. Bảng `local_testcases` (Bộ testcase kiểm thử Black-box)
@@ -237,6 +240,8 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `time_limit_ms`|`INTEGER`| **DEFAULT 1000** | Thời gian chạy tối đa (ms) trước khi gán `TLE`. |
 | `memory_limit_mb`|`INTEGER`| **DEFAULT 256** | RAM tối đa (MB) trước khi gán `MLE`. |
 | `generated_by`| `TEXT` | **DEFAULT 'MANUAL'** | `MANUAL` (nhập tay) hoặc `GEMINI_AI` (AI sinh). |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm testcase. |
 
 ### 3.4. Bảng `local_grading_results` (Kết quả chấm offline cục bộ)
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Ý Nghĩa Nghiệp Vụ |
@@ -248,6 +253,8 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `final_verdict`|`TEXT` | **NOT NULL** | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`. |
 | `compile_log` | `TEXT` | | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`. |
 | `ai_feedback` | `TEXT` | | Nhận xét sư phạm ngắn sinh bởi Gemini AI. |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm kết quả. |
 | `graded_at` | `DATETIME` | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm chấm xong. |
 
 ### 3.5. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
@@ -259,6 +266,8 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `student_b_mssv`|`TEXT` | **NOT NULL** | MSSV sinh viên thứ hai. |
 | `similarity_percentage`|`REAL`| **NOT NULL** | Tỷ lệ tương đồng AST từ Vòng 1 (0.00% - 100.00%). |
 | `ai_evidence_details`|`TEXT`| | Bằng chứng đối sánh ngữ nghĩa từ AI ở Vòng 2 (> 80%). |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm báo cáo. |
 | `checked_at` | `DATETIME` | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm quét đạo văn. |
 
 ---
@@ -269,5 +278,5 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 2. **Xuất bảng điểm độc lập**: Giảng viên xuất kết quả chấm điểm ra file **`results.csv` (7 cột)** hoặc file Excel `.xlsx` trực tiếp từ SQLite cục bộ để phục vụ việc nộp điểm cho phòng đào tạo hoặc công bố điểm cho sinh viên.
 3. **Phân định rõ ràng vai trò Web Backend**: Máy chủ Web Backend (NestJS) và Neon Database chỉ phục vụ các chức năng:
    - Xác thực tài khoản Giảng viên và cấp token JWT khi mở Desktop App.
-   - Cung cấp danh mục môn học chuẩn (`PRF`, `PRO`, `DSA`, `PHP`).
    - Làm cầu nối bảo mật (AI Gateway) để kiểm soát hạn ngạch Token khi Giảng viên dùng tính năng AI (sinh testcase, phân tích lỗi `WA`, quét đạo văn Vòng 2).
+   - Quản trị viên (Admin) quản lý tài khoản Giảng viên và giám sát hạn ngạch AI, xem báo cáo thống kê sử dụng hệ thống.

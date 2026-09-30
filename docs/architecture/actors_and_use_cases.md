@@ -98,7 +98,6 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** |                                                           |                                                        |                                   |                         |                                             |
 | **UC-01**                                                                                              | Đăng nhập & Xác thực Hệ thống                      | Login & System Authentication                          | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
 | **UC-02**                                                                                              | Quản lý Tài khoản & Phân quyền Giảng viên         | Manage Instructor Accounts & RBAC                      | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
-| **UC-03**                                                                                              | Quản lý Danh mục Môn học (PRF, PRO, DSA, PHP)        | Manage Course Catalog                                  | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **UC-04**                                                                                              | Cấu hình API Key & Giám sát Hạn ngạch AI            | Configure Centralized AI Key & Monitor Quotas          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
 | **UC-05**                                                                                              | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | View School-wide Grading Reports & Logs                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
@@ -114,6 +113,7 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **UC-13**                                                                                              | Giám sát Tiến độ Chấm Thời gian thực              | Monitor Real-Time Grading Progress                     | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
 | **UC-14**                                                                                              | Xem Chi tiết Kết quả & Nhật ký Bài nộp             | View Submission Result & Execution Logs                | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
 | **UC-15**                                                                                              | Chấm lại & Điều chỉnh Điểm thủ công              | Re-grade & Override Scores Manually                    | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
+| **UC-19**                                                                                              | Chấm Điểm Bài Tập Web Tự Động                     | Automated Web Assignment Grading & Scoring             | Giảng viên                      | Desktop App Client      | Headless Browser, W3C Parser, Gemini AI Hub |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)**              |                                                           |                                                        |                                   |                         |                                             |
 | **UC-16**                                                                                              | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand    | Generate On-Demand AI Code Review (WA Only)            | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
 | **UC-17**                                                                                              | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng            | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
@@ -324,6 +324,39 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 ---
 
+### 5.6. UC-19: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+
+* **Mã Use Case**: `UC-19`
+* **Tên Use Case**: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+* **Tác nhân chính**: Giảng viên (Instructor)
+* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser, Google Gemini AI Hub
+* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế & lập trình web (HTML5, CSS3, JavaScript, PHP) trên Desktop App. Giảng viên cấu hình Rubric điểm gồm 4 thành phần: (1) Cấu trúc DOM & Thẻ HTML ngữ nghĩa, (2) Kiểm tra chuẩn W3C/Linter, (3) Kiểm thử hành vi tương tác E2E bằng Playwright, và (4) Đánh giá giao diện trực quan/Audit chất lượng (Lighthouse / Gemini Vision). Hệ thống tự động tính điểm theo trọng số, xuất bảng điểm chi tiết từng tiêu chí và lưu vào CSDL cục bộ.
+* **Tiền điều kiện (Preconditions)**:
+  1. Giảng viên đã nạp danh sách sinh viên và thư mục bài nộp web (chứa file `.html`, `.css`, `.js`, `.php`).
+  2. Môi trường Headless Browser (Playwright / Chromium) đã được cài đặt hoặc sẵn sàng trong Desktop App.
+* **Hậu điều kiện (Postconditions)**:
+  1. Điểm số bài nộp web được tính toán chính xác (thang điểm 10) và lưu vào SQLite cục bộ.
+  2. Bản ghi chi tiết kết quả từng tiêu chí (DOM, Linter, Functional Test, UI Audit) và ảnh chụp màn hình bài nộp được lưu trữ để phục vụ phúc khảo.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn chế độ "Chấm Bài Web" và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
+
+#### Luồng sự kiện chính (Main Flow):
+1. Giảng viên chọn bài nộp hoặc đợt chấm thuộc môn lập trình Web (ví dụ: PHP / Web Frontend).
+2. Giảng viên thiết lập hoặc chọn cấu hình Rubric chấm điểm:
+   - Trọng số Cấu trúc DOM & Ngữ nghĩa HTML (mặc định 30%).
+   - Trọng số Kiểm tra chuẩn W3C & Linter (mặc định 10%).
+   - Trọng số Kiểm thử Chức năng E2E với Playwright (mặc định 40%).
+   - Trọng số Đánh giá Giao diện / Lighthouse Audit / Gemini Vision (mặc định 20%).
+3. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
+4. Desktop App khởi chạy tiến trình chấm điểm cô lập:
+   - **Bước 4.1 (DOM Parser)**: Trích xuất cây DOM, kiểm tra sự tồn tại của các thẻ bắt buộc, thuộc tính form, table, accessibility tags theo checklist.
+   - **Bước 4.2 (W3C Linter)**: Quét lỗi cú pháp HTML5/CSS3 offline, tính điểm trừ theo số lượng vi phạm.
+   - **Bước 4.3 (Playwright Headless Runner)**: Mở trang web trong trình duyệt không đầu Chromium, thực thi bộ kịch bản kiểm thử hành vi (click button, submit form, regex kiểm tra DOM sau tương tác).
+   - **Bước 4.4 (Lighthouse / Gemini Vision)**: Quét chỉ số Best Practices/Accessibility hoặc chụp ảnh màn hình trang web gửi Gemini AI đánh giá độ hoàn thiện giao diện.
+5. Hệ thống tổng hợp điểm số các phần theo công thức trọng số, cập nhật thanh tiến độ theo thời gian thực và ghi vào SQLite.
+6. Kết quả điểm chi tiết và danh sách lỗi từng tiêu chí hiển thị trực quan trên bảng kết quả. Use Case kết thúc.
+
+---
+
 ## 6. Sơ Đồ Use Case Toàn Hệ Thống (PlantUML Use Case Diagram)
 
 Dưới đây là mã nguồn PlantUML đặc tả toàn bộ hệ thống AITA với sự phân định rõ ràng giữa **Web Admin Dashboard** (dành cho Admin) và **Desktop App Client** (dành cho Giảng viên), cùng các liên kết `<<include>>`, `<<extend>>` và kết nối với các Tác nhân ngoài hỗ trợ:
@@ -348,6 +381,7 @@ actor "Giảng viên\n(Instructor)" as Instructor
 ' 2. Tác nhân hệ thống ngoài (External Supporting Actors)
 actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
 actor "Sandbox Runner\n(GCC / Javac / Python)" as Sandbox <<System>>
+actor "Headless Web Runner\n(Playwright / Chromium / W3C)" as WebRunner <<System>>
 actor "Web Server Backend\n(FastAPI Central API)" as Cloud <<System>>
 
 rectangle "Hệ Sinh Thái Toàn Diện AITA" {
@@ -381,6 +415,7 @@ rectangle "Hệ Sinh Thái Toàn Diện AITA" {
             usecase "UC-13: Giám sát Tiến độ Chấm Thời gian thực" as UC13
             usecase "UC-14: Xem Chi tiết Bài nộp & Logs" as UC14
             usecase "UC-15: Chấm lại & Điều chỉnh Điểm thủ công" as UC15
+            usecase "UC-19: Chấm Điểm Bài Tập Web Tự Động (DOM/W3C/Playwright)" as UC19
         }
 
         package "Tính năng Thông minh có AI Hỗ trợ" {
@@ -413,10 +448,12 @@ Instructor --> UC12
 Instructor --> UC14
 Instructor --> UC17
 Instructor --> UC18
+Instructor --> UC19
 
 ' Quan hệ nội bộ giữa các Use Case (Include)
 UC12 .down.> UC11 : <<include>>
 UC12 .down.> UC13 : <<include>>
+UC19 .down.> UC13 : <<include>>
 UC10 .up.> UC01 : <<include>> (cần token xác thực quota)
 
 ' Quan hệ nội bộ giữa các Use Case (Extend)
@@ -433,10 +470,12 @@ UC05 --> Cloud : Truy vấn audit logs sử dụng AI toàn trường
 UC10 --> AIService : Prompt sinh cặp Input/Output biên
 UC16 --> AIService : Gửi code lỗi WA phân tích sư phạm
 UC17 --> AIService : Gửi cặp bài nghi vấn >80% xác thực
+UC19 --> AIService : Đánh giá giao diện & nhận xét Rubric
 
 UC06 --> Sandbox : Thẩm định đường dẫn gcc/javac/python
 UC12 --> Sandbox : Chạy subprocess qua hàm main & đo RAM/CPU
 UC15 --> Sandbox : Chạy lại bài nộp đơn lẻ
+UC19 --> WebRunner : Khởi chạy Chromium headless & DOM/W3C parser
 
 @enduml
 ```

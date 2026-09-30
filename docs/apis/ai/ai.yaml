@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: AITA Gemini AI Hub API
+  version: 1.0.0
+  description: Phân hệ API Điều phối AI Gemini 1.5 Flash (sinh testcase, review code, quét đạo văn, chấm UI web).
+paths:
+  /ai/quota:
+    get:
+      summary: Lấy hạn ngạch token hôm nay
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy hạn ngạch thành công
+                data:
+                  daily_limit_tokens: 50000
+                  used_tokens_today: 12450
+                  remaining_tokens: 37550
+                timestamp: '2026-09-30T12:00:00.000Z'
+  /ai/generate-testcases:
+    post:
+      summary: Sinh testcase biên bằng Gemini
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [problem_description, language]
+              properties:
+                problem_description:
+                  type: string
+                  minLength: 20
+                language:
+                  type: string
+                  enum: [C, JAVA, PYTHON, WEB]
+                count:
+                  type: integer
+                  default: 3
+      responses:
+        '200':
+          description: Thành công
+        '429':
+          description: Hết quota token
+  /ai/review-code:
+    post:
+      summary: Nhận xét sư phạm cho code WA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_code, language, problem_statement, failed_testcase]
+              properties:
+                source_code:
+                  type: string
+                language:
+                  type: string
+                problem_statement:
+                  type: string
+                failed_testcase:
+                  type: object
+      responses:
+        '200':
+          description: Thành công
+        '429':
+          description: Hết quota
+  /ai/verify-plagiarism:
+    post:
+      summary: Xác thực đạo văn Vòng 2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_a_code, student_b_code, ast_similarity_percentage]
+              properties:
+                student_a_code:
+                  type: string
+                student_b_code:
+                  type: string
+                ast_similarity_percentage:
+                  type: number
+                  minimum: 80.0
+      responses:
+        '200':
+          description: Thành công
+  /ai/evaluate-web-ui:
+    post:
+      summary: Đánh giá giao diện Web bằng Gemini Vision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [screenshot_base64, rubric_requirements]
+              properties:
+                screenshot_base64:
+                  type: string
+                rubric_requirements:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Thành công

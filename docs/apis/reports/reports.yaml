@@ -1,0 +1,35 @@
+openapi: 3.0.3
+info:
+  title: AITA Admin Reports & Audit API
+  version: 1.0.0
+  description: Phân hệ API Thống kê kiểm toán người dùng và hạn ngạch AI toàn trường dành cho Admin (UC-05).
+paths:
+  /admin/reports/overview:
+    get:
+      summary: Lấy dữ liệu báo cáo thống kê tổng thể
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy số liệu thống kê tổng quan thành công
+                data:
+                  total_instructors: 24
+                  ai_token_usage:
+                    total_tokens_consumed_month: 1285000
+                    total_budget_limit: 5000000
+                    top_consuming_feature: TESTCASE_GEN
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '403':
+          description: Không có quyền truy cập
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 403
+                error_code: FORBIDDEN_ADMIN_ONLY
+                message: Chỉ Quản trị viên mới có quyền xem báo cáo thống kê này.
+                timestamp: '2026-09-30T12:00:00.000Z'

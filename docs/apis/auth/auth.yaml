@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: AITA Authentication API
+  version: 1.0.0
+  description: Phân hệ API Xác thực tài khoản & cấp phát JWT Tokens.
+paths:
+  /auth/login:
+    post:
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  example: teacher_hung
+                password:
+                  type: string
+                  minLength: 6
+                  maxLength: 100
+                  example: Password123@
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Đăng nhập thành công
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token: def502005a76c8e3...
+                  token_type: Bearer
+                  expires_in: 86400
+                  user:
+                    id: 1
+                    username: teacher_hung
+                    role: INSTRUCTOR
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '401':
+          description: Sai mật khẩu
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 401
+                error_code: AUTH_INVALID_CREDENTIALS
+                message: Tên đăng nhập hoặc mật khẩu không chính xác.
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '403':
+          description: Tài khoản bị khóa
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 403
+                error_code: AUTH_ACCOUNT_DISABLED
+                message: Tài khoản của bạn đã bị vô hiệu hóa.
+                timestamp: '2026-09-30T12:00:00.000Z'
+  /auth/me:
+    get:
+      summary: Lấy thông tin tài khoản hiện tại
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy thông tin tài khoản thành công
+                data:
+                  id: 1
+                  username: teacher_hung
+                  role: INSTRUCTOR
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '401':
+          description: Token hết hạn
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 401
+                error_code: AUTH_TOKEN_EXPIRED
+                message: Phiên làm việc đã hết hạn.
+                timestamp: '2026-09-30T12:00:00.000Z'
+  /auth/refresh:
+    post:
+      summary: Gia hạn access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Gia hạn mã truy cập thành công
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '401':
+          description: Refresh Token không hợp lệ
+          content:
+            application/json:
+              example:
+                success: false
+                status_code: 401
+                error_code: AUTH_INVALID_REFRESH_TOKEN
+                message: Mã refresh token không hợp lệ hoặc đã hết hạn.
+                timestamp: '2026-09-30T12:00:00.000Z'

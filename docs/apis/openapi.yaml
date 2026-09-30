@@ -1,0 +1,1084 @@
+openapi: 3.0.3
+info:
+  title: AITA System API
+  description: >
+    Tài liệu OpenAPI 3.0 đặc tả toàn bộ các RESTful API của Hệ Sinh Thái AITA (Automated Grading & Assessment Tool).
+    Mọi phản hồi đều theo cấu trúc bao bọc chuẩn (Response Envelope) thể hiện rõ 2 trường hợp:
+    thành công (`success: true`) và thất bại (`success: false`).
+  version: 1.0.0
+  contact:
+    name: AITA Engineering Team (SWD392)
+    email: contact@aita.edu.vn
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Máy chủ phát triển cục bộ (Local Development)
+  - url: https://api.aita.edu.vn/api/v1
+    description: Máy chủ chính thức (Production Server)
+
+tags:
+  - name: Auth
+    description: Các API xác thực định danh & cấp phát JWT Tokens
+  - name: Admin Users
+    description: Các API quản trị người dùng & phân quyền RBAC (Dành riêng cho Admin)
+  - name: AI Hub
+    description: Các API điều phối Trí tuệ nhân tạo Gemini & Giám sát Token Quota
+  - name: Admin Reports
+    description: Các API báo cáo thống kê kiểm toán người dùng và hạn ngạch AI (Dành cho Admin)
+
+paths:
+  # ============================================================================
+  # 1. AUTHENTICATION ENDPOINTS
+  # ============================================================================
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Đăng nhập hệ thống (Login)
+      description: Thẩm định thông tin tài khoản và cấp cặp token JWT (Access Token & Refresh Token).
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginSuccessResponse'
+        '401':
+          description: Sai tên đăng nhập hoặc mật khẩu (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 401
+                error_code: AUTH_INVALID_CREDENTIALS
+                message: Tên đăng nhập hoặc mật khẩu không chính xác.
+                details: null
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '403':
+          description: Tài khoản bị vô hiệu hóa (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 403
+                error_code: AUTH_ACCOUNT_DISABLED
+                message: Tài khoản của bạn đã bị vô hiệu hóa bởi Quản trị viên.
+                details: null
+                timestamp: '2026-09-30T12:00:00.000Z'
+        '422':
+          description: Vi phạm ràng buộc dữ liệu đầu vào (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 422
+                error_code: VALIDATION_FAILED
+                message: Dữ liệu gửi lên không đúng định dạng.
+                details:
+                  - field: username
+                    issue: Tên đăng nhập phải có ít nhất 3 ký tự.
+                timestamp: '2026-09-30T12:00:00.000Z'
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Lấy hồ sơ tài khoản hiện tại (Get Current User Profile)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lấy thông tin thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          description: Phiên làm việc hết hạn hoặc token không hợp lệ (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 401
+                error_code: AUTH_TOKEN_EXPIRED
+                message: Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.
+                details: null
+                timestamp: '2026-09-30T12:00:00.000Z'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Gia hạn Access Token (Refresh Token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Mã Refresh Token đã cấp khi đăng nhập
+      responses:
+        '200':
+          description: Cấp token mới thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenSuccessResponse'
+        '401':
+          description: Refresh Token không hợp lệ (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
+  # ============================================================================
+  # 2. USER MANAGEMENT ENDPOINTS (ADMIN ONLY)
+  # ============================================================================
+  /admin/users:
+    get:
+      tags:
+        - Admin Users
+      summary: Lấy danh sách người dùng kèm phân trang (Get Users List)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Trang hiện tại
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Số bản ghi mỗi trang
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [ADMIN, INSTRUCTOR]
+          description: Lọc theo vai trò
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Từ khóa tìm kiếm theo tên, username hoặc email
+      responses:
+        '200':
+          description: Lấy danh sách thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '403':
+          description: Không có quyền truy cập (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
+    post:
+      tags:
+        - Admin Users
+      summary: Tạo mới tài khoản Giảng viên hoặc Admin (Create User)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Tạo tài khoản thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '409':
+          description: Tên đăng nhập hoặc Email đã tồn tại (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 409
+                error_code: USER_ALREADY_EXISTS
+                message: Tên đăng nhập hoặc địa chỉ email đã được sử dụng.
+                details: null
+                timestamp: '2026-09-30T12:00:00.000Z'
+
+  /admin/users/{id}:
+    get:
+      tags:
+        - Admin Users
+      summary: Xem chi tiết tài khoản theo ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Lấy chi tiết thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '404':
+          description: Không tìm thấy người dùng (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
+    put:
+      tags:
+        - Admin Users
+      summary: Cập nhật thông tin hoặc Khóa tài khoản
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Cập nhật thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '404':
+          description: Không tìm thấy người dùng (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
+    delete:
+      tags:
+        - Admin Users
+      summary: Xóa tài khoản người dùng
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Xóa người dùng thành công (success = true)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardSuccessResponse'
+
+  # ============================================================================
+  # 3. AI HUB ENDPOINTS
+  # ============================================================================
+  /ai/quota:
+    get:
+      tags:
+        - AI Hub
+      summary: Lấy thông tin hạn ngạch Token AI hôm nay của Giảng viên
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lấy hạn ngạch thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/AIQuotaData'
+                  timestamp:
+                    type: string
+
+  /ai/generate-testcases:
+    post:
+      tags:
+        - AI Hub
+      summary: Tự động sinh testcase biên bằng Gemini AI (UC-10)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateTestcasesRequest'
+      responses:
+        '200':
+          description: Sinh testcase thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Sinh testcase tự động bằng AI thành công
+                  data:
+                    type: object
+                    properties:
+                      tokens_consumed:
+                        type: integer
+                        example: 420
+                      testcases:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GeneratedTestcaseItem'
+                  timestamp:
+                    type: string
+        '429':
+          description: Hết hạn ngạch token trong ngày (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                success: false
+                status_code: 429
+                error_code: AI_QUOTA_EXCEEDED
+                message: Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày.
+                details: null
+                timestamp: '2026-09-30T12:00:00.000Z'
+
+  /ai/review-code:
+    post:
+      tags:
+        - AI Hub
+      summary: Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA (UC-16)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCodeRequest'
+      responses:
+        '200':
+          description: Phân tích code thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CodeReviewData'
+                  timestamp:
+                    type: string
+        '429':
+          description: Hết hạn ngạch token (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
+  /ai/verify-plagiarism:
+    post:
+      tags:
+        - AI Hub
+      summary: Xác thực ngữ nghĩa nghi vấn đạo văn > 80% (UC-17 Vòng 2)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPlagiarismRequest'
+      responses:
+        '200':
+          description: Phân tích đạo văn thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/PlagiarismVerificationData'
+                  timestamp:
+                    type: string
+
+  /ai/evaluate-web-ui:
+    post:
+      tags:
+        - AI Hub
+      summary: Đánh giá thẩm mỹ và tuân thủ rubric giao diện Web qua ảnh chụp màn hình (UC-19)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateWebUIRequest'
+      responses:
+        '200':
+          description: Đánh giá Web UI thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/WebUIEvaluationData'
+                  timestamp:
+                    type: string
+
+  # ============================================================================
+  # 5. ADMIN REPORTS ENDPOINTS
+  # ============================================================================
+  /admin/reports/overview:
+    get:
+      tags:
+        - Admin Reports
+      summary: Lấy dữ liệu báo cáo thống kê tổng thể toàn trường (Admin Only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lấy báo cáo thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/OverviewReportData'
+                  timestamp:
+                    type: string
+
+# ==============================================================================
+# COMPONENTS & SCHEMAS
+# ==============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Gửi access_token định dạng Bearer trong header Authorization
+
+  schemas:
+    # --------------------------------------------------------------------------
+    # CHUẨN PHẢN HỒI CHUNG (ENVELOPES)
+    # --------------------------------------------------------------------------
+    StandardSuccessResponse:
+      type: object
+      required:
+        - success
+        - status_code
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        status_code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Thao tác thành công
+        data:
+          type: object
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-09-30T12:00:00.000Z'
+
+    StandardErrorResponse:
+      type: object
+      required:
+        - success
+        - status_code
+        - error_code
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: false
+        status_code:
+          type: integer
+          example: 400
+        error_code:
+          type: string
+          example: BAD_REQUEST
+        message:
+          type: string
+          example: Yêu cầu không hợp lệ
+        details:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-09-30T12:00:00.000Z'
+
+    # --------------------------------------------------------------------------
+    # SCHEMAS CHO AUTH
+    # --------------------------------------------------------------------------
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: teacher_hung
+          description: Tên đăng nhập tài khoản
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          example: Password123@
+          description: Mật khẩu xác thực
+
+    LoginSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        status_code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Đăng nhập thành công
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            refresh_token:
+              type: string
+              example: def502005a76c8e3...
+            token_type:
+              type: string
+              example: Bearer
+            expires_in:
+              type: integer
+              example: 86400
+            user:
+              $ref: '#/components/schemas/UserData'
+        timestamp:
+          type: string
+          example: '2026-09-30T12:00:00.000Z'
+
+    RefreshTokenSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        status_code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Gia hạn mã truy cập thành công
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            token_type:
+              type: string
+              example: Bearer
+            expires_in:
+              type: integer
+              example: 86400
+        timestamp:
+          type: string
+
+    UserData:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: teacher_hung
+        full_name:
+          type: string
+          example: Nguyễn Văn Hùng
+        email:
+          type: string
+          format: email
+          example: hungnv@fe.edu.vn
+        role:
+          type: string
+          enum: [ADMIN, INSTRUCTOR]
+          example: INSTRUCTOR
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+
+    UserProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        status_code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Lấy thông tin tài khoản thành công
+        data:
+          $ref: '#/components/schemas/UserData'
+        timestamp:
+          type: string
+
+    # --------------------------------------------------------------------------
+    # SCHEMAS CHO USERS
+    # --------------------------------------------------------------------------
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - password
+        - full_name
+        - email
+        - role
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-z0-9_]+$'
+          example: teacher_lan
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          example: LanPassword2026@
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Trần Thị Lan
+        email:
+          type: string
+          format: email
+          example: lantt@fe.edu.vn
+        role:
+          type: string
+          enum: [ADMIN, INSTRUCTOR]
+          example: INSTRUCTOR
+        daily_token_quota:
+          type: integer
+          minimum: 1000
+          maximum: 1000000
+          default: 50000
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, INSTRUCTOR]
+        is_active:
+          type: boolean
+        daily_token_quota:
+          type: integer
+          minimum: 0
+
+    UserListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        status_code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Lấy danh sách người dùng thành công
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserData'
+            pagination:
+              type: object
+              properties:
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 10
+                total_items:
+                  type: integer
+                  example: 25
+                total_pages:
+                  type: integer
+                  example: 3
+        timestamp:
+          type: string
+
+    # --------------------------------------------------------------------------
+    # SCHEMAS CHO AI HUB
+    # --------------------------------------------------------------------------
+    AIQuotaData:
+      type: object
+      properties:
+        daily_limit_tokens:
+          type: integer
+          example: 50000
+        used_tokens_today:
+          type: integer
+          example: 12450
+        remaining_tokens:
+          type: integer
+          example: 37550
+        percentage_used:
+          type: number
+          format: float
+          example: 24.9
+        reset_at_utc:
+          type: string
+          format: date-time
+
+    GenerateTestcasesRequest:
+      type: object
+      required:
+        - problem_description
+        - language
+      properties:
+        problem_description:
+          type: string
+          minLength: 20
+          maxLength: 5000
+          example: Nhập vào số nguyên dương N. Tính tổng các ước số của N.
+        language:
+          type: string
+          enum: [C, JAVA, PYTHON, WEB]
+          example: C
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+        include_boundary:
+          type: boolean
+          default: true
+
+    GeneratedTestcaseItem:
+      type: object
+      properties:
+        input:
+          type: string
+          example: '1000000'
+        expected_output:
+          type: string
+          example: '2480437'
+        explanation:
+          type: string
+          example: Biên trên tối đa N = 10^6
+        is_boundary:
+          type: boolean
+          example: true
+
+    ReviewCodeRequest:
+      type: object
+      required:
+        - source_code
+        - language
+        - problem_statement
+        - failed_testcase
+      properties:
+        source_code:
+          type: string
+          minLength: 10
+          maxLength: 10000
+        language:
+          type: string
+          example: C
+        problem_statement:
+          type: string
+          maxLength: 3000
+        failed_testcase:
+          type: object
+          required:
+            - input
+            - expected_output
+            - actual_output
+          properties:
+            input:
+              type: string
+            expected_output:
+              type: string
+            actual_output:
+              type: string
+
+    CodeReviewData:
+      type: object
+      properties:
+        tokens_consumed:
+          type: integer
+          example: 380
+        suspected_error_line:
+          type: integer
+          example: 5
+        issue_summary:
+          type: string
+        pedagogical_feedback:
+          type: string
+        bug_category:
+          type: string
+          example: OFF_BY_ONE_ERROR
+
+    VerifyPlagiarismRequest:
+      type: object
+      required:
+        - student_a_code
+        - student_b_code
+        - ast_similarity_percentage
+        - language
+      properties:
+        student_a_code:
+          type: string
+          minLength: 10
+          maxLength: 10000
+        student_b_code:
+          type: string
+          minLength: 10
+          maxLength: 10000
+        ast_similarity_percentage:
+          type: number
+          minimum: 80.0
+          maximum: 100.0
+          example: 92.5
+        language:
+          type: string
+          example: C
+
+    PlagiarismVerificationData:
+      type: object
+      properties:
+        tokens_consumed:
+          type: integer
+          example: 510
+        is_plagiarized:
+          type: boolean
+          example: true
+        confidence_percentage:
+          type: number
+          example: 94.8
+        evidence_summary:
+          type: string
+        cloned_segments:
+          type: array
+          items:
+            type: object
+            properties:
+              student_a_lines:
+                type: string
+                example: '5-9'
+              student_b_lines:
+                type: string
+                example: '6-10'
+              technique:
+                type: string
+                example: VARIABLE_RENAMING
+
+    EvaluateWebUIRequest:
+      type: object
+      required:
+        - screenshot_base64
+        - rubric_requirements
+      properties:
+        screenshot_base64:
+          type: string
+          description: Ảnh chụp màn hình trang web mã hóa base64
+        rubric_requirements:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Danh sách các tiêu chí thẩm mỹ & bố cục theo đề thi
+
+    WebUIEvaluationData:
+      type: object
+      properties:
+        tokens_consumed:
+          type: integer
+          example: 720
+        ui_score:
+          type: number
+          example: 8.5
+        evaluation_details:
+          type: array
+          items:
+            type: object
+            properties:
+              criterion:
+                type: string
+              score:
+                type: number
+              verdict:
+                type: string
+                enum: [PASS, PARTIAL, FAIL]
+              comment:
+                type: string
+        overall_feedback:
+          type: string
+
+    # --------------------------------------------------------------------------
+    # SCHEMAS CHO BÁO CÁO ADMIN
+    # --------------------------------------------------------------------------
+    OverviewReportData:
+      type: object
+      properties:
+        total_instructors:
+          type: integer
+          example: 24
+        total_grading_sessions:
+          type: integer
+          example: 142
+        total_graded_submissions:
+          type: integer
+          example: 5830
+        system_average_score:
+          type: number
+          example: 7.82
+        ai_token_usage:
+          type: object
+          properties:
+            total_tokens_consumed_month:
+              type: integer
+              example: 1285000
+            total_budget_limit:
+              type: integer
+              example: 5000000
+            top_consuming_course:
+              type: string
+              example: PRF

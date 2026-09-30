@@ -55,6 +55,18 @@ package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5
         + execute_main(stdin_input: str): ExecutionResult
     }
 
+    class WebRunner {
+        - playwright_browser: Any
+        - rubric_weights: Dict[str, float]
+        + compile(): CompileResult
+        + execute_main(stdin_input: str): ExecutionResult
+        + evaluate_dom_structure(html_path: Path): float
+        + run_w3c_lint(html_path: Path): float
+        + run_playwright_e2e(test_script: str): float
+        + evaluate_ui_gemini_vision(screenshot_path: Path): float
+        + calculate_composite_score(): float
+    }
+
     class RunnerFactory <<Creational - Factory Method>> {
         + {static} create_runner(file_extension: str, source_path: Path): BaseRunner
     }
@@ -104,11 +116,13 @@ package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5
     BaseRunner <|-- CRunner
     BaseRunner <|-- JavaRunner
     BaseRunner <|-- PythonRunner
+    BaseRunner <|-- WebRunner
 
     RunnerFactory ..> BaseRunner : <<creates>>
     RunnerFactory ..> CRunner : <<instantiates>>
     RunnerFactory ..> JavaRunner : <<instantiates>>
     RunnerFactory ..> PythonRunner : <<instantiates>>
+    RunnerFactory ..> WebRunner : <<instantiates>>
 
     CompilerAdapter <|.. GccAdapter
     CompilerAdapter <|.. JavacAdapter
@@ -272,14 +286,8 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
         + full_name: str
         + role: str
         + is_active: bool
+        + is_deleted: bool
         + daily_quota: int
-    }
-
-    class Course <<Entity>> {
-        + course_id: str
-        + course_code: str
-        + course_name: str
-        + default_language: str
     }
 
     class AIQuotaLog <<Entity>> {
@@ -287,6 +295,7 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)"
         + user_id: str
         + feature_used: str
         + tokens_consumed: int
+        + is_deleted: bool
         + timestamp: datetime
     }
 

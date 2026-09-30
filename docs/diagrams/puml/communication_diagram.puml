@@ -39,22 +39,22 @@ object "<u>:GoogleGeminiAPI</u>\n(Gemini 1.5 Flash Cloud)" as GeminiCloud
 ' ==============================================================================
 
 ' --- NHÓM 1: Quản trị Hệ thống từ Web Admin Dashboard ---
-Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: configCourses(PRF, PRO, DSA, PHP)\n1.4: setGeminiQuota(limits)\n1.5: viewAuditLogs()
+Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: setGeminiQuota(limits)\n1.4: viewAuditLogs()
 
-WebAdminUI -- WebBackend : 1.6: HTTP POST /auth/login\n1.7: HTTP REST (CRUD users, courses)\n1.8: HTTP POST /admin/ai-quota\n1.9: HTTP GET /admin/reports
+WebAdminUI -- WebBackend : 1.5: HTTP POST /auth/login\n1.6: HTTP REST (CRUD users)\n1.7: HTTP POST /admin/ai-quota\n1.8: HTTP GET /admin/reports
 
-WebBackend -- AuthService : 1.10: verifyAdminRole(token)\n1.11: hashPassword(bcrypt)
+WebBackend -- AuthService : 1.9: verifyAdminRole(token)\n1.10: hashPassword(bcrypt)
 
-WebBackend -- CentralDB : 1.12: queryAndPersist(users, courses, quotas)
+WebBackend -- CentralDB : 1.11: queryAndPersist(users, quotas)
 
-WebBackend -- AIHub : 1.13: updateQuotaPolicy(dailyTokenLimits)
+WebBackend -- AIHub : 1.12: updateQuotaPolicy(dailyTokenLimits)
 
 ' --- NHÓM 2: Đăng Nhập & Thiết Lập Từ Desktop App Client ---
 Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: selectStrategy(1_of_7)
 
 DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingStrategy(strategyType)
 
-DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)\n2.10: HTTP GET /api/v1/courses (kéo danh mục môn học)
+DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)
 
 DesktopCore -- LocalDB : 2.11: cacheSubmissions(students)\n2.12: persistTestcases(testcases)
 
