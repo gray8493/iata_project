@@ -86,3 +86,57 @@ AI đã thiết kế và đóng gói thành công file mã nguồn PlantUML [doc
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Tính chuẩn xác và gắn kết mã nguồn**: Các thuộc tính, phương thức và kiểu dữ liệu được mô hình hóa trong sơ đồ khớp 100% với kiến trúc mã nguồn Python hiện có trong thư mục `src/`, không tạo ra các lớp "ảo" vô nghĩa.
 - **Tính trực quan và thẩm mỹ**: Áp dụng 3 tông màu phân biệt cho 3 phân hệ, phân nhóm package mạch lạc giúp người xem và hội đồng chấm thi dễ dàng nhận diện ngay vị trí áp dụng của từng Design Pattern, sẵn sàng phục vụ cho buổi bảo vệ Evaluation 2.
+
+---
+
+### 🔹 PROMPT 03: Thiết Kế Sơ Đồ Triển Khai Hệ Điều Hành / Máy Chủ (Deployment Diagram) & Đặc Tả Hạ Tầng Triển Khai
+
+#### 1. Mục tiêu
+Nhờ AI hỗ trợ thiết kế mô hình sơ đồ triển khai (UML 2.5 Deployment Diagram) bao quát toàn bộ các Node vật lý, hệ điều hành (Windows 10/11 cho máy trạm Giảng viên, Ubuntu Linux 22.04 LTS cho máy chủ trung tâm), các môi trường thực thi runtime, cổng mạng và giao thức truyền thông; đồng thời làm rõ vị trí triển khai của 3 Design Patterns cốt lõi bên trong ứng dụng Desktop của Giảng viên.
+
+#### 2. Câu Prompt đã gửi
+> *"lead đang giao task này cho tôi bạn hãy đọc hết nội dung task này rồi lên plan thực hiện: Deployment Diagram - Sơ đồ triển khai hệ điều hành / server, Áp dụng đủ 3 mẫu thiết kế (Design Patterns)"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã thiết kế trọn vẹn giải pháp kiến trúc triển khai gồm:
+1. **Sơ đồ PlantUML chuẩn mực `docs/diagrams/puml/deployment_diagram.puml`**:
+   - **Node 1: Instructor Workstation (Windows 10/11 64-bit)**: Chạy `AITA.exe` (PyQt6/Python 3.11), tích hợp sẵn 3 Design Patterns (`RunnerFactory`, `CompilerAdapter`, `MatchingStrategy`), tương tác với bộ Toolchain cục bộ (`gcc.exe`, `javac.exe`, `python.exe`) và bộ giám sát tài nguyên `psutil`.
+   - **Node 2: Administrator Workstation**: Trình duyệt Web hiện đại kết nối Next.js Web Admin Dashboard qua HTTPS (Port 443).
+   - **Node 3: Central Application Server Host (Ubuntu Linux 22.04 LTS)**: Chạy Nginx Ingress Proxy (chặn SSL/TLS 1.3, rate limit) chuyển tiếp vào Docker Container `central-backend` (NestJS 10, JWT RBAC Guard, AI Gateway Hub) và Redis In-Memory Cache (Port 6379).
+   - **Node 4: Central Database Server Node (Ubuntu Linux / Managed DB)**: Chạy PostgreSQL 16 RDBMS (Port 5432, SSL encrypted).
+   - **Node 5: Google Cloud Platform (PaaS AI)**: Dịch vụ Google Gemini 1.5 Flash API phục vụ sinh testcase và phân tích lỗi.
+2. **Tài liệu đặc tả kiến trúc triển khai `docs/architecture/deployment-specification.md`**:
+   - Thuyết minh chi tiết thông số phần cứng tối thiểu/khuyến nghị (CPU Cores, RAM, SSD NVMe).
+   - Ma trận cổng mạng, giao thức truyền thông (HTTPS Port 443, PostgreSQL 5432, Redis 6379, IPC Stdin/Stdout).
+   - Cơ chế cách ly 4 lớp bảo vệ an toàn HĐH (Subprocess Isolation, psutil Memory Poller, Anti-Freeze Timeout, Isolated Temp Folder).
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Điểm nhóm làm chủ**: Lựa chọn mô hình Hybrid (Offline-first trên máy trạm Windows của Giảng viên kết hợp Central Cloud Sync) giải quyết triệt để 2 bài toán sống còn: (1) Chấm 50 bài thi trong 15-30 giây không bị nghẽn mạng; (2) Giảng viên vẫn chấm thi được khi phòng máy bị ngắt Internet.
+- **Tinh chỉnh của nhóm**: Bổ sung chi tiết cổng mạng (Ports), cơ chế mã hóa TLS 1.3 và lưu vết rõ ràng vị trí của 3 Design Patterns được đóng gói bên trong file nhị phân `AITA.exe`.
+
+---
+
+### 🔹 PROMPT 04: Đặc Tả Kiến Trúc & Giải Trình 3 Mẫu Thiết Kế (Design Patterns Specification & SOLID Justification)
+
+#### 1. Mục tiêu
+Biên soạn tài liệu đặc tả kiến trúc chuyên sâu giải trình lý do lựa chọn và cách thức áp dụng đủ 3 nhóm Design Patterns (Creational, Structural, Behavioral) trong phân hệ Động cơ Chấm bài của AITA theo đúng quy chuẩn học thuật môn học SWD392.
+
+#### 2. Câu Prompt đã gửi
+> *"Áp dụng đủ 3 mẫu thiết kế (Design Patterns) trong tài liệu kiến trúc: phân tích chi tiết bài toán, giải pháp thiết kế, sơ đồ lớp, mã nguồn cấu trúc và giải trình theo các nguyên lý thiết kế hướng đối tượng SOLID."*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã biên soạn hoàn chỉnh tài liệu học thuật `docs/architecture/design-patterns.md`:
+1. **Creational Pattern - Factory Method (`RunnerFactory`)**:
+   - Giải quyết bài toán sinh đối tượng Runner tương ứng với các ngôn ngữ C (`CRunner`), Java (`JavaRunner`), Python (`PythonRunner`) dựa trên phần mở rộng file bài nộp.
+   - Thỏa mãn nguyên lý Open/Closed (OCP) qua cơ chế `register_runner()` động.
+2. **Structural Pattern - Adapter Pattern (`CompilerAdapter`)**:
+   - Chuẩn hóa giao diện gọi dòng lệnh và mã lỗi `stderr` của các bộ biên dịch ngoại vi khác nhau (`gcc`, `javac`, `python.exe`) thành đối tượng dữ liệu `CompileResult` đồng nhất.
+   - Thỏa mãn Single Responsibility (SRP) và Interface Segregation (ISP).
+3. **Behavioral Pattern - Strategy Pattern (`MatchingStrategy`)**:
+   - Hiện thực hóa 7 chiến lược so khớp đầu ra (`ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`).
+   - Cho phép Giảng viên thay đổi thuật toán so khớp ngay tại thời điểm chạy (runtime) từ giao diện GUI mà không làm thay đổi luồng điều khiển `GradingContext`.
+4. **Sơ đồ phối hợp tuần tự (Collaborative Workflow)** minh họa luồng tương tác giữa 3 mẫu khi giảng viên ấn nút chấm bài.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Điểm nhóm làm chủ**: Nhóm khẳng định việc áp dụng 3 Design Patterns là xuất phát từ yêu cầu kỹ thuật thực tế của phần mềm chấm thi tự động đa ngôn ngữ, giúp mã nguồn đạt độ tách biệt cao (decoupling), dễ dàng viết unit test với các đối tượng giả lập (Mocking) và đảm bảo tính mở rộng bền vững cho các kỳ học tiếp theo.
+
