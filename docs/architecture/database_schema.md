@@ -67,6 +67,7 @@ erDiagram
     LOCAL_CLASSES ||--o{ LOCAL_STUDENT_SUBMISSIONS : "manages"
     LOCAL_CLASSES ||--o{ LOCAL_TESTCASES : "contains"
     LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_GRADING_RESULTS : "evaluated_by"
+    LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_WEB_GRADING_RESULTS : "web_evaluated_by"
     LOCAL_CLASSES ||--o{ LOCAL_PLAGIARISM_REPORTS : "checks"
 
     LOCAL_CLASSES {
@@ -107,12 +108,33 @@ erDiagram
 
     LOCAL_GRADING_RESULTS {
         integer id PK "Tự tăng"
-        integer submission_id FK "Bài nộp được chấm"
+        integer submission_id FK "Bài nộp Console được chấm"
         varchar matching_strategy "1 trong 7 chế độ so khớp"
-        numeric calculated_score "Điểm đạt được"
+        numeric calculated_score "Điểm đạt được (0.0 - 10.0)"
         varchar final_verdict "AC | WA | TLE | MLE | CE | RE"
         text compile_log "Thông báo lỗi biên dịch (nếu có CE)"
         text ai_feedback "Gợi ý sửa lỗi từ Gemini AI (On-Demand)"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime deleted_at "Thời điểm xóa mềm"
+        timestamptz graded_at "Thời điểm chấm xong"
+    }
+
+    LOCAL_WEB_GRADING_RESULTS {
+        integer id PK "Tự tăng"
+        integer submission_id FK "Bài nộp Web tương ứng"
+        varchar website_url "Domain Web đã deploy (nếu có)"
+        varchar github_url "Link Repo GitHub (nếu có)"
+        varchar grading_mode "LIVE_ONLY | REPO_ONLY | HYBRID"
+        varchar entrypoint_file "index.html | index.php"
+        numeric score_dom "Điểm DOM & thẻ ngữ nghĩa (0.0 - 10.0)"
+        numeric score_lint "Điểm W3C & CSS Linting (0.0 - 10.0)"
+        numeric score_func "Điểm Playwright E2E test (0.0 - 10.0)"
+        numeric score_ui "Điểm giao diện Gemini Vision (0.0 - 10.0)"
+        numeric final_score "Điểm tổng hợp theo Rubric (0.0 - 10.0)"
+        varchar final_verdict "PASSED | PARTIAL | FAILED | TLE"
+        text screenshot_path "Đường dẫn file ảnh chụp toàn màn hình .png"
+        text rubric_log "Chi tiết JSON kết quả từng tiêu chí kiểm thử"
+        text ai_feedback "Gợi ý sư phạm về giao diện từ Gemini AI"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
         timestamptz graded_at "Thời điểm chấm xong"
@@ -243,21 +265,45 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
 | `deleted_at` | `DATETIME` | | Thời điểm xóa mềm testcase. |
 
-### 3.4. Bảng `local_grading_results` (Kết quả chấm offline cục bộ)
+### 3.4. Bảng `local_grading_results` (Kết quả chấm bài tập Console C/Java/Python)
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Ý Nghĩa Nghiệp Vụ |
 | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | **PRIMARY KEY AUTOINCREMENT** | Khóa tự tăng. |
-| `submission_id`|`INTEGER`| **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp tương ứng. |
+| `submission_id`|`INTEGER`| **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Console tương ứng. |
 | `matching_strategy`|`TEXT`| **NOT NULL** | 1 trong 7 chiến lược so khớp đầu ra đã áp dụng. |
-| `calculated_score`|`REAL` | **NOT NULL DEFAULT 0.0** | Điểm số tính toán được. |
+| `calculated_score`|`REAL` | **NOT NULL DEFAULT 0.0** | Điểm số tính toán được (0.0 - 10.0). |
 | `final_verdict`|`TEXT` | **NOT NULL** | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`. |
 | `compile_log` | `TEXT` | | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`. |
-| `ai_feedback` | `TEXT` | | Nhận xét sư phạm ngắn sinh bởi Gemini AI. |
+| `ai_feedback` | `TEXT` | | Nhận xét sư phạm ngắn sinh bởi Gemini AI (On-Demand). |
 | `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
 | `deleted_at` | `DATETIME` | | Thời điểm xóa mềm kết quả. |
 | `graded_at` | `DATETIME` | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm chấm xong. |
 
-### 3.5. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
+### 3.5. Bảng `local_web_grading_results` (Kết quả chấm bài tập Web HTML/CSS/JS/PHP - UC-19)
+* **Mục đích**: Lưu trữ độc lập và chuyên biệt kết quả thẩm định bài tập Web tự động theo Rubric 4 thành phần trên Desktop App, hỗ trợ 3 chế độ chấm: Chỉ chấm Live Website, Chỉ chấm GitHub Repo, hoặc Chấm kết hợp.
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Ý Nghĩa Nghiệp Vụ |
+| :--- | :--- | :--- | :--- |
+| `id` | `INTEGER` | **PRIMARY KEY AUTOINCREMENT** | Khóa tự tăng. |
+| `submission_id`|`INTEGER`| **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Web tương ứng. |
+| `website_url` | `TEXT` | | URL domain website đã deploy (Vercel, Netlify,...) dùng cho chế độ `LIVE_ONLY` hoặc `HYBRID`. |
+| `github_url` | `TEXT` | | URL kho mã nguồn GitHub của sinh viên dùng cho chế độ `REPO_ONLY` hoặc `HYBRID`. |
+| `grading_mode`| `TEXT` | **NOT NULL DEFAULT 'HYBRID'** | Chế độ chấm: `LIVE_ONLY` (Chỉ chấm domain), `REPO_ONLY` (Chỉ chấm GitHub), `HYBRID` (Chấm kết hợp). |
+| `entrypoint_file`|`TEXT` | **NOT NULL DEFAULT 'index.html'** | Tệp khởi nhập (`index.html` hoặc `index.php`). |
+| `score_dom` | `REAL` | **NOT NULL DEFAULT 0.0** | Điểm tiêu chí 1: Cấu trúc DOM & thẻ ngữ nghĩa HTML (0.0 - 10.0). |
+| `score_lint`| `REAL` | **NOT NULL DEFAULT 0.0** | Điểm tiêu chí 2: Chuẩn cú pháp W3C & CSS Linting (0.0 - 10.0). |
+| `score_func`| `REAL` | **NOT NULL DEFAULT 0.0** | Điểm tiêu chí 3: Kịch bản kiểm thử hành vi Playwright E2E (0.0 - 10.0). |
+| `score_ui` | `REAL` | **NOT NULL DEFAULT 0.0** | Điểm tiêu chí 4: Đánh giá thẩm mỹ từ Gemini Vision (0.0 - 10.0). |
+| `final_score`|`REAL` | **NOT NULL DEFAULT 0.0** | Điểm tổng hợp theo trọng số Rubric (0.0 - 10.0). |
+| `final_verdict`|`TEXT` | **NOT NULL** | Phán quyết: `PASSED`, `PARTIAL`, `FAILED`, `TLE`. |
+| `screenshot_path`|`TEXT`| | Đường dẫn file ảnh `.png` chụp toàn trang màn hình trên ổ đĩa. |
+| `rubric_log`| `TEXT` | | Chuỗi JSON chi tiết danh sách checklist đạt/lỗi từng tiêu chí. |
+| `ai_feedback`|`TEXT` | | Lời góp ý sư phạm về giao diện từ Gemini AI. |
+| `is_deleted` | `INTEGER` | **DEFAULT 0** | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa). |
+| `deleted_at` | `DATETIME` | | Thời điểm xóa mềm kết quả. |
+| `graded_at` | `DATETIME` | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm hoàn thành chấm bài Web. |
+
+### 3.6. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Ý Nghĩa Nghiệp Vụ |
 | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | **PRIMARY KEY AUTOINCREMENT** | Khóa tự tăng. |

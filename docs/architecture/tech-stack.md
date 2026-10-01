@@ -75,10 +75,14 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 - **Bộ máy thực thi & Sandbox bảo mật**:
   - **`subprocess`**: Khởi chạy tiến trình con cô lập để gọi trình biên dịch `gcc` (C), `javac/java` (Java), và `python` (Python).
   - **`psutil` (>= 5.9.0)**: Giám sát tài nguyên RAM (bắt lỗi `MLE`), CPU và kill tiến trình khi bị vòng lặp vô hạn (bắt lỗi `TLE`).
+- **Bộ máy chấm bài Web tự động (Headless Browser & Parsers)**:
+  - **`playwright` (>= 1.40.0)**: Trình duyệt không đầu Chromium giả lập tương tác người dùng (click, submit, navigation) và chụp ảnh full-page screenshot.
+  - **`beautifulsoup4` (>= 4.12.0)**: Parser cấu trúc DOM, thẩm định thẻ HTML ngữ nghĩa và thuộc tính theo checklist.
+  - **`tinycss2` (>= 1.2.1)**: Phân tích cú pháp CSS/HTML, kiểm tra chuẩn W3C offline.
 - **Động cơ so khớp kết quả 7 chế độ (Strategy Pattern)**:
   - Sử dụng các module `difflib`, `re`, `math` để triển khai 7 chiến lược so khớp đầu ra linh hoạt.
 - **Kết nối Mạng & Ủy quyền API (API Client)**:
-  - Sử dụng thư viện `httpx` để đăng nhập JWT, kéo danh mục môn học từ NestJS Backend và gửi yêu cầu tới AI Gateway (sinh testcase, review lỗi, quét đạo văn).
+  - Sử dụng thư viện `httpx` để đăng nhập JWT từ NestJS Backend và gửi yêu cầu tới AI Gateway (sinh testcase, review lỗi, quét đạo văn, đánh giá giao diện).
 
 ---
 
@@ -87,20 +91,19 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 | Phân hệ | Công nghệ cốt lõi | Các thư viện / Công cụ chính | Vai trò trong hệ thống AITA |
 | :--- | :--- | :--- | :--- |
 | **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`/`typeorm`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý Gemini Quota. |
-| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Môn học, Quota AI, Báo cáo kiểm toán. |
-| **Desktop App** | **Python (PyQt6)** | `psutil`, `subprocess`, `csv`, `httpx`, `difflib`, `pytest` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, 7 chế độ so khớp, xuất CSV. |
-| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / TypeORM Migrations | Lưu trữ tập trung tài khoản, danh mục môn học, cấu hình hạn ngạch và nhật ký AI. |
-| **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase và kết quả chấm điểm trên máy tính giảng viên. |
-| **AI Cloud Hub** | **Google Gemini** | `@google/genai` (trên NestJS Backend) | Gemini 1.5 Flash: Tự động sinh testcase biên, AI Code Review On-Demand, kiểm tra đạo văn. |
+| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Quota AI, Báo cáo kiểm toán. |
+| **Desktop App** | **Python (PyQt6)** | `playwright`, `beautifulsoup4`, `tinycss2`, `psutil`, `subprocess`, `csv`, `httpx` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, chấm Web tự động, 7 chế độ so khớp, xuất CSV. |
+| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / TypeORM Migrations | Lưu trữ tập trung tài khoản, cấu hình hạn ngạch và nhật ký AI (hỗ trợ Soft Delete). |
+| **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase, kết quả chấm điểm và ảnh web trên máy tính giảng viên. |
+| **AI Cloud Hub** | **Google Gemini** | `@google/genai` (trên NestJS Backend) | Gemini 1.5 Flash: Tự động sinh testcase biên, AI Code Review On-Demand, kiểm tra đạo văn, đánh giá giao diện Web. |
 
 ---
 
 ## 4. Cơ Sở Dữ Liệu Trung Tâm Quản Lý Bởi NestJS Server (Neon Cloud)
 
-1. **`User`**: Tài khoản người dùng (`id`, `username`, `password_hash`, `full_name`, `email`, `role`, `is_active`, `created_at`).
-2. **`Course`**: Danh mục môn học (`id`, `code`, `name`, `language`) - PRF (C), PRO (Java/Python), DSA (Java/Python), PHP (Python).
-3. **`AiQuotaConfig`**: Cấu hình trần hạn ngạch Token Quota hàng ngày cho từng Giảng viên (`id`, `user_id`, `daily_token_limit`, `used_tokens_today`, `last_reset_date`).
-4. **`AiQuotaLog`**: Nhật ký sử dụng AI (`id`, `user_id`, `feature_type`, `model_name`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `created_at`).
+1. **`User`**: Tài khoản người dùng (`id`, `username`, `password_hash`, `full_name`, `email`, `role`, `is_active`, `is_deleted`, `deleted_at`, `created_at`, `updated_at`).
+2. **`AiQuotaConfig`**: Cấu hình trần hạn ngạch Token Quota hàng ngày cho từng Giảng viên (`id`, `user_id`, `daily_token_limit`, `used_tokens_today`, `last_reset_date`, `is_deleted`, `deleted_at`).
+3. **`AiQuotaLog`**: Nhật ký sử dụng AI (`id`, `user_id`, `feature_type`, `model_name`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `is_deleted`, `deleted_at`, `created_at`).
 
 ---
 

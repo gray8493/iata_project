@@ -218,6 +218,23 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
         + teacher_feedback: str
     }
 
+    class WebGradingResult {
+        + submission_id: str
+        + website_url: str
+        + github_url: str
+        + grading_mode: str
+        + entrypoint_file: str
+        + score_dom: float
+        + score_lint: float
+        + score_func: float
+        + score_ui: float
+        + final_score: float
+        + final_verdict: str
+        + screenshot_path: str
+        + rubric_log: str
+        + ai_feedback: str
+    }
+
     MatchingStrategy <|.. ExactMatchStrategy
     MatchingStrategy <|.. IgnoreWhitespaceStrategy
     MatchingStrategy <|.. CaseInsensitiveStrategy
@@ -232,6 +249,7 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
     BatchGradingManager o-- Submission
     BatchGradingManager o-- TestCase
     BatchGradingManager ..> GradingResult : generates
+    BatchGradingManager ..> WebGradingResult : generates
 }
 
 ' ==============================================================================

@@ -9,7 +9,7 @@
 
 ## 1. Giới Thiệu & Mục Đích Tài Liệu
 
-Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **19 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
+Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **18 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
 
 Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///d:/Java%20FPT/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///d:/Java%20FPT/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///d:/Java%20FPT/AITA/docs/architecture/tech-stack.md).
 
@@ -25,14 +25,13 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-## 2. Ma Trận 19 Use Cases Theo 6 Phân Hệ Chức Năng
+## 2. Ma Trận 18 Use Cases Theo 6 Phân Hệ Chức Năng
 
 | Mã UC | Tên Use Case | Tác nhân chính | Giao diện thực hiện | Tác nhân ngoài hỗ trợ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-03** | Quản lý Danh mục Môn học (PRF, PRO, DSA, PHP) | Admin | Web Admin Dashboard | Web Server Backend |
 | **UC-04** | Cấu hình API Key & Giám sát Hạn ngạch AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
 | **UC-05** | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
@@ -136,7 +135,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 
 
-#### 3.1.4. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+#### 3.1.3. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
 
 * **Mã Use Case**: `UC-04`
 * **Tên Use Case**: Cấu hình API Key & Giám sát Hạn ngạch AI (Configure Centralized AI Key & Monitor Quotas)
@@ -172,7 +171,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-#### 3.1.5. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+#### 3.1.4. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
 
 * **Mã Use Case**: `UC-05`
 * **Tên Use Case**: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
@@ -560,54 +559,68 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-19`
 * **Tên Use Case**: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser (`BeautifulSoup4` / `tinycss2` / `html-validate`), Google Gemini AI Hub (API Gateway)
-* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế và phát triển web (HTML5, CSS3, JavaScript, PHP) trực tiếp trên Desktop App của Giảng viên. Hệ thống tự động thẩm định mã nguồn giao diện và hành vi theo khung tiêu chí (Rubric) 4 thành phần: Cấu trúc DOM & ngữ nghĩa thẻ HTML, Chuẩn W3C & Linter, Kiểm thử hành vi tương tác bằng Headless Browser (Playwright), và Đánh giá chất lượng/thẩm mỹ giao diện trực quan bằng AI Multimodal (Gemini Vision). Kết quả được quy đổi chính xác về thang điểm 10 kèm báo cáo lỗi chi tiết từng tiêu chí.
+* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser (`BeautifulSoup4` / `tinycss2` / `html-validate`), Git Subsystem (`git clone` shallow), Google Gemini AI Hub (API Gateway)
+* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế và phát triển web (HTML5, CSS3, JavaScript, PHP) trực tiếp trên Desktop App của Giảng viên. Hệ thống hỗ trợ nguồn nộp bài linh hoạt thông qua file danh sách sinh viên `students.csv` (chứa link **Domain Website đã deploy**, link **GitHub Repo**, hoặc **cả hai**). Giảng viên có thể tùy chọn 3 chế độ chấm độc lập hoặc kết hợp:
+  1. **Chế độ 1: Chỉ chấm Live Website (`LIVE_ONLY`)**: Thẩm định trực tiếp domain website đã deploy (Vercel, Netlify, Render, VPS,...).
+  2. **Chế độ 2: Chỉ chấm GitHub Repo (`REPO_ONLY`)**: Tự động clone mã nguồn từ kho GitHub của sinh viên, thẩm định cấu trúc thư mục, chuẩn code và lịch sử commit.
+  3. **Chế độ 3: Chế độ kết hợp (`HYBRID`)**: Thực hiện kiểm thử toàn diện cả Live Website lẫn GitHub Repo, đồng thời đối soát chéo (Cross-check) mã nguồn với DOM thực tế để chống gian lận lấy website của người khác nộp.
+  Kết quả được lưu trữ độc lập vào bảng CSDL cục bộ riêng biệt `local_web_grading_results` theo khung tiêu chí Rubric 4 thành phần quy đổi về thang điểm 10.
 * **Tiền điều kiện (Preconditions)**:
-  1. Giảng viên đã nạp danh sách sinh viên (`students.csv`) và thư mục chứa bài nộp mã nguồn web (mỗi sinh viên một thư mục con chứa `index.html` hoặc `index.php`).
-  2. Môi trường Python trên máy trạm đã tích hợp thư viện parser (`BeautifulSoup4`) và binary Headless Chromium của `playwright`.
+  1. Giảng viên đã nạp danh sách sinh viên `students.csv` với cấu trúc cột linh hoạt: `MSSV,Website_URL,Github_URL` (tùy theo yêu cầu đề bài, sinh viên có thể chỉ nộp Live URL, chỉ nộp GitHub URL, hoặc nộp cả hai). Hoặc Giảng viên nạp thư mục mã nguồn nộp bài offline cục bộ.
+  2. Môi trường Desktop App đã tích hợp sẵn Playwright Headless Chromium và các thư viện phân tích cú pháp (`BeautifulSoup4`, `tinycss2`).
 * **Hậu điều kiện (Postconditions)**:
-  1. Điểm số tổng hợp (thang điểm 10) và điểm chi tiết từng tiêu chí thành phần được lưu vào cơ sở dữ liệu SQLite cục bộ.
-  2. Ảnh chụp màn hình giao diện (Screenshots) ở các kích thước màn hình (Desktop/Mobile) cùng nhật ký kiểm thử được lưu trữ để phục vụ phúc khảo.
-  3. Bảng điểm Desktop App hiển thị trạng thái đạt/lỗi trực quan.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên chuyển sang chế độ "Chấm Bài Web" và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
+  1. Kết quả chấm được lưu riêng biệt vào bảng `local_web_grading_results` trong SQLite cục bộ (gồm: `website_url`, `github_url`, `grading_mode`, điểm thành phần `score_dom`, `score_lint`, `score_func`, `score_ui`, điểm tổng `final_score`, phán quyết `final_verdict`, chi tiết `rubric_log`).
+  2. Toàn bộ ảnh chụp màn hình giao diện (Screenshots) ở cả 2 viewport (Desktop `1920x1080` & Mobile `375x667`) cùng nhật ký kiểm thử được lưu trữ để phục vụ phúc khảo.
+  3. Bảng điểm Desktop App hiển thị trạng thái đạt/lỗi trực quan và sẵn sàng xuất báo cáo độc lập.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chuyển sang phân hệ "Chấm Bài Web", chọn chế độ chấm và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
 
 ##### Luồng sự kiện chính (Main Flow):
 1. Giảng viên chọn đợt chấm thuộc môn học có nội dung lập trình web (ví dụ: `PHP`, `Web Development / PRF`).
-2. Giảng viên mở bảng cấu hình **"Tiêu chí & Rubric Chấm Web" (Web Grading Rubric)** và thiết lập các trọng số:
-   - **$w_1$ (DOM Structure & Semantics)**: Kiểm tra thẻ HTML ngữ nghĩa, cấu trúc layout, form attributes (Mặc định: 30%).
-   - **$w_2$ (W3C Validation & Code Style)**: Kiểm tra chuẩn cú pháp W3C HTML5/CSS3 offline (Mặc định: 10%).
-   - **$w_3$ (Interactive Functional Testing)**: Kịch bản kiểm thử hành vi Playwright giả lập người dùng (Mặc định: 40%).
-   - **$w_4$ (Visual & Quality Assessment)**: Điểm Audit Lighthouse hoặc Gemini Vision chấm bố cục thẩm mỹ (Mặc định: 20%).
-3. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
-4. Desktop App khởi tạo luồng chạy ngầm đa tiến trình `QThread` và tiến hành chấm tuần tự từng bài nộp:
-   - **Bước 4.1 - Khởi tạo môi trường chạy bài nộp**:
-     - Với bài tĩnh (HTML/CSS/JS): Xác định đường dẫn file `index.html` cục bộ (`file:///path/to/submission/index.html`).
-     - Với bài động (PHP): Desktop App tự động khởi động một máy chủ PHP nhúng cục bộ tạm thời (`php -S 127.0.0.1:<random_port> -t <sub_folder>`).
-   - **Bước 4.2 - Kiểm tra cấu trúc DOM & Ngữ nghĩa (HTML Semantic Analysis)**:
-     - Parser `BeautifulSoup4` quét cây phân cấp DOM: kiểm tra sự hiện diện của các thẻ bắt buộc theo checklist đề bài (ví dụ: `<header>`, `<nav>`, `<footer>`, `<form>`, `<table>`, `<input type="email">`, thuộc tính `required`, thuộc tính `alt` cho thẻ `<img>`).
+2. Giảng viên chọn **Chế độ chấm (Grading Mode)** phù hợp với đợt thi:
+   - **Lựa chọn A - Live Website Only (`LIVE_ONLY`)**: Chấm theo domain đã deploy. Phù hợp với bài thi triển khai thực tế, không yêu cầu clone mã nguồn.
+   - **Lựa chọn B - GitHub Repo Only (`REPO_ONLY`)**: Chấm theo source code repository. Phù hợp với bài tập mã nguồn, yêu cầu kiểm tra code convention và commit.
+   - **Lựa chọn C - Hybrid Mode (`HYBRID`)**: Chấm kết hợp cả domain và repo. Phù hợp với đồ án môn học lớn, đảm bảo tính xác thực cao nhất.
+3. Giảng viên thiết lập các trọng số trong bảng cấu hình **"Tiêu chí & Rubric Chấm Web"**:
+   - **$w_1$ (DOM Structure & Semantics)**: Thẻ HTML ngữ nghĩa, cấu trúc layout, form attributes, SEO/Accessibility cơ bản (Mặc định: 30%).
+   - **$w_2$ (W3C Validation & Code Style / Git Audit)**: Chuẩn cú pháp W3C HTML5/CSS3 offline và tính đều đặn của Git commits (Mặc định: 10%).
+   - **$w_3$ (Interactive Functional Testing)**: Kịch bản Playwright giả lập người dùng thao tác tương tác giao diện (Mặc định: 40%).
+   - **$w_4$ (Visual & Quality Assessment)**: Gemini Vision AI chấm bố cục thẩm mỹ hoặc Lighthouse Performance Audit (Mặc định: 20%).
+4. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
+5. Desktop App khởi tạo luồng xử lý ngầm đa luồng (`QThread` Worker Pool) và tiến hành chấm tuần tự từng bài nộp:
+   - **Bước 5.1 - Tiếp nhận nguồn bài nộp theo Chế độ**:
+     - *Nếu chế độ có `REPO_ONLY` hoặc `HYBRID`*: Hệ thống gọi tiến trình Git nội bộ thực hiện shallow clone repo (`git clone --depth 1 <github_url> <temp_dir>`) vào thư mục tạm cục bộ. Phân tích lịch sử commit (`git log`) để ghi nhận tần suất code và kiểm tra tài khoản tác giả.
+     - *Nếu chế độ `LIVE_ONLY`*: Bỏ qua bước clone, trích xuất trực tiếp `website_url` của sinh viên.
+     - *Nếu chấm thư mục offline cục bộ*: Nhận diện file `index.html` hoặc tự khởi tạo máy chủ PHP tạm (`php -S 127.0.0.1:<port>`).
+   - **Bước 5.2 - Kiểm tra cấu trúc DOM & Ngữ nghĩa (HTML Semantic Analysis)**:
+     - Parser `BeautifulSoup4` quét cây DOM (từ file offline hoặc DOM render sau khi Playwright nạp trang live): kiểm tra sự hiện diện của các thẻ bắt buộc theo checklist đề bài (ví dụ: `<header>`, `<nav>`, `<footer>`, `<form>`, `<table>`, `<input type="email">`, thuộc tính `required`, thuộc tính `alt`).
      - Tính điểm $S_{DOM} = \frac{\text{Số tiêu chí DOM đạt}}{\text{Tổng số tiêu chí DOM}} \times 10$.
-   - **Bước 4.3 - Quét chuẩn cú pháp W3C & Linter (Static Linting)**:
-     - Trình quét W3C offline phân tích file `.html` và `.css`. Đếm số lượng lỗi nghiêm trọng (`Errors`) và cảnh báo (`Warnings`).
+   - **Bước 5.3 - Quét chuẩn cú pháp W3C, Linter & Git Quality**:
+     - Với chế độ có Repo: Trình quét W3C offline phân tích toàn bộ file `.html` và `.css` trong repo. Đếm số lỗi (`Errors`) và cảnh báo (`Warnings`). Đánh giá lịch sử commit (trừ điểm nếu chỉ commit 1 lần duy nhất ngay trước giờ nộp).
+     - Với chế độ `LIVE_ONLY`: Quét HTML source tải về từ trang web qua W3C validator parser.
      - Tính điểm $S_{Lint} = \max(0, 10 - \text{Errors} \times 1.0 - \text{Warnings} \times 0.2)$.
-   - **Bước 4.4 - Kiểm thử chức năng tương tác (Playwright Headless Testing)**:
-     - Mở trang web sinh viên bằng trình duyệt không đầu Chromium (`playwright-python`).
-     - Tự động thực thi kịch bản kiểm thử đã định nghĩa trong đề bài: nhập dữ liệu vào ô input, click button, bắt sự kiện click menu, kiểm tra kết quả tính toán hiển thị trên màn hình, kiểm tra responsive layout ở 2 viewport (`1920x1080` và `375x667`).
+   - **Bước 5.4 - Kiểm thử chức năng tương tác (Playwright Headless Testing)**:
+     - Khởi chạy trình duyệt không đầu Chromium (`playwright-python`), mở URL trang web (Live URL hoặc Localhost server).
+     - Tự động thực thi kịch bản kiểm thử: điền form, click button, kích hoạt modal, kiểm tra thay đổi trạng thái giỏ hàng / danh sách, kiểm tra responsive layout ở 2 viewport (`1920x1080` Desktop và `375x667` Mobile).
      - Tính điểm $S_{Func} = \frac{\text{Số test case tương tác Pass}}{\text{Tổng số test case tương tác}} \times 10$.
-   - **Bước 4.5 - Chụp ảnh giao diện & Đánh giá chất lượng (Visual & AI Multimodal)**:
-     - Playwright tự động chụp ảnh màn hình bài nộp (screenshot full-page).
-     - Nếu có kết nối mạng và bật chế độ AI Review: Desktop App gửi ảnh chụp kèm rubric lên Gemini AI Hub để đánh giá độ hài hòa màu sắc, tính cân đối của bố cục và phát hiện gian lận dùng template có sẵn.
+   - **Bước 5.5 - Chụp ảnh màn hình & Thẩm định giao diện AI Multimodal**:
+     - Playwright tự động chụp ảnh màn hình bài nộp (screenshot full-page độ phân giải cao).
+     - Nếu có Internet và bật tiêu chí AI: Gửi ảnh chụp kèm rubric lên Gemini AI Hub để đánh giá độ hài hòa màu sắc, tính cân đối của bố cục và phát hiện dùng template có sẵn.
      - Tính điểm $S_{UI}$ (thang điểm 10).
-5. **Tổng hợp điểm số**: Hệ thống áp dụng công thức Rubric:
+   - **Bước 5.6 - Đối soát chéo chống gian lận (Dành riêng cho chế độ `HYBRID`)**:
+     - Hệ thống so khớp hash của các file assets tĩnh (CSS, JS, images) tải từ Live Website với file mã nguồn tương ứng trong GitHub Repo.
+     - Nếu phát hiện độ sai lệch lớn hoặc Live Website trỏ về sản phẩm không khớp mã nguồn trong Repo, hệ thống gắn cờ cảnh báo nghi vấn gian lận (`FLAGGED_MISMATCH`) để Giảng viên lưu ý.
+6. **Tổng hợp điểm số**: Hệ thống áp dụng công thức Rubric:
    $$\text{Final Score} = w_1 \times S_{DOM} + w_2 \times S_{Lint} + w_3 \times S_{Func} + w_4 \times S_{UI}$$
-6. Hệ thống lưu điểm thành phần, điểm tổng kết và đường dẫn ảnh chụp màn hình vào CSDL SQLite cục bộ.
-7. Thanh tiến độ chấm trên giao diện cập nhật thời gian thực (`UC-13`).
-8. Sau khi chấm xong toàn bộ lớp, bảng điểm tổng kết cập nhật đầy đủ điểm số và cho phép giảng viên nhấp vào từng sinh viên để xem ảnh chụp màn hình giao diện web cùng chi tiết lỗi từng tiêu chí. Use Case kết thúc.
+7. Hệ thống ghi toàn bộ kết quả vào bảng `local_web_grading_results` trong SQLite cục bộ (`submission_id`, `website_url`, `github_url`, `grading_mode`, các điểm thành phần, `final_score`, `final_verdict`, `screenshot_path`, `rubric_log`).
+8. Thanh tiến độ chấm trên giao diện cập nhật thời gian thực (`UC-13`).
+9. Sau khi hoàn thành toàn bộ lớp, giao diện hiển thị bảng điểm trực quan. Giảng viên có thể nhấp vào từng sinh viên để xem ảnh chụp màn hình trang web, xem link live, link repo và chi tiết lỗi của từng tiêu chí. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Chấm bài web không cần AI (Hoàn toàn Offline)**: Nếu máy trạm của giảng viên không có Internet hoặc muốn tiết kiệm Quota AI, giảng viên bỏ chọn tiêu chí $w_4$ (AI Multimodal). Hệ thống tự động phân bổ lại trọng số cho 3 tiêu chí offline ($w_1, w_2, w_3$) để đạt tổng 100%. Quá trình chấm diễn ra 100% offline với tốc độ siêu tốc (1-2 giây / bài).
 * **A2 - Điều chỉnh điểm từng tiêu chí thủ công**: Tương tự như `UC-15`, tại màn hình xem chi tiết kết quả web, Giảng viên có thể ghi đè điểm của bất kỳ tiêu chí thành phần nào (ví dụ: cộng điểm sáng tạo giao diện) kèm ghi chú giải trình.
-* **E1 - Không tìm thấy file `index.html` hoặc `index.php`**: Tại bước 4.1, nếu thư mục nộp bài của sinh viên không có file entry point chuẩn, hệ thống tự động tìm kiếm file `.html` bất kỳ trong thư mục. Nếu vẫn không thấy, ghi nhận điểm 0 với mã lỗi `ERR_NO_ENTRYPOINT` ("Không tìm thấy tệp tin giao diện index.html").
-* **E2 - Vòng lặp vô tận trong JavaScript (Infinite Loop / TLE)**: Tại bước 4.4, nếu mã JavaScript của sinh viên chứa vòng lặp vô tận gây treo trình duyệt, Playwright Timeout Guard (cấu hình mặc định 5000ms) sẽ tự động ngắt tab, ghi nhận tiêu chí $S_{Func} = 0$ với verdict `TLE` (Time Limit Exceeded) và tiếp tục chấm các tiêu chí khác bình thường.
+* **E1 - Website URL không truy cập được (HTTP 404 / 500 / Connection Refused)**: Ở chế độ `LIVE_ONLY` hoặc `HYBRID`, nếu trang web của sinh viên bị sập hoặc domain sai: hệ thống thử lại 2 lần (retry backoff). Nếu vẫn lỗi, gán phán quyết `FAILED` với mã lỗi `ERR_LIVE_UNREACHABLE` và cho 0 điểm các tiêu chí tương tác trực tiếp.
+* **E2 - Repo GitHub không tồn tại hoặc ở chế độ Private**: Ở chế độ `REPO_ONLY` hoặc `HYBRID`, nếu link repo bị 404 hoặc private không clone được: ghi nhận mã lỗi `ERR_REPO_PRIVATE` và cho 0 điểm phần audit repo.
+* **E3 - Vòng lặp vô tận trong JavaScript (Infinite Loop / TLE)**: Tại bước 5.4, nếu mã JavaScript của sinh viên chứa vòng lặp vô tận gây treo trình duyệt, Playwright Timeout Guard (cấu hình mặc định 5000ms) sẽ tự động ngắt tab, ghi nhận tiêu chí $S_{Func} = 0$ với verdict `TLE` (Time Limit Exceeded) và tiếp tục chấm các tiêu chí khác bình thường.
 
 ---
 
