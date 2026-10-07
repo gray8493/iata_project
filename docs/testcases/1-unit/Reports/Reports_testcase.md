@@ -359,7 +359,7 @@ Abnormal
 
 ---
 
-# UT04_ReportsOverview_TC008: Người gọi có vai trò không hợp lệ trong hệ thống (GUEST) không có quyền xem báo cáo
+# UT04_ReportsOverview_TC008: Người gọi mang vai trò không hợp lệ trong hệ thống (INVALID_ROLE) không có quyền xem báo cáo
 
 #### Loại test
 
@@ -367,12 +367,12 @@ Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Tài khoản đang đăng nhập có vai trò không hợp lệ `role = "GUEST"` (`guest_user`).
+- Tài khoản đang đăng nhập mang vai trò không hợp lệ `role = "INVALID_ROLE"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
 - **Method & Endpoint**: `GET /api/v1/admin/reports/overview`
-- **Ngữ cảnh người gọi (Caller Identity Input)**: Người dùng có vai trò không hợp lệ (`id: 101, role: "GUEST"`).
+- **Ngữ cảnh người gọi (Caller Identity Input)**: Người dùng có vai trò không hợp lệ (`id: 101, role: "INVALID_ROLE"`).
 - **Dữ liệu tham số đầu vào (Input Parameters)**:
   ```json
   {}

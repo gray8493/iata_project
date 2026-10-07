@@ -1393,7 +1393,7 @@ Abnormal
     "password": "LanPassword2026@",
     "full_name": "Trần Thị Lan",
     "email": "lantt@fe.edu.vn",
-    "role": "GUEST"
+    "role": "STAFF"
   }
   ```
 
@@ -1401,7 +1401,7 @@ Abnormal
 
 1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
 2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
-3. Đính kèm Body chứa `role = "GUEST"`.
+3. Đính kèm Body chứa `role = "STAFF"`.
 4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)

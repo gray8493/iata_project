@@ -15,9 +15,9 @@
   - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///c:/AITA/iata_project/docs/apis/ai/ai.yaml)
   - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
   - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 66 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
+- **Tổng số Testcase**: 65 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
   - `GET /api/v1/ai/quota`: 07 Testcases (05 False, 02 True)
-  - `POST /api/v1/ai/generate-testcases`: 17 Testcases (11 False, 06 True)
+  - `POST /api/v1/ai/generate-testcases`: 16 Testcases (11 False, 05 True)
   - `POST /api/v1/ai/review-code`: 15 Testcases (11 False, 04 True)
   - `POST /api/v1/ai/verify-plagiarism`: 14 Testcases (10 False, 04 True)
   - `POST /api/v1/ai/evaluate-web-ui`: 13 Testcases (09 False, 04 True)
@@ -411,7 +411,7 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API
+# UT03_AiGenerateTestcases_TC002: Quản trị viên (ADMIN) không có quyền gọi API sinh testcase của Giảng viên
 
 #### Loại test
 
@@ -419,7 +419,7 @@ Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
+- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -436,7 +436,7 @@ Abnormal
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
 3. Đính kèm Request Body dữ liệu.
 4. Gửi Request lên hệ thống.
 
@@ -751,7 +751,7 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC008: Ngôn ngữ lập trình không hợp lệ (Không thuộc Enum [C, JAVA, PYTHON, WEB])
+# UT03_AiGenerateTestcases_TC008: Ngôn ngữ lập trình không hợp lệ (Không thuộc Enum [C, JAVA, PYTHON])
 
 #### Loại test
 
@@ -793,7 +793,7 @@ Binary
     "details": [
       {
         "field": "language",
-        "issue": "Ngôn ngữ không được hỗ trợ. Giá trị hợp lệ: C, JAVA, PYTHON, WEB."
+        "issue": "Ngôn ngữ không được hỗ trợ. Giá trị hợp lệ: C, JAVA, PYTHON."
       }
     ],
     "timestamp": "2026-10-04T09:30:00.000Z"
@@ -1223,47 +1223,6 @@ Normal
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
 |  Lần 1  |            |                    |                                     |                  |              |          |
 
----
-
-# UT03_AiGenerateTestcases_TC017: Sinh testcase thành công cho ngôn ngữ WEB (HTML/CSS/JS)
-
-#### Loại test
-
-Normal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Giảng viên sở hữu Token hợp lệ và còn quota.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Xây dựng form đăng ký gồm họ tên, email, mật khẩu với kiểm tra validate phía client.",
-    "language": "WEB",
-    "count": 3
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với `language = "web"`.
-4. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `200 OK`.
-- `data.testcases`: Chứa các kịch bản test dữ liệu input form web (email không có @, password ngắn, submit hợp lệ).
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
 
 ---
 
@@ -1330,7 +1289,7 @@ Abnormal
 
 ---
 
-# UT03_AiReviewCode_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API review code
+# UT03_AiReviewCode_TC002: Quản trị viên (ADMIN) không có quyền gọi API review code của Giảng viên
 
 #### Loại test
 
@@ -1338,7 +1297,7 @@ Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
+- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -1360,7 +1319,7 @@ Abnormal
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
 3. Đính kèm Request Body dữ liệu.
 4. Gửi Request lên hệ thống.
 
@@ -2206,7 +2165,7 @@ Abnormal
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API xác thực đạo văn
+# UT03_AiVerifyPlagiarism_TC002: Quản trị viên (ADMIN) không có quyền gọi API xác thực đạo văn của Giảng viên
 
 #### Loại test
 
@@ -2214,7 +2173,7 @@ Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
+- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -2232,7 +2191,7 @@ Abnormal
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
 3. Đính kèm Request Body dữ liệu.
 4. Gửi Request lên hệ thống.
 
@@ -2972,7 +2931,7 @@ Abnormal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API chấm giao diện Web
+# UT03_AiEvaluateWebUI_TC002: Quản trị viên (ADMIN) không có quyền gọi API chấm giao diện Web của Giảng viên
 
 #### Loại test
 
@@ -2980,7 +2939,7 @@ Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
+- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -2998,7 +2957,7 @@ Abnormal
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
 3. Đính kèm Request Body dữ liệu.
 4. Gửi Request lên hệ thống.
 
