@@ -1,0 +1,357 @@
+@startuml
+skinparam defaultTextAlignment center
+skinparam roundCorner 8
+skinparam BoxPadding 10
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #1E88E5
+    ArrowColor #2E7D32
+    FontSize 11
+}
+
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontSize 10
+}
+
+title Sơ Đồ Lớp Toàn Diện 3 Phân Hệ (System-Wide Class Diagram - 3 Subsystems)\nHệ Sinh Thái AITA (Tích hợp Factory Method, Adapter Pattern & Strategy Pattern)
+
+' ==============================================================================
+' PHÂN HỆ 1: SANDBOX EXECUTION & COMPILER ENGINE (LOCAL DESKTOP ENGINE)
+' Mẫu thiết kế áp dụng:
+'   - Creational Pattern: Factory Method (RunnerFactory -> BaseRunner)
+'   - Structural Pattern: Adapter Pattern (CompilerAdapter -> GccAdapter, JavacAdapter)
+' ==============================================================================
+package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5E9 {
+
+    abstract class BaseRunner {
+        # source_path: Path
+        # executable_path: Path
+        # time_limit_ms: int
+        # memory_limit_mb: int
+        + {abstract} compile(): CompileResult
+        + {abstract} execute_main(stdin_input: str): ExecutionResult
+        # monitor_resources(process_pid: int): ResourceUsage
+    }
+
+    class CRunner {
+        - compiler_adapter: CompilerAdapter
+        + compile(): CompileResult
+        + execute_main(stdin_input: str): ExecutionResult
+    }
+
+    class JavaRunner {
+        - compiler_adapter: CompilerAdapter
+        + compile(): CompileResult
+        + execute_main(stdin_input: str): ExecutionResult
+    }
+
+    class PythonRunner {
+        + compile(): CompileResult
+        + execute_main(stdin_input: str): ExecutionResult
+    }
+
+    class WebRunner {
+        - playwright_browser: Any
+        - rubric_weights: Dict[str, float]
+        + compile(): CompileResult
+        + execute_main(stdin_input: str): ExecutionResult
+        + evaluate_dom_structure(html_path: Path): float
+        + run_w3c_lint(html_path: Path): float
+        + run_playwright_e2e(test_script: str): float
+        + evaluate_ui_gemini_vision(screenshot_path: Path): float
+        + calculate_composite_score(): float
+    }
+
+    class RunnerFactory <<Creational - Factory Method>> {
+        + {static} create_runner(file_extension: str, source_path: Path): BaseRunner
+    }
+
+    interface CompilerAdapter <<Structural - Adapter>> {
+        + compile(source_path: Path, output_path: Path): CompileResult
+    }
+
+    class GccAdapter {
+        - gcc_binary_path: str
+        + compile(source_path: Path, output_path: Path): CompileResult
+        - parse_gcc_stderr(stderr: str): str
+    }
+
+    class JavacAdapter {
+        - javac_binary_path: str
+        + compile(source_path: Path, output_path: Path): CompileResult
+        - parse_javac_stderr(stderr: str): str
+    }
+
+    class ResourceMonitor {
+        - process: psutil.Process
+        - max_ram_bytes: int
+        - timeout_seconds: float
+        + start_monitoring(pid: int): void
+        + poll_usage(): ResourceUsage
+        + enforce_kill_if_exceeded(): void
+    }
+
+    class CompileResult {
+        + is_success: bool
+        + executable_path: Path
+        + compile_error_log: str
+        + error_code: str
+    }
+
+    class ExecutionResult {
+        + exit_code: int
+        + stdout_data: str
+        + stderr_data: str
+        + execution_time_ms: float
+        + memory_used_mb: float
+        + is_timeout: bool
+        + is_memory_exceeded: bool
+    }
+
+    BaseRunner <|-- CRunner
+    BaseRunner <|-- JavaRunner
+    BaseRunner <|-- PythonRunner
+    BaseRunner <|-- WebRunner
+
+    RunnerFactory ..> BaseRunner : <<creates>>
+    RunnerFactory ..> CRunner : <<instantiates>>
+    RunnerFactory ..> JavaRunner : <<instantiates>>
+    RunnerFactory ..> PythonRunner : <<instantiates>>
+    RunnerFactory ..> WebRunner : <<instantiates>>
+
+    CompilerAdapter <|.. GccAdapter
+    CompilerAdapter <|.. JavacAdapter
+
+    CRunner o-- CompilerAdapter
+    JavaRunner o-- CompilerAdapter
+    BaseRunner --> ResourceMonitor : uses
+    BaseRunner ..> CompileResult : produces
+    BaseRunner ..> ExecutionResult : produces
+}
+
+' ==============================================================================
+' PHÂN HỆ 2: GRADING CORE & OUTPUT MATCHING SUBSYSTEM (DESKTOP BUSINESS LAYER)
+' Mẫu thiết kế áp dụng:
+'   - Behavioral Pattern: Strategy Pattern (MatchingStrategy & 7 Concrete Strategies)
+' ==============================================================================
+package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
+
+    interface MatchingStrategy <<Behavioral - Strategy>> {
+        + match(actual_output: str, expected_output: str): bool
+        + get_strategy_name(): str
+    }
+
+    class ExactMatchStrategy {
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class IgnoreWhitespaceStrategy {
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class CaseInsensitiveStrategy {
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class FloatingPointToleranceStrategy {
+        - tolerance_epsilon: float
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class UnorderedTokensStrategy {
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class RegexPatternStrategy {
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class SpecialJudgeStrategy {
+        - checker_script_path: Path
+        + match(actual_output: str, expected_output: str): bool
+    }
+
+    class GradingContext {
+        - strategy: MatchingStrategy
+        + set_strategy(strategy: MatchingStrategy): void
+        + evaluate(actual_output: str, expected_output: str): bool
+    }
+
+    class BatchGradingManager {
+        - worker_pool_size: int
+        - grading_context: GradingContext
+        + load_students_csv(csv_path: Path): List[Submission]
+        + execute_batch_grading(session_id: str): List[GradingResult]
+        + export_results_csv(results: List[GradingResult], output_path: Path): void
+    }
+
+    class Submission {
+        + student_id: str
+        + student_name: str
+        + source_file_path: Path
+        + programming_language: str
+        + total_score: float
+        + status: str
+    }
+
+    class TestCase {
+        + test_id: str
+        + input_data: str
+        + expected_output: str
+        + score_weight: float
+        + is_boundary_case: bool
+    }
+
+    class GradingResult {
+        + student_id: str
+        + test_id: str
+        + verdict: str
+        + score: float
+        + execution_time_ms: float
+        + memory_used_mb: float
+        + diff_details: str
+        + teacher_feedback: str
+    }
+
+    class WebGradingResult {
+        + submission_id: str
+        + website_url: str
+        + github_url: str
+        + grading_mode: str
+        + entrypoint_file: str
+        + score_dom: float
+        + score_lint: float
+        + score_func: float
+        + score_ui: float
+        + final_score: float
+        + final_verdict: str
+        + screenshot_path: str
+        + rubric_log: str
+        + ai_feedback: str
+    }
+
+    MatchingStrategy <|.. ExactMatchStrategy
+    MatchingStrategy <|.. IgnoreWhitespaceStrategy
+    MatchingStrategy <|.. CaseInsensitiveStrategy
+    MatchingStrategy <|.. FloatingPointToleranceStrategy
+    MatchingStrategy <|.. UnorderedTokensStrategy
+    MatchingStrategy <|.. RegexPatternStrategy
+    MatchingStrategy <|.. SpecialJudgeStrategy
+
+    GradingContext o-- MatchingStrategy
+    BatchGradingManager *-- GradingContext
+    BatchGradingManager --> RunnerFactory : requests runner
+    BatchGradingManager o-- Submission
+    BatchGradingManager o-- TestCase
+    BatchGradingManager ..> GradingResult : generates
+    BatchGradingManager ..> WebGradingResult : generates
+}
+
+' ==============================================================================
+' PHÂN HỆ 3: CENTRAL BACKEND & AI GATEWAY SUBSYSTEM (FASTAPI CLOUD SERVICE)
+' Mẫu thiết kế & Kiến trúc:
+'   - Facade / Service Layer Pattern
+'   - Role-Based Access Control (RBAC) & OAuth2 JWT
+' ==============================================================================
+package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)" #E3F2FD {
+
+    class AuthController {
+        - auth_service: AuthService
+        + login(credentials: OAuth2PasswordRequestForm): TokenResponse
+        + refresh_token(token: str): TokenResponse
+    }
+
+    class AIGatewayController {
+        - quota_manager: QuotaManager
+        - gemini_service: GeminiGatewayService
+        + generate_testcases(prompt_payload: TestcaseGenRequest): List[TestCase]
+        + review_code_error(code_payload: CodeReviewRequest): AIReviewResponse
+        + check_plagiarism_semantic(pair_payload: PlagiarismPairRequest): PlagiarismReport
+    }
+
+    class AuthService {
+        - secret_key: str
+        - algorithm: str
+        + authenticate_user(username: str, password: str): User
+        + create_access_token(data: dict): str
+        + verify_jwt_token(token: str): TokenPayload
+    }
+
+    class QuotaManager {
+        - daily_token_limit: int
+        + check_quota_available(user_id: str): bool
+        + consume_quota(user_id: str, tokens_used: int): void
+        + get_remaining_quota(user_id: str): int
+    }
+
+    class GeminiGatewayService <<Service Layer / AI Gateway>> {
+        - api_key: str
+        - model_name: str
+        + call_generate_boundary_testcases(statement: str): List[TestCase]
+        + call_pedagogical_code_review(source_code: str, wrong_test: TestCase): str
+        + call_semantic_plagiarism_analysis(code_a: str, code_b: str): PlagiarismReport
+    }
+
+    class User <<Entity>> {
+        + user_id: str
+        + username: str
+        + password_hash: str
+        + full_name: str
+        + role: str
+        + is_active: bool
+        + is_deleted: bool
+        + daily_quota: int
+    }
+
+    class AIQuotaLog <<Entity>> {
+        + log_id: str
+        + user_id: str
+        + feature_used: str
+        + tokens_consumed: int
+        + is_deleted: bool
+        + timestamp: datetime
+    }
+
+    AuthController --> AuthService
+    AIGatewayController --> QuotaManager
+    AIGatewayController --> GeminiGatewayService
+
+    AuthService ..> User : manages
+    QuotaManager ..> AIQuotaLog : persists
+}
+
+' ==============================================================================
+' LIÊN KẾT GIAO TIẾP GIỮA CÁC PHÂN HỆ (CROSS-SUBSYSTEM RELATIONSHIPS)
+' ==============================================================================
+
+' Desktop Batch Grading Manager kết nối với Sandbox Engine
+BatchGradingManager --> BaseRunner : executes code
+
+' Desktop App kết nối mạng với Backend API qua RESTful Calls (Chỉ cho Auth và AI Gateway)
+GradingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
+
+' Ghi chú làm nổi bật 3 Mẫu thiết kế bắt buộc theo Rubric SWD392
+note top of RunnerFactory
+  <b>1. Creational Pattern: Factory Method</b>
+  Tự động nhận diện đuôi file (.c, .java, .py)
+  để sản xuất đối tượng Runner tương ứng.
+end note
+
+note top of CompilerAdapter
+  <b>2. Structural Pattern: Adapter Pattern</b>
+  Đồng nhất hóa giao diện biên dịch và chuẩn hóa
+  mã lỗi stderr giữa GCC, Javac và Python.
+end note
+
+note top of MatchingStrategy
+  <b>3. Behavioral Pattern: Strategy Pattern</b>
+  Cung cấp 7 chiến lược so khớp đầu ra linh hoạt
+  cho phép thay đổi thuật toán lúc runtime.
+end note
+
+@enduml

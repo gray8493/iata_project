@@ -17,7 +17,7 @@ skinparam note {
     FontSize 10
 }
 
-title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, FastAPI Backend & Gemini AI)
+title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, NestJS Backend & Gemini AI)
 
 ' ==============================================================================
 ' ĐỊNH NGHĨA CÁC VÙNG PHÂN QUYỀN (SWIMLANES)
@@ -26,7 +26,7 @@ title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity
 |#E1F5FE|Giảng viên (Instructor)|
 |#EDE7F6|Desktop App UI (PyQt6 Client)|
 |#E8F5E9|Desktop Core & Sandbox Runner (Local Engine)|
-|#FFF3E0|Web Server Backend (FastAPI Central API)|
+|#FFF3E0|Web Server Backend (NestJS Central API)|
 |#FCE4EC|Google Gemini AI Hub (Cloud AI)|
 
 ' ==============================================================================
@@ -41,7 +41,7 @@ start
 |Desktop App UI (PyQt6 Client)|
 :Gửi thông tin xác thực lên máy chủ;
 
-|Web Server Backend (FastAPI Central API)|
+|Web Server Backend (NestJS Central API)|
 :Xác thực OAuth2 & Cấp JWT Token;
 
 |Desktop App UI (PyQt6 Client)|
@@ -49,69 +49,73 @@ start
 :Hiển thị Màn hình Điều khiển Chấm bài;
 
 |Giảng viên (Instructor)|
-:Chọn Môn học & Nạp danh sách bài nộp từ file **students.csv** (UC-08);
+:Chọn Loại bài thi (Console C/Java/Python hoặc Web HTML/CSS/JS/PHP) & Nạp file **students.csv** (UC-08);
 
 |Desktop App UI (PyQt6 Client)|
-:Đọc và thẩm định file CSV (chuẩn 2 cột: MSSV, File bài làm);
+:Đọc và thẩm định file CSV (chuẩn 2 cột: MSSV, File/Thư mục bài làm);
 :Hiển thị bảng danh sách sinh viên;
 
 |Giảng viên (Instructor)|
-if (Nguồn tạo Bộ Testcase kiểm thử?) then ([Tự nhập / Nạp JSON (UC-09)])
-    :Nhập thủ công các cặp INPUT / OUTPUT kỳ vọng;
-else ([Tự động sinh bằng AI (UC-10)])
-    :Dán mô tả đề bài & các ràng buộc bài toán;
-    :Bấm nút **[✨ Sinh Testcase bằng AI]**;
-
-    |Desktop App UI (PyQt6 Client)|
-    :Đóng gói prompt gửi yêu cầu POST /api/v1/ai/generate-testcases;
-
-    |Web Server Backend (FastAPI Central API)|
-    :Thẩm định JWT Token & Kiểm tra hạn ngạch (AI Quota);
-    if (Hạn ngạch Quota còn khả dụng?) then ([Hết Quota])
-        :Trả về HTTP 429 Too Many Requests;
-        |Desktop App UI (PyQt6 Client)|
-        :Báo lỗi hết quota; Chuyển sang nạp testcase thủ công;
-        |Giảng viên (Instructor)|
-        :Nhập thủ công testcase;
-    else ([Còn Quota])
-        :Trừ lượt hạn ngạch;
-        :Chuyển tiếp prompt chuẩn hóa sang Google Gemini;
-
-        |Google Gemini AI Hub (Cloud AI)|
-        :Phân tích đề bài & Sinh 5-10 cặp [INPUT, OUTPUT biên];
-
-        |Web Server Backend (FastAPI Central API)|
-        :Nhận kết quả JSON testcase từ Gemini;
-        :Trả về HTTP 200 OK cho Desktop App;
+if (Loại bài thi cần chấm?) then ([Bài tập Console (C/Java/Python)])
+    if (Nguồn tạo Bộ Testcase kiểm thử?) then ([Tự nhập / Nạp JSON (UC-09)])
+        :Nhập thủ công các cặp INPUT / OUTPUT kỳ vọng;
+    else ([Tự động sinh bằng AI (UC-10)])
+        :Dán mô tả đề bài & các ràng buộc bài toán;
+        :Bấm nút **[✨ Sinh Testcase bằng AI]**;
 
         |Desktop App UI (PyQt6 Client)|
-        :Hiển thị bảng duyệt trước (Preview Table);
+        :Đóng gói prompt gửi yêu cầu POST /api/v1/ai/generate-testcases;
 
-        |Giảng viên (Instructor)|
-        :Kiểm tra, tick chọn các testcase đạt chuẩn & Lưu;
+        |Web Server Backend (NestJS Central API)|
+        :Thẩm định JWT Token & Kiểm tra hạn ngạch (AI Quota);
+        if (Hạn ngạch Quota còn khả dụng?) then ([Hết Quota])
+            :Trả về HTTP 429 Too Many Requests;
+            |Desktop App UI (PyQt6 Client)|
+            :Báo lỗi hết quota; Chuyển sang nạp testcase thủ công;
+            |Giảng viên (Instructor)|
+            :Nhập thủ công testcase;
+        else ([Còn Quota])
+            :Trừ lượt hạn ngạch;
+            :Chuyển tiếp prompt chuẩn hóa sang Google Gemini;
+
+            |Google Gemini AI Hub (Cloud AI)|
+            :Phân tích đề bài & Sinh 5-10 cặp [INPUT, OUTPUT biên];
+
+            |Web Server Backend (NestJS Central API)|
+            :Nhận kết quả JSON testcase từ Gemini;
+            :Trả về HTTP 200 OK cho Desktop App;
+
+            |Desktop App UI (PyQt6 Client)|
+            :Hiển thị bảng duyệt trước (Preview Table);
+
+            |Giảng viên (Instructor)|
+            :Kiểm tra, tick chọn các testcase đạt chuẩn & Lưu;
+        endif
     endif
+
+    |Desktop Core & Sandbox Runner (Local Engine)|
+    :Lưu bộ Testcase chuẩn vào CSDL SQLite cục bộ;
+
+    |Giảng viên (Instructor)|
+    :Chọn 1 trong 7 Chiến lược So khớp đầu ra (MatchingStrategy - UC-11);
+    note right
+      7 Chiến lược so khớp:
+      1. Exact Match, 2. Ignore Whitespace,
+      3. Case-Insensitive, 4. Float Tolerance,
+      5. Unordered Tokens, 6. Regex Pattern,
+      7. Special Judge (checker.py)
+    end note
+else ([Bài tập Web HTML/CSS/JS/PHP (UC-19)])
+    :Mở bảng cấu hình **Web Grading Rubric**;
+    :Thiết lập 4 trọng số tiêu chí (w1 DOM, w2 W3C Lint, w3 Playwright E2E, w4 UI/Vision);
+    :Lưu cấu hình Rubric vào SQLite cục bộ;
 endif
 
-|Desktop Core & Sandbox Runner (Local Engine)|
-:Lưu bộ Testcase chuẩn vào CSDL SQLite cục bộ;
+' ==============================================================================
+' 2. GIAI ĐOẠN THỰC THI CHẤM BÀI TỰ ĐỘNG HÀNG LOẠT (OFFLINE PIPELINE - UC-12 & UC-19)
+' ==============================================================================
 
 |Giảng viên (Instructor)|
-:Chọn 1 trong 7 Chiến lược So khớp đầu ra (MatchingStrategy - UC-11);
-note right
-  7 Chiến lược so khớp:
-  1. Exact Match
-  2. Ignore Whitespace
-  3. Case-Insensitive
-  4. Floating-Point Tolerance
-  5. Unordered Tokens
-  6. Regex Pattern Match
-  7. Special Judge (checker.py)
-end note
-
-' ==============================================================================
-' 2. GIAI ĐOẠN THỰC THI CHẤM BÀI TỰ ĐỘNG HÀNG LOẠT (OFFLINE PIPELINE - UC-12)
-' ==============================================================================
-
 :Bấm nút **[BẮT ĐẦU CHẤM BÀI]**;
 
 |Desktop App UI (PyQt6 Client)|
@@ -119,50 +123,70 @@ end note
 :Khởi tạo thanh tiến độ (Progress Bar = 0%) & Bảng log mini;
 
 |Desktop Core & Sandbox Runner (Local Engine)|
-:Khởi tạo ProcessPoolExecutor (Chạy song song 4-8 bài đồng thời);
+:Khởi tạo ProcessPoolExecutor (Chạy song song các bài nộp);
 note left
   Quá trình chấm chạy hoàn toàn OFFLINE trên máy cục bộ,
-  dồn 100% CPU để tối ưu hiệu năng (15-30 giây cho 45 bài).
+  tận dụng đa lõi CPU để tối ưu hiệu năng (15-30s / 45 bài).
 end note
 
 while (Còn bài nộp sinh viên trong hàng đợi?) is ([Có])
     :Lấy bài nộp tiếp theo từ hàng đợi;
-    :Nhận diện các file câu hỏi độc lập (Q1, Q2, Q3 có hàm main());
     
-    :RunnerFactory khởi tạo Runner theo ngôn ngữ (C / Java / Python);
-    :Biên dịch mã nguồn sinh viên sang file thực thi tạm thời;
+    if (Phân loại bài nộp?) then ([Bài tập Console - UC-12])
+        :Nhận diện các file câu hỏi độc lập (Q1, Q2, Q3 có hàm main());
+        :RunnerFactory khởi tạo Runner (CRunner / JavaRunner / PythonRunner);
+        :Biên dịch mã nguồn sinh viên sang file thực thi tạm thời;
 
-    if (Biên dịch thành công?) then ([Lỗi biên dịch])
-        :Gán trạng thái **CE (Compile Error)**;
-        :Thu thập thông báo lỗi cú pháp từ stderr;
-        :Điểm câu hỏi = 0.0;
-    else ([Thành công])
-        while (Còn testcase kiểm thử cho câu này?) is ([Có])
-            :Khởi chạy subprocess thực thi binary qua hàm main();
-            :Truyền dữ liệu INPUT qua luồng stdin;
-            
-            :psutil giám sát tài nguyên CPU / RAM theo thời gian thực;
-            
-            if (Thời gian chạy >= Time Limit (1000ms)?) then ([Quá giờ])
-                :Kill tiến trình;
-                :Gán verdict **TLE (Time Limit Exceeded)**;
-            elseif (RAM tiêu thụ >= Memory Limit (256MB)?) then ([Tràn RAM])
-                :Kill tiến trình;
-                :Gán verdict **MLE (Memory Limit Exceeded)**;
-            elseif (Exit Code != 0?) then ([Lỗi Runtime])
-                :Gán verdict **RE (Runtime Error)**;
-            else ([Chạy hợp lệ])
-                :Thu nhận OUTPUT thực tế từ luồng stdout;
-                :Áp dụng Strategy Pattern so khớp OUTPUT thực tế với kỳ vọng;
+        if (Biên dịch thành công?) then ([Lỗi biên dịch])
+            :Gán trạng thái **CE (Compile Error)**;
+            :Thu thập thông báo lỗi cú pháp từ stderr;
+            :Điểm câu hỏi = 0.0;
+        else ([Thành công])
+            while (Còn testcase kiểm thử cho câu này?) is ([Có])
+                :Khởi chạy subprocess thực thi binary qua hàm main();
+                :Truyền dữ liệu INPUT qua luồng stdin;
                 
-                if (Kết quả so khớp trùng khớp?) then ([Khớp])
-                    :Gán verdict **AC (Accepted)**;
-                    :Cộng điểm testcase đó;
-                else ([Không khớp])
-                    :Gán verdict **WA (Wrong Answer)**;
+                :psutil giám sát tài nguyên CPU / RAM theo thời gian thực;
+                
+                if (Thời gian chạy >= Time Limit (1000ms)?) then ([Quá giờ])
+                    :Kill tiến trình;
+                    :Gán verdict **TLE (Time Limit Exceeded)**;
+                elseif (RAM tiêu thụ >= Memory Limit (256MB)?) then ([Tràn RAM])
+                    :Kill tiến trình;
+                    :Gán verdict **MLE (Memory Limit Exceeded)**;
+                elseif (Exit Code != 0?) then ([Lỗi Runtime])
+                    :Gán verdict **RE (Runtime Error)**;
+                else ([Chạy hợp lệ])
+                    :Thu nhận OUTPUT thực tế từ luồng stdout;
+                    :Áp dụng Strategy Pattern so khớp OUTPUT thực tế với kỳ vọng;
+                    
+                    if (Kết quả so khớp trùng khớp?) then ([Khớp])
+                        :Gán verdict **AC (Accepted)**;
+                        :Cộng điểm testcase đó;
+                    else ([Không khớp])
+                        :Gán verdict **WA (Wrong Answer)**;
+                    endif
                 endif
-            endif
-        endwhile ([Hết testcase])
+            endwhile ([Hết testcase])
+        endif
+
+    else ([Bài tập Web - UC-19])
+        :WebRunner khởi tạo môi trường (Static file:// hoặc máy chủ mini php -S);
+        :BeautifulSoup4 quét cấu trúc DOM & thẻ ngữ nghĩa theo checklist (Tính SDOM);
+        :tinycss2 & W3C Linter quét lỗi cú pháp HTML5/CSS3 offline (Tính SLint);
+        :Playwright mở Chromium Headless thực thi kịch bản kiểm thử E2E (Tính SFunc);
+        note right
+          Playwright Timeout Guard (5000ms)
+          tự động ngắt tab nếu JS dính vòng lặp vô tận.
+        end note
+        :Playwright chụp ảnh màn hình giao diện (full-page screenshot);
+        if (Bật tiêu chí đánh giá giao diện AI & Có mạng?) then ([Có])
+            :Gửi ảnh chụp màn hình lên Gemini AI Hub chấm điểm thẩm mỹ (SUI);
+        else ([Chấm Offline])
+            :Tự động phân bổ lại trọng số cho 3 tiêu chí Offline;
+        endif
+        :Tổng hợp điểm Rubric: Final = w1*SDOM + w2*SLint + w3*SFunc + w4*SUI;
+        :Lưu ảnh screenshot và chi tiết điểm từng tiêu chí vào SQLite;
     endif
 
     :Tính tổng điểm bài thi & Lưu chi tiết vào SQLite cục bộ;
@@ -199,7 +223,7 @@ fork
         |Desktop App UI (PyQt6 Client)|
         :Đóng gói mã nguồn & testcase sai gửi lên Web Backend;
         
-        |Web Server Backend (FastAPI Central API)|
+        |Web Server Backend (NestJS Central API)|
         :Kiểm tra token & Trừ quota AI;
         :Gửi prompt sư phạm sang Google Gemini;
         
@@ -238,7 +262,7 @@ fork again
             |Giảng viên (Instructor)|
             :Bấm nút **[✨ AI Phân tích bằng chứng]** (Vòng 2 - AI Semantic);
             
-            |Web Server Backend (FastAPI Central API)|
+            |Web Server Backend (NestJS Central API)|
             :Chuyển tiếp cấu trúc code 2 bài nghi vấn sang Gemini AI;
             
             |Google Gemini AI Hub (Cloud AI)|
@@ -259,7 +283,7 @@ fork again
 end fork
 
 ' ==============================================================================
-' 4. GIAI ĐOẠN BÁO CÁO & ĐỒNG BỘ DỮ LIỆU CLOUD (UC-18 & UC-19)
+' 4. GIAI ĐOẠN XUẤT BÁO CÁO BẢNG ĐIỂM CỤC BỘ (UC-18)
 ' ==============================================================================
 
 |Giảng viên (Instructor)|
@@ -279,22 +303,7 @@ end fork
 :Thông báo xuất file thành công kèm nút [Mở Thư Mục];
 
 |Giảng viên (Instructor)|
-:Nhấn nút **[Đồng bộ lên Cloud]** (UC-19);
-
-|Desktop App UI (PyQt6 Client)|
-:Đóng gói toàn bộ bảng điểm & logs thành payload JSON;
-:Gửi yêu cầu POST /api/v1/sync/grading-session kèm JWT Token;
-
-|Web Server Backend (FastAPI Central API)|
-:Xác thực danh tính giảng viên;
-:Lưu đợt chấm vào CSDL trung tâm qua SQLAlchemy ORM;
-:Trả về HTTP 200 OK kèm sync_id;
-
-|Desktop App UI (PyQt6 Client)|
-:Cập nhật trạng thái đợt chấm thành "Đã đồng bộ lên Cloud" (biểu tượng đám mây xanh);
-
-|Giảng viên (Instructor)|
-:Hoàn tất phiên làm việc;
+:Mở thư mục kiểm tra file bảng điểm & Hoàn tất phiên chấm;
 stop
 
 @enduml

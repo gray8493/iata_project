@@ -12,9 +12,9 @@ title Sơ Đồ Tuần Tự Tổng Thể Toàn Hệ Sinh Thái (System-Wide Sequ
 ' 1. ĐỊNH NGHĨA CÁC THÀNH PHẦN THEO TỪNG PHÂN HỆ KIẾN TRÚC
 ' ==============================================================================
 
-box "Phân Hệ Quản Trị Web (Admin Layer)" #E3F2FD
+box "Phân Hệ Quản Trị Web (Next.js Admin Layer)" #E3F2FD
 actor "Quản trị viên\n(Admin)" as Admin
-boundary "Web Admin\nDashboard" as WebUI
+boundary "Web Admin\n(Next.js Dashboard)" as WebUI
 end box
 
 box "Phân Hệ Giảng Viên (Desktop App Client - PyQt6)" #F3E5F5
@@ -25,8 +25,8 @@ database "CSDL Cục bộ\n(Local SQLite)" as LocalDB
 control "Sandbox Runner\n(GCC/Javac & psutil)" as Sandbox
 end box
 
-box "Phân Hệ Máy Chủ Trung Tâm (Web Backend & AI Hub)" #E8F5E9
-boundary "Web API Gateway\n(FastAPI Server)" as Backend
+box "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" #E8F5E9
+boundary "Web API Gateway\n(NestJS Server)" as Backend
 control "Auth & Quota\nService (JWT)" as AuthService
 database "CSDL Trung Tâm\n(Central Database)" as CentralDB
 control "Gemini AI\nGateway Hub" as AIHub
@@ -52,9 +52,9 @@ deactivate AuthService
 Backend --> WebUI : 5. HTTP 200 OK (JWT Token)
 WebUI --> Admin : 6. Chuyển hướng vào trang Quản trị Dashboard
 
-Admin -> WebUI : 7. Tạo tài khoản Giảng viên & Cấu hình Môn học (PRF, PRO, DSA, PHP)
-WebUI -> Backend : 8. HTTP POST /api/v1/admin/users & /courses
-Backend -> CentralDB : 9. Lưu trữ tài khoản Giảng viên và danh mục môn học
+Admin -> WebUI : 7. Quản lý tài khoản Giảng viên (Tạo mới, phân quyền, khóa)
+WebUI -> Backend : 8. HTTP POST /api/v1/admin/users
+Backend -> CentralDB : 9. Lưu trữ tài khoản Giảng viên
 activate CentralDB
 CentralDB --> Backend : 10. Đã ghi nhận dữ liệu
 deactivate CentralDB
@@ -185,9 +185,9 @@ deactivate DeskCore
 DeskUI --> Instructor : 60. Hiển thị bảng điểm hoàn chỉnh cả lớp
 
 ' ==============================================================================
-' 5. GIAI ĐOẠN 4: TÍNH NĂNG AI NÂNG CAO, XUẤT CSV & ĐỒNG BỘ MÁY CHỦ
+' 5. GIAI ĐOẠN 4: TÍNH NĂNG AI NÂNG CAO, XUẤT CSV CỤC BỘ & QUẢN TRỊ AUDIT LOGS
 ' ==============================================================================
-== GIAI ĐOẠN 4: Tính Năng AI Hỗ Trợ, Xuất File CSV & Đồng Bộ Lên Máy Chủ ==
+== GIAI ĐOẠN 4: Tính Năng AI Hỗ Trợ, Xuất Bảng Điểm Cục Bộ & Quản Trị Hệ Thống ==
 
 opt Giảng viên cần phân tích lỗi cho sinh viên bị sai (WA)
     Instructor -> DeskUI : 61. Chọn bài bị lỗi WA & Bấm nút [✨ AI Phân tích lỗi] (On-Demand)
@@ -235,36 +235,21 @@ DeskCore -> LocalDB : 82. Truy vấn bảng điểm kết quả
 activate LocalDB
 LocalDB --> DeskCore : 83. Dữ liệu bảng điểm
 deactivate LocalDB
-DeskCore --> DeskUI : 84. Ghi file hoàn tất `results.csv` (7 cột)
+DeskCore --> DeskUI : 84. Ghi file hoàn tất `results.csv` (7 cột) & Excel (.xlsx)
 deactivate DeskCore
-DeskUI -> Instructor : 85. Thông báo file `results.csv` đã sẵn sàng tại thư mục lớp
+DeskUI -> Instructor : 85. Thông báo file `results.csv` đã sẵn sàng tại thư mục máy trạm (Hoàn tất chấm offline)
 
-Instructor -> DeskUI : 86. Bấm nút [Đồng bộ lên Máy chủ]
-DeskUI -> DeskCore : 87. syncSessionResults()
-activate DeskCore
-DeskCore -> Backend : 88. HTTP POST /api/v1/sync/grading-session (Kết quả đợt chấm)
-activate Backend
-Backend -> CentralDB : 89. Lưu phiên chấm vào CSDL trung tâm toàn trường
-activate CentralDB
-CentralDB --> Backend : 90. Lưu trữ thành công
-deactivate CentralDB
-Backend --> DeskCore : 91. HTTP 200 OK ("Đồng bộ thành công")
-deactivate Backend
-DeskCore --> DeskUI : 92. Cập nhật trạng thái "Đã đồng bộ lên Cloud"
-deactivate DeskCore
-DeskUI --> Instructor : 93. Hiển thị thông báo hoàn tất đồng bộ Cloud
-
-Admin -> WebUI : 94. Mở Web Admin Dashboard xem báo cáo & audit log
+Admin -> WebUI : 86. Mở Web Admin Dashboard xem báo cáo sử dụng AI & audit logs
 activate WebUI
-WebUI -> Backend : 95. HTTP GET /api/v1/admin/reports
+WebUI -> Backend : 87. HTTP GET /api/v1/admin/reports & /api-quota-logs
 activate Backend
-Backend -> CentralDB : 96. Truy vấn số liệu thống kê chấm điểm toàn trường
+Backend -> CentralDB : 88. Truy vấn nhật ký tiêu thụ Token Gemini & danh sách Giảng viên
 activate CentralDB
-CentralDB --> Backend : 97. Dữ liệu báo cáo
+CentralDB --> Backend : 89. Dữ liệu báo cáo & nhật ký kiểm toán
 deactivate CentralDB
-Backend --> WebUI : 98. HTTP 200 OK (Biểu đồ & bảng thống kê)
+Backend --> WebUI : 90. HTTP 200 OK (Biểu đồ tiêu thụ token & bảng thống kê)
 deactivate Backend
-WebUI --> Admin : 99. Hiển thị bức tranh tổng thể hoạt động chấm thi toàn trường
+WebUI --> Admin : 91. Hiển thị bức tranh quản trị hệ thống và kiểm soát chi phí AI
 deactivate WebUI
 deactivate DeskUI
 

@@ -567,7 +567,93 @@ AI đã thiết kế và tạo thành công 2 file mã nguồn PlantUML trong th
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Hoàn thiện 100% yêu cầu 4 sơ đồ UML của Evaluation 1**: Dự án hiện đã sở hữu đầy đủ bộ tứ sơ đồ cốt lõi theo chuẩn IEEE/RUP (`use_case_diagram.puml`, `activity_diagram.puml`, `sequence_diagram.puml`, `communication_diagram.puml`), tạo tiền đề vững chắc cho giai đoạn Thiết kế Kiến trúc phần mềm (Evaluation 2).
-- **Tối ưu hóa Bố cục Swimlanes**: Việc sử dụng Swimlanes trong Activity Diagram giúp người đọc và hội đồng chấm thi thấy rõ ranh giới trách nhiệm của từng thành phần: phần nào chạy cục bộ offline tốc độ cao trên Desktop trạm, phần nào gửi bảo mật qua Backend REST API và phần nào do AI Gemini xử lý, minh chứng cho năng lực thiết kế hệ thống phần mềm phân tán hiện đại.
+---
+
+### 🔹 PROMPT 25: Chuyển Đổi & Chuẩn Hóa Ngăn Xếp Công Nghệ (Next.js cho Web Admin FE & NestJS cho Web Backend)
+
+#### 1. Mục tiêu
+Nâng cấp và chuyển đổi kiến trúc phân hệ Web từ FastAPI sang **NestJS (TypeScript)** cho Web Server Backend và **Next.js (TypeScript)** cho Web Admin Dashboard, đồng thời đồng bộ hóa toàn bộ tài liệu kỹ thuật và 4 sơ đồ UML.
+
+#### 2. Câu Prompt đã gửi
+> *"tôi dùng nextjs cho FE web, Nestjs for web backend dk"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã phân tích tính khả thi và hoàn tất cập nhật đồng bộ toàn bộ hệ sinh thái dự án:
+1. **[tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md)**: 
+   - Backend chuyển sang **NestJS (>= 10.x)** với TypeScript, Passport-JWT, Guards, Prisma ORM / TypeORM, class-validator và Swagger OpenAPI tự động (`@nestjs/swagger`).
+   - Web Admin chuyển sang **Next.js 14+ (App Router)** với TypeScript, TailwindCSS và Lucide-react.
+   - Desktop App giữ vững **Python 3.11+ (PyQt6)** để tối ưu khả năng can thiệp hệ điều hành, đo `psutil` và biên dịch GCC/Javac qua hàm `main()`.
+2. **Cập nhật đồng bộ các tài liệu kiến trúc**:
+   - [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md)
+   - [actors_and_use_cases.md](file:///e:/AITA/docs/architecture/actors_and_use_cases.md)
+   - [api-response-codes.md](file:///e:/AITA/docs/architecture/api-response-codes.md)
+3. **Cập nhật đồng bộ bộ 4 sơ đồ UML PlantUML**:
+   - [sequence_diagram.puml](file:///e:/AITA/docs/diagrams/puml/sequence_diagram.puml)
+   - [communication_diagram.puml](file:///e:/AITA/docs/diagrams/puml/communication_diagram.puml)
+   - [use_case_diagram.puml](file:///e:/AITA/docs/diagrams/puml/use_case_diagram.puml)
+   - [activity_diagram.puml](file:///e:/AITA/docs/diagrams/puml/activity_diagram.puml)
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tối ưu hóa cho tiêu chí Clean Architecture của SWD392**: NestJS là framework mẫu mực trong thế giới Node.js áp dụng triệt để kiến trúc phân tầng (Clean / Modular Architecture) và Dependency Injection (DI) tương tự Spring Boot và ASP.NET Core, giúp nâng cao điểm số kiến trúc phần mềm trong Đánh giá 2 (Evaluation 2).
+- **Phân tách trách nhiệm chuyên biệt hóa**: Next.js giúp xây dựng Dashboard quản trị nhanh chóng, đẹp mắt; trong khi PyQt6 (Python) đảm nhiệm tốt nhất việc chấm bài offline đa tiến trình. Sự kết hợp này tạo nên một hệ sinh thái phần mềm tích hợp đa nền tảng hiện đại và chặt chẽ.
+
+---
+
+### 🔹 PROMPT 26: Thiết Kế Lược Đồ Cơ Sở Dữ Liệu Toàn Hệ Sinh Thái (Database Schema Specification)
+
+#### 1. Mục tiêu
+Thiết kế tài liệu đặc tả lược đồ cơ sở dữ liệu chi tiết cho toàn bộ hệ thống AITA theo mô hình **Local-First Data Privacy (SQLite cục bộ trên Desktop App)** và **Cloud Centralized (PostgreSQL trên Neon Serverless)**, kèm theo sơ đồ thực thể liên kết Mermaid ERD, các ràng buộc dữ liệu toàn vẹn và nguyên tắc bảo mật thông tin học sinh.
+
+#### 2. Câu Prompt đã gửi
+> *"dựa vào các tài lệu co sẵn thiết kế file Database Schema md file vào trong folder docs/diagrams"*
+> *(Điều chỉnh: lưu vào docs/architecture/database_schema.md)*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã khởi tạo tài liệu kỹ thuật hoàn chỉnh [docs/architecture/database_schema.md](file:///e:/AITA/docs/architecture/database_schema.md) bao gồm 4 phần trọng tâm:
+1. **Sơ đồ ERD trực quan bằng Mermaid**:
+   - *Central ERD (PostgreSQL / Neon)*: Mô hình hóa mối quan hệ giữa `USERS`, `AI_QUOTA_CONFIGS`, `AI_QUOTA_LOGS`, và `COURSES`.
+   - *Local ERD (SQLite3)*: Mô hình hóa quan hệ giữa `LOCAL_CLASSES`, `LOCAL_STUDENT_SUBMISSIONS` (nạp từ CSV `MSSV,File`), `LOCAL_TESTCASES` (cặp `Input/Output`), `LOCAL_GRADING_RESULTS` (chấm qua hàm `main()`), và `LOCAL_PLAGIARISM_REPORTS`.
+2. **Từ điển dữ liệu (Data Dictionary)**: Bảng chi tiết từng cột, kiểu dữ liệu (`UUID`, `VARCHAR`, `TIMESTAMPTZ`, `NUMERIC`, `INTEGER`), ràng buộc toàn vẹn (`PK`, `FK`, `UNIQUE`, `NOT NULL`, `DEFAULT`), và các chỉ mục đánh Index tối ưu truy vấn.
+3. **Tuân thủ quy chuẩn đề án**: Tuyệt đối không tạo file `.sql` thô theo đúng chỉ thị, đảm bảo thiết kế độc lập chuẩn bị cho việc sinh mã Prisma Migration trong giai đoạn Evaluation 2.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Tách bạch CSDL cục bộ và máy chủ**: Giảng viên có thể chấm bài nhanh chóng trong phòng thi mà không phụ thuộc vào Internet.
+- **Tối ưu hóa cho Prisma ORM**: Các bảng trên Central Database đều sử dụng kiểu khóa chính `UUIDv4`, giúp bảo mật và thuận tiện cho việc ánh xạ ORM trong NestJS.
+
+---
+
+### 🔹 PROMPT 27: Loại Bỏ Hoàn Toàn Tính Năng Đồng Bộ Lên Cloud (Local-First Data Privacy Refactoring)
+
+#### 1. Mục tiêu
+Loại bỏ hoàn toàn tính năng đồng bộ dữ liệu đợt chấm và bảng điểm lên Cloud Backend (`UC-19`), chuyển đổi toàn bộ quy trình chấm thi sang mô hình **Local-First 100%**, đảm bảo dữ liệu bài thi của sinh viên và điểm số được lưu giữ an toàn cục bộ trên máy tính của giảng viên và chỉ xuất trực tiếp ra file `results.csv` hoặc Excel. Đồng thời cập nhật đồng bộ toàn bộ tài liệu kiến trúc, sơ đồ UML và cơ sở dữ liệu.
+
+#### 2. Câu Prompt đã gửi
+> *"à bỏ cái việc đồng bộ dữ liệu lên đi nha sửa các fle có"*
+
+#### 3. Kết quả do AI sinh ra (AI Output)
+AI đã thực hiện rà soát và điều chỉnh triệt để trên toàn bộ hệ thống dự án:
+1. **Lược đồ CSDL ([database_schema.md](file:///e:/AITA/docs/architecture/database_schema.md))**:
+   - Loại bỏ hoàn toàn 3 bảng lưu điểm trên Neon Cloud: `GRADING_SESSIONS`, `SUBMISSION_RESULTS`, `TESTCASE_EXECUTION_LOGS`.
+   - Database Neon PostgreSQL chỉ còn 4 bảng cốt lõi phục vụ xác thực và hạn ngạch AI: `USERS`, `AI_QUOTA_CONFIGS`, `AI_QUOTA_LOGS`, `COURSES`.
+   - Xóa cột cờ `is_synced` khỏi bảng SQLite cục bộ trên Desktop App.
+   - Thay thế mục "Cloud Sync Pipeline" bằng "Nguyên Tắc Bảo Mật & Lưu Trữ Cục Bộ (Local-First Data Privacy)".
+2. **Bộ 6 Sơ đồ UML ([docs/diagrams/puml/](file:///e:/AITA/docs/diagrams/puml/))**:
+   - [use_case_diagram.puml](file:///e:/AITA/docs/diagrams/puml/use_case_diagram.puml): Xóa `UC-19`, đổi tên thành "Báo cáo & Xuất Bảng Điểm Cục Bộ", bỏ luồng sync đến Cloud.
+   - [activity_diagram.puml](file:///e:/AITA/docs/diagrams/puml/activity_diagram.puml): Quy trình kết thúc ngay sau khi Giảng viên xuất bảng điểm CSV/Excel cục bộ, bỏ nhánh đồng bộ lên Cloud.
+   - [sequence_diagram.puml](file:///e:/AITA/docs/diagrams/puml/sequence_diagram.puml): Loại bỏ các thông điệp HTTP POST sync đợt chấm, thay bằng quy trình Admin giám sát hạn ngạch và audit logs AI.
+   - [communication_diagram.puml](file:///e:/AITA/docs/diagrams/puml/communication_diagram.puml): Xóa các tương tác liên quan đến `GradingSyncService` và `SyncController`.
+   - [Component_diagram.puml](file:///e:/AITA/docs/diagrams/puml/Component_diagram.puml): Xóa `GradingSyncService`, đổi `SyncClient` thành `APIClient` (chỉ gọi Auth & AI Gateway).
+   - [class_diagram.puml](file:///e:/AITA/docs/diagrams/puml/class_diagram.puml): Xóa các lớp `SyncController`, `GradingSessionSyncService`, `GradingSessionRecord`.
+3. **Tài liệu kiến trúc hệ thống**:
+   - [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md): Cập nhật ma trận phân quyền RBAC và nhiệm vụ Backend, khẳng định nguyên tắc bảo mật Local-First.
+   - [actors_and_use_cases.md](file:///e:/AITA/docs/architecture/actors_and_use_cases.md): Cập nhật hệ thống còn **18 Use Cases** (từ 19 xuống 18), bỏ `UC-19`.
+   - [use_case_descriptions.md](file:///e:/AITA/docs/architecture/use_case_descriptions.md): Xóa toàn bộ đặc tả chi tiết của `UC-19`, điều chỉnh `UC-01` và `UC-05`.
+   - [tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md) & [api-response-codes.md](file:///e:/AITA/docs/architecture/api-response-codes.md): Chuẩn hóa thông điệp và ranh giới hệ thống.
+
+#### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
+- **Bảo mật dữ liệu học thuật tuyệt đối (FERPA / Academic Privacy Compliance)**: Bài thi lập trình và bảng điểm của sinh viên là dữ liệu nhạy cảm. Việc lưu trữ hoàn toàn cục bộ trên máy giảng viên và xuất file vật lý để nộp phòng đào tạo giúp triệt tiêu rủi ro rò rỉ dữ liệu bài thi trên Internet.
+- **Tối ưu hóa tài nguyên máy chủ Neon Cloud**: Web Server Backend và CSDL Neon không phải gánh tải việc lưu trữ hàng nghìn log chạy testcase hay dung lượng mã nguồn bài nộp sinh viên, giúp duy trì gói Neon Serverless miễn phí mà không lo quá hạn ngạch. Backend chỉ tập trung làm tốt 2 nhiệm vụ: Xác thực (Auth) và Cầu nối bảo mật Gemini AI (AI Gateway).
+
 
 
 

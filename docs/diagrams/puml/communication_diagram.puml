@@ -17,7 +17,7 @@ object "<u>:SystemAdmin</u>\n(Quản trị viên)" as Admin
 object "<u>:Instructor</u>\n(Giảng viên)" as Instructor
 
 ' --- 2. Phân Hệ Giao Diện Người Dùng (UI Layer) ---
-object "<u>:WebAdminDashboard</u>\n(Web UI)" as WebAdminUI
+object "<u>:WebAdminDashboard</u>\n(Next.js Web UI)" as WebAdminUI
 object "<u>:DesktopAppUI</u>\n(PyQt6 UI Layer)" as DesktopUI
 
 ' --- 3. Phân Hệ Xử Lý Lõi Desktop (Desktop Core Engine) ---
@@ -25,10 +25,10 @@ object "<u>:DesktopCoreController</u>\n(Động cơ Chấm & Điều khiển)" a
 object "<u>:LocalDatabase</u>\n(SQLite Cục bộ Giảng viên)" as LocalDB
 object "<u>:SandboxRunner</u>\n(GCC/Javac/Python & psutil)" as Sandbox
 
-' --- 4. Phân Hệ Web Server Backend (FastAPI Central Server) ---
-object "<u>:WebAPIGateway</u>\n(FastAPI Server Router)" as WebBackend
-object "<u>:AuthRBACService</u>\n(JWT & Quản lý Phân quyền)" as AuthService
-object "<u>:CentralDatabase</u>\n(SQLAlchemy Central DB)" as CentralDB
+' --- 4. Phân Hệ Web Server Backend (NestJS Central Server) ---
+object "<u>:WebAPIGateway</u>\n(NestJS API Server)" as WebBackend
+object "<u>:AuthRBACService</u>\n(Passport-JWT & RBAC Guards)" as AuthService
+object "<u>:CentralDatabase</u>\n(Prisma / TypeORM Central DB)" as CentralDB
 
 ' --- 5. Phân Hệ Trí Tuệ Nhân Tạo (AI Gateway Hub) ---
 object "<u>:AIGatewayHub</u>\n(Quản lý Quota & API Key)" as AIHub
@@ -39,22 +39,22 @@ object "<u>:GoogleGeminiAPI</u>\n(Gemini 1.5 Flash Cloud)" as GeminiCloud
 ' ==============================================================================
 
 ' --- NHÓM 1: Quản trị Hệ thống từ Web Admin Dashboard ---
-Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: configCourses(PRF, PRO, DSA, PHP)\n1.4: setGeminiQuota(limits)\n1.5: viewAuditLogs()
+Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: setGeminiQuota(limits)\n1.4: viewAuditLogs()
 
-WebAdminUI -- WebBackend : 1.6: HTTP POST /auth/login\n1.7: HTTP REST (CRUD users, courses)\n1.8: HTTP POST /admin/ai-quota\n1.9: HTTP GET /admin/reports
+WebAdminUI -- WebBackend : 1.5: HTTP POST /auth/login\n1.6: HTTP REST (CRUD users)\n1.7: HTTP POST /admin/ai-quota\n1.8: HTTP GET /admin/reports
 
-WebBackend -- AuthService : 1.10: verifyAdminRole(token)\n1.11: hashPassword(bcrypt)
+WebBackend -- AuthService : 1.9: verifyAdminRole(token)\n1.10: hashPassword(bcrypt)
 
-WebBackend -- CentralDB : 1.12: queryAndPersist(users, courses, quotas)
+WebBackend -- CentralDB : 1.11: queryAndPersist(users, quotas)
 
-WebBackend -- AIHub : 1.13: updateQuotaPolicy(dailyTokenLimits)
+WebBackend -- AIHub : 1.12: updateQuotaPolicy(dailyTokenLimits)
 
 ' --- NHÓM 2: Đăng Nhập & Thiết Lập Từ Desktop App Client ---
 Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: selectStrategy(1_of_7)
 
 DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingStrategy(strategyType)
 
-DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)\n2.10: HTTP GET /api/v1/courses (kéo danh mục môn học)
+DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)
 
 DesktopCore -- LocalDB : 2.11: cacheSubmissions(students)\n2.12: persistTestcases(testcases)
 
@@ -71,19 +71,19 @@ DesktopCore -- LocalDB : 3.8: saveBatchResult(studentId, score, verdict, runtime
 
 DesktopCore -- DesktopUI : 3.9: emitRealtimeProgress(completed, total)\n3.10: displayResultsTable()
 
-' --- NHÓM 4: Trí Tuệ Nhân Tạo Thông Minh & Đồng Bộ Kết Quả ---
-Instructor -- DesktopUI : 4.1: requestAITestcase(problemStatement)\n4.4: requestAICodeReview(WA_studentId)\n4.7: checkPlagiarism2Stage()\n4.10: exportGradebook("results.csv")\n4.11: clickSyncToCloud()
+' --- NHÓM 4: Trí Tuệ Nhân Tạo Thông Minh & Xuất Bảng Điểm Cục Bộ ---
+Instructor -- DesktopUI : 4.1: requestAITestcase(problemStatement)\n4.4: requestAICodeReview(WA_studentId)\n4.7: checkPlagiarism2Stage()\n4.10: exportGradebook("results.csv")
 
-DesktopUI -- DesktopCore : 4.2: triggerAIGenerateTestcases()\n4.5: triggerOnDemandCodeReview()\n4.8: runLocalASTScan()\n4.12: syncSessionResults()
+DesktopUI -- DesktopCore : 4.2: triggerAIGenerateTestcases()\n4.5: triggerOnDemandCodeReview()\n4.8: runLocalASTScan()\n4.11: exportToDisk("results.csv")
 
-DesktopCore -- WebBackend : 4.3: HTTP POST /ai/generate-testcases\n4.6: HTTP POST /ai/code-review (On-Demand)\n4.9: HTTP POST /ai/verify-plagiarism (>80% only)\n4.13: HTTP POST /api/v1/sync/session
+DesktopCore -- WebBackend : 4.3: HTTP POST /ai/generate-testcases\n4.6: HTTP POST /ai/code-review (On-Demand)\n4.9: HTTP POST /ai/verify-plagiarism (>80% only)
 
-WebBackend -- AIHub : 4.14: validateQuotaAndForward(token, promptJson)
+WebBackend -- AIHub : 4.12: validateQuotaAndForward(token, promptJson)
 
-AIHub -- GeminiCloud : 4.15: generateContent(Multimodal 1.5 Flash)\n4.16: returnStructuredJSON()
+AIHub -- GeminiCloud : 4.13: generateContent(Multimodal 1.5 Flash)\n4.14: returnStructuredJSON()
 
-AIHub -- WebBackend : 4.17: returnAIFeedbackAndTrackTokens()
+AIHub -- WebBackend : 4.15: returnAIFeedbackAndTrackTokens()
 
-WebBackend -- CentralDB : 4.18: saveSyncedSession(results, aiLogs)
+WebBackend -- CentralDB : 4.16: saveAILogs(tokenUsage, timestamp)
 
 @enduml

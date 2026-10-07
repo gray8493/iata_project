@@ -1,0 +1,248 @@
+@startuml
+!pragma layout smetana
+skinparam defaultTextAlignment center
+skinparam roundCorner 8
+skinparam BoxPadding 10
+skinparam packageStyle rectangle
+
+skinparam component {
+    BackgroundColor #FFFFFF
+    BorderColor #1E88E5
+    ArrowColor #2E7D32
+    FontSize 11
+    FontStyle bold
+}
+
+skinparam interface {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+    FontSize 10
+}
+
+skinparam package {
+    BorderColor #90A4AE
+    FontSize 12
+    FontStyle bold
+}
+
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontSize 10
+}
+
+title Sơ Đồ Thành Phần Hệ Thống (System Component Diagram) - AITA Ecosystem\nTích Hợp Đầy Đủ 3 Mẫu Thiết Kế (Factory Method, Adapter, Strategy)
+
+' ==============================================================================
+' 1. PHÂN HỆ QUẢN TRỊ WEB ADMIN (Next.js 14+ Frontend)
+' ==============================================================================
+package "Phân Hệ Web Admin (Next.js Dashboard - Dành Cho Quản Trị Viên)" as WebAdminSubsystem #E3F2FD {
+    [Web Admin UI\n(Auth & Dashboard)] as AdminUI
+    [User Management\nComponent] as AdminUserComp
+    [AI Quota Monitor\nComponent] as AdminQuotaComp
+    [Audit & Report\nComponent] as AdminReportComp
+
+    AdminUI ..> AdminUserComp
+    AdminUI ..> AdminQuotaComp
+    AdminUI ..> AdminReportComp
+}
+
+' ==============================================================================
+' 2. PHÂN HỆ MÁY CHỦ TRUNG TÂM (NestJS Central Server & AI Gateway)
+' ==============================================================================
+package "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" as CentralBackendSubsystem #E8F5E9 {
+    
+    interface "RESTful API / JSON\n(HTTPS Endpoints)" as IRestAPI
+    
+    component "API Gateway Controller\n(NestJS Routing & Swagger)" as APIGateway
+    component "Auth & RBAC Service\n(Passport-JWT & Guards)" as AuthRBAC
+    component "AI Hub Gateway\n(Quota Guard & Token Counter)" as AIHubGateway
+
+    IRestAPI - APIGateway
+    APIGateway ..> AuthRBAC : verifyToken / role
+    APIGateway ..> AIHubGateway
+
+    interface "Prisma / TypeORM\nData Access" as IPrismaORM
+    AuthRBAC ..> IPrismaORM
+    AIHubGateway ..> IPrismaORM
+}
+
+database "Cơ Sở Dữ Liệu Trung Tâm\n(PostgreSQL / Neon Serverless Cloud)" as CentralDB #E0F2F1 {
+    [Users, AIQuotaConfigs,\nAIQuotaLogs] as CentralTables
+}
+IPrismaORM -- CentralTables
+
+' ==============================================================================
+' 3. DỊCH VỤ ĐÁM MÂY (Cloud AI Services)
+' ==============================================================================
+cloud "Dịch Vụ AI Đám Mây (Cloud AI)" #FFF3E0 {
+    [Google Gemini 1.5 Flash API] as GeminiAPI
+}
+interface "Gemini REST / SDK" as IGeminiAPI
+GeminiAPI - IGeminiAPI
+AIHubGateway ..> IGeminiAPI : On-Demand / Prompt
+
+' ==============================================================================
+' 4. PHÂN HỆ MÁY TRẠM GIẢNG VIÊN (Desktop App Client - PyQt6 / Python)
+' ==============================================================================
+package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)" as DesktopSubsystem #F3E5F5 {
+
+    ' --- Tầng Giao Diện (UI Layer) ---
+    package "Presentation Layer (PyQt6 UI)" #FAFAFA {
+        [Main Application Window\n(Navigation & Layout)] as MainWindow
+        [Submission Table View\n(Student List & Verdicts)] as SubTableView
+        [Testcase Editor Panel\n(Manual & JSON Import)] as TCEditor
+        [AI Assistant Dialog\n(Code Review & Plagiarism)] as AIDialog
+        [Realtime Progress Worker\n(QThread Task Runner)] as ProgressWorker
+
+        MainWindow ..> SubTableView
+        MainWindow ..> TCEditor
+        MainWindow ..> AIDialog
+        MainWindow ..> ProgressWorker
+    }
+
+    ' --- Tầng Nghiệp Vụ & Điều Khiển (Application Core Layer) ---
+    package "Application Core & Orchestration" #EDE7F6 {
+        [Grading Controller\n(Workflow Coordinator)] as GradingController
+        [Plagiarism Detector\n(2-Stage: AST & AI)] as PlagiarismDetector
+        [API & AI Gateway Client\n(HTTPX Client)] as APIClient
+        [Local Storage Engine\n(SQLite & CSV Handler)] as LocalStoreEngine
+
+        ProgressWorker ..> GradingController : executes
+        GradingController ..> PlagiarismDetector
+        GradingController ..> APIClient
+        GradingController ..> LocalStoreEngine
+    }
+
+    database "CSDL Cục Bộ\n(Local SQLite & CSV)" as LocalStorage #FFFDE7 {
+        [students.csv / results.csv\nLocal Cache Tables] as LocalData
+    }
+    LocalStoreEngine ..> LocalData
+
+    ' ==========================================================================
+    ' THỂ HIỆN 3 DESIGN PATTERNS TRONG ĐỘNG CƠ CHẤM BÀI (Grading Execution Engine)
+    ' ==========================================================================
+    package "Động Cơ Chấm Điểm Đa Năng (Grading Execution Engine)" #E1F5FE {
+
+        ' ----------------------------------------------------------------------
+        ' PATTERN 1: FACTORY METHOD PATTERN (Creational Pattern)
+        ' ----------------------------------------------------------------------
+        package "1. Creational: Factory Method Pattern" #E0F7FA {
+            component "RunnerFactory\n<<Factory>>\n+createRunner(lang)" as RunnerFactory
+            
+            interface "IRunner\n<<Product Interface>>\n+compile()\n+execute()" as IRunner
+
+            component "CRunner\n(For PRF - C Language)" as CRunner
+            component "JavaRunner\n(For PRO/DSA - Java)" as JavaRunner
+            component "PythonRunner\n(For PHP/PRO - Python)" as PythonRunner
+            component "WebRunner\n(For HTML/CSS/JS/PHP Web)" as WebRunner
+
+            RunnerFactory ..> IRunner : creates >
+            CRunner ..|> IRunner
+            JavaRunner ..|> IRunner
+            PythonRunner ..|> IRunner
+            WebRunner ..|> IRunner
+        }
+
+        ' ----------------------------------------------------------------------
+        ' PATTERN 2: ADAPTER PATTERN (Structural Pattern)
+        ' ----------------------------------------------------------------------
+        package "2. Structural: Adapter Pattern" #EDE7F6 {
+            interface "ICompilerAdapter\n<<Target Interface>>\n+build()\n+parseErrors()" as ICompilerAdapter
+
+            component "CompilerAdapter\n<<Adapter>>" as CompilerAdapter
+            component "GCCAdapter\n(Wraps MinGW / GCC CLI)" as GCCAdaptee
+            component "JavacAdapter\n(Wraps Javac CLI & Classpath)" as JavacAdaptee
+            component "PythonSyntaxAdapter\n(Wraps py_compile / AST)" as PythonSyntaxAdaptee
+            component "WebSyntaxAdapter\n(Wraps BeautifulSoup & W3C Lint)" as WebSyntaxAdaptee
+
+            CompilerAdapter ..|> ICompilerAdapter
+            CompilerAdapter --> GCCAdaptee
+            CompilerAdapter --> JavacAdaptee
+            CompilerAdapter --> PythonSyntaxAdaptee
+            CompilerAdapter --> WebSyntaxAdaptee
+
+            CRunner ..> ICompilerAdapter : uses
+            JavaRunner ..> ICompilerAdapter : uses
+            PythonRunner ..> ICompilerAdapter : uses
+            WebRunner ..> ICompilerAdapter : uses
+        }
+
+        ' ----------------------------------------------------------------------
+        ' PATTERN 3: STRATEGY PATTERN (Behavioral Pattern)
+        ' ----------------------------------------------------------------------
+        package "3. Behavioral: Strategy Pattern" #E8F5E9 {
+            component "MatchingContext\n<<Strategy Context>>\n+setStrategy()\n+executeMatch()" as MatchContext
+            
+            interface "IMatchingStrategy\n<<Strategy Interface>>\n+compare(actual, expect)" as IMatchStrategy
+
+            component "ExactMatchStrategy\n(100% Strict Char-by-Char)" as StratExact
+            component "IgnoreWhitespaceStrategy\n(Trim spaces & newlines)" as StratWhitespace
+            component "CaseInsensitiveStrategy\n(Ignore Lower/Uppercase)" as StratCase
+            component "FloatingPointToleranceStrategy\n(Tolerance delta <= 1e-5)" as StratFloat
+            component "UnorderedTokensStrategy\n(Set/Token order agnostic)" as StratToken
+            component "RegexPatternStrategy\n(Regular Expression match)" as StratRegex
+            component "SpecialJudgeStrategy\n(Custom script checker.py)" as StratJudge
+
+            MatchContext --> IMatchStrategy : invokes
+            StratExact ..|> IMatchStrategy
+            StratWhitespace ..|> IMatchStrategy
+            StratCase ..|> IMatchStrategy
+            StratFloat ..|> IMatchStrategy
+            StratToken ..|> IMatchStrategy
+            StratRegex ..|> IMatchStrategy
+            StratJudge ..|> IMatchStrategy
+        }
+
+        ' ----------------------------------------------------------------------
+        ' AN TOÀN HỆ THỐNG: SANDBOX RUNNER (Subprocess & psutil)
+        ' ----------------------------------------------------------------------
+        package "OS Sandboxing & Resource Monitor" #FFF8E1 {
+            component "SandboxRunner\n(Subprocess Controller)" as SandboxRunner
+            component "HeadlessBrowserSandbox\n(Playwright Chromium Isolated)" as HeadlessSandbox
+            component "ResourceMonitor\n(psutil RAM & CPU Tracker)" as ResMonitor
+
+            CRunner ..> SandboxRunner : invokes
+            JavaRunner ..> SandboxRunner : invokes
+            PythonRunner ..> SandboxRunner : invokes
+            WebRunner ..> HeadlessSandbox : launches
+            SandboxRunner --> ResMonitor : kills if TLE/MLE
+            HeadlessSandbox --> ResMonitor : kills if timeout/infinite loop
+        }
+
+        GradingController ..> RunnerFactory : requests runner
+        GradingController ..> MatchContext : configures & compares
+    }
+}
+
+' ==============================================================================
+' LIÊN KẾT GIAO TIẾP GIỮA CÁC PHÂN HỆ CHÍNH (Cross-Subsystem Interconnections)
+' ==============================================================================
+AdminUI ..> IRestAPI : HTTPS / JWT Bearer
+APIClient ..> IRestAPI : HTTPS / Auth & AI Gateway
+
+' ==============================================================================
+' CÁC GHI CHÚ CHỈ DẪN 3 MẪU THIẾT KẾ (Design Pattern Annotation Notes)
+' ==============================================================================
+note top of RunnerFactory
+  <b>MẪU KHỞI TẠO (Creational Pattern): Factory Method</b>
+  - Tự động nhận diện bài nộp (.c, .java, .py, hoặc thư mục web .html/.php)
+  - Sinh ra CRunner, JavaRunner, PythonRunner, WebRunner tương ứng
+  - Dễ dàng mở rộng thêm runner mới mà không sửa core.
+end note
+
+note top of CompilerAdapter
+  <b>MẪU CẤU TRÚC (Structural Pattern): Adapter Pattern</b>
+  - Chuẩn hóa các CLI biên dịch khác nhau (GCC, Javac, py_compile)
+  - Chuyển đổi cờ build, đường dẫn binary và định dạng lỗi stderr
+  - Cung cấp giao diện đồng nhất ICompilerAdapter cho các Runner.
+end note
+
+note bottom of MatchContext
+  <b>MẪU HÀNH VI (Behavioral Pattern): Strategy Pattern</b>
+  - Cung cấp 7 thuật toán so khớp đầu ra linh hoạt
+  - Cho phép Giảng viên thay đổi chiến lược ngay trên GUI
+  - Tách biệt thuật toán so sánh khỏi logic thực thi chấm bài.
+end note
+
+@enduml

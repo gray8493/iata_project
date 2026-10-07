@@ -137,21 +137,21 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 
 ```text
 +------------------------------------+       +------------------------------------+
-|     WEB ADMIN DASHBOARD (Web UI)   |       |   DESKTOP APP CLIENT (PyQt6/PySide6)|
+|  WEB ADMIN DASHBOARD (Next.js FE)  |       |   DESKTOP APP CLIENT (PyQt6/Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
-|  - Quản lý User, Lớp, Môn học      |       |  - Chấm bài CSV hàng loạt tốc độ cao|
+|  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài CSV hàng loạt tốc độ cao|
 |  - Giám sát hạn ngạch Gemini AI    |       |  - Chạy Sandbox Runner C/Java/Py   |
 +------------------------------------+       +------------------------------------+
                   │                                             │
-                  │ (HTTP / JSON RESTful API)                   │ (REST API & Sync)
+                  │ (HTTPS / RESTful API)                       │ (HTTPS / REST API & Sync)
                   ▼                                             ▼
 +---------------------------------------------------------------------------------+
-|                   WEB SERVER BACKEND (Python FastAPI Service)                   |
-|  - Tầng API Gateway & Định tuyến: FastAPI RESTful Endpoints                     |
-|  - Xác thực & Phân quyền (Auth & RBAC): JWT (JSON Web Token), OAuth2 Password   |
-|  - Quản lý nghiệp vụ: Quản lý ngân hàng Testcase, Lớp học, Lịch sử chấm         |
+|                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
+|  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
+|  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, Guards (@Roles)           |
+|  - Quản lý nghiệp vụ: Quản lý Tài khoản Giảng viên, Danh mục Môn học, Hạn ngạch AI |
 |  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi Google Gemini API           |
-|  - Cơ sở dữ liệu tập trung: SQLite / PostgreSQL qua SQLAlchemy ORM              |
+|  - Cơ sở dữ liệu trung tâm: PostgreSQL trên Neon Serverless Cloud qua Prisma   |
 +---------------------------------------------------------------------------------+
 ```
 
@@ -164,55 +164,56 @@ Web Admin Dashboard là hệ thống quản trị nội bộ **dành riêng cho 
 | **Đăng nhập hệ thống (Auth JWT)** | ✅ Đăng nhập Web Admin | ✅ Đăng nhập Desktop App | Web Backend API |
 | **Quản lý tài khoản Giảng viên (Thêm/Sửa/Khóa)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Phân quyền hệ thống (Gán Role Admin/Instructor)** | ✅ | ❌ | Web Admin Dashboard |
-| **Quản lý danh mục Môn học (PRF, PRO, DSA, PHP)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Cấu hình API Key & Quota Gemini AI tập trung**| ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Giám sát nhật ký sử dụng Token AI toàn trường** | ✅ Xem toàn bộ logs | ❌ | Web Admin Dashboard |
-| **Xem báo cáo & Lịch sử chấm toàn hệ thống** | ✅ Xem tổng hợp | ❌ | Web Admin Dashboard |
 | **Nạp Testcase & Cấu hình bài tập** | ❌ | ✅ Toàn quyền trên lớp | Desktop App Client |
 | **Chấm bài tự động từ file CSV (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
+| **Chấm bài tập Web tự động (HTML/CSS/JS/PHP)** | ❌ | ✅ Chấm bài theo Rubric | Desktop App Client |
 | **Xuất bảng điểm CSV kết quả (results.csv)** | ❌ | ✅ Xuất lớp phụ trách | Desktop App Client |
 
-*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách nạp từ file CSV mà Giảng viên thực hiện chấm điểm).*
+*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách nạp từ file CSV mà Giảng viên thực hiện chấm điểm cục bộ. Bảng điểm và mã nguồn sinh viên được bảo vệ tuyệt đối trên máy tính cá nhân của Giảng viên - Local-First Data Privacy).*
 
 ---
 
 ### 5.2. Kiến trúc nội bộ của Desktop App Client (PyQt6)
 Khi Giảng viên sử dụng Desktop App, ứng dụng vận hành theo mô hình Clean Architecture:
 - **Tầng Giao diện (UI)**: PyQt6 / PySide6 hiện đại, xử lý đa luồng qua `QThread` để không đơ màn hình khi chấm bài.
-- **Tầng Nghiệp vụ**: Động cơ so khớp 7 chế độ (`MatchingStrategy`), quản lý đọc/ghi file CSV (`students.csv`, `results.csv`).
-- **Tầng Thực thi an toàn (Sandbox)**: Subprocess cô lập gọi `gcc`, `java`, `python` kết hợp thư viện `psutil` để kiểm soát RAM (bắt `MLE`) và cưỡng chế kill khi quá giờ (bắt `TLE`).
-- **Tầng Đồng bộ (Network Sync)**: Kết nối với Web Server Backend qua REST API để kéo danh sách lớp và đồng bộ kết quả chấm lên máy chủ trung tâm.
+- **Tầng Nghiệp vụ**: Động cơ so khớp 7 chế độ (`MatchingStrategy`), bộ thẩm định Rubric chấm Web 4 thành phần, quản lý đọc/ghi file CSV (`students.csv`, `results.csv`).
+- **Tầng Thực thi an toàn & Trình duyệt (Sandbox & Web Runner Engine)**:
+  - Subprocess cô lập gọi `gcc`, `java`, `python` kết hợp thư viện `psutil` để kiểm soát RAM (bắt `MLE`) và cưỡng chế kill khi quá giờ (bắt `TLE`).
+  - Tích hợp `playwright` (Chromium Headless), `beautifulsoup4` (DOM parser) và `tinycss2` (W3C linter) để chấm điểm tự động bài tập Web (HTML/CSS/JS/PHP).
+- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi dịch vụ Gemini AI (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2, đánh giá chất lượng giao diện Web).
 
 ---
 
-### 5.3. Kiến trúc & Nhiệm vụ của Web Server Backend (FastAPI & RBAC Engine)
+### 5.3. Kiến trúc & Nhiệm vụ của Web Server Backend (NestJS & RBAC Engine)
 Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điều phối toàn bộ luồng dữ liệu của hệ sinh thái AITA:
-1. **Dịch vụ RESTful API & Swagger UI**: Cung cấp các endpoint chuẩn mực, tự động sinh tài liệu kiểm thử tương tác tại `/docs` (OpenAPI Spec).
+1. **Dịch vụ RESTful API & Swagger UI**: Cung cấp các endpoint chuẩn mực, tự động sinh tài liệu kiểm thử tương tác tại `/api/docs` qua `@nestjs/swagger`.
 2. **Cơ chế Phân quyền & Xác thực tập trung (Authentication & RBAC)**:
-   - Cấp phát và thẩm định **JWT (JSON Web Token)** với thời hạn sống an toàn (Access Token + Refresh Token).
+   - Cấp phát và thẩm định **JWT (JSON Web Token)** bằng `@nestjs/passport` và `@nestjs/jwt` với thời hạn sống an toàn (Access Token + Refresh Token).
    - Mã hóa mật khẩu một chiều chuẩn công nghiệp bằng **Bcrypt**.
-   - Kiểm soát quyền truy cập tài nguyên thông qua FastAPI Dependency Injection (`get_current_active_user`, `require_role(["admin"])`).
+   - Kiểm soát quyền truy cập tài nguyên thông qua NestJS Guards & Decorators (`@UseGuards(JwtAuthGuard, RolesGuard)`, `@Roles('admin')`).
 3. **AI Hub & Hạn ngạch (Quota Management)**:
    - Lưu trữ bí mật Google Gemini API Key tại máy chủ, ngăn chặn lộ key ra phía client.
    - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
-4. **Quản lý Dữ liệu Học thuật & Bảng điểm trung tâm**:
-   - Lưu trữ lịch sử toàn bộ các phiên chấm từ Desktop Client đồng bộ lên.
-   - Quản lý danh mục 4 môn cốt lõi: PRF (C), PRO (Java, Python), DSA (Java, Python), PHP (Python).
+4. **Bảo Mật Tập Trung & Nguyên Tắc Local-First (Neon PostgreSQL)**:
+   - Lưu trữ an toàn danh mục tài khoản, cấu hình hạn ngạch và nhật ký kiểm toán AI.
+   - Đảm bảo nguyên tắc bảo mật Local-First: Toàn bộ bảng điểm thi cử và mã nguồn sinh viên được lưu giữ cục bộ 100% trên máy Giảng viên, Backend không lưu giữ bài thi của sinh viên.
 
 ---
 
 ### 5.4. Các Phân Hệ Trên Trang Web Admin Quản Lý (Web Admin Management Dashboard)
 Giao diện Web Admin chuyên dụng dành riêng cho Quản trị viên (Admin) với các phân hệ chức năng:
 1. **Phân hệ Tổng quan (Executive Overview Dashboard)**:
-   - Thống kê thời gian thực: Tổng số tài khoản, số lớp đang hoạt động, tổng bài nộp đã chấm, biểu đồ tiêu thụ Token Gemini AI.
+   - Thống kê thời gian thực: Tổng số tài khoản, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ Token Gemini AI toàn trường.
 2. **Phân hệ Quản trị Tài khoản & Phân quyền (User & Role Management)**:
    - Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu hoặc vô hiệu hóa tài khoản Giảng viên.
    - Gán quyền hệ thống (`Admin`, `Instructor`).
-3. **Phân hệ Quản lý Danh mục Môn học (Course Management)**:
-   - Quản lý danh mục môn học lập trình cốt lõi của trường (PRF, PRO, DSA, PHP).
-4. **Phân hệ Giám sát Hạn ngạch AI (AI Quota & Usage Monitor)**:
+3. **Phân hệ Giám sát Hạn ngạch AI (AI Quota & Usage Monitor)**:
    - Xem chi tiết bảng tiêu thụ Token Gemini theo từng Giảng viên.
    - Cấu hình trần hạn ngạch (Quota limit) để tối ưu chi phí và tránh nghẽn API.
+4. **Phân hệ Báo cáo & Kiểm Toán (Reports & Audit Logs)**:
+   - Xem lịch sử kiểm toán các yêu cầu AI và xuất báo cáo tổng hợp.
 
 
 ## 6. Hiện thực hóa 3 Mẫu thiết kế (Design Patterns) theo yêu cầu SWD392

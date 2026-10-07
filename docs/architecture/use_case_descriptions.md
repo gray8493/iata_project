@@ -9,7 +9,7 @@
 
 ## 1. Giới Thiệu & Mục Đích Tài Liệu
 
-Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **19 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
+Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **18 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
 
 Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///d:/Java%20FPT/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///d:/Java%20FPT/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///d:/Java%20FPT/AITA/docs/architecture/tech-stack.md).
 
@@ -25,14 +25,13 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-## 2. Ma Trận 19 Use Cases Theo 6 Phân Hệ Chức Năng
+## 2. Ma Trận 18 Use Cases Theo 6 Phân Hệ Chức Năng
 
 | Mã UC | Tên Use Case | Tác nhân chính | Giao diện thực hiện | Tác nhân ngoài hỗ trợ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-03** | Quản lý Danh mục Môn học (PRF, PRO, DSA, PHP) | Admin | Web Admin Dashboard | Web Server Backend |
 | **UC-04** | Cấu hình API Key & Giám sát Hạn ngạch AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
 | **UC-05** | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
@@ -48,12 +47,12 @@ Mỗi Use Case được đặc tả bao gồm:
 | **UC-13** | Giám sát Tiến độ Chấm Thời gian thực | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-14** | Xem Chi tiết Kết quả & Nhật ký Bài nộp | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
 | **UC-15** | Chấm lại & Điều chỉnh Điểm thủ công | Giảng viên | Desktop App Client | Sandbox Execution Runner |
+| **UC-19** | Chấm Điểm Bài Tập Web Tự Động | Giảng viên | Desktop App Client | Headless Browser, W3C Parser, Gemini AI Hub |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)** | | | | |
 | **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Giảng viên | Desktop App Client | Gemini AI Hub |
 | **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **Phân hệ 6: Báo cáo, Đánh giá & Đồng bộ (Reporting, Export & Cloud Sync)** | | | | |
+| **Phân hệ 6: Báo cáo, Đánh giá Cục Bộ (Reporting & Local Export)** | | | | |
 | **UC-18** | Xuất Báo cáo Kết quả Điểm | Giảng viên | Desktop App Client | *(Tương tác File System)* |
-| **UC-19** | Đồng bộ Dữ liệu với Web Cloud Backend | Giảng viên | Desktop App Client | Web Server Backend |
 
 ---
 
@@ -92,11 +91,11 @@ Mỗi Use Case được đặc tả bao gồm:
 7. Backend phản hồi mã trạng thái `HTTP 200 OK` kèm dữ liệu token và thông tin hồ sơ người dùng (`id`, `full_name`, `role`).
 8. Client lưu trữ token:
    - **Web Admin**: Lưu token vào bộ nhớ an toàn (HttpOnly Cookie hoặc sessionStorage) và chuyển hướng tới Dashboard Quản trị.
-   - **Desktop App**: Lưu token vào phiên làm việc `SessionManager` trong RAM để đính kèm vào header `Authorization: Bearer <token>` cho mọi request gọi API đồng bộ và AI Hub tiếp theo.
+   - **Desktop App**: Lưu token vào phiên làm việc `SessionManager` trong RAM để đính kèm vào header `Authorization: Bearer <token>` cho mọi request gọi API AI Gateway tiếp theo.
 9. Hệ thống thông báo đăng nhập thành công. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Đăng nhập Offline trên Desktop App**: Tại bước 4, nếu không có kết nối Internet tới Web Backend, Desktop App cung cấp chế độ **"Offline Mode"**: Giảng viên vẫn có thể vào ứng dụng để chấm bài cục bộ bằng Sandbox (`UC-12`) và xuất file CSV (`UC-18`), nhưng các tính năng gọi AI Cloud (`UC-10`, `UC-16`, `UC-17 Vòng 2`) và đồng bộ Cloud (`UC-19`) sẽ tạm thời bị vô hiệu hóa.
+* **A1 - Đăng nhập Offline trên Desktop App**: Tại bước 4, nếu không có kết nối Internet tới Web Backend, Desktop App cung cấp chế độ **"Offline Mode"**: Giảng viên vẫn có thể vào ứng dụng để chấm bài cục bộ bằng Sandbox (`UC-12`) và xuất file CSV (`UC-18`), nhưng các tính năng gọi AI Cloud (`UC-10`, `UC-16`, `UC-17 Vòng 2`) sẽ tạm thời bị vô hiệu hóa.
 * **E1 - Sai tên đăng nhập hoặc mật khẩu**: Tại bước 5, nếu không tìm thấy username hoặc mật khẩu không khớp, Backend trả về `HTTP 401 Unauthorized` ("Tên đăng nhập hoặc mật khẩu không chính xác"). Client hiển thị thông báo lỗi màu đỏ và cho phép người dùng thử lại.
 * **E2 - Tài khoản bị khóa (Disabled Account)**: Tại bước 5, nếu tài khoản có cờ `is_active = False`, Backend trả về `HTTP 403 Forbidden` ("Tài khoản đã bị vô hiệu hóa bởi Quản trị viên"). Client thông báo người dùng liên hệ Admin.
 
@@ -134,43 +133,9 @@ Mỗi Use Case được đặc tả bao gồm:
 * **E1 - Trùng lặp Email hoặc Username**: Tại bước 6, nếu Email hoặc Username đã tồn tại trong CSDL, Backend trả về `HTTP 409 Conflict` ("Email hoặc Tên đăng nhập đã được sử dụng"). Giao diện Web hiển thị cảnh báo ngay tại ô nhập liệu tương ứng.
 * **E2 - Admin tự khóa tài khoản của chính mình**: Nếu Quản trị viên cố gắng chuyển trạng thái tài khoản đang đăng nhập của mình thành vô hiệu hóa hoặc hạ quyền, hệ thống chặn lại và cảnh báo "Không thể tự vô hiệu hóa tài khoản Quản trị viên đang kích hoạt".
 
----
 
-#### 3.1.3. UC-03: Quản Lý Danh Mục Môn Học (Manage Course Catalog)
 
-* **Mã Use Case**: `UC-03`
-* **Tên Use Case**: Quản lý Danh mục Môn học (Manage Course Catalog)
-* **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Course Service, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cho phép Quản trị viên quản lý danh mục các môn học lập trình cốt lõi của trường (**PRF** - C, **PRO** - Java/Python, **DSA** - Java/Python, **PHP** - Python). Quản trị viên có thể thêm môn mới, cấu hình ngôn ngữ lập trình cho phép, định dạng file nộp chấp nhận và quy chuẩn cấu trúc câu hỏi thi.
-* **Tiền điều kiện (Preconditions)**:
-  1. Quản trị viên đã đăng nhập thành công vào Web Admin Dashboard với quyền `Admin`.
-* **Hậu điều kiện (Postconditions)**:
-  1. Danh mục môn học trong CSDL trung tâm được cập nhật.
-  2. Các ứng dụng Desktop App của Giảng viên khi đồng bộ sẽ nhận được danh sách môn học mới nhất để lựa chọn khi tạo đợt chấm.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Danh mục Môn học" (Course Catalog)** trên thanh điều hướng Web Admin.
-
-##### Luồng sự kiện chính (Main Flow):
-1. Quản trị viên truy cập mục **"Danh mục Môn học"**.
-2. Hệ thống gửi yêu cầu `GET /api/v1/courses` và hiển thị danh sách các môn học hiện có (Mã môn, Tên môn học, Ngôn ngữ hỗ trợ: C/Java/Python, Cấu hình sandbox mặc định).
-3. Quản trị viên bấm nút **"Thêm môn học mới"** hoặc chọn một môn học hiện có để **"Chỉnh sửa"**.
-4. Biểu mẫu xuất hiện yêu cầu thiết lập:
-   - Mã môn học (ví dụ: `PRF192`, `PRO192`, `CSD201`).
-   - Tên môn học (ví dụ: `Lập trình C cơ bản`, `Cấu trúc Dữ liệu & Giải thuật`).
-   - Ngôn ngữ lập trình áp dụng: Checkbox chọn `C`, `Java`, `Python`.
-   - Giới hạn tài nguyên khuyến nghị: Timeout mặc định (ms), Memory Limit mặc định (MB).
-5. Quản trị viên kiểm tra thông số và bấm **"Xác nhận lưu"**.
-6. Web Client gửi yêu cầu (`POST` hoặc `PUT /api/v1/courses/{id}`) kèm JWT token lên Backend.
-7. Backend kiểm tra quyền Admin, xác thực dữ liệu qua Pydantic schema, lưu thông tin môn học vào bảng `courses` trong CSDL.
-8. Backend trả về mã thành công `HTTP 200/201`. Giao diện Web hiển thị thông báo thành công và cập nhật danh sách hiển thị. Use Case kết thúc.
-
-##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Xóa / Vô hiệu hóa môn học**: Quản trị viên chọn "Vô hiệu hóa" môn học không còn giảng dạy. Hệ thống chuyển cờ `is_active = False` để môn này không còn xuất hiện trong danh sách tạo đợt chấm mới của Giảng viên, nhưng giữ nguyên lịch sử chấm các kỳ trước.
-* **E1 - Trùng mã môn học**: Tại bước 6, nếu mã môn học đã tồn tại, Backend trả về `HTTP 400 Bad Request` ("Mã môn học đã tồn tại trong hệ thống"). Web UI cảnh báo lỗi.
-
----
-
-#### 3.1.4. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+#### 3.1.3. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
 
 * **Mã Use Case**: `UC-04`
 * **Tên Use Case**: Cấu hình API Key & Giám sát Hạn ngạch AI (Configure Centralized AI Key & Monitor Quotas)
@@ -206,13 +171,13 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-#### 3.1.5. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+#### 3.1.4. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
 
 * **Mã Use Case**: `UC-05`
 * **Tên Use Case**: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
 * **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật trên hệ thống: tổng số đợt chấm đã thực hiện, tỷ lệ đạt/trượt bài thi, lịch sử đồng bộ từ các Desktop App của giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, Prisma ORM)
+* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật và sử dụng AI trên hệ thống: tổng số tài khoản giảng viên, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ hạn ngạch Token Gemini theo giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập vào Web Admin Dashboard với quyền Admin.
 * **Hậu điều kiện (Postconditions)**:
@@ -222,18 +187,17 @@ Mỗi Use Case được đặc tả bao gồm:
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên truy cập mục **"Báo cáo & Thống kê"**.
 2. Hệ thống gửi yêu cầu `GET /api/v1/admin/reports/overview` lên Backend.
-3. Backend tổng hợp dữ liệu từ bảng đợt chấm (`grading_sessions`), bảng bài nộp (`submissions`), và bảng nhật ký (`audit_logs`).
+3. Backend tổng hợp dữ liệu từ bảng người dùng (`users`) và bảng nhật ký tiêu thụ AI (`ai_quota_logs`).
 4. Giao diện hiển thị các khối trực quan:
-   - Các chỉ số KPI tổng thể: Tổng số bài nộp đã chấm, Số đợt thi đã hoàn tất, Tỷ lệ Pass trung bình toàn trường.
-   - Biểu đồ phân bố điểm thi theo từng môn học (PRF, PRO, DSA, PHP).
-   - Biểu đồ tần suất xuất hiện các lỗi (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`).
-   - Bảng danh sách các đợt chấm bài gần nhất (Tên đợt chấm, Giảng viên phụ trách, Lớp, Môn học, Thời gian đồng bộ, Số sinh viên).
-5. Quản trị viên có thể sử dụng bộ lọc: Lọc theo Môn học, theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
-6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ họp nghiệm thu đào tạo. Use Case kết thúc.
+   - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng token AI đã tiêu thụ trong tháng.
+   - Biểu đồ tần suất sử dụng các tính năng AI (Sinh testcase, Code review lỗi WA, Quét đạo văn Vòng 2).
+   - Bảng nhật ký hoạt động hệ thống và kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
+5. Quản trị viên có thể sử dụng bộ lọc: theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
+6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ quản lý chi phí API và nghiệm thu đào tạo. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Xem chi tiết một đợt chấm bài của Giảng viên**: Quản trị viên nhấp vào một đợt chấm cụ thể trong danh sách để xem bảng điểm tổng hợp của lớp đó mà giảng viên đã đồng bộ lên cloud (`UC-19`).
-* **E1 - Chưa có dữ liệu thống kê**: Nếu hệ thống mới triển khai hoặc chưa có đợt chấm nào được đồng bộ, giao diện hiển thị thông báo rỗng thân thiện (Empty State): "Chưa có dữ liệu đợt chấm được đồng bộ trong khoảng thời gian đã chọn".
+* **A1 - Xem chi tiết mức sử dụng Token của Giảng viên**: Quản trị viên nhấp vào một giảng viên cụ thể trong danh sách để xem chi tiết lịch sử các lần gọi AI trong tháng.
+* **E1 - Chưa có dữ liệu thống kê**: Nếu hệ thống mới triển khai hoặc chưa có lượt gọi AI nào, giao diện hiển thị thông báo rỗng thân thiện (Empty State): "Chưa có dữ liệu nhật ký sử dụng trong khoảng thời gian đã chọn".
 
 ---
 
@@ -590,6 +554,76 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
+#### 3.4.5. UC-19: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+
+* **Mã Use Case**: `UC-19`
+* **Tên Use Case**: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
+* **Tác nhân chính**: Giảng viên (Instructor)
+* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser (`BeautifulSoup4` / `tinycss2` / `html-validate`), Git Subsystem (`git clone` shallow), Google Gemini AI Hub (API Gateway)
+* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế và phát triển web (HTML5, CSS3, JavaScript, PHP) trực tiếp trên Desktop App của Giảng viên. Hệ thống hỗ trợ nguồn nộp bài linh hoạt thông qua file danh sách sinh viên `students.csv` (chứa link **Domain Website đã deploy**, link **GitHub Repo**, hoặc **cả hai**). Giảng viên có thể tùy chọn 3 chế độ chấm độc lập hoặc kết hợp:
+  1. **Chế độ 1: Chỉ chấm Live Website (`LIVE_ONLY`)**: Thẩm định trực tiếp domain website đã deploy (Vercel, Netlify, Render, VPS,...).
+  2. **Chế độ 2: Chỉ chấm GitHub Repo (`REPO_ONLY`)**: Tự động clone mã nguồn từ kho GitHub của sinh viên, thẩm định cấu trúc thư mục, chuẩn code và lịch sử commit.
+  3. **Chế độ 3: Chế độ kết hợp (`HYBRID`)**: Thực hiện kiểm thử toàn diện cả Live Website lẫn GitHub Repo, đồng thời đối soát chéo (Cross-check) mã nguồn với DOM thực tế để chống gian lận lấy website của người khác nộp.
+  Kết quả được lưu trữ độc lập vào bảng CSDL cục bộ riêng biệt `local_web_grading_results` theo khung tiêu chí Rubric 4 thành phần quy đổi về thang điểm 10.
+* **Tiền điều kiện (Preconditions)**:
+  1. Giảng viên đã nạp danh sách sinh viên `students.csv` với cấu trúc cột linh hoạt: `MSSV,Website_URL,Github_URL` (tùy theo yêu cầu đề bài, sinh viên có thể chỉ nộp Live URL, chỉ nộp GitHub URL, hoặc nộp cả hai). Hoặc Giảng viên nạp thư mục mã nguồn nộp bài offline cục bộ.
+  2. Môi trường Desktop App đã tích hợp sẵn Playwright Headless Chromium và các thư viện phân tích cú pháp (`BeautifulSoup4`, `tinycss2`).
+* **Hậu điều kiện (Postconditions)**:
+  1. Kết quả chấm được lưu riêng biệt vào bảng `local_web_grading_results` trong SQLite cục bộ (gồm: `website_url`, `github_url`, `grading_mode`, điểm thành phần `score_dom`, `score_lint`, `score_func`, `score_ui`, điểm tổng `final_score`, phán quyết `final_verdict`, chi tiết `rubric_log`).
+  2. Toàn bộ ảnh chụp màn hình giao diện (Screenshots) ở cả 2 viewport (Desktop `1920x1080` & Mobile `375x667`) cùng nhật ký kiểm thử được lưu trữ để phục vụ phúc khảo.
+  3. Bảng điểm Desktop App hiển thị trạng thái đạt/lỗi trực quan và sẵn sàng xuất báo cáo độc lập.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chuyển sang phân hệ "Chấm Bài Web", chọn chế độ chấm và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
+
+##### Luồng sự kiện chính (Main Flow):
+1. Giảng viên chọn đợt chấm thuộc môn học có nội dung lập trình web (ví dụ: `PHP`, `Web Development / PRF`).
+2. Giảng viên chọn **Chế độ chấm (Grading Mode)** phù hợp với đợt thi:
+   - **Lựa chọn A - Live Website Only (`LIVE_ONLY`)**: Chấm theo domain đã deploy. Phù hợp với bài thi triển khai thực tế, không yêu cầu clone mã nguồn.
+   - **Lựa chọn B - GitHub Repo Only (`REPO_ONLY`)**: Chấm theo source code repository. Phù hợp với bài tập mã nguồn, yêu cầu kiểm tra code convention và commit.
+   - **Lựa chọn C - Hybrid Mode (`HYBRID`)**: Chấm kết hợp cả domain và repo. Phù hợp với đồ án môn học lớn, đảm bảo tính xác thực cao nhất.
+3. Giảng viên thiết lập các trọng số trong bảng cấu hình **"Tiêu chí & Rubric Chấm Web"**:
+   - **$w_1$ (DOM Structure & Semantics)**: Thẻ HTML ngữ nghĩa, cấu trúc layout, form attributes, SEO/Accessibility cơ bản (Mặc định: 30%).
+   - **$w_2$ (W3C Validation & Code Style / Git Audit)**: Chuẩn cú pháp W3C HTML5/CSS3 offline và tính đều đặn của Git commits (Mặc định: 10%).
+   - **$w_3$ (Interactive Functional Testing)**: Kịch bản Playwright giả lập người dùng thao tác tương tác giao diện (Mặc định: 40%).
+   - **$w_4$ (Visual & Quality Assessment)**: Gemini Vision AI chấm bố cục thẩm mỹ hoặc Lighthouse Performance Audit (Mặc định: 20%).
+4. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
+5. Desktop App khởi tạo luồng xử lý ngầm đa luồng (`QThread` Worker Pool) và tiến hành chấm tuần tự từng bài nộp:
+   - **Bước 5.1 - Tiếp nhận nguồn bài nộp theo Chế độ**:
+     - *Nếu chế độ có `REPO_ONLY` hoặc `HYBRID`*: Hệ thống gọi tiến trình Git nội bộ thực hiện shallow clone repo (`git clone --depth 1 <github_url> <temp_dir>`) vào thư mục tạm cục bộ. Phân tích lịch sử commit (`git log`) để ghi nhận tần suất code và kiểm tra tài khoản tác giả.
+     - *Nếu chế độ `LIVE_ONLY`*: Bỏ qua bước clone, trích xuất trực tiếp `website_url` của sinh viên.
+     - *Nếu chấm thư mục offline cục bộ*: Nhận diện file `index.html` hoặc tự khởi tạo máy chủ PHP tạm (`php -S 127.0.0.1:<port>`).
+   - **Bước 5.2 - Kiểm tra cấu trúc DOM & Ngữ nghĩa (HTML Semantic Analysis)**:
+     - Parser `BeautifulSoup4` quét cây DOM (từ file offline hoặc DOM render sau khi Playwright nạp trang live): kiểm tra sự hiện diện của các thẻ bắt buộc theo checklist đề bài (ví dụ: `<header>`, `<nav>`, `<footer>`, `<form>`, `<table>`, `<input type="email">`, thuộc tính `required`, thuộc tính `alt`).
+     - Tính điểm $S_{DOM} = \frac{\text{Số tiêu chí DOM đạt}}{\text{Tổng số tiêu chí DOM}} \times 10$.
+   - **Bước 5.3 - Quét chuẩn cú pháp W3C, Linter & Git Quality**:
+     - Với chế độ có Repo: Trình quét W3C offline phân tích toàn bộ file `.html` và `.css` trong repo. Đếm số lỗi (`Errors`) và cảnh báo (`Warnings`). Đánh giá lịch sử commit (trừ điểm nếu chỉ commit 1 lần duy nhất ngay trước giờ nộp).
+     - Với chế độ `LIVE_ONLY`: Quét HTML source tải về từ trang web qua W3C validator parser.
+     - Tính điểm $S_{Lint} = \max(0, 10 - \text{Errors} \times 1.0 - \text{Warnings} \times 0.2)$.
+   - **Bước 5.4 - Kiểm thử chức năng tương tác (Playwright Headless Testing)**:
+     - Khởi chạy trình duyệt không đầu Chromium (`playwright-python`), mở URL trang web (Live URL hoặc Localhost server).
+     - Tự động thực thi kịch bản kiểm thử: điền form, click button, kích hoạt modal, kiểm tra thay đổi trạng thái giỏ hàng / danh sách, kiểm tra responsive layout ở 2 viewport (`1920x1080` Desktop và `375x667` Mobile).
+     - Tính điểm $S_{Func} = \frac{\text{Số test case tương tác Pass}}{\text{Tổng số test case tương tác}} \times 10$.
+   - **Bước 5.5 - Chụp ảnh màn hình & Thẩm định giao diện AI Multimodal**:
+     - Playwright tự động chụp ảnh màn hình bài nộp (screenshot full-page độ phân giải cao).
+     - Nếu có Internet và bật tiêu chí AI: Gửi ảnh chụp kèm rubric lên Gemini AI Hub để đánh giá độ hài hòa màu sắc, tính cân đối của bố cục và phát hiện dùng template có sẵn.
+     - Tính điểm $S_{UI}$ (thang điểm 10).
+   - **Bước 5.6 - Đối soát chéo chống gian lận (Dành riêng cho chế độ `HYBRID`)**:
+     - Hệ thống so khớp hash của các file assets tĩnh (CSS, JS, images) tải từ Live Website với file mã nguồn tương ứng trong GitHub Repo.
+     - Nếu phát hiện độ sai lệch lớn hoặc Live Website trỏ về sản phẩm không khớp mã nguồn trong Repo, hệ thống gắn cờ cảnh báo nghi vấn gian lận (`FLAGGED_MISMATCH`) để Giảng viên lưu ý.
+6. **Tổng hợp điểm số**: Hệ thống áp dụng công thức Rubric:
+   $$\text{Final Score} = w_1 \times S_{DOM} + w_2 \times S_{Lint} + w_3 \times S_{Func} + w_4 \times S_{UI}$$
+7. Hệ thống ghi toàn bộ kết quả vào bảng `local_web_grading_results` trong SQLite cục bộ (`submission_id`, `website_url`, `github_url`, `grading_mode`, các điểm thành phần, `final_score`, `final_verdict`, `screenshot_path`, `rubric_log`).
+8. Thanh tiến độ chấm trên giao diện cập nhật thời gian thực (`UC-13`).
+9. Sau khi hoàn thành toàn bộ lớp, giao diện hiển thị bảng điểm trực quan. Giảng viên có thể nhấp vào từng sinh viên để xem ảnh chụp màn hình trang web, xem link live, link repo và chi tiết lỗi của từng tiêu chí. Use Case kết thúc.
+
+##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+* **A1 - Chấm bài web không cần AI (Hoàn toàn Offline)**: Nếu máy trạm của giảng viên không có Internet hoặc muốn tiết kiệm Quota AI, giảng viên bỏ chọn tiêu chí $w_4$ (AI Multimodal). Hệ thống tự động phân bổ lại trọng số cho 3 tiêu chí offline ($w_1, w_2, w_3$) để đạt tổng 100%. Quá trình chấm diễn ra 100% offline với tốc độ siêu tốc (1-2 giây / bài).
+* **A2 - Điều chỉnh điểm từng tiêu chí thủ công**: Tương tự như `UC-15`, tại màn hình xem chi tiết kết quả web, Giảng viên có thể ghi đè điểm của bất kỳ tiêu chí thành phần nào (ví dụ: cộng điểm sáng tạo giao diện) kèm ghi chú giải trình.
+* **E1 - Website URL không truy cập được (HTTP 404 / 500 / Connection Refused)**: Ở chế độ `LIVE_ONLY` hoặc `HYBRID`, nếu trang web của sinh viên bị sập hoặc domain sai: hệ thống thử lại 2 lần (retry backoff). Nếu vẫn lỗi, gán phán quyết `FAILED` với mã lỗi `ERR_LIVE_UNREACHABLE` và cho 0 điểm các tiêu chí tương tác trực tiếp.
+* **E2 - Repo GitHub không tồn tại hoặc ở chế độ Private**: Ở chế độ `REPO_ONLY` hoặc `HYBRID`, nếu link repo bị 404 hoặc private không clone được: ghi nhận mã lỗi `ERR_REPO_PRIVATE` và cho 0 điểm phần audit repo.
+* **E3 - Vòng lặp vô tận trong JavaScript (Infinite Loop / TLE)**: Tại bước 5.4, nếu mã JavaScript của sinh viên chứa vòng lặp vô tận gây treo trình duyệt, Playwright Timeout Guard (cấu hình mặc định 5000ms) sẽ tự động ngắt tab, ghi nhận tiêu chí $S_{Func} = 0$ với verdict `TLE` (Time Limit Exceeded) và tiếp tục chấm các tiêu chí khác bình thường.
+
+---
+
 ### 3.5. Phân Hệ 5: Tính Năng Thông Minh Có AI Hỗ Trợ (Smart AI-Assisted Capabilities)
 
 ---
@@ -659,7 +693,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-### 3.6. Phân Hệ 6: Báo Cáo, Đánh Giá & Đồng Bộ (Reporting, Export & Cloud Sync)
+### 3.6. Phân Hệ 6: Báo Cáo, Đánh Giá Cục Bộ (Reporting & Local Export)
 
 ---
 
@@ -694,39 +728,3 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **E1 - File đang bị mở bởi ứng dụng khác**: Tại bước 5, nếu file đích đang được mở bằng Microsoft Excel khiến hệ thống không thể ghi đè (Permission Denied), Desktop App cảnh báo: "Không thể ghi file. File kết quả đang được mở bởi ứng dụng khác. Vui lòng đóng file và thử lại".
-
----
-
-#### 3.6.2. UC-19: Đồng Bộ Dữ Liệu Với Web Cloud Backend (Synchronize Grading Data with Cloud API)
-
-* **Mã Use Case**: `UC-19`
-* **Tên Use Case**: Đồng bộ Dữ liệu với Web Cloud Backend (Synchronize Grading Data with Cloud API)
-* **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Central Server, SQLAlchemy ORM)
-* **Mô tả tóm tắt**: Cho phép Giảng viên đồng bộ toàn bộ bảng điểm, thống kê lỗi và nhật ký của đợt chấm bài từ Desktop App lên máy chủ trung tâm Web Server Backend thông qua RESTful API. Dữ liệu này giúp nhà trường lưu trữ dữ liệu học thuật tập trung và phục vụ việc Quản trị viên xem báo cáo toàn trường trên Web Admin (`UC-05`).
-* **Tiền điều kiện (Preconditions)**:
-  1. Giảng viên đã hoàn thành đợt chấm điểm trên Desktop App.
-  2. Desktop App có kết nối mạng Internet và phiên đăng nhập hợp lệ với JWT token (`UC-01`).
-* **Hậu điều kiện (Postconditions)**:
-  1. Toàn bộ dữ liệu đợt chấm được đồng bộ lên CSDL trung tâm của Web Server Backend.
-  2. Trạng thái đợt chấm trên Desktop App được chuyển thành `Synced` (Đã đồng bộ) kèm mốc thời gian.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Đồng bộ lên Cloud" (Sync with Cloud)** trên Desktop App.
-
-##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên nhấn nút **"Đồng bộ lên Cloud"** trên thanh công cụ Desktop App.
-2. Desktop App kiểm tra kết nối mạng và tính hợp lệ của JWT token hiện tại:
-   - Nếu token sắp hết hạn, tự động gửi refresh token để gia hạn phiên làm việc.
-3. Desktop App đóng gói dữ liệu đợt chấm thành payload JSON:
-   - Thông tin đợt chấm: Mã môn học, Tên lớp, Thời gian chấm, Tổng số bài.
-   - Danh sách kết quả điểm chi tiết từng sinh viên (MSSV, Điểm từng câu, Tổng điểm, Verdict, Thời gian chạy, Nhận xét).
-4. Desktop App gửi yêu cầu `POST /api/v1/sync/grading-session` kèm header `Authorization: Bearer <token>` lên Web Server Backend.
-5. Web Server Backend tiếp nhận yêu cầu:
-   - Xác thực danh tính giảng viên từ JWT.
-   - Kiểm tra trùng lặp đợt chấm (nếu đã từng đồng bộ thì cập nhật phiên bản mới).
-   - Lưu thông tin vào các bảng `grading_sessions` và `submissions` trong CSDL trung tâm qua SQLAlchemy ORM.
-6. Backend trả về phản hồi thành công `HTTP 200 OK` kèm `sync_id` và mốc thời gian ghi nhận tại máy chủ.
-7. Desktop App cập nhật trạng thái đợt chấm thành "Đã đồng bộ lên hệ thống lúc [Thời gian]" với biểu tượng đám mây màu xanh. Use Case kết thúc.
-
-##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **E1 - Mất kết nối mạng**: Tại bước 2 hoặc 4, nếu mất kết nối Internet, hệ thống báo lỗi: "Không thể kết nối đến máy chủ trung tâm. Dữ liệu của bạn vẫn được lưu an toàn trên máy cục bộ. Vui lòng thử đồng bộ lại khi có kết nối".
-* **E2 - Phiên làm việc hết hạn**: Tại bước 2, nếu refresh token cũng hết hạn, hệ thống hiển thị hộp thoại yêu cầu Giảng viên nhập lại mật khẩu đăng nhập nhanh mà không làm mất dữ liệu hiện tại.

@@ -24,7 +24,7 @@ skinparam note {
     FontSize 10
 }
 
-title Sơ Đồ Use Case Toàn Hệ Sinh Thái (System-Wide Use Case Diagram) - AITA Ecosystem\n(Desktop App Client, Web Admin Dashboard & FastAPI Central Backend)
+title Sơ Đồ Use Case Toàn Hệ Sinh Thái (System-Wide Use Case Diagram) - AITA Ecosystem\n(Desktop App Client, Next.js Web Admin & NestJS Central Backend)
 
 ' ==============================================================================
 ' 1. ĐỊNH NGHĨA CÁC TÁC NHÂN (ACTORS)
@@ -37,7 +37,8 @@ actor "Giảng viên\n(Instructor)" as Instructor
 ' Tác nhân hệ thống ngoài hỗ trợ (External Supporting Systems / Actors)
 actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
 actor "Sandbox Execution Runner\n(GCC / Javac / Python / psutil)" as Sandbox <<System>>
-actor "Web Server Backend\n(FastAPI Central REST API)" as Cloud <<System>>
+actor "Headless Web Runner\n(Playwright / Chromium / W3C)" as WebRunner <<System>>
+actor "Web Server Backend\n(NestJS Central REST API)" as Cloud <<System>>
 
 ' ==============================================================================
 ' 2. RANH GIỚI HỆ THỐNG & CÁC USE CASE THEO PHÂN HỆ
@@ -51,7 +52,6 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
     package "Phân Hệ Web Admin Dashboard (Dành cho Quản trị viên)" #E3F2FD {
         usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
         usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
-        usecase "UC-03: Quản lý Danh mục Môn học (PRF / PRO / DSA / PHP)" as UC03
         usecase "UC-04: Cấu hình API Key & Giám sát Hạn ngạch AI" as UC04
         usecase "UC-05: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường" as UC05
     }
@@ -78,6 +78,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
             usecase "UC-13: Giám sát Tiến độ Chấm Thời gian thực" as UC13
             usecase "UC-14: Xem Chi tiết Kết quả & Nhật ký Bài nộp" as UC14
             usecase "UC-15: Chấm lại & Điều chỉnh Điểm thủ công" as UC15
+            usecase "UC-19: Chấm Điểm Bài Tập Web Tự Động (DOM / W3C / Playwright)" as UC19
         }
 
         package "4. Tính năng Thông minh có AI Hỗ trợ" {
@@ -85,9 +86,8 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
             usecase "UC-17: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (AST + AI)" as UC17
         }
 
-        package "5. Báo cáo, Đánh giá & Đồng bộ" {
+        package "5. Báo cáo & Xuất Bảng Điểm Cục Bộ" {
             usecase "UC-18: Xuất Báo cáo Điểm (results.csv & Excel .xlsx)" as UC18
-            usecase "UC-19: Đồng bộ Dữ liệu với Web Cloud Backend" as UC19
         }
     }
 }
@@ -99,7 +99,6 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
 ' Quản trị viên (Admin) tương tác qua Web Admin Dashboard
 Admin --> UC01
 Admin --> UC02
-Admin --> UC03
 Admin --> UC04
 Admin --> UC05
 
@@ -124,6 +123,7 @@ Instructor --> UC19
 ' Quan hệ <<include>>: Thực thi bắt buộc phải có
 UC12 ..> UC11 : <<include>>\n(áp dụng chiến lược so khớp)
 UC12 ..> UC13 : <<include>>\n(tự động cập nhật tiến độ)
+UC19 ..> UC13 : <<include>>\n(tiến độ thời gian thực)
 UC10 ..> UC01 : <<include>>\n(yêu cầu JWT xác thực quota)
 
 ' Quan hệ <<extend>>: Hành động kích hoạt mở rộng có điều kiện
@@ -134,28 +134,34 @@ UC15 ..> UC14 : <<extend>>\n(khi giảng viên muốn điều chỉnh điểm)
 ' 5. TƯƠNG TÁC VỚI CÁC TÁC NHÂN HỆ THỐNG NGOÀI (SUPPORTING ACTORS)
 ' ==============================================================================
 
-' Kết nối với Máy chủ Trung tâm (Web Server Backend - FastAPI)
+' Kết nối với Máy chủ Trung tâm (Web Server Backend - NestJS)
 UC01 --> Cloud : Xác thực OAuth2 & Cấp mã JWT
 UC02 --> Cloud : CRUD tài khoản qua REST API
-UC03 --> Cloud : Cập nhật danh mục môn học tập trung
 UC04 --> Cloud : Lưu khóa API & thống kê token quota
-UC05 --> Cloud : Truy vấn lịch sử chấm toàn trường
-UC19 --> Cloud : Đồng bộ bảng điểm & logs lên CSDL trung tâm
+UC05 --> Cloud : Truy vấn nhật ký sử dụng AI & audit logs toàn trường
 
 ' Kết nối với Trí tuệ nhân tạo (Google Gemini AI Hub)
 UC10 --> AIService : Prompt sinh cặp Input/Output biên
 UC16 --> AIService : Gửi code lỗi WA phân tích sư phạm
 UC17 --> AIService : Phân tích ngữ nghĩa cặp bài nghi vấn >80% (Vòng 2)
+UC19 --> AIService : Đánh giá giao diện & nhận xét Rubric
 
 ' Kết nối với Môi trường Sandbox Cục bộ (Local Sandbox Runner)
 UC06 --> Sandbox : Thẩm định đường dẫn gcc/javac/python & psutil
 UC12 --> Sandbox : Thực thi subprocess qua hàm main() & bắt TLE/MLE
 UC15 --> Sandbox : Biên dịch & chạy lại bài nộp đơn lẻ
+UC19 --> WebRunner : Thực thi Chromium headless & DOM/W3C parser
 
 ' Ghi chú kiến trúc
 note bottom of UC12
   Quá trình chấm chạy đa tiến trình song song (4-8 bài đồng thời),
   hoàn toàn OFFLINE trên máy cục bộ để tối ưu hiệu năng (15-30s / 45 bài).
+end note
+
+note bottom of UC19
+  Chấm bài Web theo Rubric 4 thành phần:
+  DOM Check (30%), W3C Lint (10%),
+  Playwright E2E (40%), Gemini Vision (20%).
 end note
 
 note right of UC17

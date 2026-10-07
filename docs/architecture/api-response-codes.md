@@ -2,7 +2,7 @@
 
 ## Dự án: AITA - Automated Grading & Assessment Tool for Instructors
 
-Tài liệu này định nghĩa chuẩn mực cấu trúc phản hồi (Response Envelope) và danh mục toàn bộ mã trạng thái HTTP (200, 400, 401, 403, 404, 422, 429, 500) cùng các mã lỗi nghiệp vụ (Business Error Codes) áp dụng cho **Web Server Backend (FastAPI)**, **Web Admin Dashboard** và **Desktop App Client (PyQt6)** trước khi bước vào giai đoạn lập trình.
+Tài liệu này định nghĩa chuẩn mực cấu trúc phản hồi (Response Envelope) và danh mục toàn bộ mã trạng thái HTTP (200, 400, 401, 403, 404, 422, 429, 500) cùng các mã lỗi nghiệp vụ (Business Error Codes) áp dụng cho **Web Server Backend (NestJS)**, **Web Admin Dashboard (Next.js)** và **Desktop App Client (PyQt6)** trước khi bước vào giai đoạn lập trình.
 
 ---
 
@@ -181,7 +181,7 @@ Client (Desktop App PyQt6 & Web Admin) sử dụng trường **`error_code`** đ
 
 ### 3.6. Nhóm Thực thi Sandbox & Chấm điểm (Execution & Sandbox - `EXEC_xxx`)
 
-*(Chủ yếu trả về nội bộ trên Desktop App Runner hoặc đóng gói khi đồng bộ)*
+*(Chủ yếu trả về nội bộ trên Desktop App Runner hoặc xuất báo cáo cục bộ)*
 
 | Mã HTTP | Mã lỗi (`error_code`) | Thông điệp gợi ý (`message`) | Giải thích kỹ thuật |
 | :---: | :--- | :--- | :--- |
