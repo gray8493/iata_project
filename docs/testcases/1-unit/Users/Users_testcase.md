@@ -16,12 +16,12 @@
   - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
   - [Bảng Danh mục Mã lỗi Phản hồi Hệ thống](file:///c:/AITA/iata_project/docs/architecture/api-response-codes.md)
   - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 61 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
-  - `GET /api/v1/admin/users`: 13 Testcases (09 False, 04 True)
-  - `POST /api/v1/admin/users`: 21 Testcases (17 False, 04 True)
-  - `GET /api/v1/admin/users/{id}`: 07 Testcases (05 False, 02 True)
-  - `PUT /api/v1/admin/users/{id}`: 13 Testcases (10 False, 03 True)
-  - `DELETE /api/v1/admin/users/{id}`: 07 Testcases (06 False, 01 True)
+- **Tổng số Testcase**: 61 Testcases (Phân loại: 11 Normal, 30 Abnormal, 20 Binary; 100% có bước truyền Token xác thực; Tuyệt đối không có role học sinh)
+  - `GET /api/v1/admin/users`: 13 Testcases (04 Normal, 07 Abnormal, 02 Binary)
+  - `POST /api/v1/admin/users`: 21 Testcases (04 Normal, 09 Abnormal, 08 Binary)
+  - `GET /api/v1/admin/users/{id}`: 07 Testcases (02 Normal, 04 Abnormal, 01 Binary)
+  - `PUT /api/v1/admin/users/{id}`: 13 Testcases (03 Normal, 06 Abnormal, 04 Binary)
+  - `DELETE /api/v1/admin/users/{id}`: 07 Testcases (01 Normal, 04 Abnormal, 02 Binary)
 
 ---
 
@@ -35,7 +35,7 @@
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -53,7 +53,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/users`.
-2. Không đính kèm thông tin Token xác thực.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -83,7 +83,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -131,7 +131,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -149,7 +149,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/users`.
-2. Đính kèm Token của tài khoản Giảng viên.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -179,7 +179,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -227,7 +227,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -284,7 +284,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -341,7 +341,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -397,7 +397,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -453,7 +453,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -475,7 +475,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Thiết lập trạng thái gián đoạn kết nối CSDL trên Mock Backend.
-2. Gửi Request `GET /api/v1/admin/users?page=1&page_size=10`.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/users?page=1&page_size=10`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -504,7 +506,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -525,7 +527,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users?page=99&page_size=10` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users?page=99&page_size=10`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -659,7 +663,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `GET /api/v1/admin/users?role=INSTRUCTOR&page=1&page_size=10` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users?role=INSTRUCTOR&page=1&page_size=10`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -697,7 +703,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `GET /api/v1/admin/users?search=hung` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users?search=hung`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -722,7 +730,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -745,8 +753,8 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/admin/users` với Body Input ở trên.
-2. Không đính kèm Token xác thực.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -776,7 +784,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -799,7 +807,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` với Token của tài khoản Giảng viên.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -828,7 +838,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -847,7 +857,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với payload lỗi cú pháp JSON.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với payload lỗi cú pháp json.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -876,7 +889,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -893,7 +906,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với Body là đối tượng rỗng `{}`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với body là đối tượng rỗng `{}`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -928,7 +944,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -953,7 +969,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `username = "la"`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với `username = "la"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -987,7 +1006,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1012,7 +1031,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `username` 31 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với `username` 31 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1046,7 +1068,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1071,7 +1093,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `username = "Teacher@Lan"`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với `username = "teacher@lan"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1105,7 +1130,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1130,7 +1155,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với mật khẩu 7 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với mật khẩu 7 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1164,7 +1192,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1189,7 +1217,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với mật khẩu yếu.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với mật khẩu yếu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1223,7 +1254,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1248,7 +1279,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `full_name = "L"`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với `full_name = "l"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1282,7 +1316,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1305,7 +1339,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với email sai định dạng.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với email sai định dạng.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1339,7 +1376,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1356,13 +1393,16 @@ Exception
     "password": "LanPassword2026@",
     "full_name": "Trần Thị Lan",
     "email": "lantt@fe.edu.vn",
-    "role": "STUDENT"
+    "role": "GUEST"
   }
   ```
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `role = "STUDENT"`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Đính kèm Body chứa `role = "GUEST"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1396,7 +1436,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1422,7 +1462,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `daily_token_quota = 500`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1456,7 +1498,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1482,7 +1524,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/admin/users` với `daily_token_quota = 1500000`.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1516,7 +1560,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1539,7 +1583,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` với `username = "teacher_hung"` đã có sẵn.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với `username = "teacher_hung"` đã có sẵn.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1573,7 +1620,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1596,7 +1643,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` với email đã tồn tại trong hệ thống.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với email đã tồn tại trong hệ thống.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1630,7 +1680,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1655,7 +1705,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Kích hoạt trạng thái lỗi ngắt kết nối CSDL trên Mock Backend.
-2. Gửi Request `POST /api/v1/admin/users`.
+2. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1684,7 +1736,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1709,7 +1761,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` với các trường dữ liệu ở biên dưới nhỏ nhất.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với các trường dữ liệu ở biên dưới nhỏ nhất.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1728,7 +1783,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1753,7 +1808,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` với các trường dữ liệu ở biên trên lớn nhất.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` với các trường dữ liệu ở biên trên lớn nhất.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1858,7 +1916,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/admin/users` để tạo tài khoản Quản trị viên phụ.
+1. Khởi tạo HTTP Request `POST /api/v1/admin/users`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `post /api/v1/admin/users` để tạo tài khoản quản trị viên phụ.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1883,7 +1944,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1902,7 +1963,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/2` không kèm token.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/2`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1931,7 +1994,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1950,7 +2013,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/1` với Token Giảng viên.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/1`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1979,7 +2044,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1998,7 +2063,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/abc` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/abc`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2032,7 +2099,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2051,7 +2118,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/9999` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/9999`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2080,7 +2149,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2101,7 +2170,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Kích hoạt trạng thái lỗi ngắt kết nối CSDL trên Mock Backend.
-2. Gửi Request `GET /api/v1/admin/users/2`.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/users/2`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2149,7 +2220,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/2` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2205,7 +2278,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/admin/users/1` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `GET /api/v1/admin/users/1`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2230,7 +2305,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2249,7 +2324,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` không kèm Token.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2278,7 +2355,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2297,7 +2374,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với Token Giảng viên.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2326,7 +2405,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2345,7 +2424,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/9999` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/9999`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2374,7 +2455,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2425,7 +2506,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2444,7 +2525,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với email sai định dạng.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/2` với email sai định dạng.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2478,7 +2562,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2497,7 +2581,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với `role = "MODERATOR"`.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/2` với `role = "moderator"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2531,7 +2618,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2550,7 +2637,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với `daily_token_quota = -500`.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2584,7 +2673,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2604,7 +2693,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với email đã được dùng bởi tài khoản khác.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/2` với email đã được dùng bởi tài khoản khác.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2638,7 +2730,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2657,7 +2749,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/0`.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/0`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/0`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2691,7 +2786,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2712,7 +2807,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Kích hoạt lỗi ngắt kết nối CSDL trên Mock Backend.
-2. Gửi Request `PUT /api/v1/admin/users/2`.
+2. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2761,7 +2858,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2817,7 +2916,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với body `{"is_active": false}`.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/2` với body `{"is_active": false}`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2855,7 +2957,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `PUT /api/v1/admin/users/2` với body `{"is_active": true}`.
+1. Khởi tạo HTTP Request `PUT /api/v1/admin/users/2`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `put /api/v1/admin/users/2` với body `{"is_active": true}`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2880,7 +2985,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2899,7 +3004,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `DELETE /api/v1/admin/users/2` không kèm token.
+1. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/2`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2928,7 +3035,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2947,7 +3054,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `DELETE /api/v1/admin/users/2` với Token Giảng viên.
+1. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/2`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2976,7 +3085,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2995,7 +3104,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `DELETE /api/v1/admin/users/invalid_id`.
+1. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/invalid_id`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. `delete /api/v1/admin/users/invalid_id`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3029,7 +3141,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3048,7 +3160,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `DELETE /api/v1/admin/users/9999` với Token Admin hợp lệ.
+1. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/9999`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3077,7 +3191,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3097,7 +3211,9 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `DELETE /api/v1/admin/users/1` với Token của chính tài khoản `id = 1`.
+1. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/1`.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3126,7 +3242,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3147,7 +3263,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Kích hoạt lỗi ngắt kết nối CSDL trên Mock Backend.
-2. Gửi Request `DELETE /api/v1/admin/users/2`.
+2. Khởi tạo HTTP Request `DELETE /api/v1/admin/users/2`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 

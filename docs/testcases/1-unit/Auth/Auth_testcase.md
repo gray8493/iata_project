@@ -14,10 +14,10 @@
   - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
   - [Bảng Danh mục Mã lỗi Phản hồi Hệ thống](file:///c:/AITA/iata_project/docs/architecture/api-response-codes.md)
   - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 41 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
-  - `POST /api/v1/auth/login`: 18 Testcases (14 False, 04 True)
-  - `GET /api/v1/auth/me`: 11 Testcases (09 False, 02 True)
-  - `POST /api/v1/auth/refresh`: 12 Testcases (10 False, 02 True)
+- **Tổng số Testcase**: 41 Testcases (Phân loại: 06 Normal, 28 Abnormal, 07 Binary; 100% có bước truyền Token/xử lý Token xác thực; Không có role học sinh)
+  - `POST /api/v1/auth/login`: 18 Testcases (02 Normal, 11 Abnormal, 05 Binary)
+  - `GET /api/v1/auth/me`: 11 Testcases (02 Normal, 09 Abnormal, 00 Binary)
+  - `POST /api/v1/auth/refresh`: 12 Testcases (02 Normal, 08 Abnormal, 02 Binary)
 
 ---
 
@@ -31,7 +31,7 @@
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -49,7 +49,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Headers `Content-Type: application/json` và `Accept: application/json`.
 3. Gửi payload Body chứa chuỗi JSON bị lỗi cú pháp lên hệ thống.
 
@@ -80,7 +80,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -96,7 +96,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Body là một đối tượng JSON rỗng `{}`.
 3. Gửi Request lên hệ thống.
 
@@ -136,7 +136,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -154,7 +154,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Body chỉ có trường `password`, khuyết hoàn toàn trường `username`.
 3. Gửi Request lên hệ thống.
 
@@ -190,7 +190,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -208,7 +208,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Body chỉ có trường `username`, khuyết hoàn toàn trường `password`.
 3. Gửi Request lên hệ thống.
 
@@ -244,7 +244,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -265,7 +265,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với `username` có độ dài 2 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -301,7 +301,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -322,7 +322,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với `username` có độ dài 51 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -358,7 +358,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -379,7 +379,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với `password` có độ dài 5 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -415,7 +415,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -436,7 +436,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với `password` dài 101 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -472,7 +472,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -491,7 +491,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với trường `username` là số nguyên `123456`.
 3. Gửi Request lên hệ thống.
 
@@ -527,7 +527,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -546,7 +546,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Request Body với trường `password` là mảng dữ liệu.
 3. Gửi Request lên hệ thống.
 
@@ -582,7 +582,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -601,7 +601,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm thông tin tài khoản không tồn tại `nonexistent_user`.
 3. Gửi Request lên hệ thống.
 
@@ -632,7 +632,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -652,7 +652,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm `username: "teacher_hung"` và mật khẩu sai `WrongPassword999@`.
 3. Gửi Request lên hệ thống.
 
@@ -683,7 +683,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -704,7 +704,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm thông tin đăng nhập của tài khoản đã bị vô hiệu hóa `teacher_locked`.
 3. Gửi Request lên hệ thống.
 
@@ -735,7 +735,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -756,7 +756,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Kích hoạt trạng thái lỗi ngắt kết nối database trên Mock Backend Server.
-2. Gửi Request `POST /api/v1/auth/login` với dữ liệu đăng nhập chuẩn.
+2. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
+3. Đính kèm Body chứa dữ liệu đăng nhập chuẩn.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -785,7 +787,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -805,7 +807,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm body chứa `username` 3 ký tự và `password` 6 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -848,7 +850,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -868,7 +870,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm body chứa `username` 50 ký tự và `password` 100 ký tự.
 3. Gửi Request lên hệ thống.
 
@@ -908,9 +910,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Body chứa thông tin tài khoản Giảng viên `teacher_hung`.
-3. Gửi Request lên hệ thống.
+3. Gửi Request lên hệ thống để xác thực và nhận cặp Access Token / Refresh Token.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -970,9 +972,9 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login`.
+1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
 2. Đính kèm Body chứa thông tin tài khoản Quản trị viên `admin`.
-3. Gửi Request lên hệ thống.
+3. Gửi Request lên hệ thống để xác thực và nhận cặp Access Token / Refresh Token.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1019,7 +1021,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1064,7 +1066,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1108,7 +1110,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1152,7 +1154,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1196,7 +1198,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1240,7 +1242,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1284,7 +1286,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1329,7 +1331,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1374,7 +1376,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1526,7 +1528,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1545,7 +1547,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm chuỗi Body lỗi cú pháp JSON.
+2. Truyền payload chứa chuỗi refresh_token bị lỗi cú pháp JSON trong Request Body.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -1575,7 +1577,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1592,7 +1594,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm Body rỗng `{}`.
+2. Không truyền token gia hạn (đính kèm Request Body rỗng `{}` thiếu `refresh_token`).
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -1627,7 +1629,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1681,7 +1683,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1735,7 +1737,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1784,7 +1786,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1833,7 +1835,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1881,7 +1883,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1930,7 +1932,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1980,7 +1982,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 

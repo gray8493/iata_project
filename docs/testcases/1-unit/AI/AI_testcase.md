@@ -34,7 +34,7 @@
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -49,8 +49,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Không đính kèm Header `Authorization`.
-3. Gửi Request lên hệ thống.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -79,7 +80,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -93,8 +94,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Đính kèm Header `Authorization` với chuỗi Token sai chữ ký `INVALID_SIGNATURE_TOKEN`.
-3. Gửi Request lên hệ thống.
+2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -123,7 +125,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -137,8 +139,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Đính kèm Header `Authorization: Bearer <EXPIRED_JWT_TOKEN>`.
-3. Gửi Request lên hệ thống.
+2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -167,7 +170,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -211,7 +214,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -304,7 +307,7 @@ Normal
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -317,7 +320,9 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `GET /api/v1/ai/quota` với Header Authorization của `EXHAUSTED_QUOTA_TOKEN`.
+1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -357,7 +362,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -378,9 +383,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases` với Payload Body ở trên.
-2. Không đính kèm Header `Authorization`.
-3. Gửi Request lên hệ thống.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -405,15 +411,15 @@ Exception
 
 ---
 
-# UT03_AiGenerateTestcases_TC002: Người dùng có vai trò không được phép gọi API (STUDENT)
+# UT03_AiGenerateTestcases_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có `role = "STUDENT"`.
+- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -429,8 +435,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Thiết lập Header `Authorization: Bearer <STUDENT_TOKEN>`.
-2. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -459,7 +467,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -479,7 +487,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Token của tài khoản đã hết quota.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -512,7 +523,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -531,7 +542,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body thiếu trường `problem_description`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với request body thiếu trường `problem_description`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -565,7 +579,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -588,7 +602,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body chứa 19 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với request body chứa 19 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -622,7 +639,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -646,7 +663,9 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Tạo chuỗi ký tự độ dài 5001 ký tự.
-2. Gửi Request `POST /api/v1/ai/generate-testcases`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -680,7 +699,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -699,7 +718,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body không có trường `language`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với request body không có trường `language`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -733,7 +755,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -753,7 +775,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với `language = "RUBY"`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với `language = "ruby"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -787,7 +812,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -814,7 +839,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/ai/generate-testcases` lần lượt với Payload A và Payload B.
+1. Khởi tạo HTTP Request ``.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` lần lượt với payload a và payload b.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -848,7 +876,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -870,7 +898,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Cấu hình mock Gemini Service ném lỗi gián đoạn dịch vụ / timeout 30s.
-2. Gửi Request `POST /api/v1/ai/generate-testcases` với Request Body ở trên.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -899,7 +929,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -920,8 +950,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Thiết lập mock Gemini trả về chuỗi text thuần túy không chứa cấu trúc JSON.
-2. Gửi Request `POST /api/v1/ai/generate-testcases`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. Thiết lập mock Gemini trả về chuỗi text thuần túy không chứa cấu trúc JSON.
+4. Gửi Request `POST /api/v1/ai/generate-testcases`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -970,7 +1002,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với request body ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1020,7 +1055,7 @@ Normal
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1041,7 +1076,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với `count = 1`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với `count = 1`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1060,7 +1098,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1081,7 +1119,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với `count = 10`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với `count = 10`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1100,7 +1141,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1123,7 +1164,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với Request Body chứa đúng 20 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với request body chứa đúng 20 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1163,7 +1207,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với `include_boundary = false`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với `include_boundary = false`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1202,7 +1249,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/generate-testcases` với `language = "WEB"`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/generate-testcases` với `language = "web"`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1227,7 +1277,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1252,7 +1302,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/ai/review-code` với payload ở trên nhưng không truyền Header `Authorization`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1277,15 +1330,15 @@ Exception
 
 ---
 
-# UT03_AiReviewCode_TC002: Người dùng có vai trò không hợp lệ (STUDENT) gọi API review code
+# UT03_AiReviewCode_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API review code
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có `role = "STUDENT"`.
+- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -1306,7 +1359,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/ai/review-code` với Header `Authorization: Bearer <STUDENT_TOKEN>`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1335,7 +1391,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1360,7 +1416,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/ai/review-code` với `EXHAUSTED_QUOTA_TOKEN`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1392,7 +1451,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1416,7 +1475,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với Body thiếu `source_code`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với body thiếu `source_code`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1450,7 +1512,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1478,7 +1540,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với `source_code` dưới 10 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với `source_code` dưới 10 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1512,7 +1577,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1538,7 +1603,9 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Tạo chuỗi mã nguồn có độ dài 10001 ký tự.
-2. Gửi Request `POST /api/v1/ai/review-code`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1572,7 +1639,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1596,7 +1663,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` thiếu trường `problem_statement`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` thiếu trường `problem_statement`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1630,7 +1700,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1655,7 +1725,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với `problem_statement` gồm 3005 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với `problem_statement` gồm 3005 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1689,7 +1762,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1709,7 +1782,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` không truyền object `failed_testcase`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` không truyền object `failed_testcase`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1743,7 +1819,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1767,7 +1843,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với `failed_testcase` thiếu `expected_output`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với `failed_testcase` thiếu `expected_output`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1801,7 +1880,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1828,7 +1907,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Giả lập lỗi timeout mạng hoặc mã lỗi 503 từ máy chủ Google Gemini.
-2. Gửi HTTP Request `POST /api/v1/ai/review-code`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1882,7 +1963,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với Payload ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với payload ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1941,7 +2025,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với Payload Java ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với payload java ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1965,7 +2052,7 @@ Normal
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -1993,7 +2080,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với mã nguồn Python 10 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với mã nguồn python 10 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2013,7 +2103,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2039,7 +2129,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/review-code` với `actual_output = ""`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/review-code` với `actual_output = ""`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2064,7 +2157,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2085,7 +2178,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi Request `POST /api/v1/ai/verify-plagiarism` với Request Body ở trên nhưng không truyền Header `Authorization`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2110,15 +2206,15 @@ Exception
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC002: Người dùng có vai trò không hợp lệ (STUDENT) gọi API xác thực đạo văn
+# UT03_AiVerifyPlagiarism_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API xác thực đạo văn
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có `role = "STUDENT"`.
+- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -2135,7 +2231,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với Header `Authorization: Bearer <STUDENT_TOKEN>`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2164,7 +2263,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2185,7 +2284,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `EXHAUSTED_QUOTA_TOKEN`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2214,7 +2316,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2234,7 +2336,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` thiếu `student_b_code`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` thiếu `student_b_code`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2268,7 +2373,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2292,7 +2397,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `student_a_code` 8 ký tự.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với `student_a_code` 8 ký tự.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2326,7 +2434,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2348,7 +2456,9 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Tạo mã nguồn `student_b_code` có độ dài 10005 ký tự.
-2. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2382,7 +2492,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2404,7 +2514,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 79.9`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 79.9`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2438,7 +2551,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2459,7 +2572,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 105.0`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 105.0`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2493,7 +2609,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2513,7 +2629,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` thiếu trường `language`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` thiếu trường `language`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2547,7 +2666,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2570,7 +2689,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Cấu hình mock Gemini Service gặp lỗi timeout 30s.
-2. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2620,7 +2741,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với Request Body ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với request body ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2660,7 +2784,7 @@ Normal
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2681,7 +2805,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 80.0`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 80.0`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2701,7 +2828,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2722,7 +2849,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 100.0`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 100.0`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2764,7 +2894,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/verify-plagiarism` với Payload Java ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/verify-plagiarism` với payload java ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2790,7 +2923,7 @@ Normal
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2811,7 +2944,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` không có Header `Authorization`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2836,15 +2972,15 @@ Exception
 
 ---
 
-# UT03_AiEvaluateWebUI_TC002: Người dùng có vai trò không hợp lệ (STUDENT) gọi API chấm giao diện Web
+# UT03_AiEvaluateWebUI_TC002: Người dùng có vai trò không hợp lệ trong hệ thống (GUEST) gọi API chấm giao diện Web
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đăng nhập có `role = "STUDENT"`.
+- Người dùng đăng nhập có vai trò không hợp lệ `role = "GUEST"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -2861,7 +2997,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với Header `Authorization: Bearer <STUDENT_TOKEN>`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2890,7 +3029,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2911,7 +3050,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với `EXHAUSTED_QUOTA_TOKEN`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
+3. Đính kèm Request Body dữ liệu.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2940,7 +3082,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -2960,7 +3102,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` thiếu `screenshot_base64`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` thiếu `screenshot_base64`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2994,7 +3139,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3015,7 +3160,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với chuỗi `screenshot_base64` rác.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với chuỗi `screenshot_base64` rác.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3049,7 +3197,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3071,7 +3219,9 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Tạo chuỗi ảnh Base64 có kích thước vượt quá 5MB.
-2. Gửi Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3100,7 +3250,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3118,7 +3268,10 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` thiếu `rubric_requirements`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` thiếu `rubric_requirements`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3152,7 +3305,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3171,7 +3324,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với `rubric_requirements: []`.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với `rubric_requirements: []`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3205,7 +3361,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3228,7 +3384,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Giả lập kết nối mạng tới Gemini Vision bị nghẽn (timeout > 35s) hoặc mã lỗi 503.
-2. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3281,7 +3439,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với Request Body ở trên.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với request body ở trên.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3333,7 +3494,7 @@ Normal
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -3354,7 +3515,10 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với mảng `rubric_requirements` có đúng 1 phần tử.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với mảng `rubric_requirements` có đúng 1 phần tử.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3394,7 +3558,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với ảnh định dạng JPEG.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với ảnh định dạng jpeg.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -3436,7 +3603,10 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gửi HTTP Request `POST /api/v1/ai/evaluate-web-ui` với ảnh bài nộp bị lỗi giao diện.
+1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
+2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
+3. `post /api/v1/ai/evaluate-web-ui` với ảnh bài nộp bị lỗi giao diện.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 

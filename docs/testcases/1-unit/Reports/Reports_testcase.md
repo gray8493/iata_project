@@ -12,8 +12,8 @@
   - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
   - [Bảng Danh mục Mã lỗi Phản hồi Hệ thống](file:///c:/AITA/iata_project/docs/architecture/api-response-codes.md)
   - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 18 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
-  - `GET /api/v1/admin/reports/overview`: 18 Testcases (14 False, 04 True)
+- **Tổng số Testcase**: 18 Testcases (Phân loại: 03 Normal, 11 Abnormal, 04 Binary; 100% có bước truyền Token xác thực; Không có role học sinh)
+  - `GET /api/v1/admin/reports/overview`: 18 Testcases (03 Normal, 11 Abnormal, 04 Binary)
 
 ---
 
@@ -27,7 +27,7 @@
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -45,7 +45,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Không đính kèm Header xác thực tài khoản.
+2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -75,7 +75,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -93,7 +93,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Gửi request với token rỗng.
+2. Truyền Token rỗng vào Header `Authorization: Bearer `.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -123,7 +123,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -141,7 +141,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Gửi định dạng xác thực không phải Bearer Token.
+2. Truyền Header `Authorization` sai định dạng Scheme (không có tiền tố Bearer, ví dụ `Basic ...`).
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -171,7 +171,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -189,7 +189,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Đính kèm Token bị sai chữ ký.
+2. Truyền Token bị sai chữ ký bảo mật vào Header `Authorization: Bearer <INVALID_SIGNATURE_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -219,7 +219,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -237,7 +237,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Đính kèm Token hết hạn.
+2. Truyền Token đã hết hạn sử dụng vào Header `Authorization: Bearer <EXPIRED_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -267,7 +267,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -285,7 +285,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Gửi yêu cầu với Token của tài khoản đã bị xóa.
+2. Truyền Token của tài khoản đã bị xóa khỏi CSDL vào Header `Authorization: Bearer <DELETED_USER_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -315,7 +315,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -333,7 +333,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Đính kèm Token của tài khoản Giảng viên.
+2. Truyền Token xác thực của tài khoản Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -359,20 +359,20 @@ Exception
 
 ---
 
-# UT04_ReportsOverview_TC008: Người gọi là Sinh viên (STUDENT) không có quyền xem báo cáo
+# UT04_ReportsOverview_TC008: Người gọi có vai trò không hợp lệ trong hệ thống (GUEST) không có quyền xem báo cáo
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Tài khoản đang đăng nhập có vai trò `role = "STUDENT"` (`student_nam`).
+- Tài khoản đang đăng nhập có vai trò không hợp lệ `role = "GUEST"` (`guest_user`).
 
 #### Dữ liệu kiểm thử (Test Data)
 
 - **Method & Endpoint**: `GET /api/v1/admin/reports/overview`
-- **Ngữ cảnh người gọi (Caller Identity Input)**: Sinh viên (`id: 101, role: "STUDENT"`).
+- **Ngữ cảnh người gọi (Caller Identity Input)**: Người dùng có vai trò không hợp lệ (`id: 101, role: "GUEST"`).
 - **Dữ liệu tham số đầu vào (Input Parameters)**:
   ```json
   {}
@@ -381,7 +381,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Đính kèm Token của tài khoản Sinh viên.
+2. Truyền Token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -411,7 +411,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -429,7 +429,7 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
-2. Đính kèm Token của tài khoản Admin bị vô hiệu hóa.
+2. Truyền Token của tài khoản Admin đã bị vô hiệu hóa vào Header `Authorization: Bearer <DISABLED_ADMIN_TOKEN>`.
 3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -459,7 +459,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -482,7 +482,8 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?month=13&year=2026`.
-2. Gửi request kèm Token Admin hợp lệ.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -516,7 +517,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -539,7 +540,8 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?month=0&year=2026`.
-2. Gửi request kèm Token Admin hợp lệ.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -573,7 +575,7 @@ Boundary
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -596,7 +598,8 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?month=10&year=2023`.
-2. Gửi request kèm Token Admin hợp lệ.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -630,7 +633,7 @@ Boundary
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -652,7 +655,8 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?feature=UNKNOWN_AI_MODULE`.
-2. Gửi request kèm Token Admin hợp lệ.
+2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+3. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -686,7 +690,7 @@ Exception
 
 #### Loại test
 
-Exception
+Abnormal
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -708,7 +712,9 @@ Exception
 #### Các bước thực hiện (Test Steps)
 
 1. Thiết lập trạng thái gián đoạn kết nối CSDL trên Mock Backend.
-2. Gửi Request `GET /api/v1/admin/reports/overview`.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -737,7 +743,7 @@ Exception
 
 #### Loại test
 
-Boundary
+Binary
 
 #### Tiền điều kiện (Pre-condition)
 
@@ -762,7 +768,9 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Nạp bộ dữ liệu CSDL rỗng ở trên vào Mock Database.
-2. Gửi Request `GET /api/v1/admin/reports/overview` với Token Admin hợp lệ.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -826,7 +834,9 @@ Normal
 #### Các bước thực hiện (Test Steps)
 
 1. Nạp bộ dữ liệu CSDL ở trên vào Mock Database.
-2. Gửi Request `GET /api/v1/admin/reports/overview` với Token Admin hợp lệ.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -888,7 +898,9 @@ Normal
 #### Các bước thực hiện (Test Steps)
 
 1. Nạp dữ liệu đa tháng vào CSDL Mock.
-2. Gửi Request `GET /api/v1/admin/reports/overview?month=9&year=2026`.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?month=9&year=2026`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -949,7 +961,9 @@ Normal
 #### Các bước thực hiện (Test Steps)
 
 1. Nạp dữ liệu các tính năng AI vào Mock Database.
-2. Gửi Request `GET /api/v1/admin/reports/overview?feature=CODE_REVIEW`.
+2. Khởi tạo HTTP Request `GET /api/v1/admin/reports/overview?feature=CODE_REVIEW`.
+3. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
+4. Gửi Request lên hệ thống.
 
 #### Kết quả kỳ vọng (Expected Result)
 
