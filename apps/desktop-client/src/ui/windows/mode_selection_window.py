@@ -186,10 +186,10 @@ class ModeSelectionWindow(QMainWindow):
         self.session_info = session_info or {
             "mode": "ONLINE",
             "username": "instructor",
-            "display_name": "GV: Nguyễn Văn Hùng",
+            "display_name": "Giảng Viên",
         }
         
-        self.setWindowTitle("AITA Grader - Chọn Chế Độ Làm Việc")
+        self.setWindowTitle("AITA - Chọn Chế Độ Làm Việc")
         screen = QGuiApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -244,7 +244,7 @@ class ModeSelectionWindow(QMainWindow):
                 sep.setStyleSheet("background-color: #CBD5E1; border: none;")
                 header_layout.addWidget(sep)
         
-        # 1.2 Ô vuông xanh chữ "A" thay cho emoji 🎓
+        # 1.2 Ô vuông xanh chữ "A" thay cho biểu tượng
         logo_box = QLabel("A", header)
         logo_box.setFixedSize(28, 28)
         logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -260,44 +260,27 @@ class ModeSelectionWindow(QMainWindow):
         header_layout.addWidget(logo_box)
         
         # App Title (Không dùng emoji)
-        app_title = QLabel("AITA Grader System", header)
+        app_title = QLabel("AITA", header)
         app_title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLOR_TEXT_PRIMARY}; line-height: 1.4;")
         header_layout.addWidget(app_title)
         
         header_layout.addStretch(1)
         
         # 1.3 Nút "Gemini AI: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
-        is_offline = (self.session_info.get("mode") == "OFFLINE")
-        ai_badge = QLabel(header)
+        ai_badge = QLabel("Gemini AI: Sẵn Sàng", header)
         ai_badge.setFixedHeight(34)
-        if is_offline:
-            ai_badge.setText("Chế Độ Ngoại Tuyến (Offline)")
-            ai_badge.setStyleSheet("""
-                QLabel {
-                    background-color: #F1F5F9;
-                    color: #475569;
-                    font-size: 12px;
-                    font-weight: 600;
-                    border: 1px solid #CBD5E1;
-                    border-radius: 8px;
-                    padding: 0 14px;
-                    line-height: 1.4;
-                }
-            """)
-        else:
-            ai_badge.setText("Gemini AI: Sẵn Sàng")
-            ai_badge.setStyleSheet(f"""
-                QLabel {{
-                    background-color: #EFF6FF;
-                    color: {COLOR_PRIMARY};
-                    font-size: 12px;
-                    font-weight: 600;
-                    border: 1px solid #BFDBFE;
-                    border-radius: 8px;
-                    padding: 0 14px;
-                    line-height: 1.4;
-                }}
-            """)
+        ai_badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: #EFF6FF;
+                color: {COLOR_PRIMARY};
+                font-size: 12px;
+                font-weight: 600;
+                border: 1px solid #BFDBFE;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }}
+        """)
         header_layout.addWidget(ai_badge)
         
         # 1.4 Nút "GV: Nguyễn Văn Hùng": Bỏ khung lồng và icon, đơn viền bo góc, cùng chiều cao 34px

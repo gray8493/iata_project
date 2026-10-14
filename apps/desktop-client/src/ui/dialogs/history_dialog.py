@@ -37,6 +37,7 @@ class HistoryDialog(QDialog):
     """
 
     session_selected = pyqtSignal(int)  # Emits class_id when user picks a session to open
+    session_deleted = pyqtSignal(int)   # Emits class_id when a session is deleted
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -352,6 +353,7 @@ class HistoryDialog(QDialog):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.db.delete_class_session(class_id)
+            self.session_deleted.emit(class_id)
             self._load_history_data()
             QMessageBox.information(self, "Đã Xóa", f"Đã xóa đợt chấm '{class_name}' thành công!")
 

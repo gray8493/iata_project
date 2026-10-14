@@ -629,10 +629,10 @@ class SubmissionDetailDialog(QDialog):
                 if len(exp_display) > 35:
                     exp_display = exp_display[:32] + "..."
 
-                # 3. Khi CE: Actual Output để "Không chạy được", Kết Quả ghi "CE"
+                # 3. Khi CE: Cột Actual Output để trống, không ghi Khớp hay Không chạy được
                 if is_ce:
-                    act_display = "Không chạy được"
-                    tc_verdict = "CE"
+                    act_display = ""
+                    tc_verdict = "Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else "CE"
                     v_color = Qt.GlobalColor.darkRed
                 else:
                     if final_verdict == "AC":
@@ -691,11 +691,11 @@ class SubmissionDetailDialog(QDialog):
         item_2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.table_tc_results.setItem(0, 2, item_2)
 
-        item_3 = QTableWidgetItem("Không chạy được" if is_ce else "-")
+        item_3 = QTableWidgetItem("" if is_ce else "-")
         item_3.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.table_tc_results.setItem(0, 3, item_3)
 
-        item_4 = QTableWidgetItem("CE" if is_ce else final_verdict)
+        item_4 = QTableWidgetItem("Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else ("CE" if is_ce else final_verdict))
         item_4.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         item_4.setForeground(Qt.GlobalColor.darkRed if is_ce else Qt.GlobalColor.darkGreen)
         self.table_tc_results.setItem(0, 4, item_4)

@@ -47,7 +47,7 @@ class WebGradingDialog(QDialog):
         t_layout = QHBoxLayout(top_card)
         t_layout.setContentsMargins(16, 12, 16, 12)
         
-        lbl_title = QLabel("🌐 Phân Hệ Chấm Điểm Web Đa Thành Phần (Rubric 4 Tiêu Chí)", top_card)
+        lbl_title = QLabel("Phân Hệ Chấm Điểm Web Đa Thành Phần (Rubric 4 Tiêu Chí)", top_card)
         lbl_title.setProperty("class", "Heading2")
         t_layout.addWidget(lbl_title)
         
@@ -96,49 +96,49 @@ class WebGradingDialog(QDialog):
         
         self.txt_rubric_log = QTextEdit(tab_rubric)
         self.txt_rubric_log.setReadOnly(True)
-        self.txt_rubric_log.setText("""📋 CHI TIẾT ĐIỂM RUBRIC 4 THÀNH PHẦN:
+        self.txt_rubric_log.setText("""CHI TIẾT ĐIỂM RUBRIC 4 THÀNH PHẦN:
 
 1. [2.0 / 2.5] Cấu Trúc DOM & Thẻ Ngữ Nghĩa HTML5:
-   ✅ Sử dụng đúng thẻ semantic: <header>, <nav>, <main>, <section>, <footer>.
-   ⚠️ Thiếu thuộc tính alt trong 2 thẻ <img>.
+   - Sử dụng đúng thẻ semantic: <header>, <nav>, <main>, <section>, <footer>.
+   - Thiếu thuộc tính alt trong 2 thẻ <img>.
 
 2. [2.5 / 2.5] Chuẩn W3C Validator & CSS Linting:
-   ✅ 0 lỗi cú pháp HTML W3C.
-   ✅ CSS đạt chuẩn Flexbox/Grid hiện đại, không dùng !important bừa bãi.
+   - 0 lỗi cú pháp HTML W3C.
+   - CSS đạt chuẩn Flexbox/Grid hiện đại, không dùng !important bừa bãi.
 
 3. [2.5 / 2.5] Playwright E2E Tương Tác Hành Vi:
-   ✅ Tự động click "Thêm vào giỏ hàng" -> Số lượng giỏ hàng nhảy từ 0 lên 1.
-   ✅ Kiểm tra responsive: Ẩn desktop navbar, hiển thị hamburger menu ở mobile viewport.
+   - Tự động click "Thêm vào giỏ hàng" -> Số lượng giỏ hàng nhảy từ 0 lên 1.
+   - Kiểm tra responsive: Ẩn desktop navbar, hiển thị hamburger menu ở mobile viewport.
 
 4. [2.0 / 2.5] Đánh Giá Thẩm Mỹ Giao Diện (Gemini Vision AI):
-   ✅ Điểm thẩm mỹ: 8.5/10. Màu sắc hài hòa, độ tương phản text/background đạt WCAG AA.
-   ⚠️ Khoảng cách lề (padding) phần Banner Hero trên mobile hơi sát viền mép.""")
+   - Điểm thẩm mỹ: 8.5/10. Màu sắc hài hòa, độ tương phản text/background đạt WCAG AA.
+   - Khoảng cách lề (padding) phần Banner Hero trên mobile hơi sát viền mép.""")
         tr_layout.addWidget(self.txt_rubric_log)
-        self.tabs.addTab(tab_rubric, "📊 Chi Tiết Rubric")
+        self.tabs.addTab(tab_rubric, "Chi Tiết Rubric")
         
         # TAB 2: Screenshots Preview
         tab_shots = QWidget()
         ts_layout = QVBoxLayout(tab_shots)
         
-        lbl_shot_info = QLabel("📸 Ảnh Chụp Màn Hình Headless Playwright (Desktop 1920x1080 & Mobile 375x667):", tab_shots)
+        lbl_shot_info = QLabel("Ảnh Chụp Màn Hình Headless Playwright (Desktop 1920x1080 & Mobile 375x667):", tab_shots)
         lbl_shot_info.setStyleSheet("font-weight: 700; font-size: 11px;")
         ts_layout.addWidget(lbl_shot_info)
         
         shots_container = QHBoxLayout()
         # Mock Desktop viewport box
-        shot_dt = QLabel("🖥️ Desktop Viewport\n(1920 x 1080)\n\n[Ảnh chụp giao diện web hoàn chỉnh]", tab_shots)
+        shot_dt = QLabel("Desktop Viewport\n(1920 x 1080)\n\n[Ảnh chụp giao diện web hoàn chỉnh]", tab_shots)
         shot_dt.setAlignment(Qt.AlignmentFlag.AlignCenter)
         shot_dt.setStyleSheet("background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; color: #475569; padding: 30px;")
         shots_container.addWidget(shot_dt, stretch=2)
         
         # Mock Mobile viewport box
-        shot_mb = QLabel("📱 Mobile Viewport\n(375 x 667)\n\n[Responsive]", tab_shots)
+        shot_mb = QLabel("Mobile Viewport\n(375 x 667)\n\n[Responsive]", tab_shots)
         shot_mb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         shot_mb.setStyleSheet("background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; color: #475569; padding: 30px;")
         shots_container.addWidget(shot_mb, stretch=1)
         
         ts_layout.addLayout(shots_container)
-        self.tabs.addTab(tab_shots, "📸 Ảnh Chụp Giao Diện")
+        self.tabs.addTab(tab_shots, "Ảnh Chụp Giao Diện")
         
         r_layout.addWidget(self.tabs)
         splitter.addWidget(right_widget)

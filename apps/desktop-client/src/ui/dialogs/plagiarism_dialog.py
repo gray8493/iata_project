@@ -815,7 +815,7 @@ class PlagiarismDialog(QDialog):
 
             QMessageBox.information(
                 self, "Xuất Báo Cáo Thành Công",
-                f"Đã xuất biên bản đối chiếu đạo văn thành công ra tệp:\n📁 {export_path}"
+                f"Đã xuất biên bản đối chiếu đạo văn thành công ra tệp:\n{export_path}"
             )
         except Exception as ex:
             QMessageBox.critical(self, "Lỗi Xuất File", f"Không thể xuất file biên bản:\n{str(ex)}")

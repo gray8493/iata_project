@@ -718,10 +718,10 @@ class WebGradingMainWindow(QMainWindow):
         self.session_info = session_info or {
             "mode": "ONLINE",
             "username": "instructor",
-            "display_name": "GV: Nguyễn Văn Hùng",
+            "display_name": "Giảng Viên",
         }
 
-        self.setWindowTitle("AITA Grader - Chấm Bài Tập & Đồ Án Web (Web Studio)")
+        self.setWindowTitle("AITA - Chấm Bài Tập & Đồ Án Web")
 
         # Căn chỉnh kích thước cửa sổ dựa theo vùng hiển thị thực tế của màn hình (tránh taskbar che)
         screen = QGuiApplication.primaryScreen()
@@ -931,11 +931,10 @@ class WebGradingMainWindow(QMainWindow):
         layout.addStretch(1)
 
         # Status Badge (Gemini AI: Chỉ 1 lớp viền bo góc, cao 32px, không lồng 2 viền, không icon)
-        is_offline = (self.session_info.get("mode") == "OFFLINE")
-        badge_bg = "#F8FAFC" if is_offline else COLOR_PRIMARY_BG
-        badge_color = COLOR_TEXT_SECONDARY if is_offline else COLOR_PRIMARY
-        badge_border = COLOR_BORDER_DEFAULT if is_offline else COLOR_PRIMARY_LIGHT
-        badge_text = "Ngoại Tuyến (Offline)" if is_offline else "Gemini AI: Sẵn Sàng"
+        badge_bg = COLOR_PRIMARY_BG
+        badge_color = COLOR_PRIMARY
+        badge_border = COLOR_PRIMARY_LIGHT
+        badge_text = "Gemini AI: Sẵn Sàng"
 
         lbl_status = QLabel(badge_text, header)
         lbl_status.setFixedHeight(32)
