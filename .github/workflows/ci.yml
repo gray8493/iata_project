@@ -63,6 +63,11 @@ jobs:
   backend-nestjs-ci:
     name: Central Backend (NestJS & Prisma)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aita?schema=public"
+      DATABASE_URL_UNPOOLED: "postgresql://postgres:postgres@localhost:5432/aita?schema=public"
+      JWT_ACCESS_SECRET: "ci-dummy-jwt-access-secret-32-chars-long"
+      JWT_REFRESH_SECRET: "ci-dummy-jwt-refresh-secret-32-chars-long"
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
