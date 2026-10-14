@@ -44,7 +44,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 +------------------------------------+       +------------------------------------+
 | Node 4: Database Server Host       |       | Node 5: Google Cloud Platform      |
 | (Ubuntu Linux 22.04 LTS)           |       | (Managed AI Infrastructure)        |
-| - PostgreSQL 16 RDBMS              |       | - Google Gemini 1.5 Flash API      |
+| - PostgreSQL 16 RDBMS              |       | - Google Gemini API                 |
 | - aita_central_db & Backup Volume  |       | - generativelanguage.googleapis.com|
 +------------------------------------+       +------------------------------------+
 ```
@@ -91,14 +91,14 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 - **Môi trường ảo hóa & Đóng gói (Containerization)**:
   - **Docker Engine (>= 24.0)** & **Docker Compose (>= 2.20)**: Cô lập hoàn toàn các thành phần backend thành các micro-services / containers riêng biệt.
   - **Nginx Reverse Proxy Container**: Lắng nghe cổng 80 (chuyển hướng HTTP sang HTTPS) và cổng 443 (chứng chỉ bảo mật SSL/TLS 1.3 Let's Encrypt), chịu trách nhiệm cân bằng tải và giới hạn tần suất request (Rate Limiting).
-  - **Backend Service Container (`central-backend`)**: Xây dựng trên NestJS 10 (Node.js 20 LTS runtime) hoặc FastAPI (Python 3.11 ASGI), tích hợp Passport-JWT, RBAC Guards, Swagger OpenAPI (`/docs`).
+  - **Backend Service Container (`central-backend`)**: Xây dựng trên NestJS 10 (Node.js 20 LTS runtime), tích hợp Passport-JWT, RBAC Guards, Swagger OpenAPI (`/api/docs`).
   - **In-Memory Cache Container (`Redis 7.x`)**: Quản lý danh sách đen Token thu hồi (JWT Blacklist) và bộ đếm hạn ngạch Token AI theo thời gian thực (Token Bucket / Sliding Window Rate Limiter).
 
 ---
 
 ### 2.4. Node 4: Máy Chủ Cơ Sở Dữ Liệu Trung Tâm (Database Server Node)
 
-- **Vai trò**: Lưu trữ dữ liệu có cấu trúc, quan hệ người dùng, môn học, phiên chấm, bảng điểm và nhật ký kiểm toán hệ thống.
+- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản, môn học, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Phiên chấm, mã nguồn và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First.
 - **Hệ điều hành**: **Ubuntu Linux 22.04 LTS** (triển khai trên VM chuyên dụng hoặc dịch vụ Managed Cloud Database: AWS RDS / GCP Cloud SQL).
 - **Hệ quản trị CSDL**: **PostgreSQL 16 Enterprise RDBMS**.
 - **Cấu hình lưu trữ**: 100 GB NVMe SSD High-IOPS có cấu hình RAID 10 để bảo vệ toàn vẹn dữ liệu học thuật.
@@ -114,7 +114,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 - **Vai trò**: Cung cấp mô hình ngôn ngữ lớn (LLM) hỗ trợ tự động sinh testcase biên, phân tích lỗi code và đối chứng gian lận học thuật.
 - **Nền tảng**: Google Cloud Platform (PaaS) – Google AI Studio / Vertex AI Foundation Models.
 - **Endpoint**: `https://generativelanguage.googleapis.com` (Giao tiếp qua REST API & gRPC).
-- **Mô hình triển khai**: **`gemini-1.5-flash`** (độ trễ phản hồi < 1 giây, context window lớn 1 triệu tokens, hạn ngạch rộng và chi phí tối ưu nhất cho đồ án giáo dục).
+- **Mô hình triển khai**: Model Gemini được cấu hình bằng biến `GEMINI_MODEL` (mặc định `gemini-3.8-flash`); API key chỉ được lưu trong secret môi trường của backend.
 
 ---
 

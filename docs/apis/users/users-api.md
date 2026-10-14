@@ -37,7 +37,7 @@
   "data": {
     "items": [
       {
-        "id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
         "username": "admin",
         "full_name": "Quản Trị Viên",
         "email": "admin@fe.edu.vn",
@@ -96,7 +96,7 @@
   "status_code": 201,
   "message": "Tạo tài khoản người dùng mới thành công",
   "data": {
-    "id": 2,
+    "id": "a8fdc8b6-c222-4e5d-bc2a-62e28800d247",
     "username": "teacher_lan",
     "full_name": "Trần Thị Lan",
     "email": "lantt@fe.edu.vn",
@@ -125,7 +125,9 @@
 
 ### 2.3. `PUT /api/v1/admin/users/{id}`
 - **Mục đích**: Cập nhật thông tin hoặc Khóa/Mở khóa tài khoản.
-- **Ràng buộc**: `id` là số nguyên dương.
+- **Ràng buộc**: `id` là UUID.
+- Các trường `username`, `password`, `full_name`, `email`, `role`, `is_active` và `daily_token_quota` có thể được cập nhật tùy chọn; mật khẩu mới được băm trước khi lưu.
+- `daily_token_quota` nếu có phải từ 1000 đến 1000000 token/ngày.
 
 #### Kịch bản phản hồi:
 * **Thành công (`success: true`) - HTTP 200 OK**:
@@ -135,7 +137,7 @@
   "status_code": 200,
   "message": "Cập nhật tài khoản thành công",
   "data": {
-    "id": 2,
+    "id": "a8fdc8b6-c222-4e5d-bc2a-62e28800d247",
     "username": "teacher_lan",
     "is_active": false
   },

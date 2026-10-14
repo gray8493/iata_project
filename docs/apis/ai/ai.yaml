@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: AITA Gemini AI Hub API
   version: 1.0.0
-  description: Phân hệ API Điều phối AI Gemini 1.5 Flash (sinh testcase, review code, quét đạo văn, chấm UI web).
+  description: Phân hệ API điều phối Gemini (sinh testcase, review code, quét đạo văn, chấm UI web); model cấu hình tại backend.
 paths:
   /ai/quota:
     get:

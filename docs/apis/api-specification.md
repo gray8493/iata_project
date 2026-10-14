@@ -20,6 +20,12 @@ Tất cả các endpoint (ngoại trừ các endpoint Public như Đăng nhập)
 Authorization: Bearer <access_token>
 ```
 
+### 1.2.1. Giới hạn tần suất yêu cầu
+- API đã xác thực thông thường: tối đa 80 request/phút/User.
+- Bốn API tạo nội dung Gemini: tối đa 15 request/phút/User, áp dụng chung cho nhóm endpoint AI.
+- Đăng nhập: 10 request/phút/IP; refresh token: 30 request/phút/IP.
+- Khi vượt giới hạn, backend trả HTTP 429 với `error_code: RATE_LIMIT_EXCEEDED`. Giới hạn này tách biệt với quota token AI theo ngày.
+
 ### 1.3. Cấu Trúc Khung Phản Hồi Chuẩn (Standard Response Envelope)
 Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhất quán:
 
@@ -70,13 +76,13 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 | DELETE | /api/v1/admin/users/{id}             | Users     | Xóa tài khoản người dùng               |
 +--------+--------------------------------------+-----------+----------------------------------------+
 | GET    | /api/v1/ai/quota                     | AI Hub    | Kiểm tra hạn ngạch Token AI hôm nay    |
-| PUT    | /api/v1/ai/quota-config              | AI Hub    | Cấu hình hạn ngạch Token cho User      |
 | POST   | /api/v1/ai/generate-testcases        | AI Hub    | Sinh testcase biên tự động (UC-10)     |
 | POST   | /api/v1/ai/review-code               | AI Hub    | Phân tích lỗi sư phạm On-Demand (UC-16)|
 | POST   | /api/v1/ai/verify-plagiarism         | AI Hub    | Xác thực nghi vấn đạo văn >80% (UC-17) |
 | POST   | /api/v1/ai/evaluate-web-ui           | AI Hub    | Đánh giá thẩm mỹ giao diện Web (UC-19) |
 +--------+--------------------------------------+-----------+----------------------------------------+
 | GET    | /api/v1/admin/reports/overview       | Reports   | Thống kê kiểm toán người dùng & AI     |
+| GET    | /api/v1/admin/reports/ai-usage       | Reports   | Nhật ký AI có lọc theo User/thời gian  |
 +----------------------------------------------------------------------------------------------------+
 ```
 
@@ -113,9 +119,9 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e3...",
     "token_type": "Bearer",
-    "expires_in": 86400,
+    "expires_in": 900,
     "user": {
-      "id": 1,
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "username": "teacher_hung",
       "full_name": "Nguyễn Văn Hùng",
       "email": "hungnv@fe.edu.vn",
@@ -182,7 +188,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   "status_code": 200,
   "message": "Lấy thông tin tài khoản thành công",
   "data": {
-    "id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "teacher_hung",
     "full_name": "Nguyễn Văn Hùng",
     "email": "hungnv@fe.edu.vn",
@@ -231,7 +237,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e4...",
     "token_type": "Bearer",
-    "expires_in": 86400
+    "expires_in": 900
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
@@ -271,7 +277,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   "data": {
     "items": [
       {
-        "id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
         "username": "admin",
         "full_name": "Quản Trị Viên Hệ Thống",
         "email": "admin@fe.edu.vn",
@@ -280,7 +286,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
         "created_at": "2026-09-01T00:00:00.000Z"
       },
       {
-        "id": 2,
+        "id": "a8fdc8b6-c222-4e5d-bc2a-62e28800d247",
         "username": "teacher_hung",
         "full_name": "Nguyễn Văn Hùng",
         "email": "hungnv@fe.edu.vn",
@@ -345,7 +351,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   "status_code": 201,
   "message": "Tạo tài khoản người dùng mới thành công",
   "data": {
-    "id": 3,
+    "id": "a8fdc8b6-c222-4e5d-bc2a-62e28800d247",
     "username": "teacher_lan",
     "full_name": "Trần Thị Lan",
     "email": "lantt@fe.edu.vn",
@@ -380,13 +386,13 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 #### 3.2.3. `PUT /api/v1/admin/users/{id}`
 * **Mô tả**: Chỉnh sửa thông tin hồ sơ, phân quyền hoặc khóa/mở khóa tài khoản.
 * **Xác thực**: Quyền Admin (`role == 'ADMIN'`).
-* **Tham số Path**: `id` (số nguyên, >= 1, bắt buộc).
+* **Tham số Path**: `id` (UUID, bắt buộc).
 * **Ràng buộc đầu vào (Input Constraints)**:
   - `full_name`: Kiểu chuỗi, độ dài 2-100 ký tự, tùy chọn.
   - `email`: Định dạng email chuẩn, tùy chọn.
   - `role`: Giá trị thuộc `["ADMIN", "INSTRUCTOR"]`, tùy chọn.
   - `is_active`: Kiểu boolean (`true` / `false`), tùy chọn.
-  - `daily_token_quota`: Số nguyên >= 0, tùy chọn.
+  - `daily_token_quota`: Số nguyên từ 1000 đến 1000000, tùy chọn.
 
 ##### Body Input mẫu:
 ```json
@@ -403,7 +409,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   "status_code": 200,
   "message": "Cập nhật tài khoản thành công",
   "data": {
-    "id": 3,
+    "id": "a8fdc8b6-c222-4e5d-bc2a-62e28800d247",
     "username": "teacher_lan",
     "full_name": "Trần Thị Lan (TS)",
     "email": "lantt@fe.edu.vn",

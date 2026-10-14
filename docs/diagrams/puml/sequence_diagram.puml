@@ -60,7 +60,7 @@ CentralDB --> Backend : 10. Đã ghi nhận dữ liệu
 deactivate CentralDB
 Backend --> WebUI : 11. HTTP 201 Created
 
-Admin -> WebUI : 12. Cấu hình Gemini API Key bí mật & Gán trần hạn ngạch (Token Quota)
+Admin -> WebUI : 12. Gán trần hạn ngạch (Token Quota)
 WebUI -> Backend : 13. HTTP POST /api/v1/admin/ai-quota (API_KEY, dailyTokenLimit)
 Backend -> AIHub : 14. Thiết lập hạn ngạch gọi AI cho từng tài khoản Giảng viên
 activate AIHub

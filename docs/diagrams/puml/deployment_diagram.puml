@@ -129,7 +129,7 @@ node "Central Application Server Host\n<<Production Server Node>>\n[HĐH: Ubuntu
             component "Auth & RBAC Guard\n(Passport-JWT, Bcrypt Validator)" as AuthGuard
             component "AI Gateway & Quota Guard\n(Token Counter & Limiter)" as AIGateway
             component "Grading Sync Service\n(Session & Submissions Handler)" as SyncService
-            component "ORM Engine\n(Prisma 5 / TypeORM)" as OrmEngine
+            component "ORM Engine\n(Prisma 5)" as OrmEngine
         }
     }
 
@@ -145,7 +145,7 @@ node "Database Server Node\n<<Central Database Host>>\n[HĐH: Ubuntu Linux 22.04
     
     node "RDBMS Environment\n<<Execution Environment>>" as RdbmsEnv #FFFFFF {
         database "aita_central_db\n<<PostgreSQL 16 RDBMS>>" as PostgresDB {
-            artifact "Tables Schema:\n- users, roles\n- courses, grading_sessions\n- submission_results\n- ai_usage_logs, audit_logs" as DbSchema
+            artifact "Tables Schema:\n- users\n- ai_quota_configs, ai_quota_logs\n- refresh_tokens" as DbSchema
         }
     }
 }
@@ -155,7 +155,7 @@ node "Database Server Node\n<<Central Database Host>>\n[HĐH: Ubuntu Linux 22.04
 ' ==============================================================================
 node "Google Cloud Platform (GCP)\n<<Public Cloud Infrastructure>>\nRegion: us-central1 / asia-southeast1" as CloudAINode #FFFDE7 {
     node "Google AI Foundation Services\n<<Managed Cloud PaaS>>" as GeminiEnv #FFFFFF {
-        component "Google Gemini 1.5 Flash API\n<<LLM Inference Endpoint>>\n[generativelanguage.googleapis.com]" as GeminiAPI
+        component "Google Gemini 3.8 Flash API\n<<LLM Inference Endpoint>>\n[generativelanguage.googleapis.com]" as GeminiAPI
     }
 }
 
@@ -198,7 +198,7 @@ note bottom of ServerNode
     <b>ĐẶC TẢ MÁY CHỦ TRUNG TÂM (CENTRAL BACKEND):</b>
     • <b>Hệ điều hành:</b> Ubuntu Linux 22.04 LTS chạy trên Docker Container.
     • <b>Bảo mật & Phân quyền:</b> Nginx chặn SSL/TLS 1.3, NestJS bảo vệ endpoint qua JWT RBAC Guard.
-    • <b>AI Gateway Hub:</b> Lưu trữ API Key tập trung, kiểm soát Quota và đếm token tiêu thụ,
+    • <b>AI Gateway Hub:</b> Đọc API Key từ biến môi trường; kiểm soát Quota và đếm token tiêu thụ,
       chống lộ key và chống cạn kiệt ngân sách trường.
 end note
 
