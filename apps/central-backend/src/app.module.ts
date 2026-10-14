@@ -18,11 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
         PORT: Joi.number().port().default(3000),
         TRUST_PROXY_HOPS: Joi.number().integer().min(0).default(0),
         DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
-        REDIS_URL: Joi.string().empty('').when('NODE_ENV', {
-          is: 'production',
-          then: Joi.string().uri({ scheme: ['redis', 'rediss'] }).required(),
-          otherwise: Joi.string().uri({ scheme: ['redis', 'rediss'] }).optional(),
-        }),
+        REDIS_URL: Joi.string().uri({ scheme: ['redis', 'rediss'] }).optional().allow(''),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         JWT_ACCESS_EXPIRES_IN: Joi.string().pattern(/^[1-9]\d*(s|m|h|d)$/).default('15m'),
         JWT_REFRESH_SECRET: Joi.string().min(32).required(),
