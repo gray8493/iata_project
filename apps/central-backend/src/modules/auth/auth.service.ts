@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
@@ -11,6 +11,8 @@ import { toAppRole } from '../../common/decorators/roles.decorator';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -30,6 +32,7 @@ export class AuthService {
     if (!user.isActive) {
       throw new ForbiddenException({ error_code: 'AUTH_ACCOUNT_DISABLED', message: 'Tài khoản của bạn đã bị vô hiệu hóa.', details: null });
     }
+    this.logger.log(`[Đăng nhập thành công] Người dùng: [${user.username}] - Vai trò: [${user.role}]`);
     return { message: 'Đăng nhập thành công', data: await this.issueTokens(user) };
   }
 
