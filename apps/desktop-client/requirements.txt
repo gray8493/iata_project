@@ -1,10 +1,25 @@
-# AITA Desktop Client Dependencies
+# ==============================================================================
+# AITA Desktop Client - Production & Testing Dependencies
+# ==============================================================================
+
+# Core Desktop GUI (PyQt6)
 PyQt6>=6.5.0
+
+# Process Sandbox & Hardware Monitoring (CPU/RAM/Timeout)
 psutil>=5.9.0
-httpx>=0.24.0
+
+# Excel Report Generation & Export (.xlsx)
+openpyxl>=3.1.0
+
+# Web Grading Engine & DOM / CSS Auditing
+playwright>=1.40.0
 beautifulsoup4>=4.12.0
 tinycss2>=1.2.1
-playwright>=1.40.0
-pytest>=7.4.0
+httpx>=0.24.0
+
+# Environment Configuration & Schema Validation
 python-dotenv>=1.0.0
 pydantic>=2.0.0
+
+# Testing Framework
+pytest>=7.4.0
