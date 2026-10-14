@@ -6,7 +6,7 @@
 
 Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở dữ liệu (Database Schema) cho toàn bộ hệ sinh thái **AITA**, bao gồm:
 
-1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, danh mục môn học, cấu hình API Key và giám sát hạn ngạch Token Gemini AI.
+1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng Gemini AI.
 2. **Cơ sở dữ liệu Cục bộ (Local Database - SQLite3 Client)**: Nằm trực tiếp trên máy trạm của Giảng viên phục vụ Desktop App (PyQt6) vận hành chấm điểm Offline-first tốc độ cao, lưu trữ toàn bộ dữ liệu lớp học, bài nộp, testcase và kết quả điểm thi **hoàn toàn cục bộ, không tải lên Cloud**.
 
 ---
@@ -19,7 +19,7 @@ Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở 
 erDiagram
     USERS ||--o{ AI_QUOTA_LOGS : "consumes"
     USERS ||--o| AI_QUOTA_CONFIGS : "allocated"
-    USERS ||--o{ COURSES : "manages (Admin)"
+    USERS ||--o{ REFRESH_TOKENS : "authenticates"
 
     USERS {
         uuid id PK "Khóa chính UUIDv4"
@@ -49,14 +49,23 @@ erDiagram
     AI_QUOTA_LOGS {
         uuid id PK "Khóa chính log"
         uuid user_id FK "Giảng viên sử dụng"
-        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM"
-        varchar model_name "gemini-1.5-flash"
+        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM | UI_EVALUATION"
+        varchar model_name "gemini-3.8-flash"
         integer prompt_tokens "Số token đầu vào"
         integer completion_tokens "Số token đầu ra"
         integer total_tokens "Tổng số token tiêu thụ"
         boolean is_deleted "Cờ xóa mềm (Soft delete)"
         timestamptz deleted_at "Thời điểm xóa mềm"
         timestamptz created_at "Thời điểm gọi API"
+    }
+
+    REFRESH_TOKENS {
+        uuid id PK "JWT ID (jti)"
+        char token_hash UK "SHA-256 hash của refresh token"
+        uuid user_id FK "Tài khoản sở hữu phiên"
+        timestamptz expires_at "Thời điểm hết hạn"
+        timestamptz revoked_at "Thu hồi/xoay vòng"
+        timestamptz created_at "Thời điểm phát hành"
     }
 ```
 
@@ -159,7 +168,7 @@ erDiagram
 
 ## 2. Đặc Tả Chi Tiết Cơ Sở Dữ Liệu Trung Tâm (Central Database - PostgreSQL / Neon)
 
-CSDL này được quản lý tập trung trên nền tảng **Neon Serverless PostgreSQL**, tương tác qua **Prisma ORM / TypeORM** trong Web Backend (NestJS).
+CSDL này được quản lý tập trung trên nền tảng **Neon Serverless PostgreSQL**, tương tác qua **Prisma ORM** trong Web Backend (NestJS).
 
 ### 2.1. Bảng `users` (Quản lý tài khoản hệ thống)
 
@@ -185,7 +194,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.2. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
+### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
 
 * **Mục đích**: Quản trị viên (Admin) cấu hình trần số Token gọi AI tối đa trong ngày cho từng Giảng viên nhằm kiểm soát chi phí.
 
@@ -193,7 +202,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | :-------------------- | :-------------- | :---------------------------- | :-------------------- | :---------------------------------------------------------- |
 | `id`                | `UUID`        | **PRIMARY KEY**         | `gen_random_uuid()` | Khóa chính.                                               |
 | `user_id`           | `UUID`        | **FOREIGN KEY, UNIQUE** |                       | Tham chiếu`users(id)` ON DELETE CASCADE.                 |
-| `daily_token_limit` | `INTEGER`     | **NOT NULL**            | `100000`            | Giới hạn Token mỗi ngày (mặc định 100k token/ngày). |
+| `daily_token_limit` | `INTEGER`     | **NOT NULL**            | `50000`             | Giới hạn Token mỗi ngày (mặc định 50k token/ngày). |
 | `used_tokens_today` | `INTEGER`     | **NOT NULL**            | `0`                 | Tổng token đã tiêu thụ trong ngày hiện tại.         |
 | `last_reset_date`   | `DATE`        | **NOT NULL**            | `CURRENT_DATE`      | Ngày tự động reset hạn ngạch về 0.                   |
 | `is_deleted`        | `BOOLEAN`     | **NOT NULL**            | `FALSE`             | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa).       |
@@ -202,16 +211,16 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.3. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
+### 2.4. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
 
-* **Mục đích**: Ghi vết minh bạch từng lượt gọi API Google Gemini 1.5 Flash (sinh testcase, review bài WA, quét đạo văn) để phục vụ báo cáo kiểm toán (Audit Logs).
+* **Mục đích**: Ghi vết minh bạch từng lượt gọi Gemini (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
 
 | Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                     | Giá Trị Mặc Định  | Ý Nghĩa Nghiệp Vụ                                 |
 | :-------------------- | :-------------- | :------------------------------ | :--------------------- | :---------------------------------------------------- |
 | `id`                | `UUID`        | **PRIMARY KEY**           | `gen_random_uuid()`  | Khóa chính nhật ký.                               |
 | `user_id`           | `UUID`        | **FOREIGN KEY, NOT NULL** |                        | Tham chiếu`users(id)`.                             |
-| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`.    |
-| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-1.5-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
+| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`. |
+| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
 | `prompt_tokens`     | `INTEGER`     | **NOT NULL**              | `0`                  | Số token của prompt gửi đi.                       |
 | `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ Gemini.            |
 | `total_tokens`      | `INTEGER`     | **NOT NULL**              | `0`                  | Tổng token = prompt + completion.                    |
@@ -219,7 +228,24 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `deleted_at`        | `TIMESTAMPTZ` |                                 | `NULL`               | Thời điểm xóa mềm nhật ký.                     |
 | `created_at`        | `TIMESTAMPTZ` | **NOT NULL**              | `CURRENT_TIMESTAMP`  | Thời điểm gọi API.                                |
 
+Chỉ mục: `idx_ai_quota_logs_user_created` phục vụ lịch sử theo người dùng; `idx_ai_quota_logs_created_feature` phục vụ báo cáo theo tháng và tính năng.
+
 ---
+
+### 2.5. Bảng `refresh_tokens` (Phiên gia hạn JWT)
+
+Backend lưu SHA-256 hash của refresh token để xoay vòng token một lần, thu hồi token cũ sau khi gia hạn và không lưu token dạng rõ.
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | PRIMARY KEY | JWT ID (`jti`) của refresh token. |
+| `token_hash` | `CHAR(64)` | UNIQUE, NOT NULL | SHA-256 hash, không lưu token gốc. |
+| `user_id` | `UUID` | FOREIGN KEY, NOT NULL | Tham chiếu `users(id)`, xóa cascade. |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | Thời điểm hết hạn. |
+| `revoked_at` | `TIMESTAMPTZ` | NULL | Thời điểm đã sử dụng/thu hồi; null khi còn hiệu lực. |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | Thời điểm phát hành. |
+
+Chỉ mục: `idx_refresh_tokens_user_expires` trên (`user_id`, `expires_at`).
 
 ## 3. Đặc Tả Chi Tiết Cơ Sở Dữ Liệu Cục Bộ (Local SQLite3 - Desktop App)
 

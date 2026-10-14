@@ -20,7 +20,7 @@ Tất cả các API của hệ thống AITA đều trả về dữ liệu địn
   "status_code": 200,
   "message": "Thao tác thành công",
   "data": {
-    "id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "teacher_hung",
     "full_name": "Nguyễn Văn Hùng",
     "role": "INSTRUCTOR"
@@ -62,7 +62,7 @@ Tất cả các API của hệ thống AITA đều trả về dữ liệu địn
 * **`status_code`** (`int`): Mã trạng thái HTTP tương ứng (400, 401, 403, 404, 422, 429, 500).
 * **`error_code`** (`str`): Mã định danh lỗi nghiệp vụ viết hoa (UPPER_SNAKE_CASE) để phía Client (Desktop App / Web Admin) bắt chính xác mà không phụ thuộc vào chuỗi text `message`.
 * **`message`** (`str`): Mô tả lỗi thân thiện, trực quan để hiển thị trực tiếp lên giao diện người dùng.
-* **`details`** (`array` | `object` | `null`): Thông tin chi tiết về lỗi (ví dụ: các trường vi phạm validation của Pydantic, dòng bị sai trong CSV).
+* **`details`** (`array` | `object` | `null`): Thông tin chi tiết về lỗi (ví dụ: các trường vi phạm validation của DTO, dòng bị sai trong CSV).
 * **`timestamp`** (`str`): Mốc thời gian ISO 8601 chuẩn UTC.
 
 ---
@@ -108,7 +108,7 @@ Hệ thống AITA tuân thủ nghiêm ngặt chuẩn **RFC 9110 HTTP Semantics**
 | **`403`** | **`Forbidden`** | Đã xác thực nhưng không có quyền truy cập. | Giảng viên cố tình gọi các endpoint quản trị của Admin. |
 | **`404`** | **`Not Found`** | Không tìm thấy tài nguyên yêu cầu. | Không tìm thấy User ID, không tìm thấy Môn học. |
 | **`409`** | **`Conflict`** | Xung đột dữ liệu trong CSDL. | Tạo tài khoản có `username` đã tồn tại. |
-| **`422`** | **`Unprocessable Entity`** | Lỗi thẩm định cấu trúc dữ liệu (Pydantic Validation). | Thiếu trường bắt buộc, sai kiểu dữ liệu (gửi chuỗi thay vì số). |
+| **`422`** | **`Unprocessable Entity`** | Lỗi thẩm định cấu trúc dữ liệu (DTO Validation). | Thiếu trường bắt buộc, sai kiểu dữ liệu (gửi chuỗi thay vì số). |
 | **`429`** | **`Too Many Requests`** | Vượt quá hạn ngạch (Rate Limit / AI Quota). | Giảng viên gọi vượt quá hạn mức token Gemini AI được cấp. |
 | **`500`** | **`Internal Server Error`**| Lỗi hệ thống nội bộ máy chủ chưa lường trước. | Lỗi crash database, ngoại lệ chưa được xử lý ở backend. |
 | **`502`** | **`Bad Gateway`** | Lỗi giao tiếp với dịch vụ bên ngoài. | Web Server Backend không thể kết nối tới Google Gemini API. |
@@ -174,7 +174,7 @@ Client (Desktop App PyQt6 & Web Admin) sử dụng trường **`error_code`** đ
 | `429` | **`AI_QUOTA_EXCEEDED`** | Hạn mức gọi AI trong ngày của bạn đã hết. | Vượt quá số lượng Token/Request được cấp phát bởi Admin. |
 | `400` | **`AI_INVALID_PROMPT`** | Đề bài nhập vào quá ngắn hoặc không rõ ràng. | Nội dung đề bài dưới 10 ký tự, không đủ ngữ cảnh để sinh test. |
 | `502` | **`AI_SERVICE_UNAVAILABLE`** | Dịch vụ Google Gemini API hiện đang bận hoặc gián đoạn. | Máy chủ Gemini API trả về lỗi 503 hoặc Timeout quá 30 giây. |
-| `500` | **`AI_API_KEY_NOT_CONFIGURED`**| Máy chủ chưa được cấu hình API Key của Google Gemini. | Admin chưa nhập API Key hợp lệ trong Web Admin Dashboard. |
+| `500` | **`AI_NOT_CONFIGURED`** | Máy chủ chưa được cấu hình Gemini API key. | Vận hành viên cấu hình `GEMINI_API_KEY` trong môi trường máy chủ rồi khởi động lại dịch vụ. |
 | `400` | **`AI_PARSE_OUTPUT_FAILED`** | AI phản hồi định dạng không hợp lệ, không thể bóc tách testcase. | Gemini trả về markdown lỗi không thể convert sang JSON. |
 
 ---

@@ -164,7 +164,7 @@ Web Admin Dashboard là hệ thống quản trị nội bộ **dành riêng cho 
 | **Đăng nhập hệ thống (Auth JWT)** | ✅ Đăng nhập Web Admin | ✅ Đăng nhập Desktop App | Web Backend API |
 | **Quản lý tài khoản Giảng viên (Thêm/Sửa/Khóa)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Phân quyền hệ thống (Gán Role Admin/Instructor)** | ✅ | ❌ | Web Admin Dashboard |
-| **Cấu hình API Key & Quota Gemini AI tập trung**| ✅ Toàn quyền | ❌ | Web Admin Dashboard |
+| **Quản lý quota Gemini AI** | ✅ Qua API quản trị | ❌ | Web Admin Dashboard; Gemini API key do vận hành cấu hình bằng biến môi trường máy chủ |
 | **Giám sát nhật ký sử dụng Token AI toàn trường** | ✅ Xem toàn bộ logs | ❌ | Web Admin Dashboard |
 | **Nạp Testcase & Cấu hình bài tập** | ❌ | ✅ Toàn quyền trên lớp | Desktop App Client |
 | **Chấm bài tự động từ file CSV (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
@@ -197,7 +197,7 @@ Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điề
    - Lưu trữ bí mật Google Gemini API Key tại máy chủ, ngăn chặn lộ key ra phía client.
    - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
 4. **Bảo Mật Tập Trung & Nguyên Tắc Local-First (Neon PostgreSQL)**:
-   - Lưu trữ an toàn danh mục tài khoản, cấu hình hạn ngạch và nhật ký kiểm toán AI.
+   - Lưu trữ an toàn danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký kiểm toán AI.
    - Đảm bảo nguyên tắc bảo mật Local-First: Toàn bộ bảng điểm thi cử và mã nguồn sinh viên được lưu giữ cục bộ 100% trên máy Giảng viên, Backend không lưu giữ bài thi của sinh viên.
 
 ---

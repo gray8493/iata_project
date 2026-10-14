@@ -253,12 +253,12 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 }
 
 ' ==============================================================================
-' PHÂN HỆ 3: CENTRAL BACKEND & AI GATEWAY SUBSYSTEM (FASTAPI CLOUD SERVICE)
+' PHÂN HỆ 3: CENTRAL BACKEND & AI GATEWAY SUBSYSTEM (NESTJS SERVICE)
 ' Mẫu thiết kế & Kiến trúc:
 '   - Facade / Service Layer Pattern
 '   - Role-Based Access Control (RBAC) & OAuth2 JWT
 ' ==============================================================================
-package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (FastAPI Service)" #E3F2FD {
+package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (NestJS Service)" #E3F2FD {
 
     class AuthController {
         - auth_service: AuthService
