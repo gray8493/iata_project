@@ -62,7 +62,7 @@ package "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" as CentralB
     APIGateway ..> AuthRBAC : verifyToken / role
     APIGateway ..> AIHubGateway
 
-    interface "Prisma / TypeORM\nData Access" as IPrismaORM
+    interface "Prisma ORM\nData Access" as IPrismaORM
     AuthRBAC ..> IPrismaORM
     AIHubGateway ..> IPrismaORM
 }
@@ -76,7 +76,7 @@ IPrismaORM -- CentralTables
 ' 3. DỊCH VỤ ĐÁM MÂY (Cloud AI Services)
 ' ==============================================================================
 cloud "Dịch Vụ AI Đám Mây (Cloud AI)" #FFF3E0 {
-    [Google Gemini 1.5 Flash API] as GeminiAPI
+    [Google Gemini 3.8 Flash API] as GeminiAPI
 }
 interface "Gemini REST / SDK" as IGeminiAPI
 GeminiAPI - IGeminiAPI

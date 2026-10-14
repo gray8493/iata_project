@@ -247,8 +247,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-            minimum: 1
+            type: string
+            format: uuid
       responses:
         '200':
           description: Lấy chi tiết thành công (success = true)
@@ -274,8 +274,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-            minimum: 1
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -307,8 +307,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-            minimum: 1
+            type: string
+            format: uuid
       responses:
         '200':
           description: Xóa người dùng thành công (success = true)
@@ -515,6 +515,68 @@ paths:
   # ============================================================================
   # 5. ADMIN REPORTS ENDPOINTS
   # ============================================================================
+  /admin/reports/ai-usage:
+    get:
+      tags:
+        - Admin Reports
+      summary: Tra cứu nhật ký sử dụng AI (Admin Only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: user_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          description: Thời điểm bắt đầu ISO-8601, bao gồm mốc này.
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: Thời điểm kết thúc ISO-8601, bao gồm mốc này.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Nhật ký AI đã lọc và phân trang
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  status_code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            user_id: { type: string, format: uuid }
+                            username: { type: string }
+                            full_name: { type: string }
+                            feature_type: { type: string }
+                            model_name: { type: string }
+                            prompt_tokens: { type: integer }
+                            completion_tokens: { type: integer }
+                            total_tokens: { type: integer }
+                            created_at: { type: string, format: date-time }
+                      pagination:
+                        type: object
+                        properties:
+                          page: { type: integer }
+                          page_size: { type: integer }
+                          total_items: { type: integer }
+                          total_pages: { type: integer }
+                  timestamp: { type: string, format: date-time }
   /admin/reports/overview:
     get:
       tags:
@@ -667,7 +729,7 @@ components:
               example: Bearer
             expires_in:
               type: integer
-              example: 86400
+              example: 900
             user:
               $ref: '#/components/schemas/UserData'
         timestamp:
@@ -698,7 +760,7 @@ components:
               example: Bearer
             expires_in:
               type: integer
-              example: 86400
+              example: 900
         timestamp:
           type: string
 
@@ -706,8 +768,9 @@ components:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
         username:
           type: string
           example: teacher_hung
@@ -791,6 +854,15 @@ components:
     UpdateUserRequest:
       type: object
       properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-z0-9_]+$'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
         full_name:
           type: string
           minLength: 2
@@ -805,7 +877,8 @@ components:
           type: boolean
         daily_token_quota:
           type: integer
-          minimum: 0
+          minimum: 1000
+          maximum: 1000000
 
     UserListResponse:
       type: object
@@ -843,6 +916,64 @@ components:
                   example: 3
         timestamp:
           type: string
+
+    CreateCourseRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$', example: PRF }
+        name: { type: string, minLength: 2, maxLength: 100, example: Programming Fundamentals }
+        description: { type: string, nullable: true, maxLength: 1000 }
+        is_active: { type: boolean, default: true }
+
+    UpdateCourseRequest:
+      type: object
+      properties:
+        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$' }
+        name: { type: string, minLength: 2, maxLength: 100 }
+        description: { type: string, nullable: true, maxLength: 1000 }
+        is_active: { type: boolean }
+
+    CourseData:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: PRF }
+        name: { type: string, example: Programming Fundamentals }
+        description: { type: string, nullable: true }
+        is_active: { type: boolean, example: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CourseResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        status_code: { type: integer, example: 200 }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/CourseData' }
+        timestamp: { type: string, format: date-time }
+
+    CourseListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        status_code: { type: integer, example: 200 }
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/CourseData' }
+            pagination:
+              type: object
+              properties:
+                page: { type: integer }
+                page_size: { type: integer }
+                total_items: { type: integer }
+                total_pages: { type: integer }
+        timestamp: { type: string, format: date-time }
 
     # --------------------------------------------------------------------------
     # SCHEMAS CHO AI HUB
@@ -1061,15 +1192,6 @@ components:
         total_instructors:
           type: integer
           example: 24
-        total_grading_sessions:
-          type: integer
-          example: 142
-        total_graded_submissions:
-          type: integer
-          example: 5830
-        system_average_score:
-          type: number
-          example: 7.82
         ai_token_usage:
           type: object
           properties:
@@ -1079,6 +1201,8 @@ components:
             total_budget_limit:
               type: integer
               example: 5000000
-            top_consuming_course:
+            top_consuming_feature:
               type: string
-              example: PRF
+              nullable: true
+              enum: [TESTCASE_GEN, CODE_REVIEW, PLAGIARISM, UI_EVALUATION]
+              example: TESTCASE_GEN

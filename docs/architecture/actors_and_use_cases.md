@@ -32,12 +32,12 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 |                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
 |  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
 |  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, RBAC Guards (@Roles)      |
-|  - Quản trị CSDL Trung tâm: Prisma ORM / TypeORM (PostgreSQL / SQLite)          |
+|  - Quản trị CSDL Trung tâm: Prisma ORM (PostgreSQL)                              |
 |  - Điều phối AI: Gemini AI Hub (Bảo mật API Key, kiểm soát Token Quota)         |
 +---------------------------------------------------------------------------------+
 ```
 
-1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quản lý danh mục môn học, cấu hình API Key và giám sát hạn ngạch tiêu thụ Token AI tập trung.
+1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quản lý danh mục môn học, quota và giám sát tiêu thụ Token AI; Gemini API key do vận hành cấu hình trong môi trường máy chủ.
 2. **Phân hệ Desktop App Client (PyQt6 / Python)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
 3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của Google Gemini và lưu trữ cơ sở dữ liệu học thuật tập trung.
 4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV (`students.csv`) mà Giảng viên thực hiện chấm điểm.
@@ -62,7 +62,7 @@ classDiagram
 
     class AIService["AI Service Provider (Google Gemini API Hub)"]
     class SandboxRunner["Môi trường Biên dịch & Sandbox (GCC / Javac / Python)"]
-    class WebBackend["Web Server Backend (FastAPI Central Server)"]
+    class WebBackend["Web Server Backend (NestJS Central Server)"]
 
     HumanActor <|-- SystemAdmin
     HumanActor <|-- Instructor
@@ -74,9 +74,10 @@ classDiagram
 
 ### 2.1. Tác nhân Người dùng (Primary Human Actors)
 
-| Tác nhân                                                | Giao diện sử dụng                 | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| :-------------------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard**        | - Đăng nhập tài khoản Quản trị viên trên giao diện Web.<br />- Quản lý tài khoản Giảng viên (Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu, vô hiệu hóa, gán vai trò `Admin`/`Instructor`).<br />- Cấu hình tập trung Google Gemini API Key tại máy chủ Web Backend (ngăn chặn lộ key ra client).<br />- Cấu hình hạn mức gọi (Quota limit / Rate limit) cho từng giảng viên.<br />- Giám sát nhật ký tiêu thụ Token AI toàn trường qua biểu đồ trực quan.<br />- Xem báo cáo tổng quan và nhật ký kiểm toán hệ thống. | />- Cấu hình tập trung Google Gemini API Key tại máy chủ Web Backend (ngăn chặn lộ key ra client).<br />- Cấu hình hạn mức gọi (Quota limit / Rate limit) cho từng giảng viên.<br />- Giám sát nhật ký tiêu thụ Token AI toàn trường qua biểu đồ trực quan.<br />- Xem báo cáo tổng hợp và lịch sử các đợt chấm bài toàn hệ thống.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Giảng viên (Instructor / Lecturer)**            | **Desktop App Client (PyQt6)** | - Đăng nhập tài khoản Giảng viên bằng JWT qua Desktop App.<br />- Cấu hình đường dẫn trình biên dịch cục bộ (`gcc`, `javac`, `python`) và thông số Sandbox (`Time Limit`, `Memory Limit`).<br />- Tạo đợt chấm bài, nạp danh sách sinh viên từ file `students.csv` chuẩn 2 cột (`MSSV,File`).<br />- Quản lý bộ testcase theo nguyên lý Black-box (chỉ cần cặp `INPUT` và `OUTPUT kỳ vọng`, hoàn toàn không cần file code giải mẫu).<br />- Sử dụng AI sinh tự động testcase biên (Corner cases, Boundary values).<br />- Lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`MatchingStrategy`).<br />- Kích hoạt chấm bài tự động hàng loạt: thực thi đa tiến trình qua hàm `main()` của từng file câu hỏi riêng biệt, cộng dồn tổng điểm.<br />- Giám sát tiến độ chấm thời gian thực.<br />- Xem chi tiết kết quả, log thực thi (`stdout`, `stderr`) của từng bài.<br />- Kích hoạt AI phân tích lỗi & viết nhận xét sư phạm theo cơ chế **On-Demand (Lazy Loading)** cho các bài bị lỗi `WA` (bỏ qua `CE`).<br />- Quét đạo văn qua cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 lọc AST cục bộ 100% offline, Vòng 2 gửi cặp nghi vấn (> 80%) lên Gemini AI.<br />- Xuất kết quả trực tiếp ra file `results.csv` và Excel `.xlsx` cục bộ. |
+| Tác nhân | Giao diện sử dụng | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA |
+| :--- | :--- | :--- |
+| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; quản lý danh mục môn học; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. Gemini API key được vận hành cấu hình trong biến môi trường máy chủ `GEMINI_API_KEY`, không nhập qua Web Admin. |
+| **Giảng viên (Instructor / Lecturer)** | **Desktop App Client (PyQt6)** | Đăng nhập; cấu hình compiler và sandbox; quản lý đợt chấm, sinh viên, testcase; gọi các tính năng AI qua backend; chấm bài và xuất kết quả cục bộ ra CSV/Excel. |
 
 ### 2.2. Tác nhân Hệ thống & Dịch vụ Ngoài (External Supporting Actors)
 
@@ -97,8 +98,8 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** |                                                           |                                                        |                                   |                         |                                             |
 | **UC-01**                                                                                              | Đăng nhập & Xác thực Hệ thống                      | Login & System Authentication                          | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
 | **UC-02**                                                                                              | Quản lý Tài khoản & Phân quyền Giảng viên         | Manage Instructor Accounts & RBAC                      | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
-| **UC-04**                                                                                              | Cấu hình API Key & Giám sát Hạn ngạch AI            | Configure Centralized AI Key & Monitor Quotas          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
-| **UC-05**                                                                                              | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | View School-wide Grading Reports & Logs                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
+| **UC-04**                                                                                              | Quản lý hạn ngạch & Giám sát sử dụng AI            | Manage AI Quotas & Usage Monitoring          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
+| **UC-05**                                                                                              | Xem Báo cáo tài khoản & Sử dụng AI | View Account & AI Usage Reports                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
 | **UC-06**                                                                                              | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ   | Configure Local Compilers & Sandbox Settings           | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
 | **UC-07**                                                                                              | Quản lý Đợt Chấm & Lớp học                         | Manage Classes & Grading Sessions                      | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
@@ -377,7 +378,7 @@ skinparam usecase {
     ArrowColor #333333
 }
 
-title Sơ Đồ Use Case Toàn Hệ Sinh Thái AITA (Desktop App, Web Admin & FastAPI Backend)
+title Sơ Đồ Use Case Toàn Hệ Sinh Thái AITA (Desktop App, Web Admin & NestJS Backend)
 
 ' 1. Tác nhân người dùng (Primary Human Actors)
 actor "Quản trị viên\n(System Admin)" as Admin
@@ -395,8 +396,8 @@ rectangle "Hệ Sinh Thái Toàn Diện AITA" {
     package "Phân hệ Web Admin Dashboard (Dành cho Quản trị viên)" {
         usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
         usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
-        usecase "UC-04: Cấu hình API Key & Giám sát Hạn ngạch AI" as UC04
-        usecase "UC-05: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường" as UC05
+        usecase "UC-04: Quản lý hạn ngạch & Giám sát sử dụng AI" as UC04
+        usecase "UC-05: Xem Báo cáo tài khoản & Sử dụng AI" as UC05
     }
 
     ' Phân hệ dành riêng cho Giảng viên trên Desktop App

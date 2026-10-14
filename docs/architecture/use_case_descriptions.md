@@ -32,8 +32,8 @@ Mỗi Use Case được đặc tả bao gồm:
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-04** | Cấu hình API Key & Giám sát Hạn ngạch AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
-| **UC-05** | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | Admin | Web Admin Dashboard | Web Server Backend |
+| **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
+| **UC-05** | Xem Báo cáo tài khoản & Sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
 | **UC-06** | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-07** | Quản lý Đợt Chấm & Lớp học | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
@@ -69,7 +69,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-01`
 * **Tên Use Case**: Đăng nhập & Xác thực Hệ thống (Login & System Authentication)
 * **Tác nhân chính**: Quản trị viên (Admin), Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Auth Service, JWT & Bcrypt Engine)
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS Auth Module, JWT & Bcrypt Engine)
 * **Mô tả tóm tắt**: Cung cấp cơ chế xác thực an toàn, tập trung cho cả Quản trị viên (trên Web Admin Dashboard) và Giảng viên (trên Desktop App Client). Hệ thống thẩm định định danh qua OAuth2 Password Request, mã hóa băm Bcrypt và trả về Access Token / Refresh Token định dạng JWT mang thông tin Role-Based Access Control (`admin` hoặc `instructor`).
 * **Tiền điều kiện (Preconditions)**:
   1. Người dùng đã được cấp tài khoản hoạt động (`is_active = True`) trên hệ thống Web Server Backend.
@@ -106,7 +106,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-02`
 * **Tên Use Case**: Quản lý Tài khoản & Phân quyền Giảng viên (Manage Instructor Accounts & RBAC)
 * **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI RBAC Engine, SQLAlchemy ORM)
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS RBAC Guards, Prisma ORM)
 * **Mô tả tóm tắt**: Cho phép Quản trị viên tạo mới tài khoản cho giảng viên, chỉnh sửa thông tin cá nhân, cấp lại mật khẩu, kích hoạt/vô hiệu hóa tài khoản và gán vai trò quyền hạn (`Admin` hoặc `Instructor`) trên Web Admin Dashboard.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập thành công vào Web Admin Dashboard với quyền `Admin` (`role == 'admin'`).
@@ -125,7 +125,7 @@ Mỗi Use Case được đặc tả bao gồm:
    - **Đặt lại mật khẩu (Reset Password)**: Bấm nút "Reset Password", nhập mật khẩu mới hoặc chọn tự động sinh mật khẩu ngẫu nhiên.
 4. Quản trị viên nhấn nút **"Lưu thay đổi" (Save)**.
 5. Client gửi yêu cầu tương ứng (`POST`, `PUT`, hoặc `PATCH /api/v1/admin/users/{id}`) kèm JWT token tới Backend.
-6. Backend thẩm định quyền Admin thông qua middleware `require_role(["admin"])`, kiểm tra tính hợp lệ của dữ liệu (email không trùng lặp, độ phức tạp mật khẩu), mã hóa mật khẩu bằng Bcrypt nếu có thay đổi và lưu vào CSDL qua SQLAlchemy.
+6. Backend thẩm định quyền Admin thông qua NestJS RBAC Guards, kiểm tra tính hợp lệ của dữ liệu (email không trùng lặp, độ phức tạp mật khẩu), mã hóa mật khẩu bằng Bcrypt nếu có thay đổi và lưu vào CSDL qua Prisma.
 7. Backend trả về thông báo thành công `HTTP 200/201`.
 8. Web Admin Dashboard tự động tải lại bảng dữ liệu và hiển thị thông báo "Cập nhật tài khoản thành công". Use Case kết thúc.
 
@@ -135,54 +135,46 @@ Mỗi Use Case được đặc tả bao gồm:
 
 
 
-#### 3.1.3. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+#### 3.1.3. UC-04: Quản Lý Hạn Ngạch & Giám Sát Sử Dụng AI
 
 * **Mã Use Case**: `UC-04`
-* **Tên Use Case**: Cấu hình API Key & Giám sát Hạn ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+* **Tên Use Case**: Quản lý hạn ngạch và giám sát sử dụng AI
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend, Google Gemini AI Hub
-* **Mô tả tóm tắt**: Cung cấp cơ chế quản trị bảo mật tập trung cho dịch vụ AI: Quản trị viên thiết lập và bảo mật Google Gemini API Key tại máy chủ Web Backend (ngăn chặn rò rỉ key ra client máy trạm), cấu hình hạn mức tiêu thụ token/lượt gọi cho từng giảng viên theo ngày/tháng, và theo dõi biểu đồ tiêu thụ tài nguyên AI toàn trường theo thời gian thực.
+* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. Google Gemini API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `GEMINI_API_KEY` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập tài khoản quyền Admin trên Web Admin.
-  2. Quản trị viên có Google Gemini API Key hợp lệ từ Google AI Studio.
+  2. Backend đã được cấu hình `GEMINI_API_KEY` trong môi trường máy chủ.
 * **Hậu điều kiện (Postconditions)**:
-  1. API Key được mã hóa và lưu trữ an toàn trong biến môi trường hoặc bảng cấu hình bảo mật tại Web Backend.
-  2. Định mức hạn ngạch (Rate Limit & Daily Token Quota) được áp dụng cho toàn bộ giảng viên.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Cấu hình & Giám sát AI" (AI Hub & Quota Monitor)** trên Web Admin.
+  1. Quota ngày của giảng viên được lưu và áp dụng tại backend.
+  2. Nhật ký và báo cáo sử dụng AI có thể được tra cứu từ Web Admin.
+* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Giám sát AI & Quota"** trên Web Admin.
 
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên mở phân hệ **"Quản lý AI & Giám sát Hạn ngạch"**.
-2. Hệ thống tải thông tin tổng hợp:
-   - Trạng thái kết nối Google Gemini API (Sẵn sàng / Lỗi).
-   - Biểu đồ trực quan lượng token đã tiêu thụ hôm nay, tuần này và tháng này.
-   - Bảng thống kê chi tiết mức tiêu thụ của từng Giảng viên (Số lượt sinh testcase, số lượt review lỗi, số token đã dùng).
-3. Quản trị viên thực hiện cấu hình:
-   - **Nhập / Đổi API Key**: Nhập Gemini API Key mới vào trường bảo mật (ký tự ẩn `••••••••`).
-   - Bấm nút **"Kiểm tra kết nối" (Test Connection)**: Hệ thống gửi request ping nhẹ đến Google Gemini API để kiểm tra tính hợp lệ của Key.
-   - **Thiết lập hạn mức**: Đặt trần hạn mức gọi token cho từng Giảng viên (ví dụ: tối đa 100.000 tokens/ngày) hoặc trần số lượt phân tích lỗi On-Demand.
-4. Quản trị viên bấm nút **"Lưu Cấu Hình AI"**.
-5. Client gửi yêu cầu `POST /api/v1/admin/ai-config` lên Backend.
-6. Backend lưu trữ cấu hình bảo mật, thiết lập bộ đếm quota trong CSDL trung tâm và phản hồi xác nhận.
-7. Web UI hiển thị thông báo cấu hình thành công kèm chỉ báo kết nối chuyển sang màu xanh (Active). Use Case kết thúc.
+2. Web Admin tải số liệu tổng hợp bằng `GET /api/v1/admin/reports/overview` và nhật ký đã lọc bằng `GET /api/v1/admin/reports/ai-usage`.
+3. Khi thay đổi quota, Admin cập nhật `daily_token_quota` qua `PUT /api/v1/admin/users/{id}`; backend lưu cấu hình và áp dụng quota ngày UTC cho các yêu cầu AI tiếp theo.
+4. Gemini API key được vận hành viên thay đổi trong cấu hình môi trường máy chủ, không qua API hoặc giao diện Admin. Backend không trả giá trị key cho client.
+5. Web Admin hiển thị báo cáo/quota đã cập nhật. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Đặt lại hạn ngạch (Reset Quota) thủ công cho Giảng viên**: Khi một giảng viên cần chấm nhiều lớp trong kỳ thi và bị chạm trần hạn mức, Quản trị viên có thể bấm nút "Cấp thêm hạn ngạch" (+50.000 tokens) trực tiếp tại dòng của giảng viên đó.
-* **E1 - API Key không hợp lệ**: Tại bước 3, khi kiểm tra kết nối, nếu Google Gemini API trả về lỗi xác thực `401/403 Invalid API Key`, hệ thống báo lỗi đỏ: "API Key không hợp lệ hoặc đã hết hạn từ Google AI Studio. Vui lòng kiểm tra lại". Không lưu key lỗi vào cấu hình.
+* **A1 - Điều chỉnh quota**: Admin thay đổi quota qua cập nhật User; quota mới có hiệu lực ngay cho lần kiểm tra quota kế tiếp.
+* **E1 - Gemini chưa được cấu hình hoặc key không hợp lệ**: Backend trả lỗi đã lọc thông tin nhạy cảm (`AI_NOT_CONFIGURED` hoặc `AI_PROVIDER_ERROR`); vận hành viên cập nhật biến môi trường máy chủ.
 
 ---
 
-#### 3.1.4. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+#### 3.1.4. UC-05: Xem Báo cáo tài khoản & Sử dụng AI (View Account & AI Usage Reports)
 
 * **Mã Use Case**: `UC-05`
-* **Tên Use Case**: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+* **Tên Use Case**: Xem Báo cáo tài khoản & Sử dụng AI (View Account & AI Usage Reports)
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, Prisma ORM)
-* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật và sử dụng AI trên hệ thống: tổng số tài khoản giảng viên, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ hạn ngạch Token Gemini theo giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
+* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên báo cáo số tài khoản giảng viên và hoạt động sử dụng AI, gồm tổng token Gemini đã tiêu thụ, tính năng được dùng và nhật ký từng lượt gọi AI. Backend không lưu phiên chấm hoặc bảng điểm; các dữ liệu đó được quản lý cục bộ trên Desktop App.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập vào Web Admin Dashboard với quyền Admin.
 * **Hậu điều kiện (Postconditions)**:
   1. Báo cáo thống kê tổng hợp và danh sách nhật ký được hiển thị đầy đủ, hỗ trợ lọc và xuất file báo cáo tổng kết.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Báo cáo Toàn trường & Lịch sử" (School-wide Analytics & Logs)**.
+* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Báo cáo tài khoản & Sử dụng AI" (School-wide Analytics & Logs)**.
 
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên truy cập mục **"Báo cáo & Thống kê"**.
@@ -191,9 +183,9 @@ Mỗi Use Case được đặc tả bao gồm:
 4. Giao diện hiển thị các khối trực quan:
    - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng token AI đã tiêu thụ trong tháng.
    - Biểu đồ tần suất sử dụng các tính năng AI (Sinh testcase, Code review lỗi WA, Quét đạo văn Vòng 2).
-   - Bảng nhật ký hoạt động hệ thống và kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
-5. Quản trị viên có thể sử dụng bộ lọc: theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
-6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ quản lý chi phí API và nghiệm thu đào tạo. Use Case kết thúc.
+   - Bảng nhật ký sử dụng AI phục vụ kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
+5. Quản trị viên có thể sử dụng bộ lọc theo Giảng viên hoặc Khoảng thời gian.
+6. Web Admin có thể xuất PDF/Excel ở phía trình duyệt từ dữ liệu JSON đã tải; backend không tạo hay lưu file báo cáo. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Xem chi tiết mức sử dụng Token của Giảng viên**: Quản trị viên nhấp vào một giảng viên cụ thể trong danh sách để xem chi tiết lịch sử các lần gọi AI trong tháng.
@@ -350,7 +342,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-10`
 * **Tên Use Case**: Tự động Sinh Testcase Biên bằng AI (AI Black-box Testcase Generator)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI AI Hub), Google Gemini API
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
 * **Mô tả tóm tắt**: Giảng viên dán nội dung đề bài và các ràng buộc bài toán. Google Gemini AI tự động phân tích và sinh danh sách 5-10 cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các trường hợp biên: số âm, chuỗi rỗng, mảng 0 phần tử, giá trị cực đại biên giới hạn kiểu dữ liệu). Dữ liệu sinh ra nạp thẳng vào bảng testcase của đợt chấm mà **giảng viên hoàn toàn không cần phải viết code giải mẫu**.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App (có JWT token).
@@ -633,7 +625,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-16`
 * **Tên Use Case**: Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand bằng AI (Generate On-Demand AI Code Review)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI AI Hub), Google Gemini API
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
 * **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API (Rate Limit 429), tính năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). Gemini AI phân tích mã nguồn đối chiếu với testcase sai và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
 * **Tiền điều kiện (Preconditions)**:
   1. Bài nộp của sinh viên đã được chấm và có kết quả `WA`.

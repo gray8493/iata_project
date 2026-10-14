@@ -4,6 +4,38 @@ info:
   version: 1.0.0
   description: Phân hệ API Thống kê kiểm toán người dùng và hạn ngạch AI toàn trường dành cho Admin (UC-05).
 paths:
+  /admin/reports/ai-usage:
+    get:
+      summary: Tra cứu nhật ký sử dụng AI có phân trang và bộ lọc
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: user_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Nhật ký AI đã lọc và phân trang
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy nhật ký sử dụng AI thành công
+                data:
+                  items: []
+                  pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 }
+                timestamp: '2026-10-14T12:00:00.000Z'
   /admin/reports/overview:
     get:
       summary: Lấy dữ liệu báo cáo thống kê tổng thể
