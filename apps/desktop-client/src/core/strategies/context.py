@@ -3,7 +3,7 @@ AITA Desktop Client - Matching Context (Strategy Pattern)
 Provides dynamic strategy resolution and execution for black-box testcases.
 """
 
-from typing import Dict, Type
+from typing import Dict, Type, Optional
 from .base_strategy import IMatchingStrategy, MatchResult
 from .builtins import (
     ExactMatchStrategy,
@@ -31,7 +31,7 @@ class MatchingContext:
         "FLEXIBLE": FlexibleMatchingStrategy
     }
 
-    def __init__(self, strategy: IMatchingStrategy = None):
+    def __init__(self, strategy: Optional[IMatchingStrategy] = None):
         self._strategy = strategy or ExactMatchStrategy()
 
     def set_strategy(self, strategy: IMatchingStrategy):

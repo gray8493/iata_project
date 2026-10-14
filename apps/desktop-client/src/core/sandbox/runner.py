@@ -73,10 +73,11 @@ class SandboxRunner:
 
         # Send input immediately to stdin so process does not hang waiting
         try:
-            if input_data:
-                proc.stdin.write(input_data)
-                proc.stdin.flush()
-            proc.stdin.close()
+            if proc.stdin:
+                if input_data:
+                    proc.stdin.write(input_data)
+                    proc.stdin.flush()
+                proc.stdin.close()
         except Exception:
             pass
 
