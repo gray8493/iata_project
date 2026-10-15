@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QCursor, QGuiApplication
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -25,6 +25,8 @@ from ui.styles.theme import (
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
     COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
+from services.ai_service import AiService
+
 
 
 class ModeCard(QFrame):
@@ -172,10 +174,10 @@ class ModeCard(QFrame):
         self.btn_select.clicked.connect(self.clicked.emit)
         layout.addWidget(self.btn_select)
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+    def mousePressEvent(self, a0):
+        if a0 and a0.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
-        super().mousePressEvent(event)
+        super().mousePressEvent(a0)
 
 
 class ModeSelectionWindow(QMainWindow):
@@ -205,6 +207,7 @@ class ModeSelectionWindow(QMainWindow):
         self.setStyleSheet(LIGHT_THEME_QSS)
         
         self._init_ui()
+        self._refresh_ai_quota()
 
     def _init_ui(self):
         from PyQt6.QtGui import QPixmap
@@ -282,6 +285,7 @@ class ModeSelectionWindow(QMainWindow):
             }}
         """)
         header_layout.addWidget(ai_badge)
+        self.lbl_ai_badge = ai_badge
         
         # 1.4 Nút "GV: Nguyễn Văn Hùng": Bỏ khung lồng và icon, đơn viền bo góc, cùng chiều cao 34px
         d_name = self.session_info.get("display_name", "Nguyễn Văn Hùng")
@@ -441,6 +445,34 @@ class ModeSelectionWindow(QMainWindow):
         self.login_win = LoginWindow()
         self.login_win.show()
         self.close()
+
+    def _refresh_ai_quota(self):
+        """Fetches live AI quota from Neon Postgres via GET /api/v1/ai/quota asynchronously."""
+        class QuotaWorker(QThread):
+            quota_received = pyqtSignal(dict)
+            def run(self):
+                ai_service = AiService()
+                res = ai_service.get_quota()
+                self.quota_received.emit(res)
+
+        self.quota_worker = QuotaWorker()
+        self.quota_worker.quota_received.connect(self._on_quota_received)
+        self.quota_worker.start()
+
+    def _on_quota_received(self, res: Dict[str, Any]):
+        if hasattr(self, "lbl_ai_badge") and self.lbl_ai_badge:
+            if res.get("success"):
+                rem = res.get("remaining_tokens", 50000)
+                limit = res.get("daily_limit_tokens", 50000)
+                self.lbl_ai_badge.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_badge.setToolTip(
+                    f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
+                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
+                    f"• Hạn mức ngày: {limit:,} tokens\n"
+                    f"• Còn lại: {rem:,} tokens"
+                )
+            else:
+                self.lbl_ai_badge.setText("Gemini AI: Sẵn Sàng")
 
 
 if __name__ == "__main__":

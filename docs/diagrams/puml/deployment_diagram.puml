@@ -62,14 +62,14 @@ node "Instructor Workstation\n<<Client Machine>>\n[HĐH: Windows 10 / 11 64-bit]
 
     node "Desktop Application Runtime\n<<Execution Environment>>\n[Python 3.11 Runtime / PyInstaller Virtual Env]" as DesktopEnv #FFFFFF {
         
-        artifact "AITA.exe\n<<Standalone Executable>>\n[PyQt6 / PySide6 Native GUI]" as AitaArtifact {
+        artifact "AITA.exe\n<<Standalone Executable>>\n[PyQt6 Native GUI]" as AitaArtifact {
             component "Presentation & Controller\n(MainWindow, WorkerThread)" as DesktopUI
             
             ' --- 3 MẪU THIẾT KẾ ĐƯỢC DEPLOY TẠI TẦNG NÀY ---
             component "Grading Core Engine\n<<Engine Core>>" as GradingEngine {
                 component "RunnerFactory\n<<Creational - Factory Method>>" as CompFactory
                 component "CompilerAdapter Suite\n<<Structural - Adapter>>\n[GccAdapter, JavacAdapter]" as CompAdapter
-                component "MatchingEngineContext\n<<Behavioral - Strategy>>\n[7 Matching Strategies]" as CompStrategy
+                component "MatchingContext\n<<Behavioral - Strategy>>\n[7 Strategies + FlexibleMatchingStrategy]" as CompStrategy
             }
             
             component "Network Sync Client\n(HTTPX / REST Client)" as SyncClient
@@ -114,39 +114,27 @@ node "Administrator Workstation\n<<Client Machine>>\n[HĐH: Windows / macOS / Li
 }
 
 ' ==============================================================================
-' 3. APPLICATION SERVER TIER (MÁY CHỦ TRUNG TÂM - LINUX OS / DOCKER CONTAINER)
+' 3. APPLICATION SERVER TIER (DỊCH VỤ ĐÁM MÂY - RENDER.COM CLOUD PAAS)
 ' ==============================================================================
-node "Central Application Server Host\n<<Production Server Node>>\n[HĐH: Ubuntu Linux 22.04 LTS (x86-64)]\nCPU: 4 vCPU | RAM: 8GB | Storage: 80GB SSD" as ServerNode #E8F5E9 {
+node "Render.com Cloud Platform\n<<Managed Cloud Web Service>>\n[Linux Containerized Runtime - Node.js 20 LTS]\nEndpoint: https://iata-project.onrender.com" as ServerNode #E8F5E9 {
 
-    node "Reverse Proxy & Edge Ingress\n<<Execution Environment>>" as ProxyEnv #FFFFFF {
-        component "Nginx Reverse Proxy / Ingress\n[TLS 1.3 Termination, Rate Limiting]\nPorts: 80 (HTTP redirect), 443 (HTTPS)" as NginxProxy
-    }
-
-    node "Containerized Application Pod\n<<Docker / Podman Container>>" as AppContainer #F1F8E9 {
-        
-        artifact "central-backend.service\n<<Backend Application Artifact>>\n[NestJS 10 / Node.js 20 LTS]" as BackendArtifact {
-            component "API Gateway & Router\n(Swagger / OpenAPI Endpoint)" as ApiRouter
-            component "Auth & RBAC Guard\n(Passport-JWT, Bcrypt Validator)" as AuthGuard
-            component "AI Gateway & Quota Guard\n(Token Counter & Limiter)" as AIGateway
-            component "Grading Sync Service\n(Session & Submissions Handler)" as SyncService
-            component "ORM Engine\n(Prisma 5)" as OrmEngine
-        }
-    }
-
-    node "Central Cache & Queue\n<<Docker Container>>" as CacheNode #FFF3E0 {
-        database "Redis 7.x In-Memory\n<<Cache & Rate Limit Store>>\n(Session JWT Blacklist & AI Token Limits)" as RedisDB
+    artifact "central-backend\n<<Backend Web Service Artifact>>\n[NestJS 10 / Node.js 20 LTS]" as BackendArtifact {
+        component "API Gateway & Router\n(Swagger / OpenAPI Endpoint: /api/v1)" as ApiRouter
+        component "Auth & RBAC Guard\n(Passport-JWT, Bcrypt Validator)" as AuthGuard
+        component "AI Gateway & Quota Guard\n(Gemini Token Counter & Limiter)" as AIGateway
+        component "In-Memory Rate Limiter\n(Sliding Window Throttler Storage)" as ThrottlerEngine
+        component "Audit Logs Service\n(Token Usage & Audit Trail)" as AuditService
+        component "ORM Engine\n(Prisma 5 Client)" as OrmEngine
     }
 }
 
 ' ==============================================================================
-' 4. DATABASE SERVER TIER (MÁY CHỦ CƠ SỞ DỮ LIỆU TRUNG TÂM)
+' 4. DATABASE SERVER TIER (DỊCH VỤ CƠ SỞ DỮ LIỆU ĐÁM MÂY - NEON CLOUD)
 ' ==============================================================================
-node "Database Server Node\n<<Central Database Host>>\n[HĐH: Ubuntu Linux 22.04 LTS / Managed DB Service]\nStorage: 100GB High-IOPS NVMe" as DbNode #EDE7F6 {
+node "Neon Serverless Postgres\n<<Managed Cloud Database Service>>\n[Lakebase PostgreSQL 16 Architecture]\nMulti-AZ Storage & Auto-scaling" as DbNode #EDE7F6 {
     
-    node "RDBMS Environment\n<<Execution Environment>>" as RdbmsEnv #FFFFFF {
-        database "aita_central_db\n<<PostgreSQL 16 RDBMS>>" as PostgresDB {
-            artifact "Tables Schema:\n- users\n- ai_quota_configs, ai_quota_logs\n- refresh_tokens" as DbSchema
-        }
+    database "aita_central_db\n<<Serverless PostgreSQL 16>>" as PostgresDB {
+        artifact "Tables Schema:\n- users\n- ai_quota_configs, ai_quota_logs\n- refresh_tokens" as DbSchema
     }
 }
 
@@ -163,20 +151,14 @@ node "Google Cloud Platform (GCP)\n<<Public Cloud Infrastructure>>\nRegion: us-c
 ' CÁC KẾT NỐI MẠNG, GIAO THỨC & CỔNG TRUYỀN THÔNG (NETWORK PROTOCOLS & PORTS)
 ' ==============================================================================
 
-' Kết nối từ Admin Browser đến Reverse Proxy
-AdminNode -- NginxProxy : **HTTPS / TLS 1.3**\n[TCP Port 443]\n(REST API & Static Web Assets)
+' Kết nối từ Admin Browser đến Render Cloud Service
+AdminNode -- ApiRouter : **HTTPS / TLS 1.3**\n[TCP Port 443]\n(REST API & Web Admin UI)
 
-' Kết nối từ Desktop Client Giảng viên đến Reverse Proxy
-SyncClient -- NginxProxy : **HTTPS / TLS 1.3**\n[TCP Port 443]\n(JSON REST API, Bearer JWT Auth)
+' Kết nối từ Desktop Client Giảng viên đến Render Cloud Service
+SyncClient -- ApiRouter : **HTTPS / TLS 1.3**\n[TCP Port 443]\n(JSON REST API, Bearer JWT Auth)
 
-' Reverse proxy định tuyến nội bộ vào Backend Container
-NginxProxy -- ApiRouter : **HTTP / Reverse Proxy**\n[Unix Socket / TCP 3000]\n(Internal Bridge Network)
-
-' Backend giao tiếp với Redis Cache
-BackendArtifact -- RedisDB : **Redis Protocol (RESP)**\n[TCP Port 6379]\n(Rate Limiting & Token Counters)
-
-' Backend kết nối CSDL PostgreSQL
-OrmEngine -- PostgresDB : **PostgreSQL Native Protocol (TCP/IP)**\n[Port 5432 / SSL Encrypted]\n(Prisma Connection Pool)
+' Backend kết nối CSDL Neon PostgreSQL qua SSL connection pool
+OrmEngine -- PostgresDB : **PostgreSQL Native Protocol over TLS**\n[Port 5432 / Prisma Pooled & Direct URL]
 
 ' Backend gọi Google Gemini AI Cloud
 AIGateway -- GeminiAPI : **HTTPS / REST & gRPC**\n[TCP Port 443 / TLS 1.3]\n(Gemini SDK, Secure API Key Header)
@@ -190,22 +172,23 @@ note bottom of InstructorNode
     • <b>Triển khai 3 Design Patterns:</b>
        - <i>Factory Method:</i> RunnerFactory nhận diện đuôi file (.c, .java, .py) để sinh đúng Runner.
        - <i>Adapter Pattern:</i> CompilerAdapter chuẩn hóa CLI và mã lỗi của GCC, Javac, Python.
-       - <i>Strategy Pattern:</i> MatchingEngineContext thực thi 7 thuật toán so khớp output.
+       - <i>Strategy Pattern:</i> MatchingContext thực thi 7 thuật toán độc lập kết hợp qua FlexibleMatchingStrategy.
     • <b>Sandbox An Toàn:</b> Subprocess cô lập kết hợp psutil để diệt tiến trình lặp vô hạn (TLE) và tràn RAM (MLE).
 end note
 
 note bottom of ServerNode
     <b>ĐẶC TẢ MÁY CHỦ TRUNG TÂM (CENTRAL BACKEND):</b>
-    • <b>Hệ điều hành:</b> Ubuntu Linux 22.04 LTS chạy trên Docker Container.
-    • <b>Bảo mật & Phân quyền:</b> Nginx chặn SSL/TLS 1.3, NestJS bảo vệ endpoint qua JWT RBAC Guard.
-    • <b>AI Gateway Hub:</b> Đọc API Key từ biến môi trường; kiểm soát Quota và đếm token tiêu thụ,
-      chống lộ key và chống cạn kiệt ngân sách trường.
+    • <b>Nền tảng Cloud PaaS:</b> Triển khai trên Render.com Web Service (hoặc chạy local bằng Node.js 20).
+    • <b>Bảo mật & Phân quyền:</b> Render quản lý SSL/TLS 1.3 tự động, NestJS bảo vệ endpoint qua JWT RBAC Guard.
+    • <b>Rate Limiting:</b> In-Memory sliding-window rate limiter tích hợp sẵn (không phụ thuộc Redis riêng biệt).
+    • <b>AI Gateway Hub:</b> Đọc API Key từ secret biến môi trường; kiểm soát Quota và đếm token tiêu thụ.
 end note
 
 note bottom of DbNode
-    <b>CƠ SỞ DỮ LIỆU TẬP TRUNG:</b>
-    • <b>PostgreSQL 16:</b> Lưu trữ dữ liệu quan hệ, ACID transaction, soft delete.
-    • <b>Sao lưu & Phục hồi:</b> Định kỳ pg_dump và backup snapshot hàng ngày.
+    <b>CƠ SỞ DỮ LIỆU ĐÁM MÂY (NEON POSTGRESQL):</b>
+    • <b>Serverless PostgreSQL 16:</b> Tự động scale dung lượng, kết nối bảo mật mã hóa qua TLS 1.3.
+    • <b>Connection Pooling:</b> Sử dụng Prisma với cả Pooled URL và Direct URL (cho migrate).
+    • <b>Dữ liệu tập trung:</b> Quản lý tài khoản, nhật ký tiêu thụ Token và cấu hình hạn ngạch AI.
 end note
 
 @enduml

@@ -172,9 +172,9 @@ package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)"
         ' PATTERN 3: STRATEGY PATTERN (Behavioral Pattern)
         ' ----------------------------------------------------------------------
         package "3. Behavioral: Strategy Pattern" #E8F5E9 {
-            component "MatchingContext\n<<Strategy Context>>\n+setStrategy()\n+executeMatch()" as MatchContext
+            component "MatchingContext\n<<Strategy Context>>\n+setStrategy()\n+setStrategyByName()\n+compare()" as MatchContext
             
-            interface "IMatchingStrategy\n<<Strategy Interface>>\n+compare(actual, expect)" as IMatchStrategy
+            interface "IMatchingStrategy\n<<Strategy Interface>>\n+compare(actual, expected): MatchResult" as IMatchStrategy
 
             component "ExactMatchStrategy\n(100% Strict Char-by-Char)" as StratExact
             component "IgnoreWhitespaceStrategy\n(Trim spaces & newlines)" as StratWhitespace
@@ -183,6 +183,7 @@ package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)"
             component "UnorderedTokensStrategy\n(Set/Token order agnostic)" as StratToken
             component "RegexPatternStrategy\n(Regular Expression match)" as StratRegex
             component "SpecialJudgeStrategy\n(Custom script checker.py)" as StratJudge
+            component "FlexibleMatchingStrategy\n(Combines multiple flags)" as StratFlex
 
             MatchContext --> IMatchStrategy : invokes
             StratExact ..|> IMatchStrategy
@@ -192,6 +193,7 @@ package "Phân Hệ Máy Trạm Giảng Viên (AITA Desktop App - PyQt6 Client)"
             StratToken ..|> IMatchStrategy
             StratRegex ..|> IMatchStrategy
             StratJudge ..|> IMatchStrategy
+            StratFlex ..|> IMatchStrategy
         }
 
         ' ----------------------------------------------------------------------
@@ -240,8 +242,8 @@ end note
 
 note bottom of MatchContext
   <b>MẪU HÀNH VI (Behavioral Pattern): Strategy Pattern</b>
-  - Cung cấp 7 thuật toán so khớp đầu ra linh hoạt
-  - Cho phép Giảng viên thay đổi chiến lược ngay trên GUI
+  - Cung cấp 7 thuật toán so khớp riêng lẻ + 1 lớp FlexibleMatchingStrategy kết hợp
+  - Giảng viên chọn nhiều tiêu chí qua 6 checkbox trên giao diện
   - Tách biệt thuật toán so sánh khỏi logic thực thi chấm bài.
 end note
 

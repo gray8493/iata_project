@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from PyQt6.QtCore import Qt, QRect, QSize, QRegularExpression
+from PyQt6.QtCore import Qt, QRect, QSize, QRegularExpression, QThread, pyqtSignal
 from PyQt6.QtGui import (
     QFont, QColor, QPainter, QTextFormat, QSyntaxHighlighter,
     QTextCharFormat, QGuiApplication, QCursor
@@ -29,6 +29,28 @@ if str(SRC_DIR) not in sys.path:
 
 from ui.styles.theme import LIGHT_THEME_QSS
 from database.db_manager import DatabaseManager
+from services.ai_service import AiService
+
+
+class AiReviewWorker(QThread):
+    finished = pyqtSignal(dict)
+
+    def __init__(self, source_code: str, language: str, problem_statement: str, failed_testcase: Optional[Dict[str, str]] = None):
+        super().__init__()
+        self.source_code = source_code
+        self.language = language
+        self.problem_statement = problem_statement
+        self.failed_testcase = failed_testcase
+
+    def run(self):
+        ai_service = AiService()
+        result = ai_service.review_code(
+            source_code=self.source_code,
+            language=self.language,
+            problem_statement=self.problem_statement,
+            failed_testcase=self.failed_testcase
+        )
+        self.finished.emit(result)
 
 
 class LineNumberArea(QWidget):
@@ -438,11 +460,11 @@ class SubmissionDetailDialog(QDialog):
         ta_layout.setSpacing(10)
         ta_layout.setContentsMargins(12, 12, 12, 12)
         
-        btn_run_ai_review = QPushButton("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
-        btn_run_ai_review.setProperty("class", "AIBtn")
-        btn_run_ai_review.setFixedHeight(36)
-        btn_run_ai_review.clicked.connect(self._run_ai_review)
-        ta_layout.addWidget(btn_run_ai_review)
+        self.btn_run_ai_review = QPushButton("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
+        self.btn_run_ai_review.setProperty("class", "AIBtn")
+        self.btn_run_ai_review.setFixedHeight(36)
+        self.btn_run_ai_review.clicked.connect(self._run_ai_review)
+        ta_layout.addWidget(self.btn_run_ai_review)
         
         self.txt_ai_feedback = QTextEdit(tab_ai)
         self.txt_ai_feedback.setPlaceholderText("Bấm nút trên để Gemini AI phân tích vị trí dòng lỗi thuật toán và đưa ra nhận xét sư phạm...")
@@ -701,30 +723,91 @@ class SubmissionDetailDialog(QDialog):
         self.table_tc_results.setItem(0, 4, item_4)
 
     def _run_ai_review(self):
-        """Generates AI Code Review dynamically based on actual code in editor."""
-        code = self.txt_source_code.toPlainText()
+        """Calls Central Backend AI Gateway to review student code with pedagogical feedback."""
+        code = self.txt_source_code.toPlainText().strip()
         if not code or code.startswith("// Không tìm thấy"):
             QMessageBox.warning(self, "Không Có Mã Nguồn", "Không tìm thấy mã nguồn của sinh viên để phân tích!")
             return
 
-        lang = "C" if self.file_name.endswith(".c") else ("Java" if self.file_name.endswith(".java") else "Python")
-        self.txt_ai_feedback.setPlainText(f"""[PHÂN TÍCH MÃ NGUỒN BỞI GEMINI AI - NGÔN NGỮ: {lang}]:
+        lang = "C" if self.file_name.endswith(".c") else ("JAVA" if self.file_name.endswith(".java") else ("PYTHON" if self.file_name.endswith(".py") else "C"))
+        
+        # Lấy thông tin testcase lỗi đầu tiên nếu có
+        failed_tc = {
+            "input": "N/A",
+            "expected_output": "N/A",
+            "actual_output": "Sai kết quả đầu ra"
+        }
+        if self.table_tc_results.rowCount() > 0:
+            for r in range(self.table_tc_results.rowCount()):
+                item_v = self.table_tc_results.item(r, 4)
+                if item_v and item_v.text() in ("WA", "TLE", "MLE", "RE"):
+                    item_in = self.table_tc_results.item(r, 1)
+                    item_exp = self.table_tc_results.item(r, 2)
+                    item_act = self.table_tc_results.item(r, 3)
+                    failed_tc = {
+                        "input": item_in.text() if item_in else "N/A",
+                        "expected_output": item_exp.text() if item_exp else "N/A",
+                        "actual_output": item_act.text() if item_act else "Sai kết quả"
+                    }
+                    break
+
+        problem = f"Bài tập lập trình {self.file_name}. Yêu cầu thuật toán xử lý dữ liệu chuẩn xác."
+
+        self.btn_run_ai_review.setEnabled(False)
+        self.btn_run_ai_review.setText("Đang kết nối AI Gateway phân tích mã nguồn...")
+        self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & Gemini AI Gateway để nhận xét sư phạm...")
+
+        self.ai_review_worker = AiReviewWorker(code, lang, problem, failed_tc)
+        self.ai_review_worker.finished.connect(self._on_ai_review_finished)
+        self.ai_review_worker.start()
+
+    def _on_ai_review_finished(self, result: Dict[str, Any]):
+        self.btn_run_ai_review.setEnabled(True)
+        self.btn_run_ai_review.setText("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này")
+
+        if result.get("success"):
+            line_val = result.get("suspected_error_line")
+            line_str = f"Dòng {line_val}" if line_val else "Toàn bộ cấu trúc logic hàm chính"
+            tokens = result.get("tokens_consumed", 0)
+            
+            fb_text = f"""[PHÂN TÍCH MÃ NGUỒN BỞI GEMINI AI - NGÔN NGỮ: {self.file_name.split('.')[-1].upper()}]:
 • Tệp phân tích: {self.file_name} (Sinh viên: {self.mssv})
-• Trạng thái hiện tại: {self.verdict}
+• Phân loại lỗi: {result.get('bug_category', 'LOGIC_ERROR')}
+• Vị trí nghi vấn: {line_str}
 
-1. Đánh giá cấu trúc & chất lượng mã nguồn:
-   - Bài làm đã tổ chức các hàm chức năng cơ bản theo đặc tả bài thi.
-   - Thư viện khai báo đầy đủ cho chuẩn biên dịch.
+1. Tóm tắt vấn đề:
+   {result.get('issue_summary', '')}
 
-2. Phân tích lỗi dẫn đến trạng thái {self.verdict}:
-   - Kiểm tra các trường hợp biên của vòng lặp và điều kiện dừng.
-   - Chú ý định dạng xuất dữ liệu (dấu xuống dòng \\n hoặc khoảng trắng thừa ở cuối dòng).
-   - Kiểm tra độ phức tạp thời gian đối với các testcase có giá trị đầu vào lớn (tránh TLE).
+2. Nhận xét sư phạm đề xuất cho sinh viên:
+   "{result.get('pedagogical_feedback', '')}"
 
-3. Nhận xét sư phạm đề xuất cho sinh viên:
-   "Sinh viên đã nắm được cấu trúc thuật toán chính. Cần cải thiện việc kiểm thử với các giá trị biên đặc biệt (số 0, số âm, hoặc giá trị lớn nhất trong ràng buộc đề bài) trước khi nộp bài."
-""")
-        QMessageBox.information(self, "AI Hoàn Tất", "Gemini AI đã phân tích xong mã nguồn bài nộp của sinh viên!")
+(Dữ liệu trả về thật từ AI Gateway - Hạn ngạch tiêu thụ: {tokens} tokens)
+"""
+            self.txt_ai_feedback.setPlainText(fb_text)
+
+            # Lưu vào CSDL SQLite để lần sau mở bài nộp không cần gọi lại
+            if self.submission_id:
+                try:
+                    self.db.update_ai_feedback(self.submission_id, fb_text)
+                except Exception:
+                    pass
+
+            QMessageBox.information(
+                self,
+                "AI Hoàn Tất",
+                f"Gemini AI đã phân tích xong mã nguồn bài nộp của sinh viên {self.mssv}!\n"
+                f"(Tiêu thụ: {tokens} tokens trên CSDL Neon)"
+            )
+        else:
+            msg = result.get("message", "Máy chủ AI không thể phân tích mã nguồn.")
+            err_code = result.get("error_code", "")
+            self.txt_ai_feedback.setPlainText(f"// Lỗi máy chủ AI: {msg}\n// Mã lỗi: {err_code}")
+            QMessageBox.warning(
+                self,
+                "Lỗi AI Gateway",
+                f"Không nhận được phản hồi từ AI Gateway:\n{msg}\n\n"
+                f"Mã lỗi: {err_code}"
+            )
 
     def _save_override(self):
         """Saves manual score override directly into SQLite database."""

@@ -141,45 +141,64 @@ package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5
 ' ==============================================================================
 package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 
-    interface MatchingStrategy <<Behavioral - Strategy>> {
-        + match(actual_output: str, expected_output: str): bool
-        + get_strategy_name(): str
+    class MatchResult <<dataclass>> {
+        + is_matched: bool
+        + verdict: str
+        + score_ratio: float
+        + diff_details: Optional[str]
+        + message: Optional[str]
+    }
+
+    interface IMatchingStrategy <<Behavioral - Strategy>> {
+        + {abstract} compare(actual: str, expected: str): MatchResult
     }
 
     class ExactMatchStrategy {
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class IgnoreWhitespaceStrategy {
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class CaseInsensitiveStrategy {
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class FloatingPointToleranceStrategy {
         - tolerance_epsilon: float
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class UnorderedTokensStrategy {
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class RegexPatternStrategy {
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class SpecialJudgeStrategy {
         - checker_script_path: Path
-        + match(actual_output: str, expected_output: str): bool
+        + compare(actual: str, expected: str): MatchResult
     }
 
-    class GradingContext {
-        - strategy: MatchingStrategy
-        + set_strategy(strategy: MatchingStrategy): void
-        + evaluate(actual_output: str, expected_output: str): bool
+    class FlexibleMatchingStrategy {
+        - ignore_whitespace: bool
+        - case_insensitive: bool
+        - floating_tolerance: bool
+        - unordered_tokens: bool
+        - regex_pattern: bool
+        - special_judge: bool
+        + compare(actual: str, expected: str): MatchResult
+    }
+
+    class MatchingContext {
+        - _strategy: IMatchingStrategy
+        + STRATEGY_REGISTRY: Dict[str, Type]
+        + set_strategy(strategy: IMatchingStrategy): void
+        + set_strategy_by_name(strategy_name: str): void
+        + compare(actual: str, expected: str): MatchResult
     }
 
     class BatchGradingManager {
@@ -200,22 +219,31 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
     }
 
     class TestCase {
-        + test_id: str
+        + id: int
+        + class_id: int
+        + question_number: int
         + input_data: str
         + expected_output: str
         + score_weight: float
-        + is_boundary_case: bool
+        + time_limit_ms: int
+        + memory_limit_mb: int
+        + matching_strategy: str
+        + is_hidden: bool
     }
 
     class GradingResult {
-        + student_id: str
-        + test_id: str
-        + verdict: str
-        + score: float
+        + id: int
+        + submission_id: int
+        + test_case_id: int
+        + status: str
+        + actual_output: str
         + execution_time_ms: float
         + memory_used_mb: float
+        + score: float
         + diff_details: str
-        + teacher_feedback: str
+        + manual_override_score: float
+        + manual_override_reason: str
+        + graded_at: datetime
     }
 
     class WebGradingResult {
@@ -235,16 +263,18 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
         + ai_feedback: str
     }
 
-    MatchingStrategy <|.. ExactMatchStrategy
-    MatchingStrategy <|.. IgnoreWhitespaceStrategy
-    MatchingStrategy <|.. CaseInsensitiveStrategy
-    MatchingStrategy <|.. FloatingPointToleranceStrategy
-    MatchingStrategy <|.. UnorderedTokensStrategy
-    MatchingStrategy <|.. RegexPatternStrategy
-    MatchingStrategy <|.. SpecialJudgeStrategy
+    IMatchingStrategy <|.. ExactMatchStrategy
+    IMatchingStrategy <|.. IgnoreWhitespaceStrategy
+    IMatchingStrategy <|.. CaseInsensitiveStrategy
+    IMatchingStrategy <|.. FloatingPointToleranceStrategy
+    IMatchingStrategy <|.. UnorderedTokensStrategy
+    IMatchingStrategy <|.. RegexPatternStrategy
+    IMatchingStrategy <|.. SpecialJudgeStrategy
+    IMatchingStrategy <|.. FlexibleMatchingStrategy
+    IMatchingStrategy ..> MatchResult : returns
 
-    GradingContext o-- MatchingStrategy
-    BatchGradingManager *-- GradingContext
+    MatchingContext o-- IMatchingStrategy
+    BatchGradingManager *-- MatchingContext
     BatchGradingManager --> RunnerFactory : requests runner
     BatchGradingManager o-- Submission
     BatchGradingManager o-- TestCase

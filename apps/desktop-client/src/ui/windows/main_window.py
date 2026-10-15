@@ -12,7 +12,7 @@ import csv
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QCursor, QGuiApplication, QPixmap, QTextDocument
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import (
@@ -42,6 +42,7 @@ from ui.dialogs.submission_detail_dialog import SubmissionDetailDialog
 from ui.dialogs.plagiarism_dialog import PlagiarismDialog
 from database.db_manager import DatabaseManager
 from services.grading_service import GradingService
+from services.ai_service import AiService
 
 
 # ==============================================================================
@@ -179,6 +180,7 @@ class AITAMainWindow(QMainWindow):
         self.has_exported_grades = False
         self._setup_desktop_layout()
         self._load_classes_selector()
+        self._refresh_ai_quota()
 
     def _setup_desktop_layout(self):
         """Builds standard layout: 240px Fixed Sidebar + Scrollable Main Content."""
@@ -557,6 +559,7 @@ class AITAMainWindow(QMainWindow):
         lbl_sp = QLabel(badge_text, status_pill)
         lbl_sp.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sp_layout.addWidget(lbl_sp)
+        self.lbl_ai_quota = lbl_sp
         layout.addWidget(status_pill, alignment=Qt.AlignmentFlag.AlignVCenter)
         
         # User Avatar & Name
@@ -1355,15 +1358,15 @@ class AITAMainWindow(QMainWindow):
             pass
 
         # Đồng bộ vào CSDL (giữ nguyên điểm các bài cũ)
-        res = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
+        added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
         self._load_submissions_table(self.current_class_id)
 
         QMessageBox.information(
             self, "Nạp Bài Nộp Thành Công",
             f"Đã cập nhật bài nộp từ thư mục:\n{folder}\n\n"
             f"• Số bài nhận diện hợp lệ: {len(valid_items)}\n"
-            f"• Bài mới được thêm vào: {res['added']}\n"
-            f"• Bài đã tồn tại (giữ nguyên điểm): {res['existing']}"
+            f"• Bài mới được thêm vào: {added}\n"
+            f"• Bài đã tồn tại (giữ nguyên điểm): {existing}"
         )
 
     def _handle_rescan_directory(self):
@@ -1386,14 +1389,14 @@ class AITAMainWindow(QMainWindow):
         scanned = self._scan_submissions_directory(folder, lang)
         valid_items = scanned["valid"]
 
-        res = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
+        added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
         self._load_submissions_table(self.current_class_id)
 
         msg = (
             f"Quét lại thư mục thành công:\n{folder}\n\n"
             f"• Tổng số bài hiện có trong thư mục: {len(valid_items)}\n"
-            f"• Bài mới được thêm vào: {res['added']}\n"
-            f"• Bài đã có điểm (được bảo lưu): {res['existing']}"
+            f"• Bài mới được thêm vào: {added}\n"
+            f"• Bài đã có điểm (được bảo lưu): {existing}"
         )
         if scanned["duplicates"]:
             msg += f"\n• Cảnh báo MSSV trùng: {len(scanned['duplicates'])} bài"
@@ -1697,6 +1700,7 @@ class AITAMainWindow(QMainWindow):
         try:
             import openpyxl
             from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from openpyxl.utils import get_column_letter
 
             wb = openpyxl.Workbook()
             ws = wb.active
@@ -1749,7 +1753,7 @@ class AITAMainWindow(QMainWindow):
             # Column widths
             for col in ws.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = openpyxl.utils.get_column_letter(col[0].column)
+                col_letter = get_column_letter(col[0].column)
                 ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
             wb.save(file_path)
@@ -1887,6 +1891,34 @@ class AITAMainWindow(QMainWindow):
                 f"Đã kết thúc phiên chấm thành công cho đợt '{class_name}'.\n"
                 "Bạn có thể mở lại đợt thi này bất kỳ lúc nào từ danh sách đợt chấm hoặc menu Lịch Sử Đợt Chấm."
             )
+
+    def _refresh_ai_quota(self):
+        """Fetches live AI quota from Neon Postgres via GET /api/v1/ai/quota asynchronously."""
+        class QuotaWorker(QThread):
+            quota_received = pyqtSignal(dict)
+            def run(self):
+                ai_service = AiService()
+                res = ai_service.get_quota()
+                self.quota_received.emit(res)
+
+        self.quota_worker = QuotaWorker()
+        self.quota_worker.quota_received.connect(self._on_quota_received)
+        self.quota_worker.start()
+
+    def _on_quota_received(self, res: Dict[str, Any]):
+        if hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota:
+            if res.get("success"):
+                rem = res.get("remaining_tokens", 50000)
+                limit = res.get("daily_limit_tokens", 50000)
+                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_quota.setToolTip(
+                    f"Hạn ngạch AI thực tế từ CSDL Neon Postgres:\n"
+                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
+                    f"• Hạn mức ngày: {limit:,} tokens\n"
+                    f"• Còn lại: {rem:,} tokens"
+                )
+            else:
+                self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
 
 
 if __name__ == "__main__":

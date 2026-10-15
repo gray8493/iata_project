@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt6.QtGui import (
     QFont, QColor, QCursor, QPixmap, QGuiApplication,
     QTextDocument, QPageSize, QPageLayout
@@ -28,6 +28,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from database.db_manager import DatabaseManager
+from services.ai_service import AiService
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_PRIMARY_BG, COLOR_PRIMARY_LIGHT, COLOR_BG, COLOR_SURFACE,
@@ -90,8 +91,8 @@ class WebDetailDialog(QDialog):
 
         screen = QGuiApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else None
-        target_w = min(1040, (avail.width() - 40) if avail else 1040)
-        target_h = min(720, (avail.height() - 50) if avail else 720)
+        target_w = min(1040, (avail.width() - 40) if avail is not None else 1040)
+        target_h = min(720, (avail.height() - 50) if avail is not None else 720)
         self.setMinimumSize(880, 560)
         self.resize(target_w, target_h)
         self.setStyleSheet(LIGHT_THEME_QSS)
@@ -246,7 +247,7 @@ class WebSubmissionDialog(QDialog):
         self.existing_item = existing_item
         self.is_edit_mode = existing_item is not None
         self.existing_mssvs = set(m.upper() for m in (existing_mssvs or []))
-        if self.is_edit_mode and self.existing_item.get("mssv"):
+        if self.existing_item and self.existing_item.get("mssv"):
             # Bỏ MSSV hiện tại ra khỏi tập kiểm tra trùng khi đang sửa
             self.existing_mssvs.discard(self.existing_item.get("mssv", "").upper())
 
@@ -257,8 +258,8 @@ class WebSubmissionDialog(QDialog):
 
         screen = QGuiApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else None
-        target_w = min(820, (avail.width() - 40) if avail else 820)
-        target_h = min(640, (avail.height() - 50) if avail else 640)
+        target_w = min(820, (avail.width() - 40) if avail is not None else 820)
+        target_h = min(640, (avail.height() - 50) if avail is not None else 640)
         self.setMinimumSize(720, 520)
         self.resize(target_w, target_h)
         self.setStyleSheet(LIGHT_THEME_QSS)
@@ -726,11 +727,11 @@ class WebGradingMainWindow(QMainWindow):
         # Căn chỉnh kích thước cửa sổ dựa theo vùng hiển thị thực tế của màn hình (tránh taskbar che)
         screen = QGuiApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else None
-        target_w = min(1380, (avail.width() - 30) if avail else 1380)
-        target_h = min(840, (avail.height() - 40) if avail else 840)
+        target_w = min(1380, (avail.width() - 30) if avail is not None else 1380)
+        target_h = min(840, (avail.height() - 40) if avail is not None else 840)
         self.setMinimumSize(1080, 680)
         self.resize(target_w, target_h)
-        if avail:
+        if avail is not None:
             self.move(avail.x() + (avail.width() - target_w) // 2,
                       avail.y() + (avail.height() - target_h) // 2)
 
@@ -746,6 +747,7 @@ class WebGradingMainWindow(QMainWindow):
 
         self._init_ui()
         self._load_submissions_from_db()
+        self._refresh_ai_quota()
 
     # --------------------------------------------------------------------------
     # Khởi tạo giao diện chính
@@ -939,6 +941,7 @@ class WebGradingMainWindow(QMainWindow):
         lbl_status = QLabel(badge_text, header)
         lbl_status.setFixedHeight(32)
         lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_ai_quota = lbl_status
         lbl_status.setStyleSheet(f"""
             QLabel {{
                 background-color: {badge_bg};
@@ -1621,6 +1624,7 @@ class WebGradingMainWindow(QMainWindow):
         try:
             import openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
 
             wb = openpyxl.Workbook()
             ws = wb.active
@@ -1690,7 +1694,7 @@ class WebGradingMainWindow(QMainWindow):
             # Tự động điều chỉnh độ rộng cột
             col_widths = [14, 24, 34, 34, 12, 12, 12, 14, 12, 14, 16]
             for idx, width in enumerate(col_widths, start=1):
-                col_letter = openpyxl.utils.get_column_letter(idx)
+                col_letter = get_column_letter(idx)
                 ws.column_dimensions[col_letter].width = width
 
             wb.save(file_path)
@@ -1797,6 +1801,34 @@ class WebGradingMainWindow(QMainWindow):
         self.mode_win = ModeSelectionWindow(session_info=self.session_info)
         self.mode_win.show()
         self.close()
+
+    def _refresh_ai_quota(self):
+        """Fetches live AI quota from Neon Postgres via GET /api/v1/ai/quota asynchronously."""
+        class QuotaWorker(QThread):
+            quota_received = pyqtSignal(dict)
+            def run(self):
+                ai_service = AiService()
+                res = ai_service.get_quota()
+                self.quota_received.emit(res)
+
+        self.quota_worker = QuotaWorker()
+        self.quota_worker.quota_received.connect(self._on_quota_received)
+        self.quota_worker.start()
+
+    def _on_quota_received(self, res: Dict[str, Any]):
+        if hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota:
+            if res.get("success"):
+                rem = res.get("remaining_tokens", 50000)
+                limit = res.get("daily_limit_tokens", 50000)
+                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_quota.setToolTip(
+                    f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
+                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
+                    f"• Hạn mức ngày: {limit:,} tokens\n"
+                    f"• Còn lại: {rem:,} tokens"
+                )
+            else:
+                self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
 
 
 if __name__ == "__main__":

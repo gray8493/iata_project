@@ -486,6 +486,8 @@ class SessionDialog(QDialog):
     def _load_existing_session_data(self):
         """Pre-populates form with previously entered session info when going back from step 2."""
         try:
+            if self.existing_class_id is None:
+                return
             db = DatabaseManager()
             c = db.get_class_by_id(self.existing_class_id)
             if c:

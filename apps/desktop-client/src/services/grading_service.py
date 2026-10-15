@@ -61,7 +61,7 @@ class GradingService:
 
             # Step 2.1: Compile source code
             success, compile_log, exec_target = runner.compile(source_file)
-            if not success:
+            if not success or not exec_target:
                 # Compile Error (CE)
                 self.db.save_console_grading_result(
                     submission_id=sub["id"],

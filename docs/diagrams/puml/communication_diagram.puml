@@ -50,9 +50,9 @@ WebBackend -- CentralDB : 1.11: queryAndPersist(users, quotas)
 WebBackend -- AIHub : 1.12: updateQuotaPolicy(dailyTokenLimits)
 
 ' --- NHÓM 2: Đăng Nhập & Thiết Lập Từ Desktop App Client ---
-Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: selectStrategy(1_of_7)
+Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: configMatchingFlags(checkboxes)
 
-DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingStrategy(strategyType)
+DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingFlags(flagsCombination)
 
 DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)
 

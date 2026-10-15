@@ -10,7 +10,7 @@ import itertools
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Set
 
-from PyQt6.QtCore import Qt, QRect, QSize
+from PyQt6.QtCore import Qt, QRect, QSize, QThread, pyqtSignal
 from PyQt6.QtGui import (
     QFont, QColor, QPainter, QTextFormat, QTextCursor,
     QGuiApplication
@@ -28,6 +28,28 @@ if str(SRC_DIR) not in sys.path:
 
 from ui.styles.theme import LIGHT_THEME_QSS
 from database.db_manager import DatabaseManager
+from services.ai_service import AiService
+
+
+class AiPlagiarismWorker(QThread):
+    finished = pyqtSignal(dict)
+
+    def __init__(self, code_a: str, code_b: str, similarity: float, language: str):
+        super().__init__()
+        self.code_a = code_a
+        self.code_b = code_b
+        self.similarity = similarity
+        self.language = language
+
+    def run(self):
+        ai_service = AiService()
+        result = ai_service.verify_plagiarism(
+            student_a_code=self.code_a,
+            student_b_code=self.code_b,
+            ast_similarity_percentage=self.similarity,
+            language=self.language
+        )
+        self.finished.emit(result)
 
 
 # ==============================================================================
@@ -57,8 +79,8 @@ class LineNumberArea(QWidget):
     def sizeHint(self):
         return QSize(self.code_editor.line_number_area_width(), 0)
 
-    def paintEvent(self, event):
-        self.code_editor.line_number_area_paint_event(event)
+    def paintEvent(self, a0):
+        self.code_editor.line_number_area_paint_event(a0)
 
 
 class CodeEditor(QPlainTextEdit):
@@ -106,8 +128,8 @@ class CodeEditor(QPlainTextEdit):
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
         cr = self.contentsRect()
         self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
 
@@ -445,9 +467,32 @@ class PlagiarismDialog(QDialog):
         ac_layout.setContentsMargins(14, 10, 14, 10)
         ac_layout.setSpacing(6)
 
-        lbl_ai_t = QLabel("Phân Tích Bằng Chứng Ngữ Nghĩa:", ai_card)
+        ai_head_row = QHBoxLayout()
+        lbl_ai_t = QLabel("Phân Tích Bằng Chứng Ngữ Nghĩa (AI Vòng 2):", ai_card)
         lbl_ai_t.setStyleSheet("font-weight: 700; color: #0F172A; font-size: 13px;")
-        ac_layout.addWidget(lbl_ai_t)
+        ai_head_row.addWidget(lbl_ai_t)
+        ai_head_row.addStretch(1)
+
+        self.btn_run_ai_plag = QPushButton("Kích Hoạt AI Thẩm Định Chuyên Sâu", ai_card)
+        self.btn_run_ai_plag.setProperty("class", "AIBtn")
+        self.btn_run_ai_plag.setFixedHeight(28)
+        self.btn_run_ai_plag.setStyleSheet("""
+            QPushButton {
+                background-color: #EFF6FF;
+                color: #2563EB;
+                border: 1px solid #BFDBFE;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 0 10px;
+            }
+            QPushButton:hover {
+                background-color: #DBEAFE;
+            }
+        """)
+        self.btn_run_ai_plag.clicked.connect(self._run_ai_plagiarism_verification)
+        ai_head_row.addWidget(self.btn_run_ai_plag)
+        ac_layout.addLayout(ai_head_row)
 
         self.txt_ai_evidence = QTextEdit(ai_card)
         self.txt_ai_evidence.setReadOnly(True)
@@ -497,8 +542,8 @@ class PlagiarismDialog(QDialog):
 
         layout.addLayout(footer)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
         if hasattr(self, 'lbl_table_empty') and hasattr(self, 'table_pairs'):
             self.lbl_table_empty.setGeometry(self.table_pairs.rect())
             self.lbl_table_empty.setVisible(self.table_pairs.rowCount() == 0)
@@ -757,7 +802,7 @@ class PlagiarismDialog(QDialog):
             evidence = (
                 f"Phát hiện mức độ trùng lặp cao ({sim:.1f}%) giữa {pair['sv_a']} và {pair['sv_b']}.\n"
                 f"Các hàm chính, thứ tự khai báo biến và cấu trúc vòng lặp có độ tương đồng vượt ngưỡng cho phép.\n"
-                f"Kiến nghị: Giảng viên đối chất trực tiếp và lập biên bản xử lý theo quy chế thi cử."
+                f"Bấm nút 'Kích Hoạt AI Thẩm Định Chuyên Sâu' phía trên để gọi AI Gateway thẩm định cấu trúc AST và bằng chứng cụ thể."
             )
         else:
             evidence = (
@@ -766,6 +811,86 @@ class PlagiarismDialog(QDialog):
                 f"Kiến nghị: Xem xét đánh giá thêm để loại trừ việc trùng template mẫu."
             )
         self.txt_ai_evidence.setText(evidence)
+
+    def _run_ai_plagiarism_verification(self):
+        """Calls Central Backend AI Gateway for Stage 2 deep plagiarism forensics."""
+        row = self.table_pairs.currentRow()
+        if row < 0 or not self.pairs_data:
+            QMessageBox.warning(self, "Chưa Chọn Cặp Bài", "Vui lòng chọn một cặp bài nghi vấn trong bảng trước khi thẩm định!")
+            return
+
+        item_a = self.table_pairs.item(row, 0)
+        item_b = self.table_pairs.item(row, 1)
+        if not item_a or not item_b:
+            return
+
+        sv_a, sv_b = item_a.text(), item_b.text()
+        current_pair = next((p for p in self.pairs_data if (p["sv_a"] == sv_a and p["sv_b"] == sv_b) or (p["sv_a"] == sv_b and p["sv_b"] == sv_a)), None)
+        if not current_pair:
+            return
+
+        cls_info = self.db.get_class_by_id(self.class_id) if self.class_id else None
+        lang = cls_info.get("programming_language", "C") if cls_info else "C"
+
+        self.btn_run_ai_plag.setEnabled(False)
+        self.btn_run_ai_plag.setText("Đang kết nối AI Gateway...")
+        self.txt_ai_evidence.setText(f"// Đang gửi mã nguồn cặp bài ({sv_a} vs {sv_b}) lên Central Backend để AI đối soát chuyên sâu...")
+
+        self.ai_plag_worker = AiPlagiarismWorker(
+            code_a=current_pair["code_a"],
+            code_b=current_pair["code_b"],
+            similarity=float(current_pair["sim"]),
+            language=lang
+        )
+        self.ai_plag_worker.finished.connect(self._on_ai_plag_finished)
+        self.ai_plag_worker.start()
+
+    def _on_ai_plag_finished(self, result: Dict[str, Any]):
+        self.btn_run_ai_plag.setEnabled(True)
+        self.btn_run_ai_plag.setText("Kích Hoạt AI Thẩm Định Chuyên Sâu")
+
+        if result.get("success"):
+            is_plag = result.get("is_plagiarized", False)
+            conf = result.get("confidence_percentage", 0.0)
+            evidence = result.get("evidence_summary", "")
+            clones = result.get("cloned_segments", [])
+            tokens = result.get("tokens_consumed", 0)
+
+            verdict_str = "KẾT LUẬN: CÓ DẤU HIỆU ĐẠO VĂN RÕ RỆT" if is_plag else "KẾT LUẬN: KHÔNG ĐỦ BẰNG CHỨNG XÁC ĐỊNH ĐẠO VĂN (Trùng Boilerplate/Mẫu)"
+            
+            detail_lines = []
+            for idx, c in enumerate(clones, 1):
+                detail_lines.append(f"  • Đoạn {idx}: SV A ({c.get('student_a_lines')}) ⟷ SV B ({c.get('student_b_lines')}) - Kỹ thuật: {c.get('technique')}")
+
+            clone_str = "\n".join(detail_lines) if detail_lines else "  • Không có đoạn sao chép nguyên khối."
+
+            report_text = f"""[KẾT QUẢ THẨM ĐỊNH AI VÒNG 2 - CENTRAL AI GATEWAY]:
+• {verdict_str}
+• Độ tin cậy thuật toán AI: {conf:.1f}%
+
+1. Bằng chứng phân tích cấu trúc:
+   {evidence}
+
+2. Chi tiết các đoạn mã sao chép nghi vấn:
+{clone_str}
+
+(Dữ liệu thực tế từ Neon DB & AI Gateway - Tiêu thụ: {tokens} tokens)
+"""
+            self.txt_ai_evidence.setText(report_text)
+            QMessageBox.information(
+                self,
+                "AI Thẩm Định Hoàn Tất",
+                f"Đã hoàn thành đối soát AI vòng 2!\nĐộ tin cậy: {conf:.1f}%\n(Hạn ngạch tiêu thụ: {tokens} tokens)"
+            )
+        else:
+            msg = result.get("message", "Máy chủ AI không thể xử lý đối soát.")
+            err_code = result.get("error_code", "")
+            self.txt_ai_evidence.setText(f"// Lỗi AI Gateway: {msg}\n// Mã lỗi: {err_code}")
+            QMessageBox.warning(
+                self,
+                "Lỗi Thẩm Định AI",
+                f"Không thể thẩm định qua AI Gateway:\n{msg}\n\nMã lỗi: {err_code}"
+            )
 
     def _highlight_matching_lines(self, code_a: str, code_b: str):
         """Highlights identical non-empty logic lines in soft yellow on both sides."""

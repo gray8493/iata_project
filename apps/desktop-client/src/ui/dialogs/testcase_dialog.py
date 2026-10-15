@@ -6,17 +6,16 @@ UC-11: Configure 7 Output Matching Strategies
 """
 
 import sys
-import json
+import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCursor, QGuiApplication, QFont, QColor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QCursor, QGuiApplication, QFont
 from PyQt6.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox,
-    QScrollArea
+    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -24,25 +23,52 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ui.styles.theme import (
-    LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_BG,
-    COLOR_BORDER_DEFAULT, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
+    LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_BG,
+    COLOR_BORDER_DEFAULT, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
     COLOR_ERROR, COLOR_ERROR_BG
 )
 from database.db_manager import DatabaseManager
+from services.ai_service import AiService
+
+logger = logging.getLogger("AITA.TestcaseDialog")
 
 
 # ==============================================================================
-# 1. HỘP THOẠI THÊM / CHỈNH SỬA TESTCASE (THIẾT KẾ SAAS CHUẨN UI/UX)
+# WORKER LUỒNG PHỤ GỌI GEMINI AI QUA CENTRAL BACKEND
+# ==============================================================================
+class AiTestcaseWorker(QThread):
+    finished = pyqtSignal(dict)
+
+    def __init__(self, problem_desc: str, language: str, count: int, include_boundary: bool):
+        super().__init__()
+        self.problem_desc = problem_desc
+        self.language = language
+        self.count = count
+        self.include_boundary = include_boundary
+
+    def run(self):
+        ai_service = AiService()
+        result = ai_service.generate_testcases(
+            problem_description=self.problem_desc,
+            language=self.language,
+            count=self.count,
+            include_boundary=self.include_boundary
+        )
+        self.finished.emit(result)
+
+
+# ==============================================================================
+# 1. HỘP THOẠI THÊM / CHỈNH SỬA TESTCASE THỦ CÔNG
 # ==============================================================================
 class TestcaseEditDialog(QDialog):
-    """Clean Modal Dialog for Adding or Editing a Testcase with Form validation."""
+    """Hộp thoại thêm hoặc sửa một ca kiểm thử."""
 
     def __init__(self, parent=None, testcase: Optional[Dict[str, Any]] = None):
         super().__init__(parent)
         self.tc = testcase or {}
         self.is_edit = testcase is not None
         self.setWindowTitle("Chỉnh Sửa Testcase" if self.is_edit else "Thêm Testcase Mới")
-        self.setMinimumSize(540, 500)
+        self.setMinimumSize(540, 520)
         self.resize(600, 560)
         self.setStyleSheet(LIGHT_THEME_QSS)
         self.testcase_data: Dict[str, Any] = {}
@@ -51,15 +77,16 @@ class TestcaseEditDialog(QDialog):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
-        # 1. Câu hỏi & Trọng số điểm
+        # Hàng 1: Câu hỏi & Trọng số điểm
         row1 = QHBoxLayout()
-        row1.setSpacing(14)
+        row1.setSpacing(16)
 
         v_q = QVBoxLayout()
-        lbl_q = QLabel("Câu Hỏi (Question):", self)
-        lbl_q.setStyleSheet("font-weight: 600; font-size: 13px;")
+        v_q.setSpacing(8)
+        lbl_q = QLabel("Câu Hỏi:", self)
+        lbl_q.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
         v_q.addWidget(lbl_q)
 
         self.cb_q = QComboBox(self)
@@ -76,8 +103,9 @@ class TestcaseEditDialog(QDialog):
         row1.addLayout(v_q, stretch=1)
 
         v_w = QVBoxLayout()
+        v_w.setSpacing(8)
         lbl_w = QLabel("Trọng Số Điểm:", self)
-        lbl_w.setStyleSheet("font-weight: 600; font-size: 13px;")
+        lbl_w.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
         v_w.addWidget(lbl_w)
 
         self.sp_weight = QDoubleSpinBox(self)
@@ -85,19 +113,22 @@ class TestcaseEditDialog(QDialog):
         self.sp_weight.setRange(0.1, 10.0)
         self.sp_weight.setSingleStep(0.5)
         self.sp_weight.setValue(float(self.tc.get("score_weight", 1.0)))
+        self.sp_weight.setStyleSheet("QDoubleSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
         v_w.addWidget(self.sp_weight)
         row1.addLayout(v_w, stretch=1)
 
         layout.addLayout(row1)
 
-        # 2. Dữ liệu nhập (INPUT stdin)
-        lbl_inp = QLabel("Dữ Liệu Đầu Vào (stdin) — Để trống nếu đề bài không yêu cầu nhập:", self)
-        lbl_inp.setStyleSheet("font-weight: 600; font-size: 13px;")
-        layout.addWidget(lbl_inp)
+        # Hàng 2: Dữ liệu nhập (INPUT stdin)
+        v_inp = QVBoxLayout()
+        v_inp.setSpacing(8)
+        lbl_inp = QLabel("Dữ Liệu Đầu Vào (stdin) - Để trống nếu không yêu cầu:", self)
+        lbl_inp.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        v_inp.addWidget(lbl_inp)
 
         self.txt_input = QTextEdit(self)
         self.txt_input.setFixedHeight(95)
-        self.txt_input.setPlaceholderText("Nhập các tham số đầu vào (mỗi dòng hoặc cách nhau bởi khoảng trắng)...")
+        self.txt_input.setPlaceholderText("Nhập các giá trị đầu vào...")
         self.txt_input.setStyleSheet("""
             QTextEdit {
                 font-family: Consolas, monospace;
@@ -107,16 +138,19 @@ class TestcaseEditDialog(QDialog):
             }
         """)
         self.txt_input.setPlainText(self.tc.get("input_data", ""))
-        layout.addWidget(self.txt_input)
+        v_inp.addWidget(self.txt_input)
+        layout.addLayout(v_inp)
 
-        # 3. Kết quả kỳ vọng (OUTPUT stdout)
-        lbl_out = QLabel("Kết Quả Kỳ Vọng (stdout) — *Bắt buộc:", self)
-        lbl_out.setStyleSheet("font-weight: 600; font-size: 13px;")
-        layout.addWidget(lbl_out)
+        # Hàng 3: Kết quả kỳ vọng (OUTPUT stdout)
+        v_out = QVBoxLayout()
+        v_out.setSpacing(8)
+        lbl_out = QLabel("Kết Quả Kỳ Vọng (stdout) - Bắt buộc:", self)
+        lbl_out.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        v_out.addWidget(lbl_out)
 
         self.txt_output = QTextEdit(self)
         self.txt_output.setFixedHeight(95)
-        self.txt_output.setPlaceholderText("Nhập chính xác chuỗi kết quả mong đợi chương trình in ra...")
+        self.txt_output.setPlaceholderText("Nhập kết quả mong đợi chương trình in ra...")
         self.txt_output.setStyleSheet("""
             QTextEdit {
                 font-family: Consolas, monospace;
@@ -126,15 +160,17 @@ class TestcaseEditDialog(QDialog):
             }
         """)
         self.txt_output.setPlainText(self.tc.get("expected_output", ""))
-        layout.addWidget(self.txt_output)
+        v_out.addWidget(self.txt_output)
+        layout.addLayout(v_out)
 
-        # 4. Giới hạn thời gian (ms) & Bộ nhớ (MB)
+        # Hàng 4: Giới hạn thời gian (ms) & Bộ nhớ (MB)
         row2 = QHBoxLayout()
-        row2.setSpacing(14)
+        row2.setSpacing(16)
 
         v_t = QVBoxLayout()
+        v_t.setSpacing(8)
         lbl_t = QLabel("Giới Hạn Thời Gian (ms):", self)
-        lbl_t.setStyleSheet("font-weight: 600; font-size: 13px;")
+        lbl_t.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
         v_t.addWidget(lbl_t)
 
         self.sp_time = QSpinBox(self)
@@ -142,12 +178,14 @@ class TestcaseEditDialog(QDialog):
         self.sp_time.setRange(100, 10000)
         self.sp_time.setSingleStep(100)
         self.sp_time.setValue(int(self.tc.get("time_limit_ms", 1000)))
+        self.sp_time.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
         v_t.addWidget(self.sp_time)
         row2.addLayout(v_t, stretch=1)
 
         v_m = QVBoxLayout()
+        v_m.setSpacing(8)
         lbl_m = QLabel("Giới Hạn Bộ Nhớ (MB):", self)
-        lbl_m.setStyleSheet("font-weight: 600; font-size: 13px;")
+        lbl_m.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
         v_m.addWidget(lbl_m)
 
         self.sp_mem = QSpinBox(self)
@@ -155,11 +193,11 @@ class TestcaseEditDialog(QDialog):
         self.sp_mem.setRange(16, 1024)
         self.sp_mem.setSingleStep(32)
         self.sp_mem.setValue(int(self.tc.get("memory_limit_mb", 128)))
+        self.sp_mem.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
         v_m.addWidget(self.sp_mem)
         row2.addLayout(v_m, stretch=1)
 
         layout.addLayout(row2)
-
         layout.addStretch(1)
 
         # Footer Buttons
@@ -169,13 +207,15 @@ class TestcaseEditDialog(QDialog):
 
         btn_cancel = QPushButton("Hủy Bỏ", self)
         btn_cancel.setProperty("class", "SecondaryBtn")
-        btn_cancel.setFixedHeight(38)
+        btn_cancel.setFixedHeight(36)
+        btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_cancel.clicked.connect(self.reject)
         footer.addWidget(btn_cancel)
 
         btn_save = QPushButton("Lưu Testcase", self)
         btn_save.setProperty("class", "PrimaryBtn")
-        btn_save.setFixedHeight(38)
+        btn_save.setFixedHeight(36)
+        btn_save.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_save.clicked.connect(self._validate_and_save)
         footer.addWidget(btn_save)
 
@@ -184,7 +224,7 @@ class TestcaseEditDialog(QDialog):
     def _validate_and_save(self):
         output = self.txt_output.toPlainText()
         if not output.strip():
-            QMessageBox.warning(self, "Thiếu Dữ Liệu", "Kết quả mong đợi (stdout) không được để trống!")
+            QMessageBox.warning(self, "Thiếu Dữ Liệu", "Kết quả mong đợi (stdout) không được để trống.")
             return
 
         self.testcase_data = {
@@ -199,13 +239,406 @@ class TestcaseEditDialog(QDialog):
 
 
 # ==============================================================================
-# 2. HỘP THOẠI QUẢN LÝ BỘ TESTCASE & CHIẾN LƯỢC SO KHỚP (BƯỚC 3/3 HOẶC ĐỘC LẬP)
+# 2. HỘP THOẠI SINH TESTCASE BẰNG AI (MODAL RIÊNG BIỆT)
+# ==============================================================================
+class AiTestcaseDialog(QDialog):
+    """
+    Hộp thoại sinh testcase bằng AI.
+    Giao diện tinh gọn:
+    - Ô Đề bài
+    - Số lượng testcase
+    - Nút chính: Sinh Testcase
+    - Nút phụ: Hủy
+    - Tùy chọn thu gọn: Câu hỏi, Ngôn ngữ
+    - Bảng kết quả kèm checkbox từng dòng
+    - Thông báo lỗi thân thiện, không lộ mã nội bộ
+    """
+
+    def __init__(
+        self,
+        parent=None,
+        class_id: Optional[int] = None,
+        default_question: str = "Q1",
+        default_language: str = "C",
+        matching_strategy: str = "IGNORE_WHITESPACE"
+    ):
+        super().__init__(parent)
+        self.class_id = class_id
+        self.matching_strategy = matching_strategy
+        self.db = DatabaseManager()
+
+        # Xác định ngôn ngữ mặc định từ thông tin đợt chấm
+        self.default_language = default_language
+        if self.class_id:
+            cls_info = self.db.get_class_by_id(self.class_id)
+            if cls_info and cls_info.get("programming_language"):
+                self.default_language = cls_info["programming_language"]
+
+        self.default_question = default_question or "Q1"
+        self.generated_testcases: List[Dict[str, Any]] = []
+        self.ai_worker: Optional[AiTestcaseWorker] = None
+
+        self.setWindowTitle("Sinh Testcase Bằng AI")
+        self.setMinimumSize(720, 560)
+        self.resize(780, 620)
+        self.setStyleSheet(LIGHT_THEME_QSS)
+
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # 1. Ô Đề bài
+        v_prompt = QVBoxLayout()
+        v_prompt.setSpacing(8)
+
+        lbl_prompt = QLabel("Đề bài:", self)
+        lbl_prompt.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        v_prompt.addWidget(lbl_prompt)
+
+        self.txt_prompt = QTextEdit(self)
+        self.txt_prompt.setFixedHeight(85)
+        self.txt_prompt.setPlaceholderText("Dán nội dung đề bài hoặc định dạng đầu vào và đầu ra cần sinh testcase...")
+        self.txt_prompt.setStyleSheet("""
+            QTextEdit {
+                font-family: Consolas, monospace;
+                font-size: 13px;
+                line-height: 1.4;
+                padding: 8px;
+            }
+        """)
+        v_prompt.addWidget(self.txt_prompt)
+        layout.addLayout(v_prompt)
+
+        # 2. Hàng điều khiển: Số lượng testcase + Tùy chọn thu gọn + Nút Sinh / Hủy
+        row_ctrl = QHBoxLayout()
+        row_ctrl.setSpacing(12)
+        row_ctrl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        lbl_count = QLabel("Số lượng testcase:", self)
+        lbl_count.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        row_ctrl.addWidget(lbl_count)
+
+        self.spin_count = QSpinBox(self)
+        self.spin_count.setFixedHeight(36)
+        self.spin_count.setRange(1, 10)
+        self.spin_count.setValue(4)
+        self.spin_count.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
+        row_ctrl.addWidget(self.spin_count)
+
+        self.btn_toggle_opt = QPushButton("Tùy chọn", self)
+        self.btn_toggle_opt.setProperty("class", "SecondaryBtn")
+        self.btn_toggle_opt.setFixedHeight(36)
+        self.btn_toggle_opt.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_toggle_opt.setCheckable(True)
+        self.btn_toggle_opt.toggled.connect(self._toggle_options)
+        row_ctrl.addWidget(self.btn_toggle_opt)
+
+        row_ctrl.addStretch(1)
+
+        # Nút Thử Lại (ẩn mặc định, chỉ hiện khi lỗi)
+        self.btn_retry = QPushButton("Thử Lại", self)
+        self.btn_retry.setProperty("class", "SecondaryBtn")
+        self.btn_retry.setFixedHeight(36)
+        self.btn_retry.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_retry.setVisible(False)
+        self.btn_retry.clicked.connect(self._start_generation)
+        row_ctrl.addWidget(self.btn_retry)
+
+        # Nút Hủy
+        btn_cancel = QPushButton("Hủy", self)
+        btn_cancel.setProperty("class", "SecondaryBtn")
+        btn_cancel.setFixedHeight(36)
+        btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_cancel.clicked.connect(self.reject)
+        row_ctrl.addWidget(btn_cancel)
+
+        # Nút chính Sinh Testcase
+        self.btn_submit = QPushButton("Sinh Testcase", self)
+        self.btn_submit.setProperty("class", "PrimaryBtn")
+        self.btn_submit.setFixedHeight(36)
+        self.btn_submit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_submit.clicked.connect(self._start_generation)
+        row_ctrl.addWidget(self.btn_submit)
+
+        layout.addLayout(row_ctrl)
+
+        # 3. Khung Tùy chọn thu gọn (Ngôn ngữ & Câu hỏi)
+        self.frame_options = QFrame(self)
+        self.frame_options.setProperty("class", "Card")
+        self.frame_options.setVisible(False)
+        opt_layout = QHBoxLayout(self.frame_options)
+        opt_layout.setContentsMargins(14, 10, 14, 10)
+        opt_layout.setSpacing(16)
+
+        lbl_opt_q = QLabel("Câu hỏi áp dụng:", self.frame_options)
+        lbl_opt_q.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
+        opt_layout.addWidget(lbl_opt_q)
+
+        self.cb_question = QComboBox(self.frame_options)
+        self.cb_question.setFixedHeight(34)
+        self.cb_question.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
+        q_idx = self.cb_question.findText(self.default_question)
+        if q_idx >= 0:
+            self.cb_question.setCurrentIndex(q_idx)
+        opt_layout.addWidget(self.cb_question)
+
+        lbl_opt_lang = QLabel("Ngôn ngữ lập trình:", self.frame_options)
+        lbl_opt_lang.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
+        opt_layout.addWidget(lbl_opt_lang)
+
+        self.cb_language = QComboBox(self.frame_options)
+        self.cb_language.setFixedHeight(34)
+        self.cb_language.addItems(["C", "Java", "Python", "Web"])
+        lang_idx = self.cb_language.findText(self.default_language, Qt.MatchFlag.MatchFixedString)
+        if lang_idx >= 0:
+            self.cb_language.setCurrentIndex(lang_idx)
+        opt_layout.addWidget(self.cb_language)
+
+        opt_layout.addStretch(1)
+        layout.addWidget(self.frame_options)
+
+        # 4. Dòng trạng thái / Thông báo lỗi thân thiện
+        self.lbl_status = QLabel("", self)
+        self.lbl_status.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_SECONDARY};")
+        self.lbl_status.setWordWrap(True)
+        self.lbl_status.setVisible(False)
+        layout.addWidget(self.lbl_status)
+
+        # 5. Bảng hiển thị kết quả AI (Input, Expected Output, Checkbox)
+        v_table = QVBoxLayout()
+        v_table.setSpacing(8)
+
+        lbl_tbl_title = QLabel("Kết quả testcase đề xuất:", self)
+        lbl_tbl_title.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        v_table.addWidget(lbl_tbl_title)
+
+        self.table_result = QTableWidget(self)
+        self.table_result.setColumnCount(3)
+        self.table_result.setHorizontalHeaderLabels(["Chọn", "Input (Đầu vào)", "Expected Output (Đầu ra kỳ vọng)"])
+        r_header = self.table_result.horizontalHeader()
+        r_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        r_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        r_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table_result.setColumnWidth(0, 56)
+        self.table_result.verticalHeader().setVisible(False)
+        self.table_result.setShowGrid(True)
+        self.table_result.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        v_table.addWidget(self.table_result)
+
+        layout.addLayout(v_table, stretch=1)
+
+        # 6. Chân hộp thoại AI: Thao tác chọn & Nút Thêm Các Testcase Đã Chọn
+        footer_ai = QHBoxLayout()
+        footer_ai.setSpacing(12)
+
+        self.btn_select_all = QPushButton("Chọn Tất Cả", self)
+        self.btn_select_all.setProperty("class", "SecondaryBtn")
+        self.btn_select_all.setFixedHeight(34)
+        self.btn_select_all.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_select_all.setEnabled(False)
+        self.btn_select_all.clicked.connect(self._select_all_rows)
+        footer_ai.addWidget(self.btn_select_all)
+
+        self.btn_deselect_all = QPushButton("Bỏ Chọn Tất Cả", self)
+        self.btn_deselect_all.setProperty("class", "SecondaryBtn")
+        self.btn_deselect_all.setFixedHeight(34)
+        self.btn_deselect_all.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_deselect_all.setEnabled(False)
+        self.btn_deselect_all.clicked.connect(self._deselect_all_rows)
+        footer_ai.addWidget(self.btn_deselect_all)
+
+        footer_ai.addStretch(1)
+
+        # Nút Thêm Các Testcase Đã Chọn (disable khi chưa có kết quả)
+        self.btn_add_selected = QPushButton("Thêm Các Testcase Đã Chọn", self)
+        self.btn_add_selected.setProperty("class", "PrimaryBtn")
+        self.btn_add_selected.setFixedHeight(36)
+        self.btn_add_selected.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_add_selected.setEnabled(False)
+        self.btn_add_selected.clicked.connect(self._add_selected_testcases)
+        footer_ai.addWidget(self.btn_add_selected)
+
+        layout.addLayout(footer_ai)
+
+    def _toggle_options(self, checked: bool):
+        self.frame_options.setVisible(checked)
+
+    def _start_generation(self):
+        prompt = self.txt_prompt.toPlainText().strip()
+        if not prompt:
+            QMessageBox.warning(self, "Thiếu Thông Tin", "Vui lòng nhập mô tả hoặc yêu cầu đề bài trước khi sinh testcase.")
+            return
+
+        lang = self.cb_language.currentText()
+        count = self.spin_count.value()
+
+        self.btn_submit.setEnabled(False)
+        self.btn_submit.setText("Đang Sinh...")
+        self.btn_retry.setVisible(False)
+        self.btn_add_selected.setEnabled(False)
+        self.btn_select_all.setEnabled(False)
+        self.btn_deselect_all.setEnabled(False)
+
+        self.lbl_status.setVisible(True)
+        self.lbl_status.setText("Đang kết nối dịch vụ AI để phân tích đề bài và sinh testcase...")
+        self.lbl_status.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_PRIMARY};")
+
+        self.table_result.setRowCount(0)
+        self.generated_testcases.clear()
+
+        self.ai_worker = AiTestcaseWorker(prompt, lang, count, True)
+        self.ai_worker.finished.connect(self._on_generation_finished)
+        self.ai_worker.start()
+
+    def _on_generation_finished(self, result: Dict[str, Any]):
+        self.btn_submit.setEnabled(True)
+        self.btn_submit.setText("Sinh Testcase")
+
+        if result.get("success"):
+            tcs = result.get("testcases", [])
+            self.generated_testcases = tcs
+            self._render_results_table(tcs)
+
+            self.lbl_status.setVisible(True)
+            self.lbl_status.setText(f"Đã sinh thành công {len(tcs)} testcase. Hãy đánh dấu chọn các testcase phù hợp để thêm vào đợt chấm.")
+            self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #15803d;")
+
+            self.btn_retry.setVisible(False)
+            has_data = len(tcs) > 0
+            self.btn_select_all.setEnabled(has_data)
+            self.btn_deselect_all.setEnabled(has_data)
+            self._update_add_button_state()
+        else:
+            err_code = result.get("error_code", "")
+            err_detail = result.get("message", "")
+            logger.warning("Lỗi dịch vụ AI sinh testcase: code=%s, detail=%s", err_code, err_detail)
+
+            # Thông báo lỗi thông thường, không lộ mã nội bộ
+            self.lbl_status.setVisible(True)
+            self.lbl_status.setText("Không kết nối được dịch vụ AI. Thử lại sau.")
+            self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #b91c1c;")
+
+            self.btn_retry.setVisible(True)
+            self.btn_add_selected.setEnabled(False)
+            self.btn_select_all.setEnabled(False)
+            self.btn_deselect_all.setEnabled(False)
+
+    def _render_results_table(self, testcases: List[Dict[str, Any]]):
+        self.table_result.setRowCount(len(testcases))
+        for r, tc in enumerate(testcases):
+            self.table_result.setRowHeight(r, 44)
+
+            # Cột 0: Checkbox chọn dòng
+            chk_widget = QWidget(self.table_result)
+            chk_layout = QHBoxLayout(chk_widget)
+            chk_layout.setContentsMargins(0, 0, 0, 0)
+            chk_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            chk = QCheckBox(chk_widget)
+            chk.setChecked(True)
+            chk.stateChanged.connect(self._update_add_button_state)
+            chk_layout.addWidget(chk)
+            self.table_result.setCellWidget(r, 0, chk_widget)
+
+            # Cột 1: Input (Đầu vào)
+            inp_text = str(tc.get("input", ""))
+            it_inp = QTableWidgetItem(inp_text if inp_text else "(trống)")
+            it_inp.setToolTip(inp_text)
+            it_inp.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            self.table_result.setItem(r, 1, it_inp)
+
+            # Cột 2: Expected Output (Đầu ra kỳ vọng)
+            out_text = str(tc.get("expected_output", ""))
+            it_out = QTableWidgetItem(out_text if out_text else "(trống)")
+            it_out.setToolTip(out_text)
+            it_out.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            self.table_result.setItem(r, 2, it_out)
+
+    def _get_checkbox_at(self, row: int) -> Optional[QCheckBox]:
+        w = self.table_result.cellWidget(row, 0)
+        if w:
+            return w.findChild(QCheckBox)
+        return None
+
+    def _select_all_rows(self):
+        for r in range(self.table_result.rowCount()):
+            chk = self._get_checkbox_at(r)
+            if chk:
+                chk.setChecked(True)
+        self._update_add_button_state()
+
+    def _deselect_all_rows(self):
+        for r in range(self.table_result.rowCount()):
+            chk = self._get_checkbox_at(r)
+            if chk:
+                chk.setChecked(False)
+        self._update_add_button_state()
+
+    def _update_add_button_state(self):
+        selected_count = 0
+        for r in range(self.table_result.rowCount()):
+            chk = self._get_checkbox_at(r)
+            if chk and chk.isChecked():
+                selected_count += 1
+        self.btn_add_selected.setEnabled(selected_count > 0)
+
+    def _add_selected_testcases(self):
+        if not self.class_id:
+            classes = self.db.get_all_classes()
+            if classes:
+                self.class_id = classes[0]["id"]
+
+        if not self.class_id:
+            QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại để lưu testcase.")
+            return
+
+        target_q = self.cb_question.currentText().strip() or "Q1"
+        added_count = 0
+
+        for r in range(self.table_result.rowCount()):
+            chk = self._get_checkbox_at(r)
+            if chk and chk.isChecked() and r < len(self.generated_testcases):
+                tc = self.generated_testcases[r]
+                inp = str(tc.get("input", ""))
+                outp = str(tc.get("expected_output", ""))
+                try:
+                    self.db.add_testcase(
+                        class_id=self.class_id,
+                        input_data=inp,
+                        expected_output=outp,
+                        score_weight=1.0,
+                        time_limit_ms=1000,
+                        matching_strategy=self.matching_strategy,
+                        question_number=target_q
+                    )
+                    added_count += 1
+                except Exception as ex:
+                    logger.error("Lỗi khi thêm testcase vào CSDL: %s", str(ex))
+
+        if added_count > 0:
+            QMessageBox.information(
+                self,
+                "Đã Thêm Testcase",
+                f"Đã thêm thành công {added_count} testcase vào câu {target_q}."
+            )
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Chưa Chọn", "Vui lòng chọn ít nhất một testcase để thêm.")
+
+
+# ==============================================================================
+# 3. HỘP THOẠI QUẢN LÝ BỘ TESTCASE & CHIẾN LƯỢC SO KHỚP (2 TAB NGANG HÀNG)
 # ==============================================================================
 class TestcaseDialog(QDialog):
     """
-    Dialog for configuring black-box testcases and calling Gemini AI to generate boundary testcases.
-    Directly persists and loads testcases from local SQLite database (local_grading.db).
-    Supports multi-checkbox output matching criteria and full CRUD (Add / Edit / Delete).
+    Cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp.
+    Cấu trúc:
+    - Tab 1: Testcase (mặc định mở)
+    - Tab 2: So Khớp Đầu Ra (6 tiêu chí thuần tiếng Việt kèm tooltip)
+    - Chân trang: Duy nhất 1 nút chính "Lưu" (nền xanh đặc), các nút khác dùng kiểu viền.
     """
 
     def __init__(self, parent=None, class_id: Optional[int] = None, is_wizard: bool = False):
@@ -216,7 +649,6 @@ class TestcaseDialog(QDialog):
         title = "Bước 3/3: Quản Lý Bộ Testcase & Chiến Lược So Khớp" if is_wizard else "Quản Lý Bộ Testcase & Chiến Lược So Khớp"
         self.setWindowTitle(title)
 
-        # Responsive sizing according to available display area
         screen = QGuiApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -224,8 +656,10 @@ class TestcaseDialog(QDialog):
             target_h = min(740, avail.height() - 50)
             self.setMinimumSize(min(960, target_w), min(600, target_h))
             self.resize(target_w, target_h)
-            self.move(avail.x() + (avail.width() - target_w) // 2,
-                      avail.y() + (avail.height() - target_h) // 2)
+            self.move(
+                avail.x() + (avail.width() - target_w) // 2,
+                avail.y() + (avail.height() - target_h) // 2
+            )
         else:
             self.setMinimumSize(960, 600)
             self.resize(1100, 720)
@@ -240,40 +674,174 @@ class TestcaseDialog(QDialog):
         self._load_testcases_from_db()
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(16)
 
-        # 1. Matching Strategy Card (Multi-select Checkboxes)
-        strat_card = QFrame(self)
+        # Hai tab ngang hàng: Testcase và So Khớp Đầu Ra
+        self.tabs = QTabWidget(self)
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background-color: #ffffff;
+                top: -1px;
+            }
+            QTabBar::tab {
+                font-size: 13px;
+                font-weight: 600;
+                line-height: 1.4;
+                padding: 10px 20px;
+                margin-right: 4px;
+                color: #475569;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border: 1px solid transparent;
+            }
+            QTabBar::tab:selected {
+                color: #0284c7;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-bottom: 2px solid #0284c7;
+            }
+            QTabBar::tab:hover:!selected {
+                color: #0f172a;
+                background-color: #f8fafc;
+            }
+        """)
+
+        # TAB 1: Testcase (mặc định mở)
+        tab_tc = QWidget()
+        tl_layout = QVBoxLayout(tab_tc)
+        tl_layout.setContentsMargins(16, 16, 16, 16)
+        tl_layout.setSpacing(16)
+
+        # Thanh công cụ đầu tab Testcase
+        tool_row = QHBoxLayout()
+        tool_row.setSpacing(12)
+        tool_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        lbl_f = QLabel("Lọc theo câu hỏi:", tab_tc)
+        lbl_f.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        tool_row.addWidget(lbl_f)
+
+        self.cb_question = QComboBox(tab_tc)
+        self.cb_question.setFixedHeight(36)
+        self.cb_question.setMinimumWidth(150)
+        self.cb_question.addItems(["Tất cả câu hỏi", "Q1", "Q2", "Q3", "Q4", "Q5"])
+        self.cb_question.currentIndexChanged.connect(self._filter_testcases)
+        tool_row.addWidget(self.cb_question)
+
+        tool_row.addStretch(1)
+
+        # Nút viền: Sinh Testcase Bằng AI
+        self.btn_ai_gen = QPushButton("Sinh Testcase Bằng AI", tab_tc)
+        self.btn_ai_gen.setProperty("class", "SecondaryBtn")
+        self.btn_ai_gen.setFixedHeight(36)
+        self.btn_ai_gen.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_ai_gen.clicked.connect(self._open_ai_dialog)
+        tool_row.addWidget(self.btn_ai_gen)
+
+        # Nút viền: Thêm Testcase
+        self.btn_add_tc = QPushButton("Thêm Testcase", tab_tc)
+        self.btn_add_tc.setProperty("class", "SecondaryBtn")
+        self.btn_add_tc.setFixedHeight(36)
+        self.btn_add_tc.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_add_tc.clicked.connect(self._add_testcase)
+        tool_row.addWidget(self.btn_add_tc)
+
+        tl_layout.addLayout(tool_row)
+
+        # Bảng danh sách Testcase
+        self.table_tc = QTableWidget(tab_tc)
+        self.table_tc.setColumnCount(9)
+        self.table_tc.setHorizontalHeaderLabels([
+            "#", "Câu Hỏi", "INPUT (stdin)", "OUTPUT (stdout)",
+            "Trọng Số", "Giới Hạn (ms)", "RAM (MB)", "Chiến Lược", "Thao Tác"
+        ])
+        t_header = self.table_tc.horizontalHeader()
+        t_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        t_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        t_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        t_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        t_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+
+        self.table_tc.setColumnWidth(0, 44)
+        self.table_tc.setColumnWidth(1, 75)
+        self.table_tc.setColumnWidth(4, 80)
+        self.table_tc.setColumnWidth(5, 115)
+        self.table_tc.setColumnWidth(6, 90)
+        self.table_tc.setColumnWidth(7, 130)
+        self.table_tc.setColumnWidth(8, 150)
+
+        # Căn lề tiêu đề cột khớp với nội dung
+        for col_idx in range(9):
+            it_hdr = self.table_tc.horizontalHeaderItem(col_idx)
+            if it_hdr:
+                if col_idx in (2, 3):
+                    it_hdr.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                else:
+                    it_hdr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Đặt tooltip cho cột OUTPUT
+        it_out_hdr = self.table_tc.horizontalHeaderItem(3)
+        if it_out_hdr:
+            it_out_hdr.setToolTip("Kết quả kỳ vọng (stdout)")
+
+        self.table_tc.verticalHeader().setVisible(False)
+        self.table_tc.verticalHeader().setDefaultSectionSize(52)
+        self.table_tc.setShowGrid(True)
+        self.table_tc.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        tl_layout.addWidget(self.table_tc)
+
+        self.tabs.addTab(tab_tc, "Testcase")
+
+        # TAB 2: So Khớp Đầu Ra
+        tab_match = QWidget()
+        tm_layout = QVBoxLayout(tab_match)
+        tm_layout.setContentsMargins(20, 20, 20, 20)
+        tm_layout.setSpacing(16)
+
+        strat_card = QFrame(tab_match)
         strat_card.setProperty("class", "Card")
         s_layout = QVBoxLayout(strat_card)
-        s_layout.setContentsMargins(18, 14, 18, 14)
-        s_layout.setSpacing(10)
+        s_layout.setContentsMargins(20, 18, 20, 18)
+        s_layout.setSpacing(16)
 
-        # Header row of strategy card (ĐÃ BỎ NẠP/XUẤT JSON)
-        top_strat_row = QHBoxLayout()
-        lbl_strat = QLabel("Tiêu Chí So Khớp Đầu Ra (Tick chọn kết hợp nhiều chế độ):", strat_card)
-        lbl_strat.setStyleSheet(f"font-weight: 700; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-        top_strat_row.addWidget(lbl_strat)
-        top_strat_row.addStretch(1)
-        s_layout.addLayout(top_strat_row)
+        lbl_strat_title = QLabel("Tiêu chí so khớp đầu ra chương trình:", strat_card)
+        lbl_strat_title.setStyleSheet(f"font-weight: 600; font-size: 14px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        s_layout.addWidget(lbl_strat_title)
 
-        # Grid layout for 6 checkboxes
+        # Dòng mẹo viết lại ngắn, chữ #475569, 13px, line-height 1.4
+        lbl_hint = QLabel(
+            "Mẹo: Bỏ chọn tất cả để so khớp chính xác tuyệt đối từng ký tự. Các tiêu chí được chọn sẽ tự động kết hợp xử lý.",
+            strat_card
+        )
+        lbl_hint.setStyleSheet("font-size: 13px; color: #475569; line-height: 1.4;")
+        lbl_hint.setWordWrap(True)
+        s_layout.addWidget(lbl_hint)
+
+        # Lưới 6 checkbox thuần tiếng Việt, tooltip chi tiết
         grid_strat = QGridLayout()
         grid_strat.setHorizontalSpacing(24)
-        grid_strat.setVerticalSpacing(8)
+        grid_strat.setVerticalSpacing(16)
 
         cb_style = f"""
             QCheckBox {{
-                font-size: 12px;
+                font-size: 13px;
                 color: {COLOR_TEXT_PRIMARY};
                 font-weight: 500;
+                line-height: 1.4;
                 spacing: 8px;
             }}
             QCheckBox::indicator {{
-                width: 17px;
-                height: 17px;
+                width: 18px;
+                height: 18px;
                 border-radius: 4px;
                 border: 1px solid {COLOR_BORDER_DEFAULT};
                 background-color: #FFFFFF;
@@ -287,261 +855,123 @@ class TestcaseDialog(QDialog):
             }}
         """
 
-        self.chk_whitespace = QCheckBox("Bỏ qua khoảng trắng thừa (Ignore Whitespace)", strat_card)
-        self.chk_whitespace.setToolTip("Bỏ qua khoảng trắng và dấu xuống dòng thừa ở đầu/cuối và giữa các token")
+        # 1. Bỏ qua khoảng trắng (mặc định chọn)
+        self.chk_whitespace = QCheckBox("Bỏ qua khoảng trắng", strat_card)
+        self.chk_whitespace.setToolTip("Bỏ qua khoảng trắng thừa và ký tự xuống dòng ở đầu, cuối và giữa các từ (Ignore Whitespace)")
         self.chk_whitespace.setChecked(True)
         self.chk_whitespace.setStyleSheet(cb_style)
         self.chk_whitespace.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_whitespace, 0, 0)
 
-        self.chk_case = QCheckBox("Không phân biệt hoa / thường (Case Insensitive)", strat_card)
-        self.chk_case.setToolTip("Chuyển đổi toàn bộ output về chữ thường trước khi đối sánh (ví dụ: Hello == hello)")
+        # 2. Không phân biệt chữ hoa, chữ thường
+        self.chk_case = QCheckBox("Không phân biệt chữ hoa, chữ thường", strat_card)
+        self.chk_case.setToolTip("Không phân biệt ký tự in hoa và in thường (Case Insensitive)")
         self.chk_case.setStyleSheet(cb_style)
         self.chk_case.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_case, 0, 1)
 
-        self.chk_float = QCheckBox("Dung sai số thực (Tolerance ≤ 1e-5)", strat_card)
-        self.chk_float.setToolTip("Chấp nhận sai số dấu phẩy động tuyệt đối hoặc tương đối ≤ 0.00001 (1e-5)")
+        # 3. Chấp nhận dung sai số thực
+        self.chk_float = QCheckBox("Chấp nhận dung sai số thực", strat_card)
+        self.chk_float.setToolTip("Chấp nhận sai số dấu phẩy động với độ lệch cho phép nhỏ hơn hoặc bằng 1e-5 (Float Tolerance)")
         self.chk_float.setStyleSheet(cb_style)
         self.chk_float.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_float, 0, 2)
 
-        self.chk_unordered = QCheckBox("Không phân biệt thứ tự từ / số (Unordered)", strat_card)
-        self.chk_unordered.setToolTip("So khớp tập hợp các từ/số mà không phụ thuộc vào thứ tự in ra màn hình")
+        # 4. Không phân biệt thứ tự từ hoặc số
+        self.chk_unordered = QCheckBox("Không phân biệt thứ tự từ hoặc số", strat_card)
+        self.chk_unordered.setToolTip("So khớp các từ hoặc số mà không phụ thuộc vào thứ tự xuất hiện (Unordered Tokens)")
         self.chk_unordered.setStyleSheet(cb_style)
         self.chk_unordered.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_unordered, 1, 0)
 
-        self.chk_regex = QCheckBox("So khớp biểu thức chính quy (Regex Pattern)", strat_card)
-        self.chk_regex.setToolTip("Sử dụng stdout kỳ vọng như một mẫu Regular Expression để đối sánh")
+        # 5. So khớp biểu thức chính quy
+        self.chk_regex = QCheckBox("So khớp biểu thức chính quy", strat_card)
+        self.chk_regex.setToolTip("Sử dụng chuỗi đầu ra kỳ vọng như mẫu regex để kiểm tra (Regex Pattern)")
         self.chk_regex.setStyleSheet(cb_style)
         self.chk_regex.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_regex, 1, 1)
 
-        self.chk_special = QCheckBox("Kiểm tra kịch bản (Special Judge)", strat_card)
-        self.chk_special.setToolTip("Chạy script validator chấm điểm tùy biến cho các bài toán nhiều nghiệm đúng")
+        # 6. Kiểm tra kịch bản chấm tùy biến
+        self.chk_special = QCheckBox("Kiểm tra kịch bản chấm tùy biến", strat_card)
+        self.chk_special.setToolTip("Chạy script chấm điểm riêng biệt cho bài toán nhiều đáp án (Special Judge)")
         self.chk_special.setStyleSheet(cb_style)
         self.chk_special.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_special, 1, 2)
 
         s_layout.addLayout(grid_strat)
+        tm_layout.addWidget(strat_card)
+        tm_layout.addStretch(1)
 
-        bottom_strat_row = QHBoxLayout()
-        lbl_hint = QLabel("Mẹo: Bỏ tick toàn bộ các ô để so khớp chính xác tuyệt đối 100% từng byte (Exact Match). Các ô được tick sẽ tự động kết hợp xử lý đồng thời.", strat_card)
-        lbl_hint.setStyleSheet(f"font-size: 11px; color: {COLOR_TEXT_MUTED}; font-style: italic;")
-        bottom_strat_row.addWidget(lbl_hint)
-        bottom_strat_row.addStretch(1)
+        self.tabs.addTab(tab_match, "So Khớp Đầu Ra")
 
-        self.btn_save_bot = QPushButton("Lưu Cấu Hình So Khớp", strat_card)
-        self.btn_save_bot.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_save_bot.setFixedHeight(34)
-        self.btn_save_bot.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {COLOR_PRIMARY};
-                color: #FFFFFF;
-                font-weight: 600;
-                font-size: 13px;
-                padding: 0 18px;
-                border: none;
-                border-radius: 8px;
-            }}
-            QPushButton:hover {{
-                background-color: {COLOR_PRIMARY_HOVER};
-            }}
-        """)
-        self.btn_save_bot.clicked.connect(self._save_matching_strategy_manual)
-        bottom_strat_row.addWidget(self.btn_save_bot)
-        s_layout.addLayout(bottom_strat_row)
+        main_layout.addWidget(self.tabs, stretch=1)
 
-        layout.addWidget(strat_card)
-
-        # 2. Main Tab Widget: Manual Testcases & AI Generator
-        self.tabs = QTabWidget(self)
-
-        # TAB 1: Danh sách Testcase Hộp Đen (Hỗ trợ Thêm / Sửa / Xóa)
-        tab_list = QWidget()
-        tl_layout = QVBoxLayout(tab_list)
-        tl_layout.setContentsMargins(8, 8, 8, 8)
-        tl_layout.setSpacing(10)
-
-        # Filter & Action Row
-        f_row = QHBoxLayout()
-        f_row.setSpacing(12)
-
-        lbl_f = QLabel("Lọc Theo Câu Hỏi:", tab_list)
-        lbl_f.setStyleSheet("font-weight: 600; font-size: 13px;")
-        f_row.addWidget(lbl_f)
-
-        self.cb_question = QComboBox(tab_list)
-        self.cb_question.setFixedHeight(36)
-        self.cb_question.setMinimumWidth(150)
-        self.cb_question.addItems(["Tất cả câu hỏi", "Q1", "Q2", "Q3", "Q4", "Q5"])
-        self.cb_question.currentIndexChanged.connect(self._filter_testcases)
-        f_row.addWidget(self.cb_question)
-        f_row.addStretch(1)
-
-        # Nút Thêm Testcase Mới (Đã bỏ chữ "thủ công", phong cách Primary)
-        btn_add_tc = QPushButton("Thêm Testcase", tab_list)
-        btn_add_tc.setProperty("class", "PrimaryBtn")
-        btn_add_tc.setFixedHeight(36)
-        btn_add_tc.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_add_tc.clicked.connect(self._add_testcase)
-        f_row.addWidget(btn_add_tc)
-        tl_layout.addLayout(f_row)
-
-        # Testcases Table (9 Cột, có Cột Thao Tác chứa nút Sửa và Xóa)
-        self.table_tc = QTableWidget(tab_list)
-        self.table_tc.setColumnCount(9)
-        self.table_tc.setHorizontalHeaderLabels([
-            "#", "Câu Hỏi", "INPUT (stdin)", "OUTPUT Kỳ Vọng (stdout)",
-            "Trọng Số", "Giới Hạn (ms)", "RAM (MB)", "Chiến Lược", "Thao Tác"
-        ])
-        t_header = self.table_tc.horizontalHeader()
-        t_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        t_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        t_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        t_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
-
-        self.table_tc.setColumnWidth(0, 48)
-        self.table_tc.setColumnWidth(1, 80)
-        self.table_tc.setColumnWidth(4, 75)
-        self.table_tc.setColumnWidth(5, 95)
-        self.table_tc.setColumnWidth(6, 80)
-        self.table_tc.setColumnWidth(7, 120)
-        self.table_tc.setColumnWidth(8, 140)
-
-        self.table_tc.verticalHeader().setVisible(False)
-        self.table_tc.setShowGrid(True)
-        self.table_tc.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        tl_layout.addWidget(self.table_tc)
-
-        self.tabs.addTab(tab_list, "Danh Sách Testcase Hộp Đen")
-
-        # TAB 2: AI Sinh Testcase Biên (Gemini AI Hub)
-        tab_ai = QWidget()
-        ai_layout = QVBoxLayout(tab_ai)
-        ai_layout.setContentsMargins(16, 16, 16, 16)
-        ai_layout.setSpacing(12)
-
-        ai_banner = QFrame(tab_ai)
-        ai_banner.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #eff6ff, stop:1 #f0fdf4);
-                border: 1px solid #bfdbfe;
-                border-radius: 10px;
-            }
-        """)
-        ab_layout = QVBoxLayout(ai_banner)
-        ab_layout.setContentsMargins(16, 14, 16, 14)
-        ab_layout.setSpacing(6)
-
-        lbl_ai_t = QLabel("Tự Động Sinh Testcase Biên & Giá Trị Đặc Biệt (Gemini AI Hub)", ai_banner)
-        lbl_ai_t.setStyleSheet("font-weight: 700; font-size: 14px; color: #1e40af; border: none; background: transparent;")
-        lbl_ai_d = QLabel("Sử dụng mô hình ngôn ngữ lớn phân tích đề bài, tự động phát hiện các ca kiểm thử biên (N=0, N âm, tràn số, chuỗi rỗng) giúp chống gian lận và đánh giá toàn diện bài nộp.", ai_banner)
-        lbl_ai_d.setWordWrap(True)
-        lbl_ai_d.setStyleSheet("color: #475569; font-size: 12px; line-height: 1.4; border: none; background: transparent;")
-        ab_layout.addWidget(lbl_ai_t)
-        ab_layout.addWidget(lbl_ai_d)
-        ai_layout.addWidget(ai_banner)
-
-        # AI Prompt Input Frame
-        ai_input_f = QFrame(tab_ai)
-        ai_input_f.setProperty("class", "Card")
-        aif_layout = QVBoxLayout(ai_input_f)
-        aif_layout.setContentsMargins(16, 14, 16, 14)
-        aif_layout.setSpacing(10)
-
-        lbl_p_t = QLabel("Mô Tả / Yêu Cầu Đề Bài (Prompt Đề Bài Cần Sinh Testcase):", ai_input_f)
-        lbl_p_t.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-        aif_layout.addWidget(lbl_p_t)
-
-        self.txt_prompt = QTextEdit(ai_input_f)
-        self.txt_prompt.setFixedHeight(80)
-        self.txt_prompt.setPlaceholderText("Dán tóm tắt yêu cầu đề bài hoặc định dạng Input/Output vào đây...")
-        self.txt_prompt.setText("Đề bài: Nhập vào số nguyên dương N (1 <= N <= 10^6). Hãy in ra số lượng ước số nguyên tố khác nhau của N. Giới hạn thời gian: 1000ms.")
-        aif_layout.addWidget(self.txt_prompt)
-
-        # AI Action Controls
-        ctrl_row = QHBoxLayout()
-        ctrl_row.addWidget(QLabel("Áp Dụng Cho Câu Hỏi:"))
-        self.cb_target_q = QComboBox(ai_input_f)
-        self.cb_target_q.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
-        ctrl_row.addWidget(self.cb_target_q)
-        ctrl_row.addStretch(1)
-
-        btn_gen_ai = QPushButton("Kích Hoạt Gemini AI Sinh Testcase", ai_input_f)
-        btn_gen_ai.setProperty("class", "PrimaryBtn")
-        btn_gen_ai.setFixedHeight(36)
-        btn_gen_ai.clicked.connect(self._generate_ai_testcases)
-        ctrl_row.addWidget(btn_gen_ai)
-        aif_layout.addLayout(ctrl_row)
-
-        ai_layout.addWidget(ai_input_f)
-
-        # AI Preview Frame
-        lbl_pv_t = QLabel("Xem Trước & Phê Duyệt Testcase Sinh Bởi AI:", tab_ai)
-        lbl_pv_t.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-        ai_layout.addWidget(lbl_pv_t)
-
-        self.txt_ai_preview = QTextEdit(tab_ai)
-        self.txt_ai_preview.setPlaceholderText("Kết quả testcase sinh tự động sẽ hiển thị ở đây ở định dạng JSON để giảng viên rà soát trước khi nạp...")
-        self.txt_ai_preview.setStyleSheet("""
-            QTextEdit {
-                font-family: Consolas, monospace;
-                font-size: 12px;
-                background-color: #f8fafc;
-                border: 1px solid #cbd5e1;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        ai_layout.addWidget(self.txt_ai_preview, stretch=1)
-
-        btn_apply_ai = QPushButton("Phê Duyệt & Nạp Toàn Bộ Testcase Này Vào Bộ Đề Thi", tab_ai)
-        btn_apply_ai.setProperty("class", "PrimaryBtn")
-        btn_apply_ai.setFixedHeight(40)
-        btn_apply_ai.clicked.connect(self._apply_ai_testcases)
-        ai_layout.addWidget(btn_apply_ai)
-
-        self.tabs.addTab(tab_ai, "AI Sinh Testcase Biên (Gemini AI)")
-        layout.addWidget(self.tabs, stretch=1)
-
-        # 3. Footer Action Buttons (Có nút Quay Lại khi ở chế độ Wizard)
+        # Chân cửa sổ: Chỉ MỘT nút chính "Lưu" (nền xanh đặc), các nút khác dùng viền
         footer = QHBoxLayout()
         footer.setSpacing(12)
         footer.addStretch(1)
 
+        # Nút viền Hủy Bỏ
         btn_cancel = QPushButton("Hủy Bỏ", self)
         btn_cancel.setProperty("class", "SecondaryBtn")
         btn_cancel.setFixedHeight(36)
+        btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_cancel.clicked.connect(self.reject)
         footer.addWidget(btn_cancel)
 
+        # Nếu là Wizard: có nút viền Quay Lại Bước 2
         if self.is_wizard:
             btn_back = QPushButton("Quay Lại Bước 2", self)
             btn_back.setProperty("class", "SecondaryBtn")
             btn_back.setFixedHeight(36)
+            btn_back.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             btn_back.clicked.connect(self._go_back)
             footer.addWidget(btn_back)
 
-        btn_finish_label = "Hoàn Tất Thiết Lập & Bắt Đầu Chấm Bài" if self.is_wizard else "Đóng & Lưu"
-        btn_finish = QPushButton(btn_finish_label, self)
-        btn_finish.setProperty("class", "PrimaryBtn")
-        btn_finish.setFixedHeight(36)
-        btn_finish.clicked.connect(self.accept)
-        footer.addWidget(btn_finish)
-        layout.addLayout(footer)
+        # Duy nhất một nút chính nền xanh đặc: "Lưu"
+        self.btn_save = QPushButton("Lưu", self)
+        self.btn_save.setProperty("class", "PrimaryBtn")
+        self.btn_save.setFixedHeight(36)
+        self.btn_save.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_save.clicked.connect(self._save_and_close)
+        footer.addWidget(self.btn_save)
+
+        main_layout.addLayout(footer)
 
     def _go_back(self):
-        """Signals wizard state machine to return to Step 2."""
         self.nav_back = True
         self.reject()
 
+    def _save_and_close(self):
+        """Lưu cấu hình so khớp vào CSDL và đóng hộp thoại."""
+        strat_code = self._get_selected_strategy_code()
+        if self.class_id:
+            try:
+                self.db.update_class_matching_strategy(self.class_id, strat_code)
+            except Exception as ex:
+                logger.error("Lỗi cập nhật chiến lược so khớp: %s", str(ex))
+        self.accept()
+
+    def _open_ai_dialog(self):
+        """Mở hộp thoại sinh testcase bằng AI."""
+        current_q = self.cb_question.currentText().strip()
+        if current_q == "Tất cả câu hỏi":
+            current_q = "Q1"
+
+        strat_code = self._get_selected_strategy_code()
+        dlg = AiTestcaseDialog(
+            parent=self,
+            class_id=self.class_id,
+            default_question=current_q,
+            matching_strategy=strat_code
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._load_testcases_from_db()
+
     # --------------------------------------------------------------------------
-    # Matching Strategy Flags Management
+    # Quản Lý Tiêu Chí So Khớp Đầu Ra
     # --------------------------------------------------------------------------
     def _get_selected_strategy_code(self) -> str:
-        """Collects all checked matching criteria flags and returns a composite strategy code."""
         flags = []
         if self.chk_whitespace.isChecked():
             flags.append("IGNORE_WHITESPACE")
@@ -558,7 +988,6 @@ class TestcaseDialog(QDialog):
         return "+".join(flags) if flags else "EXACT_MATCH"
 
     def _set_flags_from_code(self, code: str):
-        """Sets the 6 checkboxes based on a composite strategy code."""
         flags = set((code or "").upper().replace(",", "+").split("+"))
         self.chk_whitespace.blockSignals(True)
         self.chk_case.blockSignals(True)
@@ -582,49 +1011,18 @@ class TestcaseDialog(QDialog):
         self.chk_special.blockSignals(False)
 
     def _on_matching_flags_changed(self):
-        """Auto-updates the matching strategy for all testcases of the current class in SQLite."""
         strat_code = self._get_selected_strategy_code()
         if self.class_id:
-            self.db.update_class_matching_strategy(self.class_id, strat_code)
-            self._load_testcases_from_db()
-
-    def _save_matching_strategy_manual(self):
-        """Manually saves the selected matching criteria to SQLite and notifies user with details."""
-        strat_code = self._get_selected_strategy_code()
-        if not self.class_id:
-            classes = self.db.get_all_classes()
-            if classes:
-                self.class_id = classes[0]["id"]
-            else:
-                QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại!")
-                return
-
-        self.db.update_class_matching_strategy(self.class_id, strat_code)
-        self._load_testcases_from_db()
-
-        labels = []
-        if self.chk_whitespace.isChecked(): labels.append("Bỏ qua khoảng trắng")
-        if self.chk_case.isChecked(): labels.append("Không phân biệt hoa thường")
-        if self.chk_float.isChecked(): labels.append("Dung sai số thực (≤1e-5)")
-        if self.chk_unordered.isChecked(): labels.append("Không thứ tự tokens")
-        if self.chk_regex.isChecked(): labels.append("Regex Pattern")
-        if self.chk_special.isChecked(): labels.append("Special Judge")
-
-        readable_desc = " + ".join(labels) if labels else "Khớp chính xác 100% từng byte (Exact Match)"
-        QMessageBox.information(
-            self,
-            "Lưu Cấu Hình Thành Công",
-            f"Đã lưu cấu hình so khớp thành công vào CSDL cục bộ:\n\n"
-            f"- Tiêu chí áp dụng: {readable_desc}\n"
-            f"- Mã chiến lược: {strat_code}\n\n"
-            f"Toàn bộ testcase của đợt thi này đã được cập nhật quy tắc so khớp mới!"
-        )
+            try:
+                self.db.update_class_matching_strategy(self.class_id, strat_code)
+                self._load_testcases_from_db()
+            except Exception as ex:
+                logger.error("Lỗi cập nhật cờ so khớp: %s", str(ex))
 
     # --------------------------------------------------------------------------
     # CRUD Operations: Thêm / Sửa / Xóa Testcase
     # --------------------------------------------------------------------------
     def _load_testcases_from_db(self):
-        """Loads testcases for this class from SQLite, or seeds initial ones if empty."""
         if not self.class_id:
             classes = self.db.get_all_classes()
             if classes:
@@ -639,10 +1037,9 @@ class TestcaseDialog(QDialog):
             self._set_flags_from_code(first_strat)
 
         self._all_testcases = testcases
-        self._render_testcases_table(testcases)
+        self._filter_testcases()
 
     def _filter_testcases(self):
-        """Filters displayed testcases based on selected question filter dropdown."""
         q_filter = self.cb_question.currentText().strip()
         if q_filter == "Tất cả câu hỏi":
             self._render_testcases_table(self._all_testcases)
@@ -651,10 +1048,9 @@ class TestcaseDialog(QDialog):
             self._render_testcases_table(filtered)
 
     def _render_testcases_table(self, testcases: List[Dict[str, Any]]):
-        """Renders testcases into table with Edit and Delete buttons in Actions column."""
         self.table_tc.setRowCount(len(testcases))
         for r, tc in enumerate(testcases):
-            self.table_tc.setRowHeight(r, 46)
+            self.table_tc.setRowHeight(r, 52)
 
             # 0: STT
             it_stt = QTableWidgetItem(str(r + 1))
@@ -669,15 +1065,15 @@ class TestcaseDialog(QDialog):
 
             # 2: INPUT
             inp_str = tc.get("input_data", "")
-            it_inp = QTableWidgetItem(inp_str.replace("\n", " ⏎ ") if inp_str else "(trống)")
-            it_inp.setToolTip(f"INPUT đầy đủ:\n{inp_str}")
+            it_inp = QTableWidgetItem(inp_str.replace("\n", " / ") if inp_str else "(trống)")
+            it_inp.setToolTip(f"INPUT:\n{inp_str}")
             it_inp.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.table_tc.setItem(r, 2, it_inp)
 
             # 3: OUTPUT
             out_str = tc.get("expected_output", "")
-            it_out = QTableWidgetItem(out_str.replace("\n", " ⏎ ") if out_str else "(trống)")
-            it_out.setToolTip(f"OUTPUT đầy đủ:\n{out_str}")
+            it_out = QTableWidgetItem(out_str.replace("\n", " / ") if out_str else "(trống)")
+            it_out.setToolTip(f"OUTPUT:\n{out_str}")
             it_out.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.table_tc.setItem(r, 3, it_out)
 
@@ -702,15 +1098,15 @@ class TestcaseDialog(QDialog):
             it_strat.setFont(QFont("Inter", 9))
             self.table_tc.setItem(r, 7, it_strat)
 
-            # 8: Cột Thao Tác (Nút Sửa & Nút Xóa)
-            act_widget = QWidget(self.table_tc)
+            # 8: Thao Tác (Nút Sửa & Nút Xóa) - căn giữa tuyệt đối theo chiều dọc và ngang
+            act_widget = QWidget()
+            act_widget.setStyleSheet("background: transparent; border: none;")
             act_layout = QHBoxLayout(act_widget)
-            act_layout.setContentsMargins(4, 2, 4, 2)
-            act_layout.setSpacing(6)
+            act_layout.setContentsMargins(0, 0, 0, 0)
+            act_layout.setSpacing(8)
             act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             btn_edit = QPushButton("Sửa", act_widget)
-            btn_edit.setFixedHeight(28)
             btn_edit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             btn_edit.setStyleSheet(f"""
                 QPushButton {{
@@ -720,7 +1116,13 @@ class TestcaseDialog(QDialog):
                     border-radius: 6px;
                     font-size: 11px;
                     font-weight: 600;
-                    padding: 0 8px;
+                    min-height: 26px;
+                    max-height: 26px;
+                    height: 26px;
+                    min-width: 50px;
+                    max-width: 50px;
+                    width: 50px;
+                    padding: 0;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_PRIMARY_BG};
@@ -730,7 +1132,6 @@ class TestcaseDialog(QDialog):
             act_layout.addWidget(btn_edit)
 
             btn_del = QPushButton("Xóa", act_widget)
-            btn_del.setFixedHeight(28)
             btn_del.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             btn_del.setStyleSheet(f"""
                 QPushButton {{
@@ -740,7 +1141,13 @@ class TestcaseDialog(QDialog):
                     border-radius: 6px;
                     font-size: 11px;
                     font-weight: 600;
-                    padding: 0 8px;
+                    min-height: 26px;
+                    max-height: 26px;
+                    height: 26px;
+                    min-width: 50px;
+                    max-width: 50px;
+                    width: 50px;
+                    padding: 0;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_ERROR_BG};
@@ -753,9 +1160,8 @@ class TestcaseDialog(QDialog):
             self.table_tc.setCellWidget(r, 8, act_widget)
 
     def _add_testcase(self):
-        """Opens TestcaseEditDialog to add a new testcase to SQLite."""
         if not self.class_id:
-            QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại!")
+            QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại.")
             return
 
         dlg = TestcaseEditDialog(self)
@@ -774,12 +1180,11 @@ class TestcaseDialog(QDialog):
                     question_number=d["question_number"]
                 )
                 self._load_testcases_from_db()
-                QMessageBox.information(self, "Thành Công", "Đã thêm testcase mới vào bộ đề thi thành công!")
+                QMessageBox.information(self, "Thành Công", "Đã thêm testcase mới thành công.")
             except Exception as ex:
                 QMessageBox.critical(self, "Lỗi Lưu CSDL", f"Không thể lưu testcase:\n{str(ex)}")
 
     def _edit_testcase(self, tc: Dict[str, Any]):
-        """Opens TestcaseEditDialog with existing values and updates SQLite on save."""
         dlg = TestcaseEditDialog(self, testcase=tc)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.testcase_data:
             d = dlg.testcase_data
@@ -796,20 +1201,19 @@ class TestcaseDialog(QDialog):
                         memory_limit_mb=d["memory_limit_mb"]
                     )
                     self._load_testcases_from_db()
-                    QMessageBox.information(self, "Thành Công", "Đã cập nhật thông tin testcase thành công!")
+                    QMessageBox.information(self, "Thành Công", "Đã cập nhật thông tin testcase thành công.")
                 except Exception as ex:
                     QMessageBox.critical(self, "Lỗi Cập Nhật", f"Không thể cập nhật testcase:\n{str(ex)}")
 
     def _delete_testcase(self, tc: Dict[str, Any]):
-        """Deletes a testcase with confirmation dialog."""
         tc_id = tc.get("id")
         q_num = tc.get("question_number", "Q1")
         ret = QMessageBox.question(
             self,
             "Xác Nhận Xóa Testcase",
             f"Bạn có chắc chắn muốn xóa testcase này của câu {q_num}?\n\n"
-            f"• INPUT: {tc.get('input_data', '')[:40] or '(trống)'}\n"
-            f"• OUTPUT: {tc.get('expected_output', '')[:40]}\n\n"
+            f"- INPUT: {tc.get('input_data', '')[:40] or '(trống)'}\n"
+            f"- OUTPUT: {tc.get('expected_output', '')[:40]}\n\n"
             f"Hành động này sẽ xóa testcase khỏi cơ sở dữ liệu.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
@@ -820,70 +1224,3 @@ class TestcaseDialog(QDialog):
                 self._load_testcases_from_db()
             except Exception as ex:
                 QMessageBox.critical(self, "Lỗi Xóa", f"Không thể xóa testcase:\n{str(ex)}")
-
-    # --------------------------------------------------------------------------
-    # Gemini AI Testcase Generator Tab
-    # --------------------------------------------------------------------------
-    def _generate_ai_testcases(self):
-        self.txt_ai_preview.setText("""[
-  {
-    "input": "1",
-    "expected_output": "0",
-    "note": "Biên: N nhỏ nhất (không có ước nguyên tố)"
-  },
-  {
-    "input": "2",
-    "expected_output": "1",
-    "note": "Biên: Số nguyên tố chẵn duy nhất"
-  },
-  {
-    "input": "1000000",
-    "expected_output": "2",
-    "note": "Biên: N tối đa 10^6 (ước nguyên tố là 2 và 5)"
-  },
-  {
-    "input": "999983",
-    "expected_output": "1",
-    "note": "Biên: Số nguyên tố lớn nhất sát 10^6"
-  }
-]""")
-        QMessageBox.information(self, "AI Phản Hồi", "Gemini AI đã phân tích đề bài và sinh thành công 4 testcase biên chuẩn xác!")
-
-    def _apply_ai_testcases(self):
-        raw_text = self.txt_ai_preview.toPlainText().strip()
-        if not raw_text:
-            QMessageBox.warning(self, "Chưa Có Dữ Liệu", "Vui lòng bấm sinh testcase trước khi nạp!")
-            return
-
-        try:
-            tcs = json.loads(raw_text)
-            if not isinstance(tcs, list):
-                raise ValueError("Dữ liệu testcase phải là một danh sách JSON []")
-
-            if not self.class_id:
-                classes = self.db.get_all_classes()
-                if classes:
-                    self.class_id = classes[0]["id"]
-
-            target_q = self.cb_target_q.currentText()
-            strat_code = self._get_selected_strategy_code()
-            added_count = 0
-            for item in tcs:
-                inp = str(item.get("input", ""))
-                outp = str(item.get("expected_output", ""))
-                self.db.add_testcase(
-                    class_id=self.class_id,
-                    input_data=inp,
-                    expected_output=outp,
-                    score_weight=1.0,
-                    time_limit_ms=1000,
-                    matching_strategy=strat_code,
-                    question_number=target_q
-                )
-                added_count += 1
-
-            self._load_testcases_from_db()
-            QMessageBox.information(self, "Đã Nạp Testcase", f"Đã lưu thành công {added_count} testcase biên vào CSDL SQLite cục bộ!")
-            self.tabs.setCurrentIndex(0)
-        except Exception as ex:
-            QMessageBox.critical(self, "Lỗi Định Dạng JSON", f"Không thể nạp testcase từ JSON:\n{str(ex)}")

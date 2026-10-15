@@ -155,36 +155,36 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tên Use Case**: Tự động sinh Testcase biên bằng AI (AI Black-box Testcase Generator)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Gemini AI Hub (Web Server Backend)
-* **Mô tả tóm tắt**: Giảng viên nhập yêu cầu đề bài và ràng buộc nghiệp vụ. Gemini AI tự động phân tích và sinh danh sách 5-10 cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các testcase biên). Dữ liệu sinh ra nạp thẳng vào bảng Testcase mà **giảng viên hoàn toàn không cần phải viết bất kỳ dòng mã giải mẫu (solution code) nào**.
+* **Mô tả tóm tắt**: Giảng viên nhập yêu cầu đề bài và ràng buộc nghiệp vụ. Gemini AI tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên). Dữ liệu sinh ra hiển thị dưới dạng bảng chọn lọc trực quan, cho phép nạp trực tiếp vào CSDL SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết bất kỳ dòng mã giải mẫu (solution code) nào**.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App.
   2. Hạn ngạch (Quota) gọi AI của Giảng viên trên Web Server Backend còn khả dụng.
 * **Hậu điều kiện (Postconditions)**:
-  1. Các cặp `INPUT` và `OUTPUT kỳ vọng` được Giảng viên phê duyệt sẽ được lưu vào cơ sở dữ liệu SQLite cục bộ của đợt chấm.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Tạo Testcase bằng AI" (Generate with AI)** trên màn hình Quản lý Testcase.
+  1. Các cặp `INPUT` và `OUTPUT kỳ vọng` được Giảng viên tick chọn sẽ được lưu vào bảng `local_test_cases` trong CSDL SQLite cục bộ của đợt chấm.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút viền **"Sinh Testcase Bằng AI"** ở thanh công cụ đầu tab Testcase của cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp.
 
 #### Luồng sự kiện chính (Main Flow):
 
-1. Giảng viên mở màn hình Quản lý Testcase của đợt chấm và chọn chức năng **"AI Testcase Generator"**.
-2. Hệ thống hiển thị hộp thoại nhập thông tin bài toán: Tên bài toán, mô tả đề bài (Problem Statement), định dạng input/output và ràng buộc dữ liệu.
-3. Giảng viên nhập nội dung hoặc nạp file đề bài dạng Markdown/Text và nhấn **"Bắt đầu sinh Testcase"**.
-4. Hệ thống Desktop App đóng gói prompt gửi lên endpoint `/api/v1/ai/generate-testcases` của Web Server Backend.
-5. Web Server Backend thẩm định JWT, kiểm tra hạn ngạch token còn lại của Giảng viên và chuyển tiếp prompt đã chuẩn hóa cấu trúc JSON tới Google Gemini API.
-6. Gemini AI xử lý và phản hồi danh sách 5-10 testcase dạng JSON gồm:
-   - Mục đích kiểm thử (ví dụ: "Số âm", "Mảng rỗng", "Giá trị cực đại").
-   - Dữ liệu đầu vào (`INPUT` - stdin).
-   - Dữ liệu đầu ra kỳ vọng (`OUTPUT kỳ vọng` - stdout).
-   - Điểm số đề xuất.
-7. Hệ thống hiển thị bảng duyệt trước (Preview Table) cho Giảng viên trên Desktop UI.
-8. Giảng viên xem lại, có thể chỉnh sửa trực tiếp nội dung input/output trên bảng và tick chọn các testcase đạt yêu cầu.
-9. Giảng viên bấm nút **"Lưu vào bộ Testcase"**.
-10. Hệ thống lưu các cặp testcase đã chọn vào SQLite cục bộ và cập nhật danh sách hiển thị trên giao diện chính. Use Case kết thúc.
+1. Giảng viên mở cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp (mặc định mở tab **"Testcase"**) và bấm nút viền **"Sinh Testcase Bằng AI"**.
+2. Hệ thống hiển thị hộp thoại modal `AiTestcaseDialog` tinh gọn gồm:
+   - Ô nhập **"Đề bài"** (TextEdit).
+   - Ô nhập **"Số lượng testcase"** (SpinBox, mặc định 4).
+   - Nút thu gọn **"Tùy chọn"** (cho phép xem/đổi Câu hỏi áp dụng và Ngôn ngữ lập trình, mặc định lấy tự động từ đợt chấm đang mở).
+   - Nút chính **"Sinh Testcase"** (nền xanh đặc) và nút viền **"Hủy"**.
+3. Giảng viên dán nội dung tóm tắt đề bài / định dạng input-output và bấm **"Sinh Testcase"**.
+4. Desktop App đóng gói payload gửi yêu cầu bất đồng bộ lên endpoint `/api/v1/ai/generate-testcases` của Web Server Backend.
+5. Web Server Backend thẩm định JWT, kiểm tra hạn ngạch token còn lại trong ngày của Giảng viên và gọi Google Gemini API.
+6. Gemini AI phân tích đề bài và phản hồi danh sách testcase gồm các cặp dữ liệu `input` và `expected_output` bao quát trường hợp biên.
+7. Web Server Backend ghi nhận token tiêu thụ vào `ai_quota_logs` và trả kết quả về Desktop App.
+8. Desktop App hiển thị kết quả trực quan dạng bảng gồm 3 cột: Checkbox chọn từng dòng, **Input (Đầu vào)** và **Expected Output (Đầu ra kỳ vọng)** (không hiển thị mã JSON thô). Nút "Thêm Các Testcase Đã Chọn" được kích hoạt.
+9. Giảng viên đánh dấu tick các testcase đạt yêu cầu (hỗ trợ nút "Chọn Tất Cả", "Bỏ Chọn Tất Cả") và bấm **"Thêm Các Testcase Đã Chọn"**.
+10. Hệ thống lưu các testcase đã chọn vào bảng `local_test_cases` trong SQLite cục bộ và làm mới bảng hiển thị testcase. Hộp thoại đóng lại, Use Case kết thúc.
 
 #### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 
-* **A1 - Chỉnh sửa trước khi lưu**: Tại bước 8, Giảng viên có thể nhấp đúp vào ô input/output để sửa nhanh dữ liệu mẫu trước khi nhấn lưu.
-* **E1 - Vượt hạn ngạch AI (Quota Limit Exceeded)**: Tại bước 5, nếu hạn ngạch token của Giảng viên đã hết, hệ thống trả về thông báo lỗi: "Hạn ngạch AI của bạn đã hết cho hôm nay, vui lòng liên hệ Admin hoặc nhập testcase thủ công".
-* **E2 - Lỗi mạng / API gián đoạn**: Tại bước 5, nếu mất kết nối Internet, hệ thống bắt ngoại lệ và hiển thị thông báo lỗi rõ ràng, cho phép thử lại hoặc chuyển sang nạp testcase thủ công (`UC-09`).
+* **A1 - Tùy chỉnh câu hỏi và ngôn ngữ**: Tại bước 2, Giảng viên có thể bấm nút "Tùy chọn" để chọn câu hỏi khác (`Q1`..`Q5`) hoặc đổi ngôn ngữ lập trình trước khi sinh.
+* **E1 - Vượt hạn ngạch AI (Quota Limit Exceeded)**: Tại bước 5, nếu hạn ngạch token của Giảng viên đã hết, hệ thống trả về thông báo lỗi thân thiện trên UI và ghi log kiểm toán.
+* **E2 - Lỗi mạng / Dịch vụ AI gián đoạn**: Tại bước 5, nếu mất kết nối hoặc máy chủ AI phản hồi lỗi, Desktop App hiển thị thông báo thân thiện: *"Không kết nối được dịch vụ AI. Thử lại sau."* kèm nút **"Thử Lại"**. Mã lỗi kỹ thuật nội bộ chỉ được ghi vào file log, không hiển thị mã thô ra giao diện người dùng. Nút "Thêm Các Testcase Đã Chọn" tự động vô hiệu hóa.
 
 ---
 

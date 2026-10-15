@@ -573,6 +573,17 @@ class DatabaseManager:
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def update_ai_feedback(self, submission_id: int, feedback: str):
+        """Updates AI pedagogical feedback for a graded submission."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_grading_results
+                SET ai_feedback = ?
+                WHERE submission_id = ? AND is_deleted = 0
+            """, (feedback, submission_id))
+            conn.commit()
+
     # ==========================================================================
     # CRUD OPERATIONS FOR WEB SUBMISSIONS (WEB STUDIO)
     # ==========================================================================

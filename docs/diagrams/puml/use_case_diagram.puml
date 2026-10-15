@@ -70,7 +70,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
         package "2. Quản lý Testcase & Chiến lược So khớp" {
             usecase "UC-09: Quản lý Bộ Testcase Kiểm thử Black-box" as UC09
             usecase "UC-10: Tự động Sinh Testcase Biên bằng AI (Gemini)" as UC10
-            usecase "UC-11: Thiết lập Động cơ So khớp 7 Chế độ (Strategy)" as UC11
+            usecase "UC-11: Thiết lập Chiến lược So khớp Đầu ra (6 Checkbox + Kết hợp)" as UC11
         }
 
         package "3. Thực thi Chấm điểm Tự động (Grading Pipeline)" {

@@ -305,7 +305,6 @@ class GradingGuideDialog(QDialog):
             item_tag.setFont(font_tag)
             item_tag.setForeground(Qt.GlobalColor.black)
             # Dùng màu chuyên biệt cho từng loại phán quyết
-            item_tag.setStyleSheet = f"color: {v_color}; font-weight: 700;"
 
             # Đặt widget label để có màu và wrap text hoàn hảo
             lbl_tag_cell = QLabel(v_tag, table_verdicts)

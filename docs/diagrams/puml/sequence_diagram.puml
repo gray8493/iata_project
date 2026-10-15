@@ -100,8 +100,8 @@ deactivate LocalDB
 DeskCore --> DeskUI : 28. Hiển thị bảng danh sách bài nộp sẵn sàng
 deactivate DeskCore
 
-Instructor -> DeskUI : 29. Dán đề bài & Nhấn nút [✨ Sinh Testcase bằng AI]
-DeskUI -> DeskCore : 30. triggerAIGenerateTestcases(problemStatement)
+Instructor -> DeskUI : 29. Bấm nút viền [Sinh Testcase Bằng AI], mở hộp thoại AiTestcaseDialog
+DeskUI -> DeskCore : 30. triggerAIGenerateTestcases(problemStatement, count)
 activate DeskCore
 DeskCore -> Backend : 31. HTTP POST /api/v1/ai/generate-testcases\nHeader: Authorization: Bearer <JWT>
 activate Backend
@@ -112,7 +112,7 @@ deactivate AuthService
 
 Backend -> AIHub : 34. Chuyển tiếp prompt nghiệp vụ đề bài
 activate AIHub
-AIHub -> Gemini : 35. generateContent(prompt sinh 5-10 cặp [INPUT, OUTPUT biên])
+AIHub -> Gemini : 35. generateContent(prompt sinh các cặp [INPUT, OUTPUT biên])
 activate Gemini
 Gemini --> AIHub : 36. Trả về JSON danh sách testcase biên
 deactivate Gemini
@@ -127,7 +127,7 @@ deactivate Backend
 DeskCore --> DeskUI : 41. Hiển thị danh sách testcase biên đề xuất
 deactivate DeskCore
 
-Instructor -> DeskUI : 42. Xem lướt bảng testcase & Nhấn nút [Lưu bộ Testcase]
+Instructor -> DeskUI : 42. Chọn các dòng testcase qua checkbox & Bấm [Thêm Các Testcase Đã Chọn]
 DeskUI -> DeskCore : 43. saveTestcases(testcaseList)
 activate DeskCore
 DeskCore -> LocalDB : 44. Lưu bộ Testcase chuẩn vào SQLite cục bộ
@@ -142,7 +142,7 @@ deactivate DeskCore
 ' ==============================================================================
 == GIAI ĐOẠN 3: Thực Thi Chấm Bài Hàng Loạt Qua Hàm main() (Hoàn toàn Offline) ==
 
-Instructor -> DeskUI : 47. Chọn 1 trong 7 chế độ so khớp & Bấm [BẮT ĐẦU CHẤM BÀI]
+Instructor -> DeskUI : 47. Chuyển tab [So Khớp Đầu Ra], tick chọn tùy chọn chuẩn hóa & Bấm [Lưu]
 DeskUI -> DeskCore : 48. startBatchGradingAsync(QThread Worker Pool)
 activate DeskCore
 note over DeskCore
@@ -190,7 +190,7 @@ DeskUI --> Instructor : 60. Hiển thị bảng điểm hoàn chỉnh cả lớp
 == GIAI ĐOẠN 4: Tính Năng AI Hỗ Trợ, Xuất Bảng Điểm Cục Bộ & Quản Trị Hệ Thống ==
 
 opt Giảng viên cần phân tích lỗi cho sinh viên bị sai (WA)
-    Instructor -> DeskUI : 61. Chọn bài bị lỗi WA & Bấm nút [✨ AI Phân tích lỗi] (On-Demand)
+    Instructor -> DeskUI : 61. Chọn bài bị lỗi WA & Bấm nút [AI Phân tích lỗi] (On-Demand)
     DeskUI -> DeskCore : 62. triggerOnDemandCodeReview(studentId)
     activate DeskCore
     DeskCore -> Backend : 63. HTTP POST /api/v1/ai/code-review (mã nguồn, log sai)

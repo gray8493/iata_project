@@ -14,7 +14,7 @@ Mô hình này mang lại 3 ưu thế vượt trội:
 2. **Khả năng hoạt động ngoại tuyến (Offline-First)**: Giảng viên vẫn có thể chấm bài thi bình thường trong phòng thi bị ngắt kết nối Internet; kết quả chấm được lưu đệm an toàn vào SQLite và xuất thẳng ra file `results.csv`.
 3. **Quản trị bảo mật & kiểm soát chi phí AI**: Quản trị viên quản lý danh mục môn học, phân quyền tài khoản Giảng viên và kiểm soát hạn ngạch token Google Gemini AI tập trung tại máy chủ, ngăn chặn tuyệt đối lộ API Key ra phía người dùng cuối.
 
-Sơ đồ PlantUML tương ứng: [deployment_diagram.puml](file:///d:/Source/AITA/docs/diagrams/puml/deployment_diagram.puml).
+Sơ đồ PlantUML tương ứng: [deployment_diagram.puml](file:///e:/AITA/docs/diagrams/puml/deployment_diagram.puml).
 
 ---
 
@@ -33,19 +33,19 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
                               │ HTTPS / TLS 1.3 (Port 443)
                               ▼
 +-------------------------------------------------------------+       +------------------------------------+
-|   Node 3: Central Application Server (Ubuntu Linux 22.04)   |       | Node 2: Administrator Terminal     |
-|   - Nginx Reverse Proxy (TLS 1.3 Termination, Port 443)    | ◄──── | (Chrome/Edge/Firefox on any OS)    |
-|   - Docker Container: central-backend (NestJS API & Guard) |       | - Next.js Web Admin Dashboard      |
-|   - Docker Container: Redis 7.x (Rate Limit & Token Cache)  |       +------------------------------------+
+|   Node 3: Render.com Cloud Platform (Web Service)           |       | Node 2: Administrator Terminal     |
+|   - Managed TLS 1.3 Ingress & Edge Proxy                    | ◄──── | (Chrome/Edge/Firefox on any OS)    |
+|   - central-backend (NestJS 10, Node.js 20 LTS Runtime)    |       | - Next.js Web Admin Dashboard      |
+|   - In-Memory Rate Limiting (Sliding Window Throttler)      |       +------------------------------------+
 +-------------------------------------------------------------+
          │                                            │
-         │ PostgreSQL Protocol (Port 5432)            │ HTTPS / TLS 1.3 (Port 443)
+         │ PostgreSQL over TLS (Port 5432)            │ HTTPS / TLS 1.3 (Port 443)
          ▼                                            ▼
 +------------------------------------+       +------------------------------------+
-| Node 4: Database Server Host       |       | Node 5: Google Cloud Platform      |
-| (Ubuntu Linux 22.04 LTS)           |       | (Managed AI Infrastructure)        |
-| - PostgreSQL 16 RDBMS              |       | - Google Gemini API                 |
-| - aita_central_db & Backup Volume  |       | - generativelanguage.googleapis.com|
+| Node 4: Neon Serverless Postgres   |       | Node 5: Google Cloud Platform      |
+| (Managed Cloud Database)           |       | (Managed AI Infrastructure)        |
+| - Lakebase PostgreSQL 16 Engine    |       | - Google Gemini 3.8 Flash API      |
+| - aita_central_db (Pooled/Direct)  |       | - generativelanguage.googleapis.com|
 +------------------------------------+       +------------------------------------+
 ```
 
@@ -60,7 +60,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - *Bộ nhớ trong (RAM)*: Tối thiểu 8 GB DDR4, khuyến nghị 16 GB (đảm bảo đủ dung lượng cấp phát đồng thời cho JVM Java và Python Runtime).
   - *Ổ đĩa lưu trữ (Disk Storage)*: Tối thiểu 20 GB dung lượng trống chuẩn SSD NVMe để đọc/ghi hàng trăm bài nộp sinh viên tốc độ cao.
 - **Môi trường thực thi & Công cụ biên dịch tại chỗ (Local Execution Environment)**:
-  - **Môi trường ảo AITA**: File thực thi `AITA.exe` tích hợp sẵn Python 3.11 Runtime, PyQt6/PySide6 Native Engine.
+  - **Môi trường ảo AITA**: File thực thi `AITA.exe` tích hợp sẵn Python 3.11 Runtime, PyQt6 Native Engine.
   - **Trình biên dịch C**: MinGW-w64 GCC 13+ (đường dẫn `bin/gcc.exe`).
   - **Trình biên dịch & Máy ảo Java**: OpenJDK 17 hoặc 21 (đường dẫn `bin/javac.exe`, `bin/java.exe`).
   - **Trình thông dịch Python**: Python 3.10+ Standard Runtime (`python.exe`).
@@ -80,32 +80,33 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 ---
 
-### 2.3. Node 3: Máy Chủ Ứng Dụng Trung Tâm (Central Application Server Host)
+### 2.3. Node 3: Dịch Vụ Máy Chủ Đám Mây (Render.com Cloud PaaS Web Service)
 
-- **Vai trò**: Đóng vai trò "Bộ não trung tâm" cung cấp API phân quyền RBAC, lưu trữ lịch sử chấm, kiểm soát hạn ngạch và làm Gateway bảo mật trung gian khi gọi Google Gemini AI.
-- **Hệ điều hành**: **Ubuntu Linux 22.04 LTS (Jammy Jellyfish) 64-bit Server Edition**.
-- **Cấu hình phần cứng (Hardware Specifications)**:
-  - *Vi xử lý (vCPU)*: 4 vCPU (2.5 GHz+).
-  - *Bộ nhớ trong (RAM)*: 8 GB (có thể mở rộng lên 16 GB khi số lượng giảng viên đồng bộ tăng cao).
-  - *Ổ đĩa lưu trữ (Disk)*: 80 GB SSD (Enterprise Grade).
-- **Môi trường ảo hóa & Đóng gói (Containerization)**:
-  - **Docker Engine (>= 24.0)** & **Docker Compose (>= 2.20)**: Cô lập hoàn toàn các thành phần backend thành các micro-services / containers riêng biệt.
-  - **Nginx Reverse Proxy Container**: Lắng nghe cổng 80 (chuyển hướng HTTP sang HTTPS) và cổng 443 (chứng chỉ bảo mật SSL/TLS 1.3 Let's Encrypt), chịu trách nhiệm cân bằng tải và giới hạn tần suất request (Rate Limiting).
-  - **Backend Service Container (`central-backend`)**: Xây dựng trên NestJS 10 (Node.js 20 LTS runtime), tích hợp Passport-JWT, RBAC Guards, Swagger OpenAPI (`/api/docs`).
-  - **In-Memory Cache Container (`Redis 7.x`)**: Quản lý danh sách đen Token thu hồi (JWT Blacklist) và bộ đếm hạn ngạch Token AI theo thời gian thực (Token Bucket / Sliding Window Rate Limiter).
+- **Vai trò**: Đóng vai trò Backend API tập trung, cung cấp endpoint xác thực JWT, quản lý tài khoản giảng viên, kiểm soát hạn ngạch và đóng vai trò AI Gateway Hub bảo mật trung gian khi gọi Google Gemini AI.
+- **Nền tảng triển khai**: **Render.com Cloud Platform (Managed Web Service)**.
+  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project.onrender.com/api/v1`.
+  - *Môi trường Local Development*: Khởi chạy trực tiếp bằng Node.js 20 LTS qua lệnh `npm run start:dev` (lắng nghe tại `http://localhost:3000/api/v1`).
+- **Cấu hình & Quản lý lưu lượng**:
+  - **Tự động quản lý SSL/TLS 1.3**: Nền tảng Render tự động cung cấp chứng chỉ SSL/TLS 1.3 Let's Encrypt, hỗ trợ HTTP/2 và cơ chế phòng chống DDoS tầng mạng.
+  - **In-Memory Rate Limiting**: Sử dụng bộ lưu trữ bộ nhớ trong (In-Memory Sliding Window Storage) thông qua `@nestjs/throttler` để kiểm soát tần suất request (mặc định 80 requests/phút). Hỗ trợ mở rộng kết nối biến `REDIS_URL` khi triển khai cụm phân tán mà không bắt buộc phụ thuộc Redis.
+  - **5 Modules Kiến trúc Cốt lõi**:
+    1. `AuthModule`: Xác thực đăng nhập qua JWT Bearer, mã hóa mật khẩu Bcrypt, cấp và thu hồi Refresh Token.
+    2. `UsersModule`: Quản lý danh sách tài khoản giảng viên, phân quyền RBAC (`ADMIN`, `INSTRUCTOR`).
+    3. `AiGatewayModule`: Proxy an toàn gọi Gemini API, tích hợp cơ chế đếm token tiêu thụ và khóa gọi khi vượt hạn ngạch ngày.
+    4. `AuditLogsModule`: Ghi nhận và truy vấn nhật ký gọi AI theo người dùng, môn học và tính năng.
+    5. `HealthModule`: Cung cấp endpoint kiểm tra tình trạng dịch vụ (`/health`).
 
 ---
 
-### 2.4. Node 4: Máy Chủ Cơ Sở Dữ Liệu Trung Tâm (Database Server Node)
+### 2.4. Node 4: Dịch Vụ Cơ Sở Dữ Liệu Đám Mây (Neon Serverless PostgreSQL Cloud)
 
-- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản, môn học, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Phiên chấm, mã nguồn và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First.
-- **Hệ điều hành**: **Ubuntu Linux 22.04 LTS** (triển khai trên VM chuyên dụng hoặc dịch vụ Managed Cloud Database: AWS RDS / GCP Cloud SQL).
-- **Hệ quản trị CSDL**: **PostgreSQL 16 Enterprise RDBMS**.
-- **Cấu hình lưu trữ**: 100 GB NVMe SSD High-IOPS có cấu hình RAID 10 để bảo vệ toàn vẹn dữ liệu học thuật.
-- **Tính năng bảo đảm**:
-  - Giao tiếp mã hóa SSL/TLS khi nhận kết nối từ Application Server.
-  - Cơ chế Connection Pooling tối ưu hóa tài nguyên kết nối qua Prisma / PgBouncer.
-  - Cơ chế sao lưu tự động (Automated Backup): Tự động snapshot mỗi ngày một lần và lưu trữ bản ghi giao dịch Write-Ahead Logging (WAL) để phục hồi thảm họa (Disaster Recovery).
+- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản người dùng, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Toàn bộ phiên chấm, bài nộp sinh viên và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First (SQLite `local_cache.db` và `results.csv`).
+- **Nền tảng**: **Neon Serverless Postgres** (Database-as-a-Service xây dựng trên kiến trúc Lakebase Postgres hiện đại).
+- **Hệ quản trị CSDL**: **PostgreSQL 16 Engine**.
+- **Tính năng nổi bật & Bảo đảm**:
+  - Giao tiếp mã hóa đầu cuối qua giao thức PostgreSQL over TLS 1.3 (cổng 5432).
+  - Cơ chế Connection Pooling tích hợp: Prisma ORM sử dụng biến `DATABASE_URL` (kết nối qua PgBouncer connection pooling) cho các truy vấn ứng dụng và `DATABASE_URL_UNPOOLED` (Direct Connection) cho các tác vụ Prisma Migrate.
+  - Khả năng tự động co giãn tài nguyên (Auto-scaling) và tự động sao lưu dữ liệu (Continuous Backup & Point-in-Time Recovery).
 
 ---
 
@@ -125,10 +126,8 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | **`AITA.exe`** | Standalone Executable | Node 1 (Instructor PC) | PyInstaller, Python 3.11, PyQt6 | Ứng dụng Desktop bản địa dành cho Giảng viên |
 | **`local_cache.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine | Lưu tạm testcases, cache phiên chấm offline |
 | **`Web Admin UI`** | SPA Static Bundle | Node 2 (Admin Browser) | Next.js 14, React, TailwindCSS | Giao diện điều hành hệ thống của Admin |
-| **`central-backend`** | Docker Image | Node 3 (Application Server) | NestJS 10, Node.js 20, TypeScript | REST API Gateway, Auth RBAC, AI Quota Guard |
-| **`nginx.conf`** | Config Artifact | Node 3 (Application Server) | Nginx 1.25 Alpine | Reverse Proxy, SSL/TLS Termination |
-| **`redis.conf`** | In-Memory Store | Node 3 (Application Server) | Redis 7.2 Alpine | Bộ nhớ đệm Token Blacklist & AI Rate Limiter |
-| **`aita_central_db`**| Relational Schema | Node 4 (Database Server) | PostgreSQL 16 RDBMS | Cơ sở dữ liệu tập trung lưu Users, Grades, Logs |
+| **`central-backend`** | Web Service Artifact | Node 3 (Render.com PaaS) | NestJS 10, Node.js 20, TypeScript | REST API Gateway, Auth RBAC, AI Quota Guard |
+| **`aita_central_db`**| Cloud Relational DB | Node 4 (Neon Cloud) | Neon Serverless PostgreSQL 16 | Cơ sở dữ liệu tập trung lưu Users, Quota Configs/Logs, Refresh Tokens |
 
 ---
 
@@ -136,12 +135,10 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 | Nguồn kết nối (Source) | Đích kết nối (Destination) | Giao thức (Protocol) | Cổng mạng (Port) | Cơ chế bảo mật & Xác thực |
 | :--- | :--- | :--- | :---: | :--- |
-| Admin Web Browser | Central Server (Nginx) | **HTTPS (HTTP/2)** | `443` | Mã hóa TLS 1.3, Chứng chỉ SSL Let's Encrypt |
-| Desktop Client (`AITA.exe`) | Central Server (Nginx) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
-| Nginx Reverse Proxy | Backend Container | **HTTP / Internal** | `3000` | Mạng cô lập Docker Bridge Network |
-| Backend Container | Redis Cache | **RESP Protocol** | `6379` | Docker Network nội bộ, xác thực mật khẩu Redis |
-| Backend Container | PostgreSQL Server | **TCP / libpq** | `5432` | SSL Encrypted, User/Password, Connection Pool |
-| Backend Container | Google Gemini API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ |
+| Admin Web Browser | Central Backend (Render) | **HTTPS (HTTP/2)** | `443` | Mã hóa TLS 1.3, Chứng chỉ SSL Let's Encrypt |
+| Desktop Client (`AITA.exe`) | Central Backend (Render) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
+| Central Backend (Render) | Neon Serverless Postgres | **PostgreSQL over TLS** | `5432` | TLS 1.3 Encrypted, Prisma Connection Pool (PgBouncer) |
+| Central Backend (Render) | Google Gemini API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ |
 | Desktop Client (`AITA.exe`) | Local Compiler Toolchain | **OS Standard Streams** | `IPC` | Đường ống Stdin, Stdout, Stderr qua `subprocess` |
 
 ---
@@ -173,12 +170,19 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
   - Bổ sung file `.spec` tối ưu hóa, loại bỏ các package thừa của Python để file chạy nhẹ nhất có thể (~40-60 MB).
   - Tích hợp bộ MinGW portable và OpenJDK rút gọn nếu giảng viên chưa cài đặt toolchain trên máy tính.
 
-### 6.2. Triển khai Máy chủ Trung tâm bằng Docker Compose
-- Hệ thống backend được khởi chạy dễ dàng chỉ với một câu lệnh:
+### 6.2. Triển khai Máy chủ Trung tâm trên Render.com & Neon Cloud
+- **Triển khai Production trên Render.com**:
+  - Kết nối repository Git trực tiếp với Render Web Service.
+  - Thiết lập Build Command: `npm install && npm run build && npm run db:generate`
+  - Thiết lập Start Command: `npm run start:prod`
+  - Khai báo các Environment Secrets: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GEMINI_API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`.
+- **Khởi chạy môi trường phát triển cục bộ (Local Development)**:
   ```bash
-  docker compose -f docker-compose.prod.yml up -d
+  cd apps/central-backend
+  npm install
+  npm run db:generate
+  npm run start:dev
   ```
-- File cấu hình Docker quản lý tự động: Nginx Ingress, NestJS API Server, Redis Cache và PostgreSQL, đi kèm chính sách tự khởi động lại (`restart: unless-stopped`) và kiểm tra sức khỏe dịch vụ (`healthcheck`).
 
 ---
 
@@ -192,8 +196,8 @@ Cả **3 Mẫu thiết kế cốt lõi** bắt buộc của đồ án AITA đề
 2. **`CompilerAdapter` (Structural Pattern)**:
    - Nằm tại module `src/core/adapters/`.
    - Đóng vai trò cầu nối tương tác trực tiếp với các trình biên dịch cục bộ cài trên HĐH Windows (`MinGW GCC`, `Javac`, `Python Runtime`), chuẩn hóa lệnh gọi OS và ánh xạ các thông báo lỗi `stderr` thành các mã kết quả chuẩn (`CE`, `RE`).
-3. **`MatchingStrategy` (Behavioral Pattern)**:
+3. **`IMatchingStrategy` & `MatchingContext` (Behavioral Pattern)**:
    - Nằm tại module `src/core/strategies/`.
-   - Nằm ở tầng xử lý logic cốt lõi: Nhận kết quả `stdout` từ tiến trình con do Runner trả về và so khớp với `expected_output` của giảng viên theo 1 trong 7 thuật toán đã chọn trên giao diện trước khi xuất ra bảng điểm `results.csv`.
+   - Nằm ở tầng xử lý logic cốt lõi: Nhận kết quả `stdout` từ tiến trình con do Runner trả về và so khớp với `expected_output` của giảng viên. Cung cấp 7 thuật toán so khớp độc lập cùng bộ điều phối linh hoạt `FlexibleMatchingStrategy` (kết hợp các cờ: Bỏ qua khoảng trắng, Không phân biệt hoa thường, Dung sai số thực, Cho phép hoán vị từ, Regex, Special Judge; bỏ chọn tất cả ứng với Exact Match) trước khi xuất ra bảng điểm `results.csv`.
 
-Chi tiết kiến trúc và phân tích nguyên lý của 3 mẫu này được đặc tả tại: [docs/architecture/design-patterns.md](file:///d:/Source/AITA/docs/architecture/design-patterns.md).
+Chi tiết kiến trúc và phân tích nguyên lý của 3 mẫu này được đặc tả tại: [docs/architecture/design-patterns.md](file:///e:/AITA/docs/architecture/design-patterns.md).

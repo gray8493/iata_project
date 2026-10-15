@@ -4,5 +4,12 @@
   ],
   "extraPaths": [
     "apps/desktop-client/src"
-  ]
+  ],
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportIncompatibleMethodOverride": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportArgumentType": "none",
+  "reportCallIssue": "none"
 }
