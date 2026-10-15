@@ -52,8 +52,8 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
     package "Phân Hệ Web Admin Dashboard (Dành cho Quản trị viên)" #E3F2FD {
         usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
         usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
-        usecase "UC-04: Cấu hình API Key & Giám sát Hạn ngạch AI" as UC04
-        usecase "UC-05: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường" as UC05
+        usecase "UC-04: Quản lý hạn ngạch & Giám sát sử dụng AI" as UC04
+        usecase "UC-05: Xem Báo cáo tài khoản & Sử dụng AI" as UC05
     }
 
     ' --------------------------------------------------------------------------
@@ -70,7 +70,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
         package "2. Quản lý Testcase & Chiến lược So khớp" {
             usecase "UC-09: Quản lý Bộ Testcase Kiểm thử Black-box" as UC09
             usecase "UC-10: Tự động Sinh Testcase Biên bằng AI (Gemini)" as UC10
-            usecase "UC-11: Thiết lập Động cơ So khớp 7 Chế độ (Strategy)" as UC11
+            usecase "UC-11: Thiết lập Chiến lược So khớp Đầu ra (6 Checkbox + Kết hợp)" as UC11
         }
 
         package "3. Thực thi Chấm điểm Tự động (Grading Pipeline)" {

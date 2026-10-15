@@ -214,6 +214,8 @@ class DatabaseManager:
                 ) VALUES (?, ?, ?, ?, ?)
             """, (class_name, course_code, programming_language, folder_path, csv_path))
             conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_classes.")
             return cursor.lastrowid
 
     def get_all_classes(self) -> List[Dict[str, Any]]:
@@ -317,6 +319,56 @@ class DatabaseManager:
             conn.commit()
             return len(submissions)
 
+    def rescan_and_sync_submissions(
+        self,
+        class_id: int,
+        scanned_submissions: List[Tuple[str, Optional[str], str]]
+    ) -> Tuple[int, int]:
+        """
+        Đồng bộ lại danh sách bài nộp từ thư mục mà KHÔNG làm mất điểm của các bài đã chấm.
+        scanned_submissions format: List of (student_mssv, student_name, source_file_path)
+        Returns:
+            (added_count, existing_count)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, student_mssv FROM local_student_submissions
+                WHERE class_id = ? AND is_deleted = 0
+            """, (class_id,))
+            existing_map = {row["student_mssv"]: row["id"] for row in cursor.fetchall()}
+
+            added_count = 0
+            existing_count = 0
+
+            for mssv, name, filepath in scanned_submissions:
+                if mssv in existing_map:
+                    # Đã tồn tại: giữ nguyên điểm số, chỉ cập nhật đường dẫn file nếu thay đổi
+                    cursor.execute("""
+                        UPDATE local_student_submissions
+                        SET source_file_path = ?, student_name = COALESCE(?, student_name)
+                        WHERE id = ?
+                    """, (filepath, name, existing_map[mssv]))
+                    existing_count += 1
+                else:
+                    # Bài nộp mới: thêm mới với trạng thái PENDING
+                    cursor.execute("""
+                        INSERT INTO local_student_submissions (
+                            class_id, student_mssv, student_name, source_file_path, status
+                        ) VALUES (?, ?, ?, ?, 'PENDING')
+                    """, (class_id, mssv, name, filepath))
+                    added_count += 1
+
+            # Cập nhật tổng số bài nộp trong local_classes
+            cursor.execute("""
+                UPDATE local_classes SET total_submissions = (
+                    SELECT COUNT(*) FROM local_student_submissions WHERE class_id = ? AND is_deleted = 0
+                ) WHERE id = ?
+            """, (class_id, class_id))
+            conn.commit()
+
+            return added_count, existing_count
+
     def get_submissions_by_class(self, class_id: int) -> List[Dict[str, Any]]:
         """Retrieves all student submissions with their current grading verdict."""
         with self.get_connection() as conn:
@@ -357,6 +409,8 @@ class DatabaseManager:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (class_id, question_number, input_data, expected_output, score_weight, time_limit_ms, memory_limit_mb, matching_strategy))
             conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_test_cases.")
             return cursor.lastrowid
 
     def get_testcases_by_class(self, class_id: int) -> List[Dict[str, Any]]:
@@ -441,6 +495,8 @@ class DatabaseManager:
             # Update submission status
             cursor.execute("UPDATE local_student_submissions SET status = ? WHERE id = ?", (final_verdict, submission_id))
             conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_grading_results.")
             return cursor.lastrowid
 
     def save_web_grading_result(
@@ -476,6 +532,8 @@ class DatabaseManager:
             
             cursor.execute("UPDATE local_student_submissions SET status = ? WHERE id = ?", (final_verdict, submission_id))
             conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_web_grading_results.")
             return cursor.lastrowid
 
     def override_submission_score(
@@ -515,6 +573,17 @@ class DatabaseManager:
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def update_ai_feedback(self, submission_id: int, feedback: str):
+        """Updates AI pedagogical feedback for a graded submission."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_grading_results
+                SET ai_feedback = ?
+                WHERE submission_id = ? AND is_deleted = 0
+            """, (feedback, submission_id))
+            conn.commit()
+
     # ==========================================================================
     # CRUD OPERATIONS FOR WEB SUBMISSIONS (WEB STUDIO)
     # ==========================================================================
@@ -548,6 +617,8 @@ class DatabaseManager:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (course_code, class_name, mssv.strip(), name.strip(), live_url.strip(), repo_url.strip(), mode.strip()))
             conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_web_submissions.")
             return cursor.lastrowid
 
     def update_web_submission(

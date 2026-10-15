@@ -67,7 +67,7 @@ class GradingGuideDialog(QDialog):
 
         lbl_desc = QLabel(
             "Tài liệu quy chuẩn quy trình 4 bước chấm tự động, 7 tiêu chí so khớp đầu ra "
-            "và bảng tra cứu các mã phán quyết trong hệ thống AITA Grader.",
+            "và bảng tra cứu các mã phán quyết trong hệ thống AITA.",
             header_card
         )
         lbl_desc.setStyleSheet("font-size: 14px; color: #475569; line-height: 1.45; border: none; background: transparent;")
@@ -112,28 +112,32 @@ class GradingGuideDialog(QDialog):
         c_layout.setSpacing(14)
 
         # ======================================================================
-        # PHẦN 1: QUY TRÌNH CHẤM THI THỰC HÀNH KHÉP KÍN (4 BƯỚC CHUẨN)
+        # PHẦN 1: QUY TRÌNH CHẤM THI THỰC HÀNH KHÉP KÍN (6 BƯỚC CHUẨN)
         # ======================================================================
-        lbl_flow_title = QLabel("Quy Trình Chấm Thi Thực Hành Khép Kín (4 Bước Chuẩn)", container)
+        lbl_flow_title = QLabel("Quy Trình Chấm Thi Thực Hành Khép Kín (6 Bước Chuẩn)", container)
         lbl_flow_title.setStyleSheet("font-size: 19px; font-weight: 700; color: #0284C7; margin-bottom: 2px;")
         c_layout.addWidget(lbl_flow_title)
 
         flow_steps = [
-            ("Bước 1: Khởi tạo đợt thi và quét danh sách bài nộp",
-             "Nhấn nút [Tạo Đợt Chấm Mới] trên thanh điều hướng, chọn mã môn học (PRF192, PRO192, CSD201,...) "
-             "và chọn thư mục chứa bài nộp của sinh viên. Hệ thống tự động quét và nhận diện tất cả thư mục con theo định dạng MSSV "
-             "mà không yêu cầu nạp tệp CSV thủ công."),
-            ("Bước 2: Thiết lập bộ testcase và tiêu chí so khớp",
-             "Vào mục [Quản Lý Testcase] để cấu hình các cặp dữ liệu vào (stdin) và kết quả kỳ vọng (stdout). "
+            ("Bước 1: Nạp bài nộp từ thư mục",
+             "Nhấn nút [1. Nạp Bài Nộp] hoặc [Tạo Đợt Chấm Mới] trên thanh điều hướng và chọn thư mục bài làm của sinh viên. "
+             "Hệ thống tự động quét và nhận diện theo quy tắc: mỗi sinh viên là một thư mục con hoặc một tệp mã nguồn có tên bắt đầu bằng MSSV "
+             "(ví dụ: SE180001, SE180001_NguyenVanA, SE180001.c). Phần còn lại sau dấu gạch dưới hoặc gạch ngang là họ tên. "
+             "Hệ thống tự động cảnh báo nếu phát hiện trùng lặp MSSV và không nạp các mục không hợp lệ."),
+            ("Bước 2: Cấu hình testcase và tiêu chí so khớp",
+             "Nhấn [2. Cấu Hình Testcase & So Khớp] để thiết lập các bộ dữ liệu vào (stdin) và kết quả kỳ vọng (stdout) cho từng câu hỏi. "
              "Bạn có thể nhập thủ công hoặc kích hoạt Gemini AI để tự động suy luận sinh 5 đến 10 testcase biên "
              "mà không cần viết mã giải mẫu. Sau đó tick chọn các tiêu chí so khớp phù hợp và nhấn [Lưu Testcase]."),
-            ("Bước 3: Thực thi chấm điểm tự động",
-             "Quay lại màn hình chính và nhấn nút [2. Bắt Đầu Chấm Hàng Loạt]. Động cơ Sandbox Runner sẽ tự động biên dịch "
-             "và thực thi qua hàm main() với từng bài nộp của sinh viên, kiểm soát an toàn giới hạn thời gian thực thi và bộ nhớ RAM "
-             "theo cấu hình trong Cấu Hình Môi Trường (mặc định 1000ms và 256MB)."),
-            ("Bước 4: Đối soát kết quả và xuất bảng điểm",
-             "Kiểm tra danh sách kết quả, nhấp vào bài nộp để xem chi tiết sai khác (diff) hoặc nhật ký lỗi biên dịch (CE). "
-             "Chạy tính năng [3. Quét Đạo Văn AST] nếu cần kiểm tra đối soát chép bài, và bấm [4. Xuất Bảng Điểm] để xuất tệp kết quả hoàn chỉnh.")
+            ("Bước 3: Bắt đầu chấm hàng loạt",
+             "Nhấn nút [3. Bắt Đầu Chấm Hàng Loạt]. Động cơ Sandbox Runner sẽ tự động biên dịch và thực thi an toàn từng bài làm "
+             "trong môi trường cách ly độc lập, kiểm soát chặt chẽ giới hạn thời gian (ms) và bộ nhớ RAM (MB)."),
+            ("Bước 4: Quét đạo văn AST",
+             "Nhấn nút [4. Quét Đạo Văn AST] để phân tích cây cú pháp trừu tượng, đối soát gian lận chép mã nguồn chéo "
+             "giữa tất cả sinh viên trong đợt chấm."),
+            ("Bước 5: Xuất bảng điểm",
+             "Nhấn nút [5. Xuất Bảng Điểm] để xuất kết quả hoàn chỉnh ra bảng tính Excel (.xlsx), tệp báo cáo PDF hoặc CSV theo yêu cầu."),
+            ("Bước 6: Kết thúc phiên chấm",
+             "Nhấn nút [6. Kết Thúc Phiên Chấm] để chốt đợt thi, toàn bộ bảng điểm và nhật ký thực thi được lưu trữ an toàn trong CSDL cục bộ và đưa hệ thống trở về màn hình chờ ban đầu.")
         ]
 
         for step_title, step_desc in flow_steps:
@@ -235,7 +239,9 @@ class GradingGuideDialog(QDialog):
 
         table_verdicts = QTableWidget(6, 2, card_verd)
         table_verdicts.setHorizontalHeaderLabels(["Mã Phán Quyết", "Ý Nghĩa & Nguyên Nhân Xử Lý"])
-        table_verdicts.verticalHeader().setVisible(False)
+        v_header = table_verdicts.verticalHeader()
+        if v_header is not None:
+            v_header.setVisible(False)
         table_verdicts.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         table_verdicts.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table_verdicts.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -262,8 +268,9 @@ class GradingGuideDialog(QDialog):
         """)
 
         header_v = table_verdicts.horizontalHeader()
-        header_v.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        header_v.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        if header_v is not None:
+            header_v.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+            header_v.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table_verdicts.setColumnWidth(0, 240)
 
         verdicts_data = [
@@ -298,7 +305,6 @@ class GradingGuideDialog(QDialog):
             item_tag.setFont(font_tag)
             item_tag.setForeground(Qt.GlobalColor.black)
             # Dùng màu chuyên biệt cho từng loại phán quyết
-            item_tag.setStyleSheet = f"color: {v_color}; font-weight: 700;"
 
             # Đặt widget label để có màu và wrap text hoàn hảo
             lbl_tag_cell = QLabel(v_tag, table_verdicts)

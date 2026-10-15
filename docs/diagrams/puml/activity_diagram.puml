@@ -60,8 +60,9 @@ if (Loại bài thi cần chấm?) then ([Bài tập Console (C/Java/Python)])
     if (Nguồn tạo Bộ Testcase kiểm thử?) then ([Tự nhập / Nạp JSON (UC-09)])
         :Nhập thủ công các cặp INPUT / OUTPUT kỳ vọng;
     else ([Tự động sinh bằng AI (UC-10)])
-        :Dán mô tả đề bài & các ràng buộc bài toán;
-        :Bấm nút **[✨ Sinh Testcase bằng AI]**;
+        :Bấm nút viền [Sinh Testcase Bằng AI] mở hộp thoại AiTestcaseDialog;
+        :Dán mô tả đề bài, nhập số lượng testcase (mặc định 5);
+        :Bấm nút [Sinh Testcase];
 
         |Desktop App UI (PyQt6 Client)|
         :Đóng gói prompt gửi yêu cầu POST /api/v1/ai/generate-testcases;
@@ -79,17 +80,17 @@ if (Loại bài thi cần chấm?) then ([Bài tập Console (C/Java/Python)])
             :Chuyển tiếp prompt chuẩn hóa sang Google Gemini;
 
             |Google Gemini AI Hub (Cloud AI)|
-            :Phân tích đề bài & Sinh 5-10 cặp [INPUT, OUTPUT biên];
+            :Phân tích đề bài & Sinh các cặp [INPUT, OUTPUT biên];
 
             |Web Server Backend (NestJS Central API)|
             :Nhận kết quả JSON testcase từ Gemini;
             :Trả về HTTP 200 OK cho Desktop App;
 
             |Desktop App UI (PyQt6 Client)|
-            :Hiển thị bảng duyệt trước (Preview Table);
+            :Hiển thị bảng kết quả kèm checkbox chọn từng dòng;
 
             |Giảng viên (Instructor)|
-            :Kiểm tra, tick chọn các testcase đạt chuẩn & Lưu;
+            :Chọn các dòng testcase và bấm [Thêm Các Testcase Đã Chọn];
         endif
     endif
 
@@ -97,13 +98,15 @@ if (Loại bài thi cần chấm?) then ([Bài tập Console (C/Java/Python)])
     :Lưu bộ Testcase chuẩn vào CSDL SQLite cục bộ;
 
     |Giảng viên (Instructor)|
-    :Chọn 1 trong 7 Chiến lược So khớp đầu ra (MatchingStrategy - UC-11);
+    :Chuyển tab [So Khớp Đầu Ra], tick chọn các tùy chọn chuẩn hóa và chế độ so khớp (UC-11);
     note right
-      7 Chiến lược so khớp:
-      1. Exact Match, 2. Ignore Whitespace,
-      3. Case-Insensitive, 4. Float Tolerance,
-      5. Unordered Tokens, 6. Regex Pattern,
-      7. Special Judge (checker.py)
+      Tùy chọn so khớp:
+      1. Bỏ qua khoảng trắng thừa (Ignore Whitespace)
+      2. Bỏ qua phân biệt hoa / thường (Case-Insensitive)
+      3. Bỏ qua ký tự xuống dòng rỗng (Ignore Blank Lines)
+      4. Bỏ qua thứ tự các từ / token (Unordered Tokens)
+      5. So sánh số thực với sai số epsilon (Float Tolerance)
+      6. So khớp theo biểu thức chính quy (Regex Pattern)
     end note
 else ([Bài tập Web HTML/CSS/JS/PHP (UC-19)])
     :Mở bảng cấu hình **Web Grading Rubric**;

@@ -28,11 +28,11 @@ object "<u>:SandboxRunner</u>\n(GCC/Javac/Python & psutil)" as Sandbox
 ' --- 4. Phân Hệ Web Server Backend (NestJS Central Server) ---
 object "<u>:WebAPIGateway</u>\n(NestJS API Server)" as WebBackend
 object "<u>:AuthRBACService</u>\n(Passport-JWT & RBAC Guards)" as AuthService
-object "<u>:CentralDatabase</u>\n(Prisma / TypeORM Central DB)" as CentralDB
+object "<u>:CentralDatabase</u>\n(Prisma / PostgreSQL Central DB)" as CentralDB
 
 ' --- 5. Phân Hệ Trí Tuệ Nhân Tạo (AI Gateway Hub) ---
-object "<u>:AIGatewayHub</u>\n(Quản lý Quota & API Key)" as AIHub
-object "<u>:GoogleGeminiAPI</u>\n(Gemini 1.5 Flash Cloud)" as GeminiCloud
+object "<u>:AIGatewayHub</u>\n(Quản lý Quota; sử dụng key từ môi trường máy chủ)" as AIHub
+object "<u>:GoogleGeminiAPI</u>\n(Gemini 3.8 Flash Cloud)" as GeminiCloud
 
 ' ==============================================================================
 ' CÁC LUỒNG GIAO TIẾP & THÔNG ĐIỆP TOÀN HỆ THỐNG ĐƯỢC ĐÁNH SỐ THEO PHÂN HỆ
@@ -50,9 +50,9 @@ WebBackend -- CentralDB : 1.11: queryAndPersist(users, quotas)
 WebBackend -- AIHub : 1.12: updateQuotaPolicy(dailyTokenLimits)
 
 ' --- NHÓM 2: Đăng Nhập & Thiết Lập Từ Desktop App Client ---
-Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: selectStrategy(1_of_7)
+Instructor -- DesktopUI : 2.1: login(username, password)\n2.2: importCSV("students.csv")\n2.3: inputTestcases(inputs, outputs)\n2.4: configMatchingFlags(checkboxes)
 
-DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingStrategy(strategyType)
+DesktopUI -- DesktopCore : 2.5: authenticate(credentials)\n2.6: parseCSV(filePath)\n2.7: saveTestcases(testcaseList)\n2.8: setMatchingFlags(flagsCombination)
 
 DesktopCore -- WebBackend : 2.9: HTTP POST /api/v1/auth/login (lấy JWT Token)
 

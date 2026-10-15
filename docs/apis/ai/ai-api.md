@@ -10,7 +10,7 @@
 | Method | Endpoint | Use Case | Mô tả |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/ai/quota` | UC-04 | Kiểm tra hạn ngạch Token hôm nay & thời điểm reset |
-| `POST` | `/api/v1/ai/generate-testcases` | UC-10 | Tự động sinh testcase biên bằng Gemini 1.5 Flash |
+| `POST` | `/api/v1/ai/generate-testcases` | UC-10 | Tự động sinh testcase biên bằng Gemini |
 | `POST` | `/api/v1/ai/review-code` | UC-16 | Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA |
 | `POST` | `/api/v1/ai/verify-plagiarism` | UC-17 | Xác thực ngữ nghĩa nghi vấn đạo văn > 80% (Vòng 2) |
 | `POST` | `/api/v1/ai/evaluate-web-ui` | UC-19 | Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal |
@@ -22,6 +22,7 @@
 ### 2.1. `GET /api/v1/ai/quota`
 - **Mục đích**: Desktop App kiểm tra số token còn lại trước khi gọi AI.
 - **Headers**: `Authorization: Bearer <access_token>`
+- **Quyền**: Instructor. Quota được đặt lại theo ngày UTC.
 
 #### Kịch bản phản hồi:
 * **Thành công (`success: true`) - HTTP 200 OK**:

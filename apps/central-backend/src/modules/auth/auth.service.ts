@@ -82,7 +82,7 @@ export class AuthService {
         secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: accessExpiresIn,
       }),
       this.jwt.signAsync({ ...identity, token_type: 'refresh', jti: refreshId }, {
-        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn,
+        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn, jwtid: refreshId,
       }),
     ]);
     const decoded = this.jwt.decode(refreshToken) as { exp?: number } | null;

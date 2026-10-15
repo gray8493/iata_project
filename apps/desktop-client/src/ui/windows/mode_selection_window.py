@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QCursor, QGuiApplication
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -25,6 +25,8 @@ from ui.styles.theme import (
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
     COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
+from services.ai_service import AiService
+
 
 
 class ModeCard(QFrame):
@@ -172,10 +174,10 @@ class ModeCard(QFrame):
         self.btn_select.clicked.connect(self.clicked.emit)
         layout.addWidget(self.btn_select)
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+    def mousePressEvent(self, a0):
+        if a0 and a0.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
-        super().mousePressEvent(event)
+        super().mousePressEvent(a0)
 
 
 class ModeSelectionWindow(QMainWindow):
@@ -186,10 +188,10 @@ class ModeSelectionWindow(QMainWindow):
         self.session_info = session_info or {
             "mode": "ONLINE",
             "username": "instructor",
-            "display_name": "GV: Nguyễn Văn Hùng",
+            "display_name": "Giảng Viên",
         }
         
-        self.setWindowTitle("AITA Grader - Chọn Chế Độ Làm Việc")
+        self.setWindowTitle("AITA - Chọn Chế Độ Làm Việc")
         screen = QGuiApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -205,6 +207,7 @@ class ModeSelectionWindow(QMainWindow):
         self.setStyleSheet(LIGHT_THEME_QSS)
         
         self._init_ui()
+        self._refresh_ai_quota()
 
     def _init_ui(self):
         from PyQt6.QtGui import QPixmap
@@ -244,7 +247,7 @@ class ModeSelectionWindow(QMainWindow):
                 sep.setStyleSheet("background-color: #CBD5E1; border: none;")
                 header_layout.addWidget(sep)
         
-        # 1.2 Ô vuông xanh chữ "A" thay cho emoji 🎓
+        # 1.2 Ô vuông xanh chữ "A" thay cho biểu tượng
         logo_box = QLabel("A", header)
         logo_box.setFixedSize(28, 28)
         logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -260,45 +263,29 @@ class ModeSelectionWindow(QMainWindow):
         header_layout.addWidget(logo_box)
         
         # App Title (Không dùng emoji)
-        app_title = QLabel("AITA Grader System", header)
+        app_title = QLabel("AITA", header)
         app_title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLOR_TEXT_PRIMARY}; line-height: 1.4;")
         header_layout.addWidget(app_title)
         
         header_layout.addStretch(1)
         
         # 1.3 Nút "Gemini AI: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
-        is_offline = (self.session_info.get("mode") == "OFFLINE")
-        ai_badge = QLabel(header)
+        ai_badge = QLabel("Gemini AI: Sẵn Sàng", header)
         ai_badge.setFixedHeight(34)
-        if is_offline:
-            ai_badge.setText("Chế Độ Ngoại Tuyến (Offline)")
-            ai_badge.setStyleSheet("""
-                QLabel {
-                    background-color: #F1F5F9;
-                    color: #475569;
-                    font-size: 12px;
-                    font-weight: 600;
-                    border: 1px solid #CBD5E1;
-                    border-radius: 8px;
-                    padding: 0 14px;
-                    line-height: 1.4;
-                }
-            """)
-        else:
-            ai_badge.setText("Gemini AI: Sẵn Sàng")
-            ai_badge.setStyleSheet(f"""
-                QLabel {{
-                    background-color: #EFF6FF;
-                    color: {COLOR_PRIMARY};
-                    font-size: 12px;
-                    font-weight: 600;
-                    border: 1px solid #BFDBFE;
-                    border-radius: 8px;
-                    padding: 0 14px;
-                    line-height: 1.4;
-                }}
-            """)
+        ai_badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: #EFF6FF;
+                color: {COLOR_PRIMARY};
+                font-size: 12px;
+                font-weight: 600;
+                border: 1px solid #BFDBFE;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }}
+        """)
         header_layout.addWidget(ai_badge)
+        self.lbl_ai_badge = ai_badge
         
         # 1.4 Nút "GV: Nguyễn Văn Hùng": Bỏ khung lồng và icon, đơn viền bo góc, cùng chiều cao 34px
         d_name = self.session_info.get("display_name", "Nguyễn Văn Hùng")
@@ -458,6 +445,34 @@ class ModeSelectionWindow(QMainWindow):
         self.login_win = LoginWindow()
         self.login_win.show()
         self.close()
+
+    def _refresh_ai_quota(self):
+        """Fetches live AI quota from Neon Postgres via GET /api/v1/ai/quota asynchronously."""
+        class QuotaWorker(QThread):
+            quota_received = pyqtSignal(dict)
+            def run(self):
+                ai_service = AiService()
+                res = ai_service.get_quota()
+                self.quota_received.emit(res)
+
+        self.quota_worker = QuotaWorker()
+        self.quota_worker.quota_received.connect(self._on_quota_received)
+        self.quota_worker.start()
+
+    def _on_quota_received(self, res: Dict[str, Any]):
+        if hasattr(self, "lbl_ai_badge") and self.lbl_ai_badge:
+            if res.get("success"):
+                rem = res.get("remaining_tokens", 50000)
+                limit = res.get("daily_limit_tokens", 50000)
+                self.lbl_ai_badge.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_badge.setToolTip(
+                    f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
+                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
+                    f"• Hạn mức ngày: {limit:,} tokens\n"
+                    f"• Còn lại: {rem:,} tokens"
+                )
+            else:
+                self.lbl_ai_badge.setText("Gemini AI: Sẵn Sàng")
 
 
 if __name__ == "__main__":

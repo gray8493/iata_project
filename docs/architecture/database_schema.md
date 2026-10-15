@@ -6,7 +6,7 @@
 
 Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở dữ liệu (Database Schema) cho toàn bộ hệ sinh thái **AITA**, bao gồm:
 
-1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, danh mục môn học, cấu hình API Key và giám sát hạn ngạch Token Gemini AI.
+1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng Gemini AI.
 2. **Cơ sở dữ liệu Cục bộ (Local Database - SQLite3 Client)**: Nằm trực tiếp trên máy trạm của Giảng viên phục vụ Desktop App (PyQt6) vận hành chấm điểm Offline-first tốc độ cao, lưu trữ toàn bộ dữ liệu lớp học, bài nộp, testcase và kết quả điểm thi **hoàn toàn cục bộ, không tải lên Cloud**.
 
 ---
@@ -19,7 +19,7 @@ Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở 
 erDiagram
     USERS ||--o{ AI_QUOTA_LOGS : "consumes"
     USERS ||--o| AI_QUOTA_CONFIGS : "allocated"
-    USERS ||--o{ COURSES : "manages (Admin)"
+    USERS ||--o{ REFRESH_TOKENS : "authenticates"
 
     USERS {
         uuid id PK "Khóa chính UUIDv4"
@@ -49,14 +49,23 @@ erDiagram
     AI_QUOTA_LOGS {
         uuid id PK "Khóa chính log"
         uuid user_id FK "Giảng viên sử dụng"
-        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM"
-        varchar model_name "gemini-1.5-flash"
+        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM | UI_EVALUATION"
+        varchar model_name "gemini-3.8-flash"
         integer prompt_tokens "Số token đầu vào"
         integer completion_tokens "Số token đầu ra"
         integer total_tokens "Tổng số token tiêu thụ"
         boolean is_deleted "Cờ xóa mềm (Soft delete)"
         timestamptz deleted_at "Thời điểm xóa mềm"
         timestamptz created_at "Thời điểm gọi API"
+    }
+
+    REFRESH_TOKENS {
+        uuid id PK "JWT ID (jti)"
+        char token_hash UK "SHA-256 hash của refresh token"
+        uuid user_id FK "Tài khoản sở hữu phiên"
+        timestamptz expires_at "Thời điểm hết hạn"
+        timestamptz revoked_at "Thu hồi/xoay vòng"
+        timestamptz created_at "Thời điểm phát hành"
     }
 ```
 
@@ -67,7 +76,7 @@ erDiagram
 ```mermaid
 erDiagram
     LOCAL_CLASSES ||--o{ LOCAL_STUDENT_SUBMISSIONS : "manages"
-    LOCAL_CLASSES ||--o{ LOCAL_TESTCASES : "contains"
+    LOCAL_CLASSES ||--o{ LOCAL_TEST_CASES : "contains"
     LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_GRADING_RESULTS : "evaluated_by"
     LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_WEB_GRADING_RESULTS : "web_evaluated_by"
     LOCAL_CLASSES ||--o{ LOCAL_PLAGIARISM_REPORTS : "checks"
@@ -76,34 +85,38 @@ erDiagram
         integer id PK "Tự tăng (Auto Increment)"
         varchar class_name "Tên lớp: SE1801, IA1802..."
         varchar course_code "PRF | PRO | DSA | PHP"
-        varchar source_folder_path "Đường dẫn thư mục bài nộp"
+        varchar programming_language "Ngôn ngữ: C | JAVA | PYTHON | WEB"
+        varchar session_folder_path "Đường dẫn thư mục bài nộp của lớp"
+        varchar students_csv_path "Đường dẫn file students.csv"
+        integer total_submissions "Tổng số bài nộp được nạp"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        timestamptz created_at "Thời điểm tạo đợt chấm"
+        datetime created_at "Thời điểm tạo đợt chấm"
     }
 
     LOCAL_STUDENT_SUBMISSIONS {
         integer id PK "Tự tăng"
-        integer class_id FK "Thuộc lớp học nào"
-        varchar mssv "Mã số sinh viên"
-        varchar file_name "Tên file bài nộp: Q1.c, Q2.java..."
-        varchar file_path "Đường dẫn tuyệt đối trên đĩa"
-        text source_code "Nội dung mã nguồn đọc từ file"
+        integer class_id FK "Thuộc đợt chấm nào"
+        varchar student_mssv "Mã số sinh viên (MSSV)"
+        varchar student_name "Họ và tên sinh viên (nếu có)"
+        varchar source_file_path "Đường dẫn tuyệt đối file bài nộp trên đĩa"
+        varchar status "Trạng thái: PENDING | GRADED | ERROR"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        timestamptz imported_at "Thời điểm nạp từ CSV"
+        datetime created_at "Thời điểm nạp từ CSV"
     }
 
-    LOCAL_TESTCASES {
+    LOCAL_TEST_CASES {
         integer id PK "Tự tăng"
         integer class_id FK "Thuộc đợt chấm nào"
-        varchar question_no "Câu hỏi: Q1, Q2, Q3..."
+        varchar question_number "Câu hỏi: Q1, Q2, Q3..."
         text input_data "Dữ liệu bơm vào stdin của main()"
         text expected_output "Dữ liệu kỳ vọng hứng từ stdout"
         numeric score_weight "Trọng số điểm của testcase này"
         integer time_limit_ms "Giới hạn thời gian (mặc định 1000ms)"
-        integer memory_limit_mb "Giới hạn bộ nhớ RAM (mặc định 256MB)"
-        varchar generated_by "MANUAL | GEMINI_AI"
+        integer memory_limit_mb "Giới hạn bộ nhớ RAM (mặc định 128MB)"
+        varchar matching_strategy "Chiến lược so khớp áp dụng cho testcase"
+        integer is_hidden "Cờ ẩn testcase (0: Hiện, 1: Ẩn)"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
     }
@@ -111,14 +124,19 @@ erDiagram
     LOCAL_GRADING_RESULTS {
         integer id PK "Tự tăng"
         integer submission_id FK "Bài nộp Console được chấm"
-        varchar matching_strategy "1 trong 7 chế độ so khớp"
+        varchar matching_strategy "Mã cờ so khớp: IGNORE_WHITESPACE, CASE_INSENSITIVE..."
         numeric calculated_score "Điểm đạt được (0.0 - 10.0)"
         varchar final_verdict "AC | WA | TLE | MLE | CE | RE"
+        numeric execution_time_ms "Thời gian thực thi trung bình (ms)"
+        numeric memory_used_mb "Dung lượng RAM tiêu thụ tối đa (MB)"
         text compile_log "Thông báo lỗi biên dịch (nếu có CE)"
+        text diff_details "Chi tiết khác biệt stdout và expected output"
         text ai_feedback "Gợi ý sửa lỗi từ Gemini AI (On-Demand)"
+        numeric manual_override_score "Điểm số giảng viên ghi đè thủ công"
+        text manual_override_reason "Lý do ghi đè điểm"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        timestamptz graded_at "Thời điểm chấm xong"
+        datetime graded_at "Thời điểm chấm xong"
     }
 
     LOCAL_WEB_GRADING_RESULTS {
@@ -139,7 +157,7 @@ erDiagram
         text ai_feedback "Gợi ý sư phạm về giao diện từ Gemini AI"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        timestamptz graded_at "Thời điểm chấm xong"
+        datetime graded_at "Thời điểm chấm xong"
     }
 
     LOCAL_PLAGIARISM_REPORTS {
@@ -151,7 +169,7 @@ erDiagram
         text ai_evidence_details "Biên bản đối chiếu ngữ nghĩa từ AI"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        timestamptz checked_at "Thời điểm quét"
+        datetime checked_at "Thời điểm quét"
     }
 ```
 
@@ -159,7 +177,7 @@ erDiagram
 
 ## 2. Đặc Tả Chi Tiết Cơ Sở Dữ Liệu Trung Tâm (Central Database - PostgreSQL / Neon)
 
-CSDL này được quản lý tập trung trên nền tảng **Neon Serverless PostgreSQL**, tương tác qua **Prisma ORM / TypeORM** trong Web Backend (NestJS).
+CSDL này được quản lý tập trung trên nền tảng **Neon Serverless PostgreSQL**, tương tác qua **Prisma ORM** trong Web Backend (NestJS).
 
 ### 2.1. Bảng `users` (Quản lý tài khoản hệ thống)
 
@@ -185,7 +203,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.2. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
+### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
 
 * **Mục đích**: Quản trị viên (Admin) cấu hình trần số Token gọi AI tối đa trong ngày cho từng Giảng viên nhằm kiểm soát chi phí.
 
@@ -193,7 +211,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | :-------------------- | :-------------- | :---------------------------- | :-------------------- | :---------------------------------------------------------- |
 | `id`                | `UUID`        | **PRIMARY KEY**         | `gen_random_uuid()` | Khóa chính.                                               |
 | `user_id`           | `UUID`        | **FOREIGN KEY, UNIQUE** |                       | Tham chiếu`users(id)` ON DELETE CASCADE.                 |
-| `daily_token_limit` | `INTEGER`     | **NOT NULL**            | `100000`            | Giới hạn Token mỗi ngày (mặc định 100k token/ngày). |
+| `daily_token_limit` | `INTEGER`     | **NOT NULL**            | `50000`             | Giới hạn Token mỗi ngày (mặc định 50k token/ngày). |
 | `used_tokens_today` | `INTEGER`     | **NOT NULL**            | `0`                 | Tổng token đã tiêu thụ trong ngày hiện tại.         |
 | `last_reset_date`   | `DATE`        | **NOT NULL**            | `CURRENT_DATE`      | Ngày tự động reset hạn ngạch về 0.                   |
 | `is_deleted`        | `BOOLEAN`     | **NOT NULL**            | `FALSE`             | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa).       |
@@ -202,16 +220,16 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.3. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
+### 2.4. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
 
-* **Mục đích**: Ghi vết minh bạch từng lượt gọi API Google Gemini 1.5 Flash (sinh testcase, review bài WA, quét đạo văn) để phục vụ báo cáo kiểm toán (Audit Logs).
+* **Mục đích**: Ghi vết minh bạch từng lượt gọi Gemini (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
 
 | Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                     | Giá Trị Mặc Định  | Ý Nghĩa Nghiệp Vụ                                 |
 | :-------------------- | :-------------- | :------------------------------ | :--------------------- | :---------------------------------------------------- |
 | `id`                | `UUID`        | **PRIMARY KEY**           | `gen_random_uuid()`  | Khóa chính nhật ký.                               |
 | `user_id`           | `UUID`        | **FOREIGN KEY, NOT NULL** |                        | Tham chiếu`users(id)`.                             |
-| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`.    |
-| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-1.5-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
+| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`. |
+| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
 | `prompt_tokens`     | `INTEGER`     | **NOT NULL**              | `0`                  | Số token của prompt gửi đi.                       |
 | `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ Gemini.            |
 | `total_tokens`      | `INTEGER`     | **NOT NULL**              | `0`                  | Tổng token = prompt + completion.                    |
@@ -219,7 +237,24 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `deleted_at`        | `TIMESTAMPTZ` |                                 | `NULL`               | Thời điểm xóa mềm nhật ký.                     |
 | `created_at`        | `TIMESTAMPTZ` | **NOT NULL**              | `CURRENT_TIMESTAMP`  | Thời điểm gọi API.                                |
 
+Chỉ mục: `idx_ai_quota_logs_user_created` phục vụ lịch sử theo người dùng; `idx_ai_quota_logs_created_feature` phục vụ báo cáo theo tháng và tính năng.
+
 ---
+
+### 2.5. Bảng `refresh_tokens` (Phiên gia hạn JWT)
+
+Backend lưu SHA-256 hash của refresh token để xoay vòng token một lần, thu hồi token cũ sau khi gia hạn và không lưu token dạng rõ.
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | PRIMARY KEY | JWT ID (`jti`) của refresh token. |
+| `token_hash` | `CHAR(64)` | UNIQUE, NOT NULL | SHA-256 hash, không lưu token gốc. |
+| `user_id` | `UUID` | FOREIGN KEY, NOT NULL | Tham chiếu `users(id)`, xóa cascade. |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | Thời điểm hết hạn. |
+| `revoked_at` | `TIMESTAMPTZ` | NULL | Thời điểm đã sử dụng/thu hồi; null khi còn hiệu lực. |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | Thời điểm phát hành. |
+
+Chỉ mục: `idx_refresh_tokens_user_expires` trên (`user_id`, `expires_at`).
 
 ## 3. Đặc Tả Chi Tiết Cơ Sở Dữ Liệu Cục Bộ (Local SQLite3 - Desktop App)
 
@@ -227,66 +262,75 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 
 ### 3.1. Bảng `local_classes` (Quản lý đợt chấm bài tại máy trạm)
 
-* **Mục đích**: Quản lý thông tin lớp học và thư mục bài nộp của đợt thi.
+* **Mục đích**: Quản lý thông tin lớp học, môn học, ngôn ngữ và thư mục bài nộp của đợt thi.
 
-| Tên Cột              | Kiểu Dữ Liệu | Ràng Buộc                         | Ý Nghĩa Nghiệp Vụ                                         |
-| :--------------------- | :-------------- | :---------------------------------- | :------------------------------------------------------------ |
-| `id`                 | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT** | Khóa tự tăng.                                              |
-| `class_name`         | `TEXT`        | **NOT NULL**                  | Tên lớp học (VD:`SE1801`, `IA1802`).                   |
-| `course_code`        | `TEXT`        | **NOT NULL**                  | Mã môn học (`PRF`, `PRO`, `DSA`, `PHP`).           |
-| `source_folder_path` | `TEXT`        | **NOT NULL**                  | Đường dẫn thư mục chứa toàn bộ bài nộp sinh viên. |
-| `is_deleted`         | `INTEGER`     | **DEFAULT 0**                 | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                |
-| `deleted_at`         | `DATETIME`    |                                     | Thời điểm xóa mềm đợt chấm.                           |
-| `created_at`         | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm khởi tạo đợt chấm.                          |
+| Tên Cột                | Kiểu Dữ Liệu | Ràng Buộc                         | Ý Nghĩa Nghiệp Vụ                                         |
+| :----------------------- | :-------------- | :---------------------------------- | :------------------------------------------------------------ |
+| `id`                   | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT** | Khóa tự tăng.                                              |
+| `class_name`           | `TEXT`        | **NOT NULL**                  | Tên lớp học (VD:`SE1801`, `IA1802`).                   |
+| `course_code`          | `TEXT`        | **NOT NULL**                  | Mã môn học (`PRF`, `PRO`, `DSA`, `PHP`).           |
+| `programming_language` | `TEXT`        | **NOT NULL DEFAULT 'C'**      | Ngôn ngữ lập trình (`C`, `JAVA`, `PYTHON`, `WEB`). |
+| `session_folder_path`  | `TEXT`        | **NOT NULL**                  | Đường dẫn thư mục chứa bài nộp của đợt thi.        |
+| `students_csv_path`    | `TEXT`        |                                     | Đường dẫn file `students.csv` tương ứng.           |
+| `total_submissions`    | `INTEGER`     | **DEFAULT 0**                 | Tổng số bài nộp được import vào đợt thi.          |
+| `is_deleted`           | `INTEGER`     | **DEFAULT 0**                 | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                |
+| `deleted_at`           | `DATETIME`    |                                     | Thời điểm xóa mềm đợt chấm.                           |
+| `created_at`           | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm khởi tạo đợt chấm.                          |
 
 ### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ `students.csv`)
 
-* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn 2 cột (`MSSV,File`).
+* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File` hoặc nạp folder bài thi).
 
-| Tên Cột       | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                   |
-| :-------------- | :-------------- | :----------------------------------------------------- | :------------------------------------------------------ |
-| `id`          | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                        |
-| `class_id`    | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                |
-| `mssv`        | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên.                                     |
-| `file_name`   | `TEXT`        | **NOT NULL**                                     | Tên file câu hỏi (`Q1.c`, `Q2.java`...).         |
-| `file_path`   | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối của file trên đĩa cứng. |
-| `source_code` | `TEXT`        |                                                        | Nội dung mã nguồn đọc sẵn phục vụ quét AST.    |
-| `is_deleted`  | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).          |
-| `deleted_at`  | `DATETIME`    |                                                        | Thời điểm xóa mềm bài nộp.                       |
-| `imported_at` | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                    | Thời điểm nạp file CSV.                             |
+| Tên Cột            | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                   |
+| :------------------- | :-------------- | :----------------------------------------------------- | :------------------------------------------------------ |
+| `id`               | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                        |
+| `class_id`         | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                |
+| `student_mssv`     | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên (MSSV).                              |
+| `student_name`     | `TEXT`        |                                                        | Họ và tên sinh viên (nếu có trong danh sách).     |
+| `source_file_path` | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối của file trên đĩa cứng. |
+| `status`           | `TEXT`        | **NOT NULL DEFAULT 'PENDING'**                   | Trạng thái bài nộp (`PENDING`, `GRADED`, `ERROR`). |
+| `is_deleted`       | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).          |
+| `deleted_at`       | `DATETIME`    |                                                        | Thời điểm xóa mềm bài nộp.                       |
+| `created_at`       | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                    | Thời điểm nạp bài nộp vào CSDL.                   |
 
-### 3.3. Bảng `local_testcases` (Bộ testcase kiểm thử Black-box)
+### 3.3. Bảng `local_test_cases` (Bộ testcase kiểm thử Black-box)
 
 * **Nguyên tắc**: Chứa các cặp `[INPUT, OUTPUT]` dùng chung cho toàn bộ lớp học, không cần file lời giải mẫu (`solution`).
 
-| Tên Cột           | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                     |
-| :------------------ | :-------------- | :----------------------------------------------------- | :-------------------------------------------------------- |
-| `id`              | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                          |
-| `class_id`        | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                  |
-| `question_no`     | `TEXT`        | **NOT NULL**                                     | Định danh câu hỏi (`Q1`, `Q2`, `Q3`).           |
-| `input_data`      | `TEXT`        | **NOT NULL**                                     | Chuỗi dữ liệu nạp vào`stdin` của hàm `main()`. |
-| `expected_output` | `TEXT`        | **NOT NULL**                                     | Chuỗi kết quả chuẩn kỳ vọng từ`stdout`.          |
-| `score_weight`    | `REAL`        | **DEFAULT 1.0**                                  | Trọng số điểm câu hỏi.                              |
-| `time_limit_ms`   | `INTEGER`     | **DEFAULT 1000**                                 | Thời gian chạy tối đa (ms) trước khi gán`TLE`.   |
-| `memory_limit_mb` | `INTEGER`     | **DEFAULT 256**                                  | RAM tối đa (MB) trước khi gán`MLE`.                |
-| `generated_by`    | `TEXT`        | **DEFAULT 'MANUAL'**                             | `MANUAL` (nhập tay) hoặc `GEMINI_AI` (AI sinh).     |
-| `is_deleted`      | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).            |
-| `deleted_at`      | `DATETIME`    |                                                        | Thời điểm xóa mềm testcase.                          |
+| Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                           |
+| :-------------------- | :-------------- | :----------------------------------------------------- | :-------------------------------------------------------------- |
+| `id`                | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                                |
+| `class_id`          | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                        |
+| `question_number`   | `TEXT`        | **NOT NULL DEFAULT 'Q1'**                        | Định danh câu hỏi (`Q1`, `Q2`, `Q3`...).                |
+| `input_data`        | `TEXT`        | **NOT NULL**                                     | Chuỗi dữ liệu nạp vào `stdin` của hàm `main()`.        |
+| `expected_output`   | `TEXT`        | **NOT NULL**                                     | Chuỗi kết quả chuẩn kỳ vọng từ `stdout`.                |
+| `score_weight`      | `REAL`        | **DEFAULT 1.0**                                  | Trọng số điểm câu hỏi.                                    |
+| `time_limit_ms`     | `INTEGER`     | **DEFAULT 1000**                                 | Thời gian chạy tối đa (ms) trước khi gán `TLE`.         |
+| `memory_limit_mb`   | `INTEGER`     | **DEFAULT 128**                                  | RAM tối đa (MB) trước khi gán `MLE`.                      |
+| `matching_strategy` | `TEXT`        | **NOT NULL DEFAULT 'EXACT_MATCH'**              | Chiến lược so khớp áp dụng cho testcase này.            |
+| `is_hidden`         | `INTEGER`     | **DEFAULT 0**                                    | Cờ ẩn testcase đối với sinh viên (0: Hiện, 1: Ẩn).      |
+| `is_deleted`        | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                  |
+| `deleted_at`        | `DATETIME`    |                                                        | Thời điểm xóa mềm testcase.                                |
 
 ### 3.4. Bảng `local_grading_results` (Kết quả chấm bài tập Console C/Java/Python)
 
-| Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                                                        | Ý Nghĩa Nghiệp Vụ                                          |
-| :-------------------- | :-------------- | :----------------------------------------------------------------- | :------------------------------------------------------------- |
-| `id`                | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                                | Khóa tự tăng.                                               |
-| `submission_id`     | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Console tương ứng.                                |
-| `matching_strategy` | `TEXT`        | **NOT NULL**                                                 | 1 trong 7 chiến lược so khớp đầu ra đã áp dụng.      |
-| `calculated_score`  | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm số tính toán được (0.0 - 10.0).                   |
-| `final_verdict`     | `TEXT`        | **NOT NULL**                                                 | Phán quyết:`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`. |
-| `compile_log`       | `TEXT`        |                                                                    | Bắt nội dung`stderr` khi dính lỗi biên dịch `CE`.    |
-| `ai_feedback`       | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi Gemini AI (On-Demand).    |
-| `is_deleted`        | `INTEGER`     | **DEFAULT 0**                                                | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                 |
-| `deleted_at`        | `DATETIME`    |                                                                    | Thời điểm xóa mềm kết quả.                              |
-| `graded_at`         | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                                | Thời điểm chấm xong.                                       |
+| Tên Cột                  | Kiểu Dữ Liệu | Ràng Buộc                                                        | Ý Nghĩa Nghiệp Vụ                                          |
+| :------------------------- | :-------------- | :----------------------------------------------------------------- | :------------------------------------------------------------- |
+| `id`                     | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                                | Khóa tự tăng.                                               |
+| `submission_id`          | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Console tương ứng.                                |
+| `matching_strategy`      | `TEXT`        | **NOT NULL**                                                 | Tổ hợp các cờ tiêu chí so khớp đầu ra đã áp dụng. |
+| `calculated_score`       | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm số tính toán được (0.0 - 10.0).                   |
+| `final_verdict`          | `TEXT`        | **NOT NULL**                                                 | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`.  |
+| `execution_time_ms`      | `REAL`        | **DEFAULT 0.0**                                              | Thời gian thực thi trung bình của các testcase (ms).        |
+| `memory_used_mb`         | `REAL`        | **DEFAULT 0.0**                                              | Dung lượng bộ nhớ RAM tối đa tiến trình tiêu thụ (MB).      |
+| `compile_log`            | `TEXT`        |                                                                    | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`.          |
+| `diff_details`           | `TEXT`        |                                                                    | Chi tiết so sánh sai lệch giữa stdout và expected output.   |
+| `ai_feedback`            | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi Gemini AI (On-Demand).    |
+| `manual_override_score`  | `REAL`        |                                                                    | Điểm số do giảng viên điều chỉnh/ghi đè thủ công.          |
+| `manual_override_reason` | `TEXT`        |                                                                    | Lý do giảng viên ghi đè điểm số.                            |
+| `is_deleted`             | `INTEGER`     | **DEFAULT 0**                                                | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                 |
+| `deleted_at`             | `DATETIME`    |                                                                    | Thời điểm xóa mềm kết quả.                              |
+| `graded_at`              | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                                | Thời điểm chấm xong.                                       |
 
 ### 3.5. Bảng `local_web_grading_results` (Kết quả chấm bài tập Web HTML/CSS/JS/PHP - UC-19)
 

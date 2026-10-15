@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QCursor, QPixmap, QIcon
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtBoundSignal
+from PyQt6.QtGui import QFont, QCursor, QPixmap, QIcon, QAction
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFrame, QCheckBox, QMessageBox
@@ -19,6 +19,7 @@ SRC_DIR = Path(__file__).resolve().parent.parent.parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from services.auth_service import AuthService
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_BG, COLOR_SURFACE, COLOR_TEXT_PRIMARY, COLOR_BORDER_DEFAULT,
@@ -26,17 +27,33 @@ from ui.styles.theme import (
 )
 
 
+class LoginWorker(QThread):
+    """Worker thread performing asynchronous login call to Central Backend."""
+    login_finished: pyqtBoundSignal = pyqtSignal(dict)  # type: ignore[assignment]
+
+    def __init__(self, username: str, password: str):
+        super().__init__()
+        self.username = username
+        self.password = password
+
+    def run(self):
+        auth_service = AuthService()
+        result = auth_service.login(self.username, self.password)
+        self.login_finished.emit(result)
+
+
 class LoginWindow(QMainWindow):
     """
     Instructor Authentication Window matching Design System:
     Light Canvas (#F5F8FC), White Card (#FFFFFF, 1px solid #E5EAF0, radius 16px).
     """
-    login_successful = pyqtSignal(dict)
+    login_successful: pyqtBoundSignal = pyqtSignal(dict)  # type: ignore[assignment]
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("AITA Grader - Đăng Nhập Giảng Viên")
-        self.setFixedSize(460, 560)
+        self.action_toggle_pwd: Optional[QAction] = None
+        self.setWindowTitle("AITA - Đăng Nhập Giảng Viên")
+        self.setFixedSize(460, 500)
         self.setStyleSheet(LIGHT_THEME_QSS)
         self._init_ui()
 
@@ -82,14 +99,22 @@ class LoginWindow(QMainWindow):
         if logo_path and logo_path.exists():
             pixmap = QPixmap(str(logo_path))
             if not pixmap.isNull():
-                # Chiều cao 72px (trong khoảng 64-80px), scale mượt mà, giữ nguyên tỉ lệ gốc
-                scaled_pixmap = pixmap.scaledToHeight(72, Qt.TransformationMode.SmoothTransformation)
+                dpr = self.devicePixelRatioF() if hasattr(self, "devicePixelRatioF") else 1.0
+                target_height = 52
+                scaled_pixmap = pixmap.scaledToHeight(
+                    int(target_height * dpr),
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                scaled_pixmap.setDevicePixelRatio(dpr)
                 lbl_logo.setPixmap(scaled_pixmap)
+                display_w = int(scaled_pixmap.width() / dpr)
+                display_h = int(scaled_pixmap.height() / dpr)
+                lbl_logo.setFixedSize(display_w, display_h)
                 lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                lbl_logo.setStyleSheet("background: transparent;")
+                lbl_logo.setStyleSheet("background: transparent; border: none;")
         else:
             lbl_logo.setText("FPT UNIVERSITY")
-            lbl_logo.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {COLOR_PRIMARY}; background: transparent;")
+            lbl_logo.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {COLOR_PRIMARY}; background: transparent; border: none;")
 
         logo_layout.addWidget(lbl_logo)
         card_layout.addLayout(logo_layout)
@@ -97,8 +122,8 @@ class LoginWindow(QMainWindow):
         # Khoảng cách 18px giữa Logo và tiêu đề (chuẩn 16-20px)
         card_layout.addSpacing(18)
         
-        # Tiêu đề "AITA Grader"
-        lbl_title = QLabel("AITA Grader", card)
+        # Tiêu đề "AITA"
+        lbl_title = QLabel("AITA", card)
         lbl_title.setStyleSheet(f"""
             QLabel {{
                 font-size: 22px;
@@ -115,7 +140,7 @@ class LoginWindow(QMainWindow):
         card_layout.addSpacing(6)
         
         # Dòng mô tả (Màu xám đậm #475569 tăng tương phản rõ rệt)
-        lbl_sub = QLabel("Hệ thống chấm thi & đánh giá lập trình cục bộ", card)
+        lbl_sub = QLabel("Hệ thống chấm thi & đánh giá lập trình", card)
         lbl_sub.setStyleSheet("""
             QLabel {{
                 font-size: 13px;
@@ -148,8 +173,7 @@ class LoginWindow(QMainWindow):
         
         self.txt_username = QLineEdit(card)
         self.txt_username.setFixedHeight(40)
-        self.txt_username.setPlaceholderText("hungnv@fe.edu.vn")
-        self.txt_username.setText("teacher_hung@fe.edu.vn")
+        self.txt_username.setPlaceholderText("Nhập tên đăng nhập hoặc email...")
         card_layout.addWidget(self.txt_username)
         
         # Khoảng cách giữa các nhóm: 16px
@@ -175,7 +199,6 @@ class LoginWindow(QMainWindow):
         self.txt_password.setFixedHeight(40)
         self.txt_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_password.setPlaceholderText("Nhập mật khẩu...")
-        self.txt_password.setText("Secret@123")
         
         # Icon mắt hiện/ẩn mật khẩu ở cuối ô nhập
         eye_candidates = [
@@ -199,8 +222,9 @@ class LoginWindow(QMainWindow):
             self.icon_eye_off,
             QLineEdit.ActionPosition.TrailingPosition
         )
-        self.action_toggle_pwd.setToolTip("Hiện mật khẩu")
-        self.action_toggle_pwd.triggered.connect(self._toggle_password_visibility)
+        if self.action_toggle_pwd is not None:
+            self.action_toggle_pwd.setToolTip("Hiện mật khẩu")
+            self.action_toggle_pwd.triggered.connect(self._toggle_password_visibility)
         card_layout.addWidget(self.txt_password)
         
         # Khoảng cách đến checkbox: 14px
@@ -293,12 +317,14 @@ class LoginWindow(QMainWindow):
         """Toggles password visibility between masked and plain text."""
         if self.txt_password.echoMode() == QLineEdit.EchoMode.Password:
             self.txt_password.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.action_toggle_pwd.setIcon(self.icon_eye)
-            self.action_toggle_pwd.setToolTip("Ẩn mật khẩu")
+            if self.action_toggle_pwd is not None:
+                self.action_toggle_pwd.setIcon(self.icon_eye)
+                self.action_toggle_pwd.setToolTip("Ẩn mật khẩu")
         else:
             self.txt_password.setEchoMode(QLineEdit.EchoMode.Password)
-            self.action_toggle_pwd.setIcon(self.icon_eye_off)
-            self.action_toggle_pwd.setToolTip("Hiện mật khẩu")
+            if self.action_toggle_pwd is not None:
+                self.action_toggle_pwd.setIcon(self.icon_eye_off)
+                self.action_toggle_pwd.setToolTip("Hiện mật khẩu")
 
     def _handle_login(self):
         user = self.txt_username.text().strip()
@@ -307,31 +333,56 @@ class LoginWindow(QMainWindow):
             QMessageBox.warning(self, "Lỗi Nhập Liệu", "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!")
             return
             
-        user_base = user.split("@")[0].strip().lower()
-        if user_base in ("teacher_hung", "hungnv"):
-            disp_name = "GV: Nguyễn Văn Hùng"
-        elif user_base in ("admin", "quantri"):
-            disp_name = "GV: Quản Trị Hệ Thống"
-        else:
-            disp_name = f"GV: {user.split('@')[0].strip()}" if user else "GV: Giảng viên"
-            
-        session_info = {
-            "mode": "ONLINE",
-            "username": user,
-            "display_name": disp_name,
-        }
-        self.login_successful.emit(session_info)
-        self._launch_main_window(session_info)
+        # Hiển thị trạng thái đang kết nối máy chủ
+        self.btn_login.setEnabled(False)
+        self.btn_login.setText("Đang kết nối máy chủ...")
+        self.txt_username.setEnabled(False)
+        self.txt_password.setEnabled(False)
 
-    def _handle_offline(self):
-        """Kept intact for backward compatibility or internal programmatic transitions."""
-        session_info = {
-            "mode": "OFFLINE",
-            "username": "offline_instructor",
-            "display_name": "GV: Chế Độ Ngoại Tuyến (Offline)",
-        }
-        self.login_successful.emit(session_info)
-        self._launch_main_window(session_info)
+        # Gọi đăng nhập bất đồng bộ qua QThread
+        self.login_worker = LoginWorker(user, pwd)
+        self.login_worker.login_finished.connect(self._on_login_finished)
+        self.login_worker.start()
+
+    def _on_login_finished(self, result: Dict[str, Any]):
+        """Xử lý kết quả trả về từ Backend Render."""
+        self.btn_login.setEnabled(True)
+        self.btn_login.setText("Đăng Nhập")
+        self.txt_username.setEnabled(True)
+        self.txt_password.setEnabled(True)
+
+        if result.get("success"):
+            user_info = result.get("user", {})
+            data = result.get("data", {})
+            raw_username = self.txt_username.text().strip()
+            username = user_info.get("username", raw_username)
+            full_name = user_info.get("full_name") or username
+            role = user_info.get("role", "INSTRUCTOR")
+            
+            session_info = {
+                "mode": "ONLINE",
+                "username": username,
+                "display_name": f"GV: {full_name}",
+                "full_name": full_name,
+                "role": role,
+                "email": user_info.get("email"),
+                "user_id": user_info.get("id"),
+                "token": data.get("access_token"),
+                "refresh_token": data.get("refresh_token"),
+            }
+            self.login_successful.emit(session_info)
+            self._launch_main_window(session_info)
+        else:
+            msg = result.get("message", "Đăng nhập không thành công.")
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setWindowTitle("Lỗi Kết Nối Máy Chủ" if "Không kết nối" in msg else "Đăng Nhập Thất Bại")
+            msg_box.setText(msg)
+            btn_retry = msg_box.addButton("Thử Lại", QMessageBox.ButtonRole.AcceptRole)
+            btn_close = msg_box.addButton("Đóng", QMessageBox.ButtonRole.RejectRole)
+            msg_box.exec()
+            if msg_box.clickedButton() == btn_retry:
+                self._handle_login()
 
     def _launch_main_window(self, session_info):
         try:

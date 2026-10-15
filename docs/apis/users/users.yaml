@@ -76,7 +76,7 @@ paths:
                 status_code: 201
                 message: Tạo tài khoản thành công
                 data:
-                  id: 2
+                  id: a8fdc8b6-c222-4e5d-bc2a-62e28800d247
                   username: teacher_lan
                 timestamp: '2026-09-30T12:00:00.000Z'
         '409':
@@ -97,7 +97,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Thành công
@@ -110,7 +111,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Thành công
@@ -123,7 +125,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
           description: Xóa thành công

@@ -32,8 +32,8 @@ Mỗi Use Case được đặc tả bao gồm:
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
-| **UC-04** | Cấu hình API Key & Giám sát Hạn ngạch AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
-| **UC-05** | Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường | Admin | Web Admin Dashboard | Web Server Backend |
+| **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
+| **UC-05** | Xem Báo cáo tài khoản & Sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
 | **UC-06** | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-07** | Quản lý Đợt Chấm & Lớp học | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
@@ -69,7 +69,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-01`
 * **Tên Use Case**: Đăng nhập & Xác thực Hệ thống (Login & System Authentication)
 * **Tác nhân chính**: Quản trị viên (Admin), Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI Auth Service, JWT & Bcrypt Engine)
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS Auth Module, JWT & Bcrypt Engine)
 * **Mô tả tóm tắt**: Cung cấp cơ chế xác thực an toàn, tập trung cho cả Quản trị viên (trên Web Admin Dashboard) và Giảng viên (trên Desktop App Client). Hệ thống thẩm định định danh qua OAuth2 Password Request, mã hóa băm Bcrypt và trả về Access Token / Refresh Token định dạng JWT mang thông tin Role-Based Access Control (`admin` hoặc `instructor`).
 * **Tiền điều kiện (Preconditions)**:
   1. Người dùng đã được cấp tài khoản hoạt động (`is_active = True`) trên hệ thống Web Server Backend.
@@ -106,7 +106,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-02`
 * **Tên Use Case**: Quản lý Tài khoản & Phân quyền Giảng viên (Manage Instructor Accounts & RBAC)
 * **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI RBAC Engine, SQLAlchemy ORM)
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS RBAC Guards, Prisma ORM)
 * **Mô tả tóm tắt**: Cho phép Quản trị viên tạo mới tài khoản cho giảng viên, chỉnh sửa thông tin cá nhân, cấp lại mật khẩu, kích hoạt/vô hiệu hóa tài khoản và gán vai trò quyền hạn (`Admin` hoặc `Instructor`) trên Web Admin Dashboard.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập thành công vào Web Admin Dashboard với quyền `Admin` (`role == 'admin'`).
@@ -125,7 +125,7 @@ Mỗi Use Case được đặc tả bao gồm:
    - **Đặt lại mật khẩu (Reset Password)**: Bấm nút "Reset Password", nhập mật khẩu mới hoặc chọn tự động sinh mật khẩu ngẫu nhiên.
 4. Quản trị viên nhấn nút **"Lưu thay đổi" (Save)**.
 5. Client gửi yêu cầu tương ứng (`POST`, `PUT`, hoặc `PATCH /api/v1/admin/users/{id}`) kèm JWT token tới Backend.
-6. Backend thẩm định quyền Admin thông qua middleware `require_role(["admin"])`, kiểm tra tính hợp lệ của dữ liệu (email không trùng lặp, độ phức tạp mật khẩu), mã hóa mật khẩu bằng Bcrypt nếu có thay đổi và lưu vào CSDL qua SQLAlchemy.
+6. Backend thẩm định quyền Admin thông qua NestJS RBAC Guards, kiểm tra tính hợp lệ của dữ liệu (email không trùng lặp, độ phức tạp mật khẩu), mã hóa mật khẩu bằng Bcrypt nếu có thay đổi và lưu vào CSDL qua Prisma.
 7. Backend trả về thông báo thành công `HTTP 200/201`.
 8. Web Admin Dashboard tự động tải lại bảng dữ liệu và hiển thị thông báo "Cập nhật tài khoản thành công". Use Case kết thúc.
 
@@ -135,54 +135,46 @@ Mỗi Use Case được đặc tả bao gồm:
 
 
 
-#### 3.1.3. UC-04: Cấu Hình API Key & Giám Sát Hạn Ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+#### 3.1.3. UC-04: Quản Lý Hạn Ngạch & Giám Sát Sử Dụng AI
 
 * **Mã Use Case**: `UC-04`
-* **Tên Use Case**: Cấu hình API Key & Giám sát Hạn ngạch AI (Configure Centralized AI Key & Monitor Quotas)
+* **Tên Use Case**: Quản lý hạn ngạch và giám sát sử dụng AI
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend, Google Gemini AI Hub
-* **Mô tả tóm tắt**: Cung cấp cơ chế quản trị bảo mật tập trung cho dịch vụ AI: Quản trị viên thiết lập và bảo mật Google Gemini API Key tại máy chủ Web Backend (ngăn chặn rò rỉ key ra client máy trạm), cấu hình hạn mức tiêu thụ token/lượt gọi cho từng giảng viên theo ngày/tháng, và theo dõi biểu đồ tiêu thụ tài nguyên AI toàn trường theo thời gian thực.
+* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. Google Gemini API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `GEMINI_API_KEY` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập tài khoản quyền Admin trên Web Admin.
-  2. Quản trị viên có Google Gemini API Key hợp lệ từ Google AI Studio.
+  2. Backend đã được cấu hình `GEMINI_API_KEY` trong môi trường máy chủ.
 * **Hậu điều kiện (Postconditions)**:
-  1. API Key được mã hóa và lưu trữ an toàn trong biến môi trường hoặc bảng cấu hình bảo mật tại Web Backend.
-  2. Định mức hạn ngạch (Rate Limit & Daily Token Quota) được áp dụng cho toàn bộ giảng viên.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Cấu hình & Giám sát AI" (AI Hub & Quota Monitor)** trên Web Admin.
+  1. Quota ngày của giảng viên được lưu và áp dụng tại backend.
+  2. Nhật ký và báo cáo sử dụng AI có thể được tra cứu từ Web Admin.
+* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Giám sát AI & Quota"** trên Web Admin.
 
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên mở phân hệ **"Quản lý AI & Giám sát Hạn ngạch"**.
-2. Hệ thống tải thông tin tổng hợp:
-   - Trạng thái kết nối Google Gemini API (Sẵn sàng / Lỗi).
-   - Biểu đồ trực quan lượng token đã tiêu thụ hôm nay, tuần này và tháng này.
-   - Bảng thống kê chi tiết mức tiêu thụ của từng Giảng viên (Số lượt sinh testcase, số lượt review lỗi, số token đã dùng).
-3. Quản trị viên thực hiện cấu hình:
-   - **Nhập / Đổi API Key**: Nhập Gemini API Key mới vào trường bảo mật (ký tự ẩn `••••••••`).
-   - Bấm nút **"Kiểm tra kết nối" (Test Connection)**: Hệ thống gửi request ping nhẹ đến Google Gemini API để kiểm tra tính hợp lệ của Key.
-   - **Thiết lập hạn mức**: Đặt trần hạn mức gọi token cho từng Giảng viên (ví dụ: tối đa 100.000 tokens/ngày) hoặc trần số lượt phân tích lỗi On-Demand.
-4. Quản trị viên bấm nút **"Lưu Cấu Hình AI"**.
-5. Client gửi yêu cầu `POST /api/v1/admin/ai-config` lên Backend.
-6. Backend lưu trữ cấu hình bảo mật, thiết lập bộ đếm quota trong CSDL trung tâm và phản hồi xác nhận.
-7. Web UI hiển thị thông báo cấu hình thành công kèm chỉ báo kết nối chuyển sang màu xanh (Active). Use Case kết thúc.
+2. Web Admin tải số liệu tổng hợp bằng `GET /api/v1/admin/reports/overview` và nhật ký đã lọc bằng `GET /api/v1/admin/reports/ai-usage`.
+3. Khi thay đổi quota, Admin cập nhật `daily_token_quota` qua `PUT /api/v1/admin/users/{id}`; backend lưu cấu hình và áp dụng quota ngày UTC cho các yêu cầu AI tiếp theo.
+4. Gemini API key được vận hành viên thay đổi trong cấu hình môi trường máy chủ, không qua API hoặc giao diện Admin. Backend không trả giá trị key cho client.
+5. Web Admin hiển thị báo cáo/quota đã cập nhật. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Đặt lại hạn ngạch (Reset Quota) thủ công cho Giảng viên**: Khi một giảng viên cần chấm nhiều lớp trong kỳ thi và bị chạm trần hạn mức, Quản trị viên có thể bấm nút "Cấp thêm hạn ngạch" (+50.000 tokens) trực tiếp tại dòng của giảng viên đó.
-* **E1 - API Key không hợp lệ**: Tại bước 3, khi kiểm tra kết nối, nếu Google Gemini API trả về lỗi xác thực `401/403 Invalid API Key`, hệ thống báo lỗi đỏ: "API Key không hợp lệ hoặc đã hết hạn từ Google AI Studio. Vui lòng kiểm tra lại". Không lưu key lỗi vào cấu hình.
+* **A1 - Điều chỉnh quota**: Admin thay đổi quota qua cập nhật User; quota mới có hiệu lực ngay cho lần kiểm tra quota kế tiếp.
+* **E1 - Gemini chưa được cấu hình hoặc key không hợp lệ**: Backend trả lỗi đã lọc thông tin nhạy cảm (`AI_NOT_CONFIGURED` hoặc `AI_PROVIDER_ERROR`); vận hành viên cập nhật biến môi trường máy chủ.
 
 ---
 
-#### 3.1.4. UC-05: Xem Báo Cáo Tổng Quan & Lịch Sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+#### 3.1.4. UC-05: Xem Báo cáo tài khoản & Sử dụng AI (View Account & AI Usage Reports)
 
 * **Mã Use Case**: `UC-05`
-* **Tên Use Case**: Xem Báo cáo Tổng quan & Lịch sử Chấm Toàn Trường (View School-wide Grading Reports & Logs)
+* **Tên Use Case**: Xem Báo cáo tài khoản & Sử dụng AI (View Account & AI Usage Reports)
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, Prisma ORM)
-* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên góc nhìn bao quát toàn bộ hoạt động học thuật và sử dụng AI trên hệ thống: tổng số tài khoản giảng viên, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ hạn ngạch Token Gemini theo giảng viên, và nhật ký kiểm toán hệ thống (Audit Logs).
+* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên báo cáo số tài khoản giảng viên và hoạt động sử dụng AI, gồm tổng token Gemini đã tiêu thụ, tính năng được dùng và nhật ký từng lượt gọi AI. Backend không lưu phiên chấm hoặc bảng điểm; các dữ liệu đó được quản lý cục bộ trên Desktop App.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập vào Web Admin Dashboard với quyền Admin.
 * **Hậu điều kiện (Postconditions)**:
   1. Báo cáo thống kê tổng hợp và danh sách nhật ký được hiển thị đầy đủ, hỗ trợ lọc và xuất file báo cáo tổng kết.
-* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Báo cáo Toàn trường & Lịch sử" (School-wide Analytics & Logs)**.
+* **Tác nhân kích hoạt (Trigger)**: Quản trị viên chọn mục **"Báo cáo tài khoản & Sử dụng AI" (School-wide Analytics & Logs)**.
 
 ##### Luồng sự kiện chính (Main Flow):
 1. Quản trị viên truy cập mục **"Báo cáo & Thống kê"**.
@@ -191,9 +183,9 @@ Mỗi Use Case được đặc tả bao gồm:
 4. Giao diện hiển thị các khối trực quan:
    - Các chỉ số KPI tổng thể: Tổng số giảng viên, Tổng token AI đã tiêu thụ trong tháng.
    - Biểu đồ tần suất sử dụng các tính năng AI (Sinh testcase, Code review lỗi WA, Quét đạo văn Vòng 2).
-   - Bảng nhật ký hoạt động hệ thống và kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
-5. Quản trị viên có thể sử dụng bộ lọc: theo Giảng viên, hoặc theo Khoảng thời gian (Học kỳ / Tháng).
-6. Quản trị viên có thể bấm nút **"Xuất Báo Cáo Tổng Hợp (PDF/Excel)"** để tải về máy tính báo cáo phục vụ quản lý chi phí API và nghiệm thu đào tạo. Use Case kết thúc.
+   - Bảng nhật ký sử dụng AI phục vụ kiểm toán (Giảng viên, Tính năng sử dụng, Số token tiêu hao, Thời gian gọi).
+5. Quản trị viên có thể sử dụng bộ lọc theo Giảng viên hoặc Khoảng thời gian.
+6. Web Admin có thể xuất PDF/Excel ở phía trình duyệt từ dữ liệu JSON đã tải; backend không tạo hay lưu file báo cáo. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Xem chi tiết mức sử dụng Token của Giảng viên**: Quản trị viên nhấp vào một giảng viên cụ thể trong danh sách để xem chi tiết lịch sử các lần gọi AI trong tháng.
@@ -243,30 +235,28 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-07`
 * **Tên Use Case**: Quản lý Đợt Chấm & Lớp học (Manage Classes & Grading Sessions)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Cơ sở dữ liệu SQLite cục bộ (Local SQLite Database)
-* **Mô tả tóm tắt**: Giảng viên tạo mới, mở lại, đổi tên hoặc lưu trữ các đợt chấm bài (Grading Sessions) theo từng lớp học và môn học cụ thể (ví dụ: `PRF192_SE1801_PracticalExam`). Mỗi đợt chấm là một không gian làm việc độc lập lưu trữ danh sách sinh viên, bộ testcase, kết quả điểm và nhật ký chấm.
+* **Tác nhân hỗ trợ ngoài**: Cơ sở dữ liệu SQLite cục bộ (`local_grading.db`)
+* **Mô tả tóm tắt**: Cho phép Giảng viên khởi tạo phiên làm việc mới cho từng lớp/kỳ thi, tra cứu lịch sử, tìm kiếm đợt chấm theo mã lớp, lọc theo môn học, mở lại đợt chấm cũ để tiếp tục làm việc hoặc xóa bỏ đợt chấm không còn sử dụng.
 * **Tiền điều kiện (Preconditions)**:
-  1. Desktop App đã khởi động thành công.
+  1. Giảng viên đã mở ứng dụng Desktop App.
 * **Hậu điều kiện (Postconditions)**:
-  1. Đợt chấm bài mới được khởi tạo và ghi vào CSDL SQLite cục bộ.
-  2. Không gian làm việc của đợt chấm trở thành phiên hoạt động hiện thời (Active Session) trên giao diện.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Tạo Đợt Chấm Mới" (New Session)** hoặc **"Mở Đợt Chấm Cũ" (Open Session)**.
+  1. Đợt chấm mới được tạo hoặc đợt chấm cũ được chọn sẽ trở thành đợt chấm hoạt động (`active session`) trên màn hình chính.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn nút **"Lịch Sử Đợt Chấm"** hoặc **"Tạo Đợt Chấm Mới"** trên giao diện chính.
 
 ##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên chọn nút **"Tạo Đợt Chấm Mới"** trên giao diện chính của Desktop App.
-2. Hệ thống hiển thị hộp thoại khởi tạo đợt chấm:
-   - Tên đợt chấm (ví dụ: `Thi_Thuc_Hanh_PRF_Lop_SE1801`).
-   - Chọn Môn học: Danh sách dropdown gồm `PRF (C)`, `PRO (Java/Python)`, `DSA (Java/Python)`, `PHP (Python)`.
-   - Chọn Thư mục gốc chứa bài làm của sinh viên (Submission Directory).
-   - Chọn số lượng câu hỏi của đề thi (ví dụ: Đề thi có 3 câu: `Q1`, `Q2`, `Q3`).
-3. Giảng viên điền thông tin và bấm **"Khởi tạo"**.
-4. Hệ thống tạo bản ghi mới trong bảng `sessions` của CSDL SQLite cục bộ, khởi tạo cấu trúc thư mục làm việc và tải giao diện bảng điểm trống tương ứng với môn học đã chọn.
-5. Hệ thống kích hoạt đợt chấm này làm phiên làm việc chính và hiển thị tên đợt chấm lên thanh tiêu đề của ứng dụng. Use Case kết thúc.
+1. Giảng viên mở cửa sổ **"Lịch Sử & Quản Lý Đợt Chấm Điểm"** (`HistoryDialog`).
+2. Hệ thống hiển thị thanh công cụ phía trên gồm:
+   - Ô nhập tìm kiếm theo mã lớp (`QLineEdit`, lọc tức thời khi gõ).
+   - Danh sách chọn môn học (`QComboBox`: "Tất cả môn học" hoặc các mã môn cụ thể `PRF`, `PRO`, `DSA`, `PHP`...).
+   - Dòng tổng quan số lượng rõ ràng: `"{X} đợt chấm, {Y} bài nộp đã xử lý"`.
+3. Bảng lịch sử liệt kê đầy đủ các đợt chấm với các cột: *Mã Lớp / Đợt Chấm*, *Môn Học*, *Ngôn Ngữ*, *Số Bài Nộp*, *Tiến Độ Chấm*, *Tỷ Lệ Đạt (AC)*, *Điểm Trung Bình*, và cột *Thao Tác*.
+4. Giảng viên tìm thấy đợt chấm cần mở và nhấn nút viền xanh **"Mở Đợt Chấm"**.
+5. Hệ thống nạp đợt chấm này lên màn hình làm việc chính, đồng bộ toàn bộ danh sách sinh viên, testcase và kết quả chấm đã lưu từ SQLite cục bộ. Hộp thoại đóng lại, Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Mở lại đợt chấm đã có từ trước**: Tại bước 1, Giảng viên bấm nút "Mở Đợt Chấm Đã Lưu", chọn một đợt chấm trong danh sách lịch sử. Hệ thống nạp lại toàn bộ dữ liệu sinh viên, testcase và điểm số đã chấm dở trước đó lên bảng giao diện.
-* **A2 - Xóa đợt chấm**: Giảng viên chọn một đợt chấm không còn dùng và nhấn "Xóa". Hệ thống yêu cầu xác nhận trước khi xóa bản ghi trong SQLite cục bộ.
-* **E1 - Thư mục bài làm không tồn tại**: Tại bước 2, nếu thư mục bài nộp được chọn đã bị di chuyển hoặc xóa khỏi ổ đĩa, hệ thống hiển thị thông báo lỗi và yêu cầu chọn lại đường dẫn hợp lệ.
+* **A1 - Tạo đợt chấm mới**: Tại bước 2, Giảng viên có thể nhấn nút **"Tạo Đợt Chấm Mới"** để mở hộp thoại nhập tên lớp, môn học, ngôn ngữ lập trình và chọn thư mục bài nộp.
+* **A2 - Xóa đợt chấm**: Giảng viên bấm nút chữ đỏ viền mảnh **"Xóa"** tại một hàng trong bảng. Hệ thống hiển thị hộp thoại xác nhận chi tiết: *"Xóa đợt {tên lớp} cùng {số lượng} bài nộp và toàn bộ kết quả chấm? Thao tác này không thể hoàn tác."* với 2 nút: **"Xóa"** (nền đỏ) và **"Hủy"**. Khi Giảng viên xác nhận, hệ thống thực hiện xóa mềm trong SQLite cục bộ và phát tín hiệu đồng bộ làm mới dữ liệu.
+* **A3 - Trạng thái khi chưa có đợt chấm nào**: Nếu CSDL chưa có đợt chấm nào, bảng tự động ẩn và hiển thị thông báo *"Chưa có đợt chấm nào"* cùng nút bấm *"Tạo Đợt Chấm Mới"*.
 
 ---
 
@@ -314,34 +304,26 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-09`
 * **Tên Use Case**: Quản lý Bộ Testcase Kiểm thử Black-box Thủ công (Manage Black-box Testcases Manually)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Cơ sở dữ liệu SQLite cục bộ, File System
-* **Mô tả tóm tắt**: Giảng viên quản lý bộ kiểm thử hộp đen (Black-box Testcases) trực tiếp trên giao diện Desktop App. Giảng viên chỉ cần định nghĩa các cặp **`INPUT` (dữ liệu nhập qua stdin)** và **`OUTPUT kỳ vọng` (kết quả xuất qua stdout)**, cùng thông số giới hạn thời gian (ms), bộ nhớ (MB) và điểm số cho từng câu hỏi/testcase **mà hoàn toàn không cần phải viết hay nạp bất kỳ dòng mã giải mẫu (solution code) nào**. Hỗ trợ xuất/nạp cả bộ testcase qua file `testcases.json`.
+* **Tác nhân hỗ trợ ngoài**: Cơ sở dữ liệu SQLite cục bộ (`local_test_cases`)
+* **Mô tả tóm tắt**: Giảng viên quản lý bộ kiểm thử hộp đen (Black-box Testcases) trực tiếp trên tab **"Testcase"** của cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp. Giảng viên định nghĩa các cặp **`INPUT` (dữ liệu nhập qua stdin)** và **`OUTPUT` (kết quả xuất qua stdout)**, cùng thông số giới hạn thời gian (ms), bộ nhớ (MB), trọng số điểm cho từng câu hỏi **mà hoàn toàn không cần phải viết hay nạp bất kỳ dòng mã giải mẫu (solution code) nào**.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đang trong một đợt chấm bài (`UC-07`).
 * **Hậu điều kiện (Postconditions)**:
-  1. Các cặp testcase được lưu vào bảng `testcases` trong CSDL SQLite cục bộ của đợt chấm.
-  2. Bộ testcase sẵn sàng được nạp vào Sandbox Runner khi chấm điểm.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn tab **"Quản lý Testcase" (Testcase Manager)** trên Desktop App.
+  1. Các cặp testcase được lưu vào bảng `local_test_cases` trong CSDL SQLite cục bộ của đợt chấm.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên mở cửa sổ **"Quản Lý Bộ Testcase & Chiến Lược So Khớp"** trên Desktop App.
 
 ##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên chuyển sang tab **"Quản lý Testcase"**.
-2. Hệ thống hiển thị danh sách các testcase hiện có theo từng câu hỏi (`Q1`, `Q2`, `Q3`).
-3. Giảng viên bấm nút **"Thêm Testcase (+)"**.
-4. Một dòng mới hoặc form chi tiết xuất hiện, cho phép Giảng viên nhập:
-   - Dữ liệu `INPUT` (chuỗi ký tự sẽ truyền vào `stdin` của hàm `main()`).
-   - Dữ liệu `OUTPUT kỳ vọng` (chuỗi ký tự mong đợi xuất ra tại `stdout`).
-   - `Time Limit` (ms) (mặc định kế thừa từ cấu hình: ví dụ 1000 ms).
-   - `Memory Limit` (MB) (mặc định 256 MB).
-   - `Điểm số` (ví dụ: 1.0 điểm / testcase).
-5. Giảng viên có thể chỉnh sửa trực tiếp, nhân bản (Clone) hoặc bấm nút xóa testcase không mong muốn.
-6. Giảng viên bấm **"Lưu bộ Testcase"**.
-7. Hệ thống thẩm định dữ liệu không được để trống ô `INPUT` hoặc `OUTPUT kỳ vọng`, lưu toàn bộ testcase vào SQLite cục bộ và cập nhật tổng điểm tối đa của bài thi lên thanh trạng thái. Use Case kết thúc.
+1. Giảng viên mở cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp (mặc định mở tab **"Testcase"**).
+2. Hệ thống hiển thị thanh công cụ lọc câu hỏi (`Q1`..`Q5` hoặc "Tất cả câu hỏi"), nút viền "Sinh Testcase Bằng AI" và nút viền **"Thêm Testcase"**.
+3. Bảng testcase hiển thị danh sách các ca kiểm thử hiện có gồm 9 cột: `#`, `Câu Hỏi`, `INPUT (stdin)`, `OUTPUT (stdout)`, `Trọng Số`, `Giới Hạn (ms)`, `RAM (MB)`, `Chiến Lược`, và cột `Thao Tác` (chứa nút viền Sửa và Xóa được căn giữa dòng).
+4. Giảng viên bấm nút viền **"Thêm Testcase"**: Hệ thống hiển thị hộp thoại `TestcaseEditDialog` cho phép nhập Câu hỏi, Trọng số điểm, Dữ liệu đầu vào (stdin), Kết quả kỳ vọng (stdout), Giới hạn thời gian (ms) và Giới hạn bộ nhớ (MB).
+5. Giảng viên nhập đầy đủ dữ liệu và bấm **"Lưu Testcase"**.
+6. Hệ thống thẩm định dữ liệu không được bỏ trống `OUTPUT (stdout)`, lưu testcase mới vào bảng `local_test_cases` trong SQLite và làm mới bảng hiển thị.
+7. Tại chân cửa sổ, Giảng viên bấm nút chính **"Lưu"** để hoàn tất cấu hình. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Nạp / Xuất nhanh qua file JSON (Import/Export JSON)**:
-  - Giảng viên bấm **"Import JSON"**, chọn file `testcases.json`. Hệ thống nạp tự động toàn bộ 20-30 testcase vào giao diện trong 1 click.
-  - Giảng viên bấm **"Export JSON"** để lưu bộ testcase ra file bên ngoài nhằm tái sử dụng cho các kỳ thi tiếp theo.
-* **E1 - Bỏ trống dữ liệu kỳ vọng**: Tại bước 6, nếu có dòng testcase bị bỏ trống trường `OUTPUT kỳ vọng`, hệ thống cảnh báo: "Testcase số X chưa có đầu ra kỳ vọng. Vui lòng điền dữ liệu trước khi lưu".
+* **A1 - Chỉnh sửa / Xóa testcase**: Tại bước 3, Giảng viên có thể bấm nút "Sửa" trên từng dòng để mở form cập nhật thông số, hoặc bấm nút "Xóa" kèm hộp thoại xác nhận để loại bỏ testcase khỏi CSDL.
+* **E1 - Bỏ trống dữ liệu kỳ vọng**: Tại bước 5, nếu trường `OUTPUT` bị bỏ trống, hệ thống hiển thị cảnh báo: *"Kết quả mong đợi (stdout) không được để trống."* và ngăn chặn lưu.
 
 ---
 
@@ -350,11 +332,60 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-10`
 * **Tên Use Case**: Tự động Sinh Testcase Biên bằng AI (AI Black-box Testcase Generator)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI AI Hub), Google Gemini API
-* **Mô tả tóm tắt**: Giảng viên dán nội dung đề bài và các ràng buộc bài toán. Google Gemini AI tự động phân tích và sinh danh sách 5-10 cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các trường hợp biên: số âm, chuỗi rỗng, mảng 0 phần tử, giá trị cực đại biên giới hạn kiểu dữ liệu). Dữ liệu sinh ra nạp thẳng vào bảng testcase của đợt chấm mà **giảng viên hoàn toàn không cần phải viết code giải mẫu**.
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
+* **Mô tả tóm tắt**: Giảng viên dán nội dung tóm tắt đề bài và số lượng testcase cần sinh. Google Gemini AI tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên: số âm, chuỗi rỗng, giá trị cực đại, mảng rỗng...). Kết quả hiển thị dưới dạng bảng chọn lọc, cho phép nạp trực tiếp vào SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết code giải mẫu**.
 * **Tiền điều kiện (Preconditions)**:
-  1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App (có JWT token).
+  1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App.
   2. Hạn ngạch (Quota) gọi AI của Giảng viên trên Web Server Backend còn khả dụng.
+* **Hậu điều kiện (Postconditions)**:
+  1. Các cặp testcase được Giảng viên tick chọn sẽ được lưu vào bảng `local_test_cases` trong SQLite cục bộ của đợt chấm.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút viền **"Sinh Testcase Bằng AI"** ở đầu tab Testcase.
+
+##### Luồng sự kiện chính (Main Flow):
+1. Giảng viên mở tab **"Testcase"** trên cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp và nhấn nút viền **"Sinh Testcase Bằng AI"**.
+2. Hệ thống mở hộp thoại riêng `AiTestcaseDialog` gồm:
+   - Ô nhập **"Đề bài"** (TextEdit).
+   - Ô nhập **"Số lượng testcase"** (SpinBox, mặc định 4).
+   - Nút thu gọn **"Tùy chọn"** (chứa Câu hỏi áp dụng và Ngôn ngữ lập trình, lấy mặc định từ đợt chấm đang mở).
+   - Nút chính **"Sinh Testcase"** (nền xanh đặc) và nút viền **"Hủy"**.
+3. Giảng viên dán đề bài và bấm **"Sinh Testcase"**.
+4. Desktop App gửi request bất đồng bộ `POST /api/v1/ai/generate-testcases` tới Web Server Backend.
+5. Web Server Backend kiểm tra hạn ngạch Token, gọi Google Gemini API để phân tích đề bài và sinh các testcase biên.
+6. Backend trả về kết quả; Desktop App hiển thị bảng danh sách các testcase được đề xuất gồm: Checkbox chọn dòng, cột Input (stdin) và cột Expected Output (stdout) (tuyệt đối không hiển thị mã JSON thô). Nút "Thêm Các Testcase Đã Chọn" được kích hoạt.
+7. Giảng viên đánh dấu tick các testcase phù hợp (hỗ trợ nút "Chọn Tất Cả", "Bỏ Chọn Tất Cả") và bấm **"Thêm Các Testcase Đã Chọn"**.
+8. Hệ thống lưu các testcase đã chọn vào bảng `local_test_cases` trong SQLite cục bộ và làm mới bảng testcase. Hộp thoại đóng lại, Use Case kết thúc.
+
+##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
+* **E1 - Vượt hạn ngạch AI (Quota Limit Exceeded)**: Tại bước 5, nếu hạn ngạch token trong ngày đã hết, hệ thống hiển thị thông báo lỗi và ghi log kiểm toán.
+* **E2 - Lỗi mạng / Dịch vụ AI gián đoạn**: Tại bước 5, nếu mất kết nối hoặc máy chủ AI phản hồi lỗi, Desktop App hiển thị thông báo thân thiện: *"Không kết nối được dịch vụ AI. Thử lại sau."* kèm nút **"Thử Lại"**. Mã lỗi kỹ thuật nội bộ chỉ được ghi vào file log, không hiển thị mã thô ra giao diện người dùng. Nút "Thêm Các Testcase Đã Chọn" tự động vô hiệu hóa khi chưa có kết quả.
+
+---
+
+#### 3.3.3. UC-11: Thiết Lập Động Cơ So Khớp Đầu Ra (Configure Output Matching Strategies)
+
+* **Mã Use Case**: `UC-11`
+* **Tên Use Case**: Thiết lập Động cơ So khớp Đầu ra (Configure Output Matching Strategies)
+* **Tác nhân chính**: Giảng viên (Instructor)
+* **Tác nhân hỗ trợ ngoài**: Cơ sở dữ liệu SQLite cục bộ
+* **Mô tả tóm tắt**: Cung cấp cho Giảng viên quyền kết hợp linh hoạt 6 tiêu chí so khớp đầu ra trực tiếp tại tab **"So Khớp Đầu Ra"** trong cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp. Hệ thống hỗ trợ đa lựa chọn kết hợp nhiều cờ đồng thời hoặc khớp chính xác tuyệt đối từng byte (Exact Match).
+* **Tiền điều kiện (Preconditions)**:
+  1. Giảng viên đang trong một đợt chấm bài.
+* **Hậu điều kiện (Postconditions)**:
+  1. Chuỗi mã tổ hợp chiến lược so khớp (ví dụ: `IGNORE_WHITESPACE+CASE_INSENSITIVE` hoặc `EXACT_MATCH`) được lưu vào thuộc tính của đợt chấm và testcase trong SQLite cục bộ, sẵn sàng áp dụng cho quá trình chấm điểm tự động trong `UC-12`.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn tab **"So Khớp Đầu Ra"** trong cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp.
+
+##### Luồng sự kiện chính (Main Flow):
+1. Giảng viên chọn tab **"So Khớp Đầu Ra"** (nằm ngang hàng với tab "Testcase").
+2. Hệ thống hiển thị giao diện gồm dòng mẹo ngắn gọn màu `#475569` (kích thước 13px) và lưới 6 ô checkbox thuần tiếng Việt kèm tooltip chi tiết:
+   - **Bỏ qua khoảng trắng**: Bỏ qua khoảng trắng thừa và dấu xuống dòng ở đầu, cuối và giữa các từ (mặc định được chọn).
+   - **Không phân biệt chữ hoa, chữ thường**: Chuyển đổi toàn bộ output về chữ thường trước khi đối sánh.
+   - **Chấp nhận dung sai số thực**: Chấp nhận sai số dấu phẩy động với độ lệch cho phép $\le 10^{-5}$.
+   - **Không phân biệt thứ tự từ hoặc số**: So khớp tập hợp các từ/số mà không phụ thuộc vào thứ tự in ra.
+   - **So khớp biểu thức chính quy**: Sử dụng chuỗi đầu ra kỳ vọng như mẫu regex để kiểm tra đối sánh.
+   - **Kiểm tra kịch bản chấm tùy biến**: Kích hoạt validator kiểm tra riêng biệt cho bài toán có nhiều nghiệm đúng.
+3. Giảng viên tick chọn một hoặc nhiều tiêu chí kết hợp phù hợp với đề thi. Nếu bỏ chọn toàn bộ các ô, hệ thống tự động áp dụng chế độ khớp chính xác 100% từng byte (`EXACT_MATCH`).
+4. Tại chân cửa sổ, Giảng viên nhấn nút chính duy nhất **"Lưu"** (nền xanh đặc).
+5. Hệ thống lưu cấu hình so khớp vào bảng `local_classes` trong CSDL SQLite cục bộ và đóng cửa sổ. Use Case kết thúc.còn khả dụng.
 * **Hậu điều kiện (Postconditions)**:
   1. Các cặp `INPUT` và `OUTPUT kỳ vọng` do AI sinh ra được Giảng viên phê duyệt sẽ lưu trữ vào CSDL SQLite cục bộ của đợt chấm.
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Sinh Testcase bằng AI" (Generate with AI)** trên màn hình Quản lý Testcase.
@@ -388,11 +419,11 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Thiết lập Động cơ So khớp 7 Chế độ (Configure 7 Output Matching Strategies)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Không *(Xử lý trực tiếp bởi Tầng nghiệp vụ Strategy Pattern của Desktop App)*
-* **Mô tả tóm tắt**: Cung cấp cho Giảng viên quyền lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`MatchingStrategy`) được hiện thực hóa qua **mẫu thiết kế Strategy Pattern** để đảm bảo việc chấm điểm phù hợp chính xác với từng yêu cầu bài toán (bỏ qua dấu cách thừa, không phân biệt hoa thường, so sánh số thực sai số delta, so khớp không thứ tự, Regex, hoặc chấm đặc biệt qua script).
+* **Mô tả tóm tắt**: Cung cấp cho Giảng viên quyền lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`IMatchingStrategy`) hoặc kết hợp đa cờ (`FlexibleMatchingStrategy`) được hiện thực hóa qua **mẫu thiết kế Strategy Pattern** để đảm bảo việc chấm điểm phù hợp chính xác với từng yêu cầu bài toán (bỏ qua dấu cách thừa, không phân biệt hoa thường, so sánh số thực sai số delta, so khớp không thứ tự, Regex, hoặc chấm đặc biệt qua script).
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đang trong giao diện chuẩn bị chấm điểm của một đợt chấm bài.
 * **Hậu điều kiện (Postconditions)**:
-  1. Chiến lược so khớp được chọn được gán vào đối tượng điều phối chấm bài (`GradingContext`), sẵn sàng áp dụng cho toàn bộ quá trình so sánh `OUTPUT thực tế` và `OUTPUT kỳ vọng` trong `UC-12`.
+  1. Chiến lược so khớp được chọn được gán vào đối tượng điều phối chấm bài (`MatchingContext`), sẵn sàng áp dụng cho toàn bộ quá trình so sánh `OUTPUT thực tế` và `OUTPUT kỳ vọng` trong `UC-12`.
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn chế độ trong danh sách thả xuống **"Chế độ so khớp" (Matching Strategy)**.
 
 ##### Luồng sự kiện chính (Main Flow):
@@ -407,7 +438,7 @@ Mỗi Use Case được đặc tả bao gồm:
    - `SpecialJudgeStrategy`: Cho phép chỉ định một file script Python kiểm thử riêng (`checker.py`) đối với các bài toán có nhiều đáp án đúng (Multiple Valid Solutions).
 3. Giảng viên lựa chọn chiến lược mong muốn (ví dụ: `IgnoreWhitespaceStrategy`).
 4. Nếu chọn các chế độ có tham số (như `FloatingPointToleranceStrategy` hoặc `SpecialJudgeStrategy`), hệ thống hiển thị ô nhập bổ sung (nhập sai số $\epsilon$ hoặc nút chọn file `checker.py`).
-5. Hệ thống ghi nhận lựa chọn vào cấu hình của đợt chấm. Khi bấm chấm (`UC-12`), `GradingContext` sẽ nạp lớp hiện thực chiến lược tương ứng để thực hiện so khớp. Use Case kết thúc.
+5. Hệ thống ghi nhận lựa chọn vào cấu hình của đợt chấm. Khi bấm chấm (`UC-12`), `MatchingContext` sẽ nạp lớp hiện thực chiến lược tương ứng để thực hiện so khớp. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Cấu hình chiến lược riêng cho từng câu hỏi**: Giảng viên có thể thiết lập mỗi câu hỏi một chiến lược khác nhau (ví dụ: Câu 1 kiểm tra chuỗi dùng `IgnoreWhitespace`, Câu 2 tính toán số học dùng `FloatingPointTolerance`).
@@ -633,7 +664,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-16`
 * **Tên Use Case**: Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand bằng AI (Generate On-Demand AI Code Review)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (FastAPI AI Hub), Google Gemini API
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
 * **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API (Rate Limit 429), tính năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). Gemini AI phân tích mã nguồn đối chiếu với testcase sai và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
 * **Tiền điều kiện (Preconditions)**:
   1. Bài nộp của sinh viên đã được chấm và có kết quả `WA`.

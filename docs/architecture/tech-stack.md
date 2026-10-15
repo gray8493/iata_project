@@ -24,7 +24,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 |  - Runtime: Node.js (v20 LTS), TypeScript                                       |
 |  - Phân quyền & Bảo mật (Auth & RBAC): Passport-JWT, Guards, Bcrypt Hashing     |
 |  - Thẩm định dữ liệu (Validation): class-validator, class-transformer           |
-|  - Tầng dữ liệu & ORM: Prisma ORM / TypeORM                                     |
+|  - Tầng dữ liệu & ORM: Prisma ORM                                               |
 |  - Điều phối AI: Gemini AI Hub (Quản lý hạn ngạch Token Quota & API Key bí mật) |
 |  - Tài liệu API: Swagger OpenAPI (@nestjs/swagger)                              |
 +---------------------------------------------------------------------------------+
@@ -32,7 +32,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
                                          ▼
 +---------------------------------------------------------------------------------+
 |                 CƠ SỞ DỮ LIỆU TRUNG TÂM (Centralized Database)                  |
-|  - Môi trường Dev/Demo: SQLite (dev.db) hoặc PostgreSQL cục bộ                  |
+|  - Môi trường Dev/Demo: PostgreSQL cục bộ                                       |
 |  - Môi trường Production: PostgreSQL (Hỗ trợ mở rộng & bảo mật cao)            |
 +---------------------------------------------------------------------------------+
 ```
@@ -51,7 +51,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
   - **Bcrypt (`bcrypt`)**: Băm mật khẩu (Password Hashing) an toàn chuẩn công nghiệp.
   - **Guards & Decorators (`@UseGuards(JwtAuthGuard, RolesGuard)`, `@Roles('admin')`)**: Chặn truy cập trái phép cấp Controller và Route.
 - **Mô hình hóa dữ liệu & ORM**:
-  - **Prisma ORM / TypeORM**: Quản lý schema dữ liệu, quan hệ bảng và migration an toàn kiểu dữ liệu (Type-safe).
+  - **Prisma ORM**: Quản lý schema dữ liệu, quan hệ bảng và migration có kiểu dữ liệu an toàn.
   - **`class-validator` & `class-transformer`**: Thẩm định chặt chẽ Payload đầu vào trước khi vào tầng xử lý logic.
 
 ### 2.2. Trang Web Admin Quản Lý (Next.js / TypeScript Frontend)
@@ -63,15 +63,16 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 - **Chức năng trọng tâm của Web Admin Dashboard**:
   1. **Quản lý tài khoản Giảng viên & Phân quyền**: Tạo mới, chỉnh sửa thông tin, khóa tài khoản và gán Role (`admin`, `instructor`).
   2. **Quản lý danh mục học thuật**: Quản lý danh mục 4 môn học lập trình cốt lõi (PRF, PRO, DSA, PHP).
-  3. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Cấu hình API Key tập trung, thiết lập trần Token Quota hàng ngày cho từng giảng viên, theo dõi số token tiêu thụ theo thời gian thực.
+  3. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. Gemini API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
   4. **Báo cáo & Thống kê toàn trường**: Xem tổng hợp số phiên chấm và biểu đồ điểm số các môn thi toàn trường.
 
 ### 2.3. Desktop App Client (Ứng Dụng Chấm Bài Dành Cho Giảng Viên - Python / PyQt6)
 
-- **Giao diện Desktop (GUI Framework)**: **PyQt6 / PySide6 (>= 6.5.0)**
+- **Giao diện Desktop (GUI Framework)**: **PyQt6 (>= 6.5.0)**
   - Thiết kế chuẩn Desktop Native, hỗ trợ kéo thả file, đa tiến trình qua `QThread` đảm bảo giao diện không bao giờ bị treo đơ trong lúc chấm bài số lượng lớn.
 - **Xử lý dữ liệu nạp & kết xuất**:
-  - Module chuẩn **`csv`**: Đọc file đầu vào `students.csv` (2 cột: `MSSV`, `File`) và xuất file kết quả `results.csv` (7 cột).
+  - Nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (tự động phân tích MSSV, họ tên sinh viên) hoặc nạp qua file danh sách `students.csv` (2 cột: `MSSV`, `File`).
+  - Module chuẩn **`csv`**: Xử lý đọc danh sách bài nộp và xuất file kết quả `results.csv` (7 cột).
 - **Bộ máy thực thi & Sandbox bảo mật**:
   - **`subprocess`**: Khởi chạy tiến trình con cô lập để gọi trình biên dịch `gcc` (C), `javac/java` (Java), và `python` (Python).
   - **`psutil` (>= 5.9.0)**: Giám sát tài nguyên RAM (bắt lỗi `MLE`), CPU và kill tiến trình khi bị vòng lặp vô hạn (bắt lỗi `TLE`).
@@ -90,12 +91,12 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 
 | Phân hệ | Công nghệ cốt lõi | Các thư viện / Công cụ chính | Vai trò trong hệ thống AITA |
 | :--- | :--- | :--- | :--- |
-| **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`/`typeorm`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý Gemini Quota. |
+| **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý Gemini Quota. |
 | **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Quota AI, Báo cáo kiểm toán. |
 | **Desktop App** | **Python (PyQt6)** | `playwright`, `beautifulsoup4`, `tinycss2`, `psutil`, `subprocess`, `csv`, `httpx` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, chấm Web tự động, 7 chế độ so khớp, xuất CSV. |
-| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / TypeORM Migrations | Lưu trữ tập trung tài khoản, cấu hình hạn ngạch và nhật ký AI (hỗ trợ Soft Delete). |
+| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / Prisma Migrate | Lưu trữ danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký AI. |
 | **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase, kết quả chấm điểm và ảnh web trên máy tính giảng viên. |
-| **AI Cloud Hub** | **Google Gemini** | `@google/genai` (trên NestJS Backend) | Gemini 1.5 Flash: Tự động sinh testcase biên, AI Code Review On-Demand, kiểm tra đạo văn, đánh giá giao diện Web. |
+| **AI Cloud Hub** | **Google Gemini** | `@google/genai` (trên NestJS Backend) | Gemini 3.8 Flash mặc định, cấu hình được qua môi trường; sinh testcase, phân tích lỗi, kiểm tra đạo văn, đánh giá giao diện. |
 
 ---
 
@@ -107,55 +108,28 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 
 ---
 
-## 5. Trí Tuệ Nhân Tạo: Google Gemini 1.5 Flash API Gateway
+## 5. Trí Tuệ Nhân Tạo: Google Gemini API Gateway
 
 - **Cơ chế điều phối qua NestJS Backend**:
-  - NestJS Server đóng vai trò Gateway quản lý hạn ngạch (Quota Guard), lưu trữ API Key bí mật trên biến môi trường `.env`, không để lộ khóa API ra Desktop App.
+  - NestJS Server đóng vai trò Gateway quản lý hạn ngạch (Quota Guard), lưu trữ API Key bí mật trong `GEMINI_API_KEY`, không để lộ khóa API ra Desktop App. Model mặc định là `gemini-3.8-flash`, cấu hình bằng `GEMINI_MODEL`.
+- Rate limit: 80 request/phút/User cho API đã xác thực thông thường; 15 request/phút/User cho nhóm API tạo nội dung AI; login 10/phút/IP và refresh 30/phút/IP. Dùng In-Memory Throttler mặc định trên Render.com Web Service; hỗ trợ mở rộng kết nối Redis khi cấu hình biến môi trường `REDIS_URL`.
 - **Chiến lược tối ưu hóa lượt gọi AI (Smart Resource Strategy)**:
   - *Sinh Testcase*: Gọi 1 lần duy nhất cho mỗi đề bài để sinh cả bộ 5-10 testcase `(Input, Output)` cho cả lớp.
   - *Phân tích lỗi (Code Review)*: Chế độ **On-Demand** (chỉ gọi khi giảng viên chủ động bấm nút phân tích cho bài nộp bị `WA`, bỏ qua `CE`).
-  - *Chống gian lận (Plagiarism)*: Áp dụng **mô hình lọc 2 vòng**: Vòng 1 lọc bằng thuật toán băm cây cú pháp AST cục bộ trên máy tính giảng viên (0 token); Vòng 2 chỉ gửi các cặp có độ tương đồng bất thường (> 80%) cho Gemini AI phân tích đối chứng.ản lý hạn ngạch (Quota Gatekeeper), lưu trữ API Key bí mật trên server, và cấp quota gọi AI cho các giảng viên theo tài khoản.
-- **Chiến lược tối ưu hóa lượt gọi AI (Smart Resource Strategy)**:
-  - *Sinh Testcase*: Gọi 1 lần duy nhất cho mỗi đề bài để sinh cả bộ 5-10 testcase `(Input, Output)`.
-  - *Phân tích lỗi (Code Review)*: Chế độ **On-Demand** (chỉ gọi khi giảng viên chủ động bấm nút phân tích cho 1 bài nộp cụ thể, không gọi tự động hàng loạt khi chấm, bỏ qua lỗi biên dịch `CE`).
-  - *Chống gian lận (Plagiarism)*: Áp dụng **mô hình lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 lọc bằng thuật toán băm cây cú pháp AST cục bộ trên máy tính giảng viên (0 token); Vòng 2 chỉ gửi các cặp có độ tương đồng bất thường (> 80%) cho Gemini AI phân tích đối chứng.
+  - *Chống gian lận (Plagiarism)*: Áp dụng **mô hình lọc 2 vòng**: Vòng 1 lọc cục bộ trên máy tính giảng viên; Vòng 2 chỉ gửi các cặp có độ tương đồng trên 80% cho Gemini phân tích đối chứng.
+  - API key Gemini chỉ nằm trên backend. Mọi yêu cầu AI cần Instructor đăng nhập và được kiểm tra quota hằng ngày UTC; token sử dụng được ghi vào audit log.
 
 
 ---
 
-## 6. Tệp Cấu Hình Phụ Thuộc Hợp Nhất (`requirements.txt`)
+## 6. Quản lý phụ thuộc theo ứng dụng
+
+Backend sử dụng `apps/central-backend/package.json` và Prisma schema/migrations. Desktop Python dùng riêng `apps/desktop-client/requirements.txt`. Không gộp thư viện backend Node.js và desktop Python vào một tệp phụ thuộc.
+
+Các thành phần backend chính:
 
 ```text
-# --- Web Server Backend & Authentication ---
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-pydantic>=2.6.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-python-multipart>=0.0.9
-jinja2>=3.1.3
-
-# --- Database & ORM ---
-sqlalchemy>=2.0.28
-alembic>=1.13.0
-
-# --- Desktop Application Client ---
-PySide6>=6.5.0
-psutil>=5.9.5
-httpx>=0.27.0
-
-# --- Data Processing & CSV ---
-pandas>=2.0.3
-
-# --- AI Integration ---
-google-generativeai>=0.4.0
-
-# --- Testing & Quality Assurance ---
-pytest>=7.4.0
-pytest-asyncio>=0.23.0
-
-# --- Packaging & Distribution ---
-pyinstaller>=6.0.0
+NestJS 10, TypeScript 5, Prisma 5, PostgreSQL, class-validator, Swagger
 ```
 
 

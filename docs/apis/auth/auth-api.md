@@ -43,9 +43,9 @@
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e3...",
     "token_type": "Bearer",
-    "expires_in": 86400,
+    "expires_in": 900,
     "user": {
-      "id": 1,
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "username": "teacher_hung",
       "full_name": "Nguyễn Văn Hùng",
       "email": "hungnv@fe.edu.vn",
@@ -95,7 +95,7 @@
   "status_code": 200,
   "message": "Lấy thông tin tài khoản thành công",
   "data": {
-    "id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "teacher_hung",
     "full_name": "Nguyễn Văn Hùng",
     "email": "hungnv@fe.edu.vn",
@@ -136,7 +136,7 @@
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e4...",
     "token_type": "Bearer",
-    "expires_in": 86400
+    "expires_in": 900
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
