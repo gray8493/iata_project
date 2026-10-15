@@ -5,10 +5,10 @@
 - **Ngày tạo**: 14/10/2026
 - **Cập nhật lần cuối**: 14/10/2026 - 15:00
 - **Tài liệu liên quan**:
-  - [Quy tắc kiểm thử Testcase](file:///d:/Source/AITA/rules/testcase-rules.md)
-  - [Đặc tả API Auth](file:///d:/Source/AITA/docs/apis/auth/auth-api.md)
-  - [Đặc tả API Users](file:///d:/Source/AITA/docs/apis/users/users-api.md)
-  - [Đặc tả API Reports](file:///d:/Source/AITA/docs/apis/reports/reports-api.md)
+  - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
+  - [Đặc tả API Auth](file:///e:/AITA/docs/apis/auth/auth-api.md)
+  - [Đặc tả API Users](file:///e:/AITA/docs/apis/users/users-api.md)
+  - [Đặc tả API Reports](file:///e:/AITA/docs/apis/reports/reports-api.md)
 - **Tổng số Testcase**: 24 Testcases (24 Passed, 00 Failed)
 
 ---

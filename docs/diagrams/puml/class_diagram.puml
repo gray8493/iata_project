@@ -203,7 +203,8 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 
     class BatchGradingManager {
         - worker_pool_size: int
-        - grading_context: GradingContext
+        - matching_context: MatchingContext
+        + load_submissions_directory(dir_path: Path): List[Submission]
         + load_students_csv(csv_path: Path): List[Submission]
         + execute_batch_grading(session_id: str): List[GradingResult]
         + export_results_csv(results: List[GradingResult], output_path: Path): void
@@ -363,7 +364,7 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (NestJS Service)" 
 BatchGradingManager --> BaseRunner : executes code
 
 ' Desktop App kết nối mạng với Backend API qua RESTful Calls (Chỉ cho Auth và AI Gateway)
-GradingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
+MatchingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
 
 ' Ghi chú làm nổi bật 3 Mẫu thiết kế bắt buộc theo Rubric SWD392
 note top of RunnerFactory
@@ -378,10 +379,10 @@ note top of CompilerAdapter
   mã lỗi stderr giữa GCC, Javac và Python.
 end note
 
-note top of MatchingStrategy
+note top of IMatchingStrategy
   <b>3. Behavioral Pattern: Strategy Pattern</b>
   Cung cấp 7 chiến lược so khớp đầu ra linh hoạt
-  cho phép thay đổi thuật toán lúc runtime.
+  kết hợp đa cờ qua FlexibleMatchingStrategy lúc runtime.
 end note
 
 @enduml

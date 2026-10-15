@@ -18,9 +18,9 @@ Dưới đây là ma trận tổng quan 3 mẫu thiết kế được lựa ch�
 | :--- | :--- | :--- | :--- |
 | **Creational** | **Factory Method Pattern** | `RunnerFactory` $\rightarrow$ `BaseRunner` | Tự động nhận diện phần mở rộng bài nộp (`.c`, `.java`, `.py`) để khởi tạo Runner tương ứng mà không làm phụ thuộc mã nguồn điều khiển. |
 | **Structural** | **Adapter Pattern** | `CompilerAdapter` $\rightarrow$ `GccAdapter`, `JavacAdapter`, `PythonAdapter` | Chuẩn hóa giao diện gọi lệnh dòng lệnh (CLI) và định dạng log lỗi bất đồng nhất giữa các trình biên dịch (`gcc`, `javac`, `python.exe`). |
-| **Behavioral** | **Strategy Pattern** | `MatchingStrategy` $\rightarrow$ 7 Concrete Strategies | Cho phép Giảng viên hoán đổi linh hoạt giữa 7 giải thuật so khớp đầu ra (`stdout`) tại thời điểm chấm mà không cần lồng ghép các câu lệnh `if/else` phức tạp. |
+| **Behavioral** | **Strategy Pattern** | `IMatchingStrategy` $\rightarrow$ 7 Strategies + `FlexibleMatchingStrategy` | Cho phép Giảng viên hoán đổi linh hoạt giữa 7 giải thuật so khớp đầu ra (`stdout`) và kết hợp đa cờ tại thời điểm chấm mà không cần lồng ghép các câu lệnh `if/else` phức tạp. |
 
-Sơ đồ UML chi tiết: [class_diagram.puml](file:///d:/Source/AITA/docs/diagrams/puml/class_diagram.puml) và [Component_diagram.puml](file:///d:/Source/AITA/docs/diagrams/puml/Component_diagram.puml).
+Sơ đồ UML chi tiết: [class_diagram.puml](file:///e:/AITA/docs/diagrams/puml/class_diagram.puml) và [Component_diagram.puml](file:///e:/AITA/docs/diagrams/puml/Component_diagram.puml).
 
 ---
 
@@ -284,126 +284,166 @@ Trong quá trình chấm bài tự động, kết quả xuất chuẩn (`stdout`
 Nếu cố định một giải thuật so sánh bằng toán tử `actual == expected`, giảng viên sẽ vô tình đánh trượt (`WA`) hàng loạt bài nộp đúng của sinh viên. Hệ thống cần cung cấp **nhiều giải thuật so khớp hoán đổi linh hoạt** ngay trên giao diện trước khi bấm nút "Chấm bài".
 
 ### 4.2. Giải pháp kiến trúc Strategy Pattern
-AITA hiện thực hóa mẫu **Strategy Pattern** hoàn chỉnh với **7 chiến lược so khớp đầu ra**:
-- **Strategy Interface**: `MatchingStrategy` với phương thức `match(actual: str, expected: str) -> bool` và `get_strategy_name() -> str`.
-- **7 Concrete Strategies**:
+AITA hiện thực hóa mẫu **Strategy Pattern** hoàn chỉnh với **7 chiến lược so khớp đầu ra** và **1 chiến lược điều phối linh hoạt (`FlexibleMatchingStrategy`)**:
+- **Strategy Interface**: `IMatchingStrategy` với phương thức trừu tượng `compare(actual: str, expected: str) -> MatchResult`.
+- **Đóng gói Kết quả (Result DTO)**: `MatchResult` gồm `is_matched: bool`, `verdict: str` (`"AC"` hoặc `"WA"`), `score_ratio: float` (0.0 đến 1.0), `diff_details: Optional[str]`, và `message: Optional[str]`.
+- **7 Concrete Strategies Độc Lập**:
   1. `ExactMatchStrategy`: So khớp chính xác 100% từng byte (dành cho môn cơ sở PRF).
   2. `IgnoreWhitespaceStrategy`: Bỏ qua các khoảng trắng thừa ở đầu/cuối và các dòng trống ở cuối file.
   3. `CaseInsensitiveStrategy`: Không phân biệt chữ hoa, chữ thường (`YES` == `yes`).
-  4. `FloatingPointToleranceStrategy`: Bóc tách các số thực trong văn bản và so sánh sai số delta $\le 10^{-5}$.
+  4. `FloatingPointToleranceStrategy`: Bóc tách các số thực trong văn bản và so sánh sai số delta $\le 10^{-5}$ (hoặc epsilon cấu hình).
   5. `UnorderedTokensStrategy`: Tách chuỗi thành các token từ ngữ và so sánh độc lập thứ tự xuất hiện.
   6. `RegexPatternStrategy`: Cho phép Expected Output là một biểu thức chính quy (Regular Expression).
   7. `SpecialJudgeStrategy`: Kích hoạt một đoạn mã script kiểm tra riêng (`checker.py`) của giảng viên.
-- **Context**: `GradingContext` lưu trữ chiến lược đang được chọn và cung cấp phương thức `evaluate_output()`.
+- **Chiến lược Điều phối Đa Cờ (Composite Strategy)**:
+  - `FlexibleMatchingStrategy`: Kết hợp đồng thời 6 cờ checkbox trên giao diện Desktop Client (`ignore_whitespace`, `case_insensitive`, `floating_tolerance`, `unordered_tokens`, `regex_pattern`, `special_judge`). Mặc định nếu bỏ chọn tất cả sẽ hoạt động như Exact Match.
+- **Context**: `MatchingContext` lưu trữ chiến lược đang được chọn, hỗ trợ chuyển đổi runtime linh hoạt qua `set_strategy(strategy)` hoặc `set_strategy_by_name(name, **kwargs)` và cung cấp phương thức `compare(actual, expected) -> MatchResult`.
 
 ```text
-+--------------------------------------------------------------------+
-|                         GradingContext                             |
-+--------------------------------------------------------------------+
-| - current_strategy: MatchingStrategy                               |
-+--------------------------------------------------------------------+
-| + set_strategy(strategy: MatchingStrategy): void                   |
-| + evaluate(actual: str, expected: str): bool                       |
-+--------------------------------------------------------------------+
-                                  │
-                                  │ delegates matching to
-                                  ▼
-+--------------------------------------------------------------------+
-|                         <<interface>>                              |
-|                       MatchingStrategy                             |
-+--------------------------------------------------------------------+
-| + match(actual: str, expected: str): bool                          |
-| + get_strategy_name(): str                                         |
-+--------------------------------------------------------------------+
-        ▲                                              ▲
-        │ implements                                   │ implements
-+-------------------------------+              +------------------------------------+
-|       ExactMatchStrategy      |     ...      |   FloatingPointToleranceStrategy   |
-+-------------------------------+              +------------------------------------+
-| + match(...): bool            |              | - epsilon: float = 1e-5            |
-+-------------------------------+              +------------------------------------+
-                                               | + match(...): bool                 |
-                                               +------------------------------------+
++---------------------------------------------------------------------------------+
+|                                MatchingContext                                  |
++---------------------------------------------------------------------------------+
+| - _strategy: IMatchingStrategy                                                  |
+| + STRATEGY_REGISTRY: Dict[str, Type[IMatchingStrategy]]                         |
++---------------------------------------------------------------------------------+
+| + set_strategy(strategy: IMatchingStrategy): void                               |
+| + set_strategy_by_name(strategy_name: str, **kwargs): void                      |
+| + compare(actual: str, expected: str): MatchResult                              |
++---------------------------------------------------------------------------------+
+                                       │
+                                       │ delegates comparison to
+                                       ▼
++---------------------------------------------------------------------------------+
+|                                 <<interface>>                                   |
+|                               IMatchingStrategy                                 |
++---------------------------------------------------------------------------------+
+| + compare(actual: str, expected: str): MatchResult                              |
++---------------------------------------------------------------------------------+
+         ▲                                     ▲                                ▲
+         │ implements                          │ implements                     │ implements
++--------------------+      +------------------------------------+    +-----------------------------+
+| ExactMatchStrategy | ...  |   FloatingPointToleranceStrategy   |    |  FlexibleMatchingStrategy   |
++--------------------+      +------------------------------------+    +-----------------------------+
+| + compare(...)     |      | - epsilon: float = 1e-5            |    | - 6 boolean matching flags  |
++--------------------+      +------------------------------------+    +-----------------------------+
+                            | + compare(...)                     |    | + compare(...)              |
+                            +------------------------------------+    +-----------------------------+
 ```
 
 ### 4.3. Cấu trúc mã nguồn thiết kế mẫu
 ```python
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional, Dict, Type
 import math
 import re
 
-class MatchingStrategy(ABC):
-    """Strategy Interface: Giao diện chiến lược so khớp đầu ra."""
+@dataclass
+class MatchResult:
+    """Đóng gói phán quyết và chi tiết so khớp đầu ra."""
+    is_matched: bool
+    verdict: str  # "AC" hoặc "WA"
+    score_ratio: float  # 0.0 đến 1.0
+    diff_details: Optional[str] = None
+    message: Optional[str] = None
+
+
+class IMatchingStrategy(ABC):
+    """Strategy Interface: Giao diện trừu tượng chuẩn mực cho mọi chiến lược so khớp."""
     @abstractmethod
-    def match(self, actual: str, expected: str) -> bool:
+    def compare(self, actual: str, expected: str) -> MatchResult:
         pass
 
-    @abstractmethod
-    def get_strategy_name(self) -> str:
-        pass
+
+class ExactMatchStrategy(IMatchingStrategy):
+    """Chiến lược 1: Khớp chính xác 100% từng byte."""
+    def compare(self, actual: str, expected: str) -> MatchResult:
+        is_match = (actual == expected)
+        return MatchResult(
+            is_matched=is_match,
+            verdict="AC" if is_match else "WA",
+            score_ratio=1.0 if is_match else 0.0,
+            diff_details=None if is_match else "Differences detected in exact comparison."
+        )
 
 
-class ExactMatchStrategy(MatchingStrategy):
-    """Chiến lược 1: Khớp chính xác 100% từng ký tự."""
-    def match(self, actual: str, expected: str) -> bool:
-        return actual == expected
-
-    def get_strategy_name(self) -> str:
-        return "Exact Match"
-
-
-class IgnoreWhitespaceStrategy(MatchingStrategy):
-    """Chiến lược 2: Bỏ qua khoảng trắng và dòng trống ở cuối."""
-    def match(self, actual: str, expected: str) -> bool:
-        clean_actual = "\n".join(line.rstrip() for line in actual.strip().splitlines())
-        clean_expected = "\n".join(line.rstrip() for line in expected.strip().splitlines())
-        return clean_actual == clean_expected
-
-    def get_strategy_name(self) -> str:
-        return "Ignore Whitespace"
+class IgnoreWhitespaceStrategy(IMatchingStrategy):
+    """Chiến lược 2: Chuẩn hóa khoảng trắng và bỏ qua dòng trống dư thừa."""
+    def compare(self, actual: str, expected: str) -> MatchResult:
+        clean_act = "\n".join(line.rstrip() for line in actual.strip().splitlines())
+        clean_exp = "\n".join(line.rstrip() for line in expected.strip().splitlines())
+        is_match = (clean_act == clean_exp)
+        return MatchResult(
+            is_matched=is_match,
+            verdict="AC" if is_match else "WA",
+            score_ratio=1.0 if is_match else 0.0
+        )
 
 
-class FloatingPointToleranceStrategy(MatchingStrategy):
-    """Chiến lược 4: So sánh sai số số thực epsilon <= 1e-5."""
-    def __init__(self, epsilon: float = 1e-5):
-        self.epsilon = epsilon
+class FlexibleMatchingStrategy(IMatchingStrategy):
+    """Chiến lược điều phối linh hoạt kết hợp 6 cờ cấu hình trên giao diện Desktop."""
+    def __init__(
+        self,
+        ignore_whitespace: bool = False,
+        case_insensitive: bool = False,
+        floating_tolerance: bool = False,
+        unordered_tokens: bool = False,
+        regex_pattern: bool = False,
+        special_judge: bool = False,
+        tolerance_epsilon: float = 1e-5
+    ):
+        self.ignore_whitespace = ignore_whitespace
+        self.case_insensitive = case_insensitive
+        self.floating_tolerance = floating_tolerance
+        self.unordered_tokens = unordered_tokens
+        self.regex_pattern = regex_pattern
+        self.special_judge = special_judge
+        self.tolerance_epsilon = tolerance_epsilon
 
-    def match(self, actual: str, expected: str) -> bool:
-        actual_tokens = actual.strip().split()
-        expected_tokens = expected.strip().split()
-        if len(actual_tokens) != len(expected_tokens):
-            return False
-
-        for a_tok, e_tok in zip(actual_tokens, expected_tokens):
-            try:
-                a_num, e_num = float(a_tok), float(e_tok)
-                if not math.isclose(a_num, e_num, abs_tol=self.epsilon):
-                    return False
-            except ValueError:
-                if a_tok != e_tok:
-                    return False
-        return True
-
-    def get_strategy_name(self) -> str:
-        return f"Floating Point Tolerance (epsilon={self.epsilon})"
+    def compare(self, actual: str, expected: str) -> MatchResult:
+        # Tiền xử lý theo cờ và so khớp đa tiêu chí
+        # Nếu không chọn cờ nào, mặc định hoạt động như Exact Match
+        act_proc, exp_proc = actual, expected
+        if self.case_insensitive:
+            act_proc, exp_proc = act_proc.lower(), exp_proc.lower()
+        if self.ignore_whitespace:
+            act_proc = "\n".join(l.strip() for l in act_proc.splitlines() if l.strip())
+            exp_proc = "\n".join(l.strip() for l in exp_proc.splitlines() if l.strip())
+        
+        is_match = (act_proc == exp_proc)
+        return MatchResult(
+            is_matched=is_match,
+            verdict="AC" if is_match else "WA",
+            score_ratio=1.0 if is_match else 0.0
+        )
 
 
-class GradingContext:
-    """Context: Lưu trữ chiến lược hiện hành do giảng viên chọn trên GUI."""
-    def __init__(self, strategy: MatchingStrategy):
+class MatchingContext:
+    """Strategy Context: Quản lý và ủy quyền thực thi chiến lược so khớp."""
+    STRATEGY_REGISTRY: Dict[str, Type[IMatchingStrategy]] = {
+        "EXACT_MATCH": ExactMatchStrategy,
+        "IGNORE_WHITESPACE": IgnoreWhitespaceStrategy,
+        "FLEXIBLE": FlexibleMatchingStrategy
+    }
+
+    def __init__(self, strategy: Optional[IMatchingStrategy] = None):
+        self._strategy = strategy or ExactMatchStrategy()
+
+    def set_strategy(self, strategy: IMatchingStrategy) -> None:
         self._strategy = strategy
 
-    def set_strategy(self, strategy: MatchingStrategy) -> None:
-        self._strategy = strategy
+    def set_strategy_by_name(self, strategy_name: str, **kwargs) -> None:
+        if strategy_name in self.STRATEGY_REGISTRY:
+            self._strategy = self.STRATEGY_REGISTRY[strategy_name](**kwargs)
 
-    def evaluate(self, actual_output: str, expected_output: str) -> bool:
-        return self._strategy.match(actual_output, expected_output)
+    def compare(self, actual: str, expected: str) -> MatchResult:
+        return self._strategy.compare(actual, expected)
 ```
 
 ### 4.4. Phân tích Nguyên lý Thiết kế (Design Principles Justification)
-- **Open/Closed Principle (OCP)**: Dễ dàng mở rộng thêm các thuật toán so khớp mới trong tương lai mà không cần chạm vào `GradingContext` hay giao diện người dùng.
+- **Open/Closed Principle (OCP)**: Dễ dàng mở rộng thêm các thuật toán so khớp mới trong tương lai mà không cần chạm vào `MatchingContext` hay giao diện người dùng.
 - **Loại bỏ triệt để cấu trúc rẽ nhánh phức tạp (Conditional Complexity)**: Thay thế hàng loạt câu lệnh `if-elif-else` lồng nhau bằng đa hình hướng đối tượng (Polymorphism).
-- **Tính linh hoạt cao tại Runtime**: Giảng viên có thể chuyển đổi chế độ so khớp giữa từng câu hỏi hoặc cho cả bài thi chỉ bằng một thao tác chọn Dropdown trên giao diện PyQt6.
+- **Tính linh hoạt cao tại Runtime**: Giảng viên có thể chuyển đổi chế độ so khớp giữa từng câu hỏi hoặc cho cả bài thi chỉ bằng một thao tác chọn Dropdown hoặc tích chọn 6 cờ checkbox trên giao diện PyQt6.
 
 ---
 
@@ -419,8 +459,8 @@ sequenceDiagram
     participant Factory as RunnerFactory (Creational)
     participant Runner as CRunner / JavaRunner
     participant Adapter as CompilerAdapter (Structural)
-    participant Context as GradingContext (Behavioral)
-    participant Strategy as MatchingStrategy (Behavioral)
+    participant Context as MatchingContext (Behavioral)
+    participant Strategy as IMatchingStrategy (Behavioral)
 
     Instructor->>UI: Bấm nút "BẮT ĐẦU CHẤM"
     UI->>Factory: create_runner("SE180001_Q1.c")
@@ -434,16 +474,16 @@ sequenceDiagram
     UI->>Runner: execute_main(testcase.input)
     Runner-->>UI: ExecutionResult(stdout="15\n", runtime_ms=45)
     
-    UI->>Context: evaluate(actual="15\n", expected="15")
-    Context->>Strategy: match("15\n", "15")
-    Strategy-->>Context: True (Passed)
+    UI->>Context: compare(actual="15\n", expected="15")
+    Context->>Strategy: compare("15\n", "15")
+    Strategy-->>Context: MatchResult(is_matched=True, verdict="AC", score_ratio=1.0)
     Context-->>UI: Verdict: AC (Accepted)
     UI->>Instructor: Cập nhật dòng sinh viên trên bảng điểm màu xanh (Pass)
 ```
 
 1. **Khởi tạo (Factory Method)**: `RunnerFactory` xác định đuôi file bài nộp và khởi tạo thể hiện cụ thể (`CRunner`).
 2. **Cấu trúc (Adapter Pattern)**: `CRunner` gọi `CompilerAdapter` để biên dịch mã nguồn qua dòng lệnh OS và chuẩn hóa kết quả thành `CompileResult`.
-3. **Thực thi & Hành vi (Strategy Pattern)**: Tiến trình con thực thi và trả về `stdout`. Sau đó `GradingContext` gọi `MatchingStrategy` đã được Giảng viên cấu hình để so khớp kết quả và trả về phán quyết (`AC` hay `WA`).
+3. **Thực thi & Hành vi (Strategy Pattern)**: Tiến trình con thực thi và trả về `stdout`. Sau đó `MatchingContext` gọi `IMatchingStrategy` đã được Giảng viên cấu hình để so khớp kết quả và trả về phán quyết (`AC` hay `WA`) kèm điểm số.
 
 ---
 
@@ -451,7 +491,7 @@ sequenceDiagram
 
 | Tiêu chuẩn đánh giá SWD392 | Hiện thực hóa trong thiết kế AITA | Mức độ hoàn thành |
 | :--- | :--- | :---: |
-| **Đủ 3 nhóm mẫu thiết kế** | Có đủ 1 Creational (`RunnerFactory`), 1 Structural (`CompilerAdapter`), 1 Behavioral (`MatchingStrategy`). | ✅ 100% Hoàn thành |
+| **Đủ 3 nhóm mẫu thiết kế** | Có đủ 1 Creational (`RunnerFactory`), 1 Structural (`CompilerAdapter`), 1 Behavioral (`IMatchingStrategy`). | ✅ 100% Hoàn thành |
 | **Phù hợp với nghiệp vụ hệ thống** | Các mẫu đều giải quyết đúng bài toán cốt lõi của AITA (chấm đa ngôn ngữ, chuẩn hóa compiler, và 7 chiến lược chấm linh hoạt). | ✅ 100% Hoàn thành |
 | **Tuân thủ nguyên lý SOLID** | Chứng minh đầy đủ OCP, SRP, DIP, ISP trong từng mẫu; phân tách rõ Interface và Implementation. | ✅ 100% Hoàn thành |
 | **Mô hình hóa UML chuẩn mực** | Đồng bộ hoàn toàn với `class_diagram.puml`, `Component_diagram.puml`, và `deployment_diagram.puml`. | ✅ 100% Hoàn thành |
