@@ -1,198 +1,212 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Home,
   RefreshCw,
   FileDown,
+  Download,
+  Printer,
   ChevronDown,
+  FileSpreadsheet,
   Users,
   Cpu,
   CheckCircle2,
   BookOpen,
-  Laptop,
   Info,
-  ArrowRight,
-  Search,
-  SlidersHorizontal,
   Clock,
   ChevronLeft,
   ChevronRight,
+  Loader2,
+  AlertCircle,
+  Activity,
+  Layers,
 } from "lucide-react";
 
-interface BatchItem {
-  id: string;
-  course: string;
-  courseColor: string;
-  className: string;
-  instructorName: string;
-  instructorEmail: string;
-  instructorAvatar: string;
-  submissionsCount: number;
-  syncTime: string;
-  status: string;
+interface OverviewData {
+  total_instructors: number;
+  ai_token_usage: {
+    total_tokens_consumed_month: number;
+    total_budget_limit: number;
+    top_consuming_feature: string | null;
+  };
 }
 
-interface OverviewReportData {
-  totalInstructors: number;
-  usedTokens: number;
-  limitTokens: number;
-  totalBatches: number;
-  topFeature: string;
+interface AiUsageItem {
+  id: string;
+  user_id: string;
+  username: string;
+  full_name: string;
+  feature_type: string;
+  model_name: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  created_at: string;
+}
+
+interface PaginationData {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
 }
 
 export default function DashboardOverviewPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastSyncText, setLastSyncText] = useState("2 phút trước");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [lastSyncText, setLastSyncText] = useState("Đang kết nối...");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Dynamic Metrics connected to Backend
-  const [metrics, setMetrics] = useState<OverviewReportData>({
-    totalInstructors: 24,
-    usedTokens: 12450,
-    limitTokens: 50000,
-    totalBatches: 18,
-    topFeature: "TESTCASE_GEN",
+  // Real backend states
+  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [usageItems, setUsageItems] = useState<AiUsageItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationData>({
+    page: 1,
+    page_size: 10,
+    total_items: 0,
+    total_pages: 0,
   });
 
-  // Fetch overview data from Backend API
-  const fetchOverviewData = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("aita_access_token");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // Fetch real data from NestJS Backend APIs
+  const fetchDashboardData = useCallback(async (pageNumber = 1) => {
+    setErrorMessage("");
+    const token = localStorage.getItem("aita_access_token");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
 
-      const headers: Record<string, string> = {
+    if (!token) {
+      setErrorMessage("Chưa tìm thấy token đăng nhập. Vui lòng đăng nhập lại!");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const headers = {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+
+      // Gọi đồng thời cả 2 API thật: Overview và AI Usage Logs
+      const [resOverview, resUsage] = await Promise.all([
+        fetch(`${apiUrl}/admin/reports/overview`, { method: "GET", headers }),
+        fetch(`${apiUrl}/admin/reports/ai-usage?page=${pageNumber}&page_size=10`, {
+          method: "GET",
+          headers,
+        }),
+      ]);
+
+      if (resOverview.status === 401 || resUsage.status === 401) {
+        setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+        localStorage.removeItem("aita_access_token");
+        setLoading(false);
+        return;
       }
 
-      const res = await fetch(`${apiUrl}/admin/reports/overview`, {
-        method: "GET",
-        headers,
-      });
+      if (resOverview.ok) {
+        const jsonOverview = await resOverview.json();
+        if (jsonOverview.success && jsonOverview.data) {
+          setOverview(jsonOverview.data);
+        }
+      } else {
+        const err = await resOverview.json().catch(() => ({}));
+        setErrorMessage(err.message || "Không thể tải báo cáo tổng quan từ server.");
+      }
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const d = json.data;
-          setMetrics((prev) => ({
-            ...prev,
-            totalInstructors: d.total_instructors ?? prev.totalInstructors,
-            usedTokens:
-              d.ai_token_usage?.total_tokens_consumed_month ?? prev.usedTokens,
-            limitTokens:
-              d.ai_token_usage?.total_budget_limit ?? prev.limitTokens,
-            topFeature:
-              d.ai_token_usage?.top_consuming_feature ?? prev.topFeature,
-          }));
+      if (resUsage.ok) {
+        const jsonUsage = await resUsage.json();
+        if (jsonUsage.success && jsonUsage.data) {
+          setUsageItems(jsonUsage.data.items || []);
+          setPagination(
+            jsonUsage.data.pagination || {
+              page: pageNumber,
+              page_size: 10,
+              total_items: 0,
+              total_pages: 0,
+            }
+          );
         }
       }
+
+      const now = new Date();
+      setLastSyncText(`${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`);
     } catch {
-      // Backend offline fallback - dữ liệu mock tiếp tục hoạt động trơn tru
+      setErrorMessage("Không thể kết nối đến máy chủ Backend (http://localhost:3000). Vui lòng kiểm tra lại server NestJS!");
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchOverviewData();
-  }, [fetchOverviewData]);
-
-  // Dữ liệu đợt chấm đồng bộ từ Desktop Client
-  const initialBatches: BatchItem[] = [
-    {
-      id: "1",
-      course: "PRF192",
-      courseColor: "bg-[#0054A6]/10 text-[#0054A6]",
-      className: "SE1801",
-      instructorName: "ThS. Trần Minh Đức",
-      instructorEmail: "ductm@fe.edu.vn",
-      instructorAvatar: "Đ",
-      submissionsCount: 35,
-      syncTime: "10:45 AM Hôm nay",
-      status: "Đã lưu CSDL",
-    },
-    {
-      id: "2",
-      course: "PRO192",
-      courseColor: "bg-[#F26F21]/10 text-[#F26F21]",
-      className: "IA1802",
-      instructorName: "TS. Lê Hoàng Nam",
-      instructorEmail: "namlh@fe.edu.vn",
-      instructorAvatar: "N",
-      submissionsCount: 40,
-      syncTime: "09:20 AM Hôm nay",
-      status: "Đã lưu CSDL",
-    },
-    {
-      id: "3",
-      course: "CSD201",
-      courseColor: "bg-purple-500/10 text-purple-700",
-      className: "SE1704",
-      instructorName: "ThS. Nguyễn Thị Mai",
-      instructorEmail: "maint@fe.edu.vn",
-      instructorAvatar: "M",
-      submissionsCount: 28,
-      syncTime: "Hôm qua 16:30",
-      status: "Đã lưu CSDL",
-    },
-    {
-      id: "4",
-      course: "MAS291",
-      courseColor: "bg-[#10B981]/10 text-[#10B981]",
-      className: "DS1801",
-      instructorName: "ThS. Vũ Quốc Tuấn",
-      instructorEmail: "tuanvq@fe.edu.vn",
-      instructorAvatar: "T",
-      submissionsCount: 32,
-      syncTime: "Hôm qua 14:15",
-      status: "Đã lưu CSDL",
-    },
-    {
-      id: "5",
-      course: "PRF192",
-      courseColor: "bg-[#0054A6]/10 text-[#0054A6]",
-      className: "SE1803",
-      instructorName: "ThS. Hoàng Văn Bình",
-      instructorEmail: "binhhv@fe.edu.vn",
-      instructorAvatar: "B",
-      submissionsCount: 30,
-      syncTime: "2 ngày trước",
-      status: "Đã lưu CSDL",
-    },
-  ];
-
-  // Lọc dữ liệu theo Search và Môn học
-  const filteredBatches = useMemo(() => {
-    return initialBatches.filter((item) => {
-      const matchSearch =
-        item.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.className.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.instructorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.instructorEmail.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchCourse =
-        selectedCourse === "ALL" || item.course === selectedCourse;
-      return matchSearch && matchCourse;
-    });
-  }, [searchQuery, selectedCourse]);
+    fetchDashboardData(currentPage);
+  }, [fetchDashboardData, currentPage]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchOverviewData();
-    setTimeout(() => {
-      setIsRefreshing(false);
-      setLastSyncText("Vừa xong");
-    }, 600);
+    await fetchDashboardData(currentPage);
   };
 
-  const tokenUsagePercentage = useMemo(() => {
-    if (!metrics.limitTokens || metrics.limitTokens <= 0) return 24.9;
-    const pct = (metrics.usedTokens / metrics.limitTokens) * 100;
-    return Math.min(Math.round(pct * 10) / 10, 100);
-  }, [metrics.usedTokens, metrics.limitTokens]);
+  // Tính toán tỷ lệ phần trăm hạn ngạch AI tiêu thụ thực tế
+  const totalTokensUsed = overview?.ai_token_usage?.total_tokens_consumed_month ?? 0;
+  const totalBudgetLimit = overview?.ai_token_usage?.total_budget_limit ?? 0;
+  const usagePercentage =
+    totalBudgetLimit > 0
+      ? Math.min(Math.round((totalTokensUsed / totalBudgetLimit) * 1000) / 10, 100)
+      : 0;
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Xuất file CSV mở trên Excel (UTF-8 BOM tiếng Việt)
+  const handleExportCsv = () => {
+    setShowExportMenu(false);
+    const nowStr = new Date().toLocaleString("vi-VN");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `Bao_cao_AITA_tong_quan_${dateStr}.csv`;
+
+    const totalConsumed = overview?.ai_token_usage?.total_tokens_consumed_month ?? 0;
+    const totalBudget = overview?.ai_token_usage?.total_budget_limit ?? 0;
+    const topFeature = overview?.ai_token_usage?.top_consuming_feature || "Chưa có lượt gọi";
+
+    let csv = "\uFEFF"; // Byte Order Mark giúp Microsoft Excel hiển thị tiếng Việt có dấu chuẩn
+    csv += "BÁO CÁO TỔNG QUAN HỆ THỐNG AITA\n";
+    csv += `Thời điểm xuất:,"${nowStr}"\n`;
+    csv += `Cổng quản trị:,Hệ thống Khảo thí AITA - Đại học FPT\n\n`;
+
+    csv += "--- 1. CHỈ SỐ HỆ THỐNG & HẠN NGẠCH AI ---\n";
+    csv += `Tổng số giảng viên hoạt động:,${overview?.total_instructors ?? 0}\n`;
+    csv += `Tổng token đã tiêu thụ trong tháng:,${totalConsumed}\n`;
+    csv += `Ngân sách token toàn hệ thống:,${totalBudget}\n`;
+    csv += `Tỷ lệ sử dụng thực tế:,${totalBudget > 0 ? ((totalConsumed / totalBudget) * 100).toFixed(2) : 0}%\n`;
+    csv += `Tính năng AI chiếm tỷ trọng lớn nhất:,"${topFeature}"\n\n`;
+
+    csv += "--- 2. NHẬT KÝ SỬ DỤNG AI GẦN NHẤT (AUDIT TRAIL) ---\n";
+    csv += "Mã Log,Giảng viên,Tài khoản,Tính năng (Feature Type),Mô hình AI,Prompt Tokens,Completion Tokens,Tổng Tokens,Thời gian ghi nhận\n";
+
+    if (usageItems && usageItems.length > 0) {
+      usageItems.forEach((log) => {
+        csv += `"${log.id}","${log.full_name}","${log.username}","${log.feature_type}","${log.model_name}",${log.prompt_tokens},${log.completion_tokens},${log.total_tokens},"${new Date(log.created_at).toLocaleString("vi-VN")}"\n`;
+      });
+    } else {
+      csv += "Chưa có bản ghi nhật ký nào trong cơ sở dữ liệu.\n";
+    }
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintPdf = () => {
+    setShowExportMenu(false);
+    window.print();
+  };
 
   return (
     <div className="flex flex-col w-full gap-6">
@@ -221,13 +235,13 @@ export default function DashboardOverviewPage() {
             </h1>
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200/60">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Đồng bộ thời gian thực: {lastSyncText}</span>
+              <span>Đồng bộ CSDL thực: {lastSyncText}</span>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3 self-start lg:self-auto">
+        <div className="flex items-center gap-3 self-start lg:self-auto relative">
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
@@ -238,25 +252,68 @@ export default function DashboardOverviewPage() {
                 isRefreshing ? "rotate-180 animate-spin text-[#F26F21]" : ""
               }`}
             />
-            <span>Làm mới dữ liệu</span>
+            <span>{isRefreshing ? "Đang đồng bộ..." : "Làm mới dữ liệu"}</span>
           </button>
 
-          <button
-            onClick={() =>
-              alert("Đang chuẩn bị xuất báo cáo PDF & Excel từ dữ liệu tổng hợp...")
-            }
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#3B2D6D] hover:bg-[#31255C] text-white font-semibold text-xs shadow-md shadow-indigo-900/10 active:scale-95 transition-all"
-          >
-            <FileDown className="w-3.5 h-3.5" />
-            <span>Xuất báo cáo PDF/Excel</span>
-            <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70" />
-          </button>
+          {/* Menu Xuất Báo Cáo Thực Tế */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#3B2D6D] hover:bg-[#31255C] text-white font-semibold text-xs shadow-md shadow-indigo-900/10 active:scale-95 transition-all"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Xuất báo cáo PDF/Excel</span>
+              <ChevronDown className="w-3 h-3 ml-0.5 opacity-80" />
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 p-1.5 z-30 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  onClick={handleExportCsv}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700 transition-colors text-left"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <div>
+                    <div>Xuất file Excel (.csv)</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Dữ liệu tổng hợp UTF-8</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handlePrintPdf}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-purple-700 transition-colors text-left"
+                >
+                  <Printer className="w-4 h-4 text-purple-600" />
+                  <div>
+                    <div>In / Lưu PDF</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Định dạng xem in trình duyệt</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ================= 4 METRIC STAT CARDS ================= */}
+      {/* Error Banner nếu có lỗi API */}
+      {errorMessage && (
+        <section className="p-4 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-between gap-4 text-xs text-red-700">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <span className="font-medium">{errorMessage}</span>
+          </div>
+          <Link
+            href="/login"
+            className="px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shrink-0"
+          >
+            Đăng nhập lại
+          </Link>
+        </section>
+      )}
+
+      {/* ================= 4 METRIC STAT CARDS (REAL DATA TỪ BACKEND) ================= */}
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        {/* Card 1: Tổng Giảng Viên */}
+        {/* Card 1: Tổng Giảng Viên (Database Count Thật) */}
         <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
@@ -267,11 +324,15 @@ export default function DashboardOverviewPage() {
                 Tổng Giảng Viên Hoạt Động
               </h3>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900">
-                  {metrics.totalInstructors}
-                </span>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                ) : (
+                  <span className="text-3xl font-extrabold text-slate-900">
+                    {overview?.total_instructors ?? 0}
+                  </span>
+                )}
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  +2 mới tuần này
+                  Dữ liệu CSDL Neon
                 </span>
               </div>
             </div>
@@ -280,30 +341,34 @@ export default function DashboardOverviewPage() {
             </div>
           </div>
           <div className="mt-4 pt-3 flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-            <span>Tỷ lệ tích cực</span>
-            <span className="font-bold text-slate-800">
-              91.6% truy cập 48h qua
-            </span>
+            <span>Vai trò xác thực</span>
+            <span className="font-bold text-slate-800">ROLE: INSTRUCTOR</span>
           </div>
         </div>
 
-        {/* Card 2: Hạn Ngạch AI */}
+        {/* Card 2: Hạn Ngạch AI Tiêu Thụ Trong Tháng */}
         <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div className="w-full mr-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                GOOGLE GEMINI 1.5 PRO
+                TIÊU THỤ TOKEN TRONG THÁNG
               </span>
               <h3 className="text-xs font-medium text-slate-600 mt-0.5">
-                Hạn Ngạch AI Hôm Nay
+                Tổng Token Đã Sử Dụng
               </h3>
               <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-900 tracking-tight">
-                  {metrics.usedTokens.toLocaleString()}
-                </span>
-                <span className="text-xs font-semibold text-slate-400">
-                  / {metrics.limitTokens.toLocaleString()} Tokens
-                </span>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                ) : (
+                  <>
+                    <span className="text-2xl font-black text-slate-900 tracking-tight">
+                      {totalTokensUsed.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      / {totalBudgetLimit.toLocaleString()} Tokens
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <div className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center bg-orange-50 text-[#F26F21]">
@@ -314,37 +379,41 @@ export default function DashboardOverviewPage() {
             <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
               <div
                 className="bg-[#F26F21] h-full rounded-full transition-all duration-700"
-                style={{ width: `${tokenUsagePercentage}%` }}
+                style={{ width: `${Math.min(usagePercentage, 100)}%` }}
               />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-emerald-700 font-semibold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                Mức tiêu thụ ổn định
+                Tỷ lệ sử dụng thực tế
               </span>
               <span className="font-bold text-slate-800">
-                {tokenUsagePercentage}%
+                {usagePercentage}%
               </span>
             </div>
           </div>
         </div>
 
-        {/* Card 3: Đợt Chấm Đã Đồng Bộ */}
+        {/* Card 3: Tổng Lượt Gọi AI / Nhật Ký Đã Ghi Nhận */}
         <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                DỮ LIỆU ĐÁNH GIÁ
+                AUDIT LOGS
               </span>
               <h3 className="text-xs font-medium text-slate-600 mt-0.5">
-                Tổng Đợt Chấm Đã Đồng Bộ
+                Tổng Lượt Gọi AI Ghi Nhận
               </h3>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900">
-                  {metrics.totalBatches}
-                </span>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                ) : (
+                  <span className="text-3xl font-extrabold text-slate-900">
+                    {pagination.total_items}
+                  </span>
+                )}
                 <span className="text-xs font-bold text-slate-500">
-                  Đợt chấm thi
+                  Lượt request
                 </span>
               </div>
             </div>
@@ -353,28 +422,24 @@ export default function DashboardOverviewPage() {
             </div>
           </div>
           <div className="mt-4 pt-3 flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-            <span>Nguồn gốc</span>
-            <span className="font-bold text-emerald-700 flex items-center gap-1">
-              <Laptop className="w-3.5 h-3.5" />
-              Từ Desktop Client
-            </span>
+            <span>Bảng ghi nhận</span>
+            <span className="font-bold text-emerald-700">ai_quota_logs</span>
           </div>
         </div>
 
-        {/* Card 4: Môn Học Đang Quản Trị */}
+        {/* Card 4: Tính Năng Tiêu Thụ Nhiều Nhất */}
         <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                CHƯƠNG TRÌNH ĐÀO TẠO
+                PHÂN TÍCH TẢI AI
               </span>
               <h3 className="text-xs font-medium text-slate-600 mt-0.5">
-                Môn Học Đang Quản Trị
+                Tính Năng Chiếm Tỷ Trọng Lớn Nhất
               </h3>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900">4</span>
-                <span className="text-xs font-bold text-slate-500">
-                  Môn nòng cốt
+                <span className="text-xl font-extrabold text-slate-900">
+                  {overview?.ai_token_usage?.top_consuming_feature || "Chưa có lượt gọi"}
                 </span>
               </div>
             </div>
@@ -382,337 +447,35 @@ export default function DashboardOverviewPage() {
               <BookOpen className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-1.5 pt-1">
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#0054A6]/10 text-[#0054A6]">
-              PRF192
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#F26F21]/10 text-[#F26F21]">
-              PRO192
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-700">
-              CSD201
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              MAS291
-            </span>
+          <div className="mt-4 pt-3 flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+            <span>Mô hình chuẩn</span>
+            <span className="font-bold text-purple-700">gemini-3.8-flash</span>
           </div>
         </div>
       </section>
 
-      {/* ================= BIỂU ĐỒ & ĐỒ THỊ TRỰC QUAN ================= */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Cột 1: Bar Chart Tiêu Thụ Token Gemini AI 7 ngày gần nhất */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
-          <div>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#F26F21]" />
-                  <h2 className="text-sm font-bold text-slate-900">
-                    Mức Tiêu Thụ Token Gemini AI 7 Ngày Gần Nhất
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Thống kê API calls phục vụ sinh phản hồi và đối chiếu tiêu chí
-                </p>
-              </div>
-              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-100 self-start">
-                <span className="text-[11px] font-semibold text-slate-400">
-                  Trung bình:
-                </span>
-                <span className="text-xs font-bold text-[#F26F21]">
-                  14,200 tokens/ngày
-                </span>
-              </div>
-            </div>
-
-            {/* Bar Chart Visualization */}
-            <div className="py-4">
-              <div className="h-48 w-full flex items-end justify-between gap-3 px-2 pt-6">
-                {/* T2 */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    11.2k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "48%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">T2</span>
-                </div>
-                {/* T3 */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    14.8k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "64%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">T3</span>
-                </div>
-                {/* T4 */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    18.4k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "78%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">T4</span>
-                </div>
-                {/* T5 (Đỉnh điểm) */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-bold text-[#F26F21] bg-orange-50 px-1 rounded border border-orange-200">
-                    21.5k (Đỉnh)
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-[#F26F21] rounded-t-lg shadow-sm"
-                    style={{ height: "92%" }}
-                  />
-                  <span className="text-xs font-bold text-[#F26F21]">T5</span>
-                </div>
-                {/* T6 */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    16.3k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "70%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">T6</span>
-                </div>
-                {/* T7 */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    12.4k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "54%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">T7</span>
-                </div>
-                {/* CN */}
-                <div className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                  <span className="text-[10px] font-semibold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    8.6k
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] bg-slate-100 hover:bg-[#F26F21]/80 rounded-t-lg transition-all"
-                    style={{ height: "36%" }}
-                  />
-                  <span className="text-xs font-medium text-slate-500">CN</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3 flex items-center justify-between text-xs text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">
-            <span className="flex items-center gap-1.5 text-[11px]">
-              <Info className="w-3.5 h-3.5 text-slate-400" />
-              Hạn ngạch cấp ngày: 50,000 Tokens (Rate limit 15 RPM)
-            </span>
-            <Link
-              href="/ai-quotas"
-              className="text-[#F26F21] font-semibold hover:underline flex items-center gap-0.5 text-xs"
-            >
-              Cấu hình quota
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Cột 2: Donut Chart Tỷ Lệ Bài Thi Theo Ngôn Ngữ */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-1">
-              <h2 className="text-sm font-bold text-slate-900">
-                Tỷ Lệ Phân Bổ Bài Thi
-              </h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">
-                Tổng: 1,420 bài
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Theo cấu trúc ngôn ngữ lập trình của các đợt nộp
-            </p>
-
-            {/* Donut SVG Display */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-5">
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  {/* Background circle */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    fill="none"
-                    r="38"
-                    stroke="#F1F5F9"
-                    strokeWidth="14"
-                  />
-                  {/* Segment 1: C (42%) */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    fill="none"
-                    r="38"
-                    stroke="#0054A6"
-                    strokeDasharray="100.28 238.76"
-                    strokeDashoffset="0"
-                    strokeWidth="14"
-                  />
-                  {/* Segment 2: Java (38%) */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    fill="none"
-                    r="38"
-                    stroke="#F26F21"
-                    strokeDasharray="90.73 238.76"
-                    strokeDashoffset="-100.28"
-                    strokeWidth="14"
-                  />
-                  {/* Segment 3: Python (20%) */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    fill="none"
-                    r="38"
-                    stroke="#10B981"
-                    strokeDasharray="47.75 238.76"
-                    strokeDashoffset="-191.01"
-                    strokeWidth="14"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-lg font-black text-slate-900 leading-none">
-                    1,420
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
-                    BÀI ĐÃ NỘP
-                  </span>
-                </div>
-              </div>
-
-              {/* Legend Items */}
-              <div className="flex flex-col gap-2 w-full sm:w-auto">
-                {/* Item C */}
-                <div className="flex items-center justify-between gap-4 p-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#0054A6]" />
-                    <span className="text-xs font-semibold text-slate-700">
-                      Ngôn ngữ C
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-[#0054A6]">
-                      42%
-                    </span>
-                    <span className="text-[10px] text-slate-400 ml-1">
-                      (596 bài)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Item Java */}
-                <div className="flex items-center justify-between gap-4 p-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#F26F21]" />
-                    <span className="text-xs font-semibold text-slate-700">
-                      Java Core
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-[#F26F21]">
-                      38%
-                    </span>
-                    <span className="text-[10px] text-slate-400 ml-1">
-                      (540 bài)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Item Python */}
-                <div className="flex items-center justify-between gap-4 p-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-                    <span className="text-xs font-semibold text-slate-700">
-                      Python / MAS
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-[#10B981]">
-                      20%
-                    </span>
-                    <span className="text-[10px] text-slate-400 ml-1">
-                      (284 bài)
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 text-[10px] text-center text-slate-400 bg-slate-50 rounded-lg py-1.5 border border-slate-100">
-            Hệ thống hỗ trợ parse tự động file nén ZIP / RAR từ Desktop Client
-          </div>
-        </div>
-      </section>
-
-      {/* ================= BẢNG DANH SÁCH CÁC ĐỢT CHẤM VỪA ĐỒNG BỘ ================= */}
+      {/* ================= BẢNG DANH SÁCH NHẬT KÝ THẬT TỪ CƠ SỞ DỮ LIỆU (AI QUOTA AUDIT LOGS) ================= */}
       <section className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
         {/* Header của bảng */}
         <div className="p-6 pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-1 rounded-md bg-purple-50 text-purple-700">
-                <CheckCircle2 className="w-4 h-4" />
+              <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+                <Activity className="w-4 h-4" />
               </span>
               <h2 className="text-base font-bold text-slate-900">
-                Các Đợt Chấm Vừa Đồng Bộ Từ Desktop Client
+                Nhật Ký Sử Dụng AI & Đánh Giá Gần Nhất (Audit Trail)
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Danh sách các bài thi đã được giảng viên upload và hoàn tất ghi
-              nhận vào CSDL trung tâm
+              Dữ liệu được nạp trực tiếp 100% từ bảng <code>ai_quota_logs</code> qua API <code>GET /admin/reports/ai-usage</code>
             </p>
           </div>
 
-          {/* Controls: Tìm kiếm & Bộ lọc môn */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm mã môn, lớp, giảng viên..."
-                className="pl-8 pr-3 py-1.5 rounded-lg text-xs bg-slate-50 text-slate-800 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#F26F21] w-48 sm:w-56"
-              />
-            </div>
-
-            <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className="px-3 py-1.5 rounded-lg text-xs bg-slate-50 text-slate-800 border border-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-[#F26F21]"
-            >
-              <option value="ALL">Tất cả môn học</option>
-              <option value="PRF192">PRF192 - C</option>
-              <option value="PRO192">PRO192 - Java</option>
-              <option value="CSD201">CSD201 - Data Structures</option>
-              <option value="MAS291">MAS291 - Statistics</option>
-            </select>
-
-            <button
-              onClick={() => alert("Bộ lọc nâng cao theo thời gian và phòng thi")}
-              className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors"
-              title="Bộ lọc nâng cao"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600">
+              Tổng số: <strong>{pagination.total_items}</strong> bản ghi
+            </span>
           </div>
         </div>
 
@@ -721,84 +484,78 @@ export default function DashboardOverviewPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-y border-slate-100">
               <tr>
-                <th className="px-6 py-3">MÃ MÔN HỌC</th>
-                <th className="px-6 py-3">LỚP HỌC</th>
-                <th className="px-6 py-3">GIẢNG VIÊN CHẤM</th>
-                <th className="px-6 py-3">SỐ LƯỢNG BÀI</th>
-                <th className="px-6 py-3">THỜI GIAN ĐỒNG BỘ</th>
-                <th className="px-6 py-3">TRẠNG THÁI</th>
-                <th className="px-6 py-3 text-right">THAO TÁC</th>
+                <th className="px-6 py-3">MÃ LOG / ID</th>
+                <th className="px-6 py-3">GIẢNG VIÊN THỰC HIỆN</th>
+                <th className="px-6 py-3">TÍNH NĂNG (FEATURE TYPE)</th>
+                <th className="px-6 py-3">MÔ HÌNH AI</th>
+                <th className="px-6 py-3">PROMPT TOKENS</th>
+                <th className="px-6 py-3">COMPLETION TOKENS</th>
+                <th className="px-6 py-3">TỔNG TOKENS</th>
+                <th className="px-6 py-3 text-right">THỜI GIAN GỌI</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {filteredBatches.length > 0 ? (
-                filteredBatches.map((batch) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-[#F26F21]" />
+                      <span>Đang tải nhật ký từ cơ sở dữ liệu Neon...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : usageItems.length > 0 ? (
+                usageItems.map((item) => (
                   <tr
-                    key={batch.id}
+                    key={item.id}
                     className="hover:bg-slate-50/80 transition-colors"
                   >
-                    <td className="px-6 py-3.5">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[11px] ${batch.courseColor}`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        {batch.course}
-                      </span>
+                    <td className="px-6 py-3.5 font-mono text-slate-500 text-[11px]">
+                      {item.id.slice(0, 8)}...
                     </td>
                     <td className="px-6 py-3.5 font-bold text-slate-800">
-                      {batch.className}
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
-                          {batch.instructorAvatar}
-                        </div>
-                        <div>
-                          <span className="text-slate-800 font-semibold block leading-tight text-xs">
-                            {batch.instructorName}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            {batch.instructorEmail}
-                          </span>
-                        </div>
+                      <div>{item.full_name || item.username}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">
+                        @{item.username}
                       </div>
                     </td>
                     <td className="px-6 py-3.5">
-                      <span className="font-extrabold text-slate-900">
-                        {batch.submissionsCount}
-                      </span>{" "}
-                      <span className="text-slate-400 text-[11px]">bài</span>
-                    </td>
-                    <td className="px-6 py-3.5 text-slate-500">
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{batch.syncTime}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        {batch.status}
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[11px] bg-purple-50 text-purple-700 border border-purple-100">
+                        {item.feature_type}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-right">
-                      <button
-                        onClick={() =>
-                          alert(
-                            `Xem chi tiết đợt chấm: ${batch.course} - ${batch.className}`
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-xs transition-colors"
-                      >
-                        Xem chi tiết
-                      </button>
+                    <td className="px-6 py-3.5 text-slate-600 font-mono text-[11px]">
+                      {item.model_name}
+                    </td>
+                    <td className="px-6 py-3.5 text-slate-600">
+                      {item.prompt_tokens.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-3.5 text-slate-600">
+                      {item.completion_tokens.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-3.5 font-extrabold text-[#F26F21]">
+                      {item.total_tokens.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-3.5 text-right text-slate-400 text-[11px]">
+                      <div className="flex items-center justify-end gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{new Date(item.created_at).toLocaleString("vi-VN")}</span>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                    Không tìm thấy đợt chấm nào phù hợp với bộ lọc hiện tại.
+                  <td colSpan={8} className="px-6 py-16 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Layers className="w-8 h-8 text-slate-300" />
+                      <span className="font-semibold text-slate-600">
+                        Chưa có nhật ký sử dụng AI nào trong cơ sở dữ liệu
+                      </span>
+                      <p className="text-xs text-slate-400 max-w-md">
+                        Khi có giảng viên thực hiện sinh Testcase, review code hoặc chấm bài tự động, bản ghi kiểm toán sẽ xuất hiện ngay tại đây theo thời gian thực.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -806,45 +563,30 @@ export default function DashboardOverviewPage() {
           </table>
         </div>
 
-        {/* Phân trang & Footer bảng */}
+        {/* Phân trang thật từ Backend */}
         <div className="px-6 py-3.5 bg-white flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 text-xs text-slate-500">
-          <div className="flex items-center gap-1 text-[11px]">
-            <span>Hiển thị</span>
-            <span className="font-bold text-slate-800">
-              1 - {filteredBatches.length}
-            </span>
-            <span>trong tổng số</span>
-            <span className="font-bold text-slate-800">18</span>
-            <span>đợt chấm</span>
+          <div>
+            Hiển thị <strong>{usageItems.length}</strong> / <strong>{pagination.total_items}</strong> bản ghi
+            {pagination.total_pages > 0 && ` (Trang ${pagination.page} / ${pagination.total_pages})`}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-1 rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+              disabled={currentPage <= 1 || loading}
+              className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-40 transition-colors"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            {[1, 2, 3, 4].map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-6 h-6 rounded-md text-xs font-bold transition-colors ${
-                  currentPage === page
-                    ? "bg-[#3B2D6D] text-white"
-                    : "hover:bg-slate-100 text-slate-600 font-medium"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
+            <span className="px-3 py-1 font-bold text-slate-700 bg-slate-100 rounded-lg">
+              {currentPage}
+            </span>
             <button
-              onClick={() => setCurrentPage((p) => Math.min(4, p + 1))}
-              disabled={currentPage === 4}
-              className="p-1 rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+              onClick={() => setCurrentPage((p) => Math.min(Math.max(1, pagination.total_pages), p + 1))}
+              disabled={currentPage >= pagination.total_pages || loading || pagination.total_pages === 0}
+              className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-40 transition-colors"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>

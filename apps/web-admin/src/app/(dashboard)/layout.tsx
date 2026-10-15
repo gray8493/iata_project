@@ -55,7 +55,7 @@ export default function DashboardLayout({
     // Call GET /auth/me from Backend if token exists
     const token = localStorage.getItem("aita_access_token");
     if (token) {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
       fetch(`${apiUrl}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -99,7 +99,7 @@ export default function DashboardLayout({
     },
     {
       title: "Giám sát Hạn ngạch AI",
-      href: "/ai-quotas",
+      href: "/ai-quota",
       icon: Cpu,
     },
     {
@@ -117,25 +117,19 @@ export default function DashboardLayout({
       <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between p-5 shrink-0 hidden lg:flex sticky top-0 h-screen">
         <div>
           {/* Logo Area */}
-          <div className="flex items-center justify-between pb-6 mb-6 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              {/* FPT 3-color icon representation */}
-              <div className="flex items-center gap-0.5">
-                <span className="w-2 h-5 rounded-full bg-[#0054A6] transform -skew-x-12" />
-                <span className="w-2 h-5 rounded-full bg-[#F26F21] transform -skew-x-12" />
-                <span className="w-2 h-5 rounded-full bg-[#70B92B] transform -skew-x-12" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-extrabold text-sm text-[#0054A6] leading-none">
-                  FPT Education
-                </span>
-                <span className="text-[9px] text-slate-400 font-bold tracking-wider uppercase mt-1">
-                  AITA ADMIN PORTAL
-                </span>
-              </div>
+          <div className="flex items-center justify-between pb-5 mb-5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <img
+                src="/fptulogo_transparent.png"
+                alt="FPT Education Logo"
+                className="h-8 w-auto object-contain"
+              />
+              <span className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase pl-1.5 border-l border-slate-200">
+                AITA
+              </span>
             </div>
             <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/60 font-bold text-[10px] tracking-wider uppercase">
-              AITA ADMIN
+              ADMIN
             </span>
           </div>
 

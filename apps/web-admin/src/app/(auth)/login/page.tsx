@@ -32,7 +32,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
       const res = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: {
@@ -86,21 +86,16 @@ export default function LoginPage() {
 
           {/* Top Logo Badge */}
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-3 bg-white px-4 py-2.5 rounded-lg shadow-md mb-8">
-              {/* FPT 3-color icon representation */}
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-6 rounded-full bg-[#0054A6] transform -skew-x-12" />
-                <span className="w-2.5 h-6 rounded-full bg-[#F26F21] transform -skew-x-12" />
-                <span className="w-2.5 h-6 rounded-full bg-[#70B92B] transform -skew-x-12" />
-              </div>
-              <div className="flex flex-col leading-tight">
-                <span className="font-extrabold text-sm text-[#0054A6] tracking-tight">
-                  FPT Education
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
-                  AITA ADMIN PORTAL
-                </span>
-              </div>
+            <div className="inline-flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-md mb-8">
+              <img
+                src="/fptulogo_transparent.png"
+                alt="FPT Education Logo"
+                className="h-8 w-auto object-contain"
+              />
+              <div className="h-6 w-px bg-slate-200" />
+              <span className="text-[10px] text-slate-500 font-extrabold tracking-wider uppercase">
+                AITA ADMIN PORTAL
+              </span>
             </div>
 
             {/* AI Platform Tag */}
