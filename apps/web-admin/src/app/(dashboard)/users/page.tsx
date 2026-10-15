@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Search,
   Download,
@@ -11,12 +12,11 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
-  GraduationCap,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  KeyRound,
   Shield,
+  GraduationCap,
 } from "lucide-react";
 
 interface UserItem {
@@ -38,7 +38,6 @@ interface PaginationData {
 }
 
 export default function UsersManagementPage() {
-  // Dữ liệu người dùng nhận từ Backend NestJS
   const [users, setUsers] = useState<UserItem[]>([]);
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
@@ -47,18 +46,16 @@ export default function UsersManagementPage() {
     total_pages: 1,
   });
 
-  // Bộ lọc đúng chuẩn ListUsersDto của Backend
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | "ADMIN" | "INSTRUCTOR">("ALL");
 
-  // State trạng thái tải & thông báo
   const [loading, setLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Modal Cấp Tài Khoản Mới (CreateUserDto)
+  // Modal Cấp Tài Khoản Mới
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -67,7 +64,7 @@ export default function UsersManagementPage() {
   const [newRole, setNewRole] = useState<"INSTRUCTOR" | "ADMIN">("INSTRUCTOR");
   const [newQuota, setNewQuota] = useState<string>("");
 
-  // Modal Chỉnh Sửa Tài Khoản (UpdateUserDto)
+  // Modal Chỉnh Sửa Tài Khoản
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [editFullName, setEditFullName] = useState("");
@@ -89,17 +86,16 @@ export default function UsersManagementPage() {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Tự ẩn thông báo
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
+      const timer = setTimeout(() => setSuccessMessage(""), 4000);
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
 
   useEffect(() => {
     if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(""), 7000);
+      const timer = setTimeout(() => setErrorMessage(""), 6000);
       return () => clearTimeout(timer);
     }
   }, [errorMessage]);
@@ -110,12 +106,12 @@ export default function UsersManagementPage() {
     return { token, apiUrl };
   };
 
-  // Lấy danh sách từ API Backend (GET /api/v1/admin/users)
+  // Lấy danh sách từ API Backend
   const fetchUsers = useCallback(
     async (pageTarget = pagination.page) => {
       const { token, apiUrl } = getApiConfig();
       if (!token) {
-        setErrorMessage("Chưa tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại!");
+        setErrorMessage("Chưa tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.");
         setLoading(false);
         return;
       }
@@ -135,31 +131,27 @@ export default function UsersManagementPage() {
         const res = await fetch(`${apiUrl}/admin/users?${queryParams.toString()}`, {
           method: "GET",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
         });
 
         if (res.status === 401) {
-          setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("aita_access_token");
-          }
-          setLoading(false);
+          setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+          localStorage.removeItem("aita_access_token");
           return;
         }
 
-        const result = await res.json();
-        if (res.ok && result.success && result.data) {
-          setUsers(result.data.items || []);
-          if (result.data.pagination) {
-            setPagination(result.data.pagination);
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setUsers(json.data.items || []);
+          if (json.data.pagination) {
+            setPagination(json.data.pagination);
           }
         } else {
-          setErrorMessage(result.message || "Không thể tải danh sách tài khoản từ máy chủ.");
+          setErrorMessage(json.message || "Không thể tải danh sách tài khoản từ máy chủ.");
         }
       } catch {
-        setErrorMessage("Không thể kết nối đến máy chủ backend.");
+        setErrorMessage("Lỗi kết nối tới máy chủ.");
       } finally {
         setLoading(false);
       }
@@ -168,10 +160,75 @@ export default function UsersManagementPage() {
   );
 
   useEffect(() => {
-    fetchUsers(pagination.page);
-  }, [fetchUsers, pagination.page]);
+    fetchUsers();
+  }, [fetchUsers]);
 
-  // Cập nhật trạng thái kích hoạt / khóa (PUT /api/v1/admin/users/:id)
+  // Cấp phát tài khoản mới
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { token, apiUrl } = getApiConfig();
+    if (!token) return;
+
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(newUsername.trim())) {
+      setErrorMessage("Tên đăng nhập phải từ 3-30 ký tự, chỉ gồm chữ cái, số và dấu gạch dưới.");
+      return;
+    }
+
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword.trim())) {
+      setErrorMessage("Mật khẩu khởi tạo phải tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số.");
+      return;
+    }
+
+    setIsActionLoading(true);
+    setErrorMessage("");
+
+    try {
+      const payload: Record<string, any> = {
+        username: newUsername.trim().toLowerCase(),
+        password: newPassword.trim(),
+        full_name: newFullName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        role: newRole,
+      };
+
+      if (newQuota !== "" && !isNaN(Number(newQuota))) {
+        payload.daily_token_quota = Math.max(0, Math.floor(Number(newQuota)));
+      }
+
+      const res = await fetch(`${apiUrl}/admin/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setSuccessMessage(`Đã cấp tài khoản thành công cho "${newUsername}"!`);
+        setShowCreateModal(false);
+        setNewUsername("");
+        setNewPassword("");
+        setNewFullName("");
+        setNewEmail("");
+        setNewRole("INSTRUCTOR");
+        setNewQuota("");
+        fetchUsers(1);
+      } else {
+        const detailMsg = Array.isArray(json.details)
+          ? json.details.join(", ")
+          : (json.message || "Không thể tạo tài khoản.");
+        setErrorMessage(detailMsg);
+      }
+    } catch {
+      setErrorMessage("Lỗi kết nối khi gửi yêu cầu cấp tài khoản.");
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Khóa / Mở khóa tài khoản
   const handleToggleStatus = async (user: UserItem) => {
     const { token, apiUrl } = getApiConfig();
     if (!token) return;
@@ -188,112 +245,28 @@ export default function UsersManagementPage() {
 
       const json = await res.json();
       if (res.ok && json.success) {
-        setSuccessMessage(
-          `Đã ${!user.is_active ? "kích hoạt" : "tạm khóa"} tài khoản "${user.username}" thành công!`
-        );
-        setUsers((prev) =>
-          prev.map((u) => (u.id === user.id ? { ...u, is_active: !u.is_active } : u))
-        );
+        setSuccessMessage(`Đã ${user.is_active ? "khóa" : "kích hoạt"} tài khoản "${user.username}".`);
+        fetchUsers(pagination.page);
       } else {
-        const detailMsg = Array.isArray(json.details)
-          ? json.details.join(", ")
-          : (json.message || "Không thể thay đổi trạng thái tài khoản này.");
-        setErrorMessage(detailMsg);
+        setErrorMessage(json.message || "Không thể cập nhật trạng thái tài khoản.");
       }
     } catch {
-      setErrorMessage("Lỗi kết nối khi cập nhật trạng thái tài khoản.");
+      setErrorMessage("Lỗi kết nối khi thay đổi trạng thái tài khoản.");
     }
   };
 
-  // Cấp tài khoản mới (POST /api/v1/admin/users)
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { token, apiUrl } = getApiConfig();
-    if (!token) return;
-
-    const trimmedUsername = newUsername.trim().toLowerCase();
-    const trimmedFullName = newFullName.trim();
-    const trimmedEmail = newEmail.trim().toLowerCase();
-
-    // Client-side validation kiểm tra tính hợp lệ trước khi gửi
-    if (!/^[a-z0-9_]{3,30}$/.test(trimmedUsername)) {
-      setErrorMessage("Tên đăng nhập phải từ 3 đến 30 ký tự, chỉ gồm chữ thường (a-z), chữ số (0-9) và dấu gạch dưới (_).");
-      return;
-    }
-
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
-      setErrorMessage("Mật khẩu phải tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số (ví dụ: User@123456).");
-      return;
-    }
-
-    if (trimmedFullName.length < 2) {
-      setErrorMessage("Họ và tên phải có ít nhất 2 ký tự.");
-      return;
-    }
-
-    setIsActionLoading(true);
-    setErrorMessage("");
-
-    try {
-      const body: Record<string, any> = {
-        username: trimmedUsername,
-        password: newPassword,
-        full_name: trimmedFullName,
-        email: trimmedEmail,
-        role: newRole,
-      };
-
-      // Hạn ngạch không bắt buộc, nếu nhập bao nhiêu cũng được
-      if (newQuota !== "" && !isNaN(Number(newQuota))) {
-        body.daily_token_quota = Math.max(0, Math.floor(Number(newQuota)));
-      }
-
-      const res = await fetch(`${apiUrl}/admin/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setSuccessMessage(`Đã cấp tài khoản "${body.username}" thành công!`);
-        setShowCreateModal(false);
-        setNewUsername("");
-        setNewPassword("");
-        setNewFullName("");
-        setNewEmail("");
-        setNewRole("INSTRUCTOR");
-        setNewQuota("");
-        fetchUsers(1);
-      } else {
-        const detailMsg = Array.isArray(json.details)
-          ? json.details.join(", ")
-          : (json.message || "Không thể tạo tài khoản người dùng.");
-        setErrorMessage(detailMsg);
-      }
-    } catch {
-      setErrorMessage("Lỗi kết nối khi gửi yêu cầu tạo tài khoản.");
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  // Mở modal chỉnh sửa & tải hạn ngạch chi tiết (GET /api/v1/admin/users/:id)
-  const handleOpenEditModal = async (user: UserItem) => {
-    setEditingUser(user);
-    setEditFullName(user.full_name);
-    setEditEmail(user.email);
-    setEditRole(user.role);
+  const handleOpenEditModal = async (u: UserItem) => {
+    setEditingUser(u);
+    setEditFullName(u.full_name);
+    setEditEmail(u.email);
+    setEditRole(u.role);
     setEditNewPassword("");
-    setEditQuota("");
+    setEditQuota(u.daily_token_quota !== undefined && u.daily_token_quota !== null ? String(u.daily_token_quota) : "");
 
     const { token, apiUrl } = getApiConfig();
     if (token) {
       try {
-        const res = await fetch(`${apiUrl}/admin/users/${user.id}`, {
+        const res = await fetch(`${apiUrl}/admin/users/${u.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
@@ -310,7 +283,7 @@ export default function UsersManagementPage() {
     setShowEditModal(true);
   };
 
-  // Cập nhật tài khoản (PUT /api/v1/admin/users/:id)
+  // Cập nhật tài khoản
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
@@ -332,7 +305,6 @@ export default function UsersManagementPage() {
         role: editRole,
       };
 
-      // Nhập hạn ngạch bao nhiêu cũng được, không bắt buộc
       if (editQuota !== "" && !isNaN(Number(editQuota))) {
         payload.daily_token_quota = Math.max(0, Math.floor(Number(editQuota)));
       }
@@ -369,7 +341,7 @@ export default function UsersManagementPage() {
     }
   };
 
-  // Xóa mềm tài khoản (DELETE /api/v1/admin/users/:id)
+  // Xóa tài khoản
   const handleDeleteUser = async () => {
     if (!deletingUser) return;
     const { token, apiUrl } = getApiConfig();
@@ -388,7 +360,7 @@ export default function UsersManagementPage() {
 
       const json = await res.json();
       if (res.ok && json.success) {
-        setSuccessMessage(`Đã xóa tài khoản "${deletingUser.username}" thành công!`);
+        setSuccessMessage(`Đã xóa tài khoản "${deletingUser.username}" thành công.`);
         setShowDeleteConfirm(false);
         setDeletingUser(null);
         fetchUsers(1);
@@ -405,7 +377,6 @@ export default function UsersManagementPage() {
     }
   };
 
-  // Xuất file CSV từ dữ liệu thực tế
   const handleExportCsv = () => {
     if (users.length === 0) return;
 
@@ -432,15 +403,15 @@ export default function UsersManagementPage() {
   };
 
   return (
-    <div className="flex flex-col w-full gap-5">
+    <div className="flex flex-col w-full gap-6">
       {/* Thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs font-semibold shadow-sm animate-in fade-in">
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium animate-in fade-in">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{errorMessage}</span>
           </div>
-          <button onClick={() => setErrorMessage("")} className="hover:text-red-900">
+          <button onClick={() => setErrorMessage("")} className="hover:text-rose-900" aria-label="Đóng thông báo">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -448,76 +419,76 @@ export default function UsersManagementPage() {
 
       {/* Thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold shadow-sm animate-in fade-in">
+        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium animate-in fade-in">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>{successMessage}</span>
           </div>
-          <button onClick={() => setSuccessMessage("")} className="hover:text-emerald-950">
+          <button onClick={() => setSuccessMessage("")} className="hover:text-emerald-950" aria-label="Đóng thông báo">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* ================= TIÊU ĐỀ TRANG ================= */}
-      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <div className="flex flex-col gap-1.5">
-          <nav className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            <span>Trang chủ</span>
+      {/* ================= HEADER TRANG ================= */}
+      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <nav className="flex items-center gap-1.5 text-sm text-slate-500 mb-1">
+            <Link href="/dashboard" className="hover:text-slate-800 transition-colors">
+              Trang chủ
+            </Link>
             <span>/</span>
-            <span className="text-[#F26F21]">Quản lý Tài khoản</span>
+            <span className="text-slate-800 font-medium">Quản lý giảng viên</span>
           </nav>
 
-          <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-              Danh Sách Tài Khoản Người Dùng
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 font-extrabold text-xs border border-purple-200">
-              • {pagination.total_items} Tài khoản
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-400 mt-0.5">
-            Quản lý tài khoản Giảng viên và Quản trị viên kết nối trực tiếp với Backend NestJS.
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+            Quản lý tài khoản giảng viên
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            {pagination.total_items} tài khoản được ghi nhận trong hệ thống
           </p>
         </div>
 
         {/* Nút hành động chính */}
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
+            type="button"
             onClick={handleExportCsv}
             disabled={users.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs transition-colors disabled:opacity-40"
+            className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-40 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label="Xuất file CSV"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <Download className="w-4 h-4 text-slate-500" />
             <span>Xuất CSV</span>
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setErrorMessage("");
               setShowCreateModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#F26F21] hover:bg-[#D95A0E] text-white font-bold text-xs shadow-md shadow-orange-500/20 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
+            aria-label="Cấp tài khoản mới"
           >
             <UserPlus className="w-4 h-4" />
-            <span>+ Cấp Tài Khoản Mới</span>
+            <span>Cấp tài khoản mới</span>
           </button>
         </div>
       </section>
 
-      {/* ================= BỘ LỌC (ROLE & SEARCH CHUẨN BACKEND) ================= */}
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+      {/* ================= BỘ LỌC TÌM KIẾM ================= */}
+      <section className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          {/* Tìm kiếm */}
+          {/* Ô tìm kiếm */}
           <div className="relative min-w-[260px] flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo Username, Họ tên, Email..."
-              className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#F26F21] focus:bg-white transition-all font-medium"
+              placeholder="Tìm theo username, họ tên, email..."
+              className="w-full pl-9 pr-3 h-10 rounded-lg text-xs bg-slate-50 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
             />
           </div>
 
@@ -528,7 +499,7 @@ export default function UsersManagementPage() {
               setRoleFilter(e.target.value as any);
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-            className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-700 font-semibold focus:outline-none focus:border-[#F26F21]"
+            className="h-10 px-3 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
           >
             <option value="ALL">Tất cả vai trò</option>
             <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
@@ -537,150 +508,133 @@ export default function UsersManagementPage() {
 
           {/* Nút Làm mới */}
           <button
+            type="button"
             onClick={() => fetchUsers(pagination.page)}
             disabled={loading}
-            title="Tải lại dữ liệu"
-            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors disabled:opacity-50"
+            title="Làm mới danh sách"
+            className="h-10 w-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label="Tải lại dữ liệu"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#F26F21]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
           </button>
         </div>
       </section>
 
       {/* ================= BẢNG DỮ LIỆU TÀI KHOẢN ================= */}
-      <section className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-y border-slate-100">
+            <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
               <tr>
-                <th className="px-5 py-3.5">TÊN ĐĂNG NHẬP</th>
-                <th className="px-4 py-3.5">HỌ & TÊN</th>
-                <th className="px-4 py-3.5">EMAIL</th>
-                <th className="px-4 py-3.5">VAI TRÒ</th>
-                <th className="px-4 py-3.5 text-center">TRẠNG THÁI</th>
-                <th className="px-4 py-3.5">NGÀY TẠO</th>
-                <th className="px-5 py-3.5 text-right">THAO TÁC</th>
+                <th className="py-3 px-4 font-medium">Tên đăng nhập</th>
+                <th className="py-3 px-4 font-medium">Họ và tên</th>
+                <th className="py-3 px-4 font-medium">Email</th>
+                <th className="py-3 px-4 font-medium">Vai trò</th>
+                <th className="py-3 px-4 text-center font-medium">Trạng thái</th>
+                <th className="py-3 px-4 font-medium">Ngày tạo</th>
+                <th className="py-3 px-4 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
+            <tbody className="divide-y divide-slate-100 font-normal">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-14 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="w-6 h-6 text-[#F26F21] animate-spin" />
-                      <span className="text-xs text-slate-400">Đang tải dữ liệu từ máy chủ Backend...</span>
-                    </div>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <Loader2 className="w-5 h-5 mx-auto animate-spin text-indigo-600 mb-1.5" />
+                    <span>Đang tải danh sách tài khoản...</span>
                   </td>
                 </tr>
               ) : users.length > 0 ? (
                 users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                    {/* Tên đăng nhập */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
-                            u.role === "ADMIN"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
+                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 flex items-center justify-center font-semibold text-xs shrink-0">
                           {u.username.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-mono text-xs font-bold text-slate-800">
+                        <span className="font-mono text-xs font-medium text-slate-900">
                           {u.username}
                         </span>
                       </div>
                     </td>
 
-                    {/* Họ & Tên */}
-                    <td className="px-4 py-4 font-bold text-slate-900">
+                    <td className="py-3 px-4 text-slate-900 font-medium whitespace-nowrap">
                       {u.full_name}
                     </td>
 
-                    {/* Email */}
-                    <td className="px-4 py-4 font-mono text-[11px] text-slate-500">
+                    <td className="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                       {u.email}
                     </td>
 
-                    {/* Vai Trò */}
-                    <td className="px-4 py-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       {u.role === "ADMIN" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-extrabold uppercase tracking-wide border border-amber-200">
-                          <Shield className="w-3 h-3 text-amber-600" />
-                          ADMIN
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700 font-medium">
+                          <Shield className="w-3 h-3 text-slate-500" />
+                          Quản trị viên
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 text-[#0054A6] text-[10px] font-extrabold uppercase tracking-wide border border-blue-200">
-                          <GraduationCap className="w-3 h-3 text-[#0054A6]" />
-                          INSTRUCTOR
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 font-medium">
+                          <GraduationCap className="w-3 h-3 text-indigo-600" />
+                          Giảng viên
                         </span>
                       )}
                     </td>
 
-                    {/* Trạng Thái */}
-                    <td className="px-4 py-4 text-center">
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
                       {u.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                           Hoạt động
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-200">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                           Đã khóa
                         </span>
                       )}
                     </td>
 
-                    {/* Ngày tạo */}
-                    <td className="px-4 py-4 text-slate-400 text-[11px]">
-                      {new Date(u.created_at).toLocaleDateString("vi-VN", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                      })}
+                    <td className="py-3 px-4 text-slate-500 text-[11px] whitespace-nowrap">
+                      {new Date(u.created_at).toLocaleDateString("vi-VN")}
                     </td>
 
-                    {/* Thao Tác */}
-                    <td className="px-5 py-4 text-right">
-                      <div className="inline-flex items-center gap-2.5">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-2">
                         {/* Switch Khóa / Mở Khóa */}
                         <button
+                          type="button"
                           onClick={() => handleToggleStatus(u)}
-                          className={`w-9 h-5 rounded-full p-0.5 transition-colors relative flex items-center ${
+                          className={`w-8 h-4 rounded-full p-0.5 transition-colors relative flex items-center ${
                             u.is_active ? "bg-emerald-500" : "bg-slate-300"
                           }`}
-                          title={
-                            u.is_active
-                              ? "Tài khoản đang hoạt động (Bấm để khóa)"
-                              : "Tài khoản đang khóa (Bấm để mở)"
-                          }
+                          title={u.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                          aria-label={u.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                         >
                           <div
-                            className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform ${
+                            className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${
                               u.is_active ? "translate-x-4" : "translate-x-0"
                             }`}
                           />
                         </button>
 
-                        {/* Nút Sửa */}
                         <button
+                          type="button"
                           onClick={() => handleOpenEditModal(u)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                          title="Chỉnh sửa thông tin"
+                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                          title="Chỉnh sửa tài khoản"
+                          aria-label="Chỉnh sửa tài khoản"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
 
-                        {/* Nút Xóa */}
                         <button
+                          type="button"
                           onClick={() => {
                             setDeletingUser(u);
                             setShowDeleteConfirm(true);
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                           title="Xóa tài khoản"
+                          aria-label="Xóa tài khoản"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -690,8 +644,8 @@ export default function UsersManagementPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                    Không tìm thấy tài khoản nào phù hợp với điều kiện tìm kiếm.
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
+                    Không tìm thấy tài khoản nào phù hợp với bộ lọc.
                   </td>
                 </tr>
               )}
@@ -699,86 +653,73 @@ export default function UsersManagementPage() {
           </table>
         </div>
 
-        {/* Phân trang Backend */}
-        <div className="px-6 py-3.5 bg-white flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 text-xs text-slate-500">
-          <div>
-            Trang <strong>{pagination.page}</strong> / <strong>{pagination.total_pages || 1}</strong>{" "}
-            (Tổng cộng <strong>{pagination.total_items}</strong> tài khoản)
-          </div>
+        {/* Phân trang */}
+        <div className="p-4 border-t border-slate-200 flex items-center justify-between text-sm text-slate-500">
+          <span>{pagination.total_items} tài khoản</span>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-              disabled={pagination.page <= 1 || loading}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 transition-colors font-medium"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Trước</span>
-            </button>
-
-            {Array.from({ length: pagination.total_pages || 1 }, (_, i) => i + 1).map((pageNum) => (
+          {pagination.total_items > pagination.page_size && (
+            <div className="flex items-center gap-1.5">
               <button
-                key={pageNum}
-                onClick={() => setPagination((prev) => ({ ...prev, page: pageNum }))}
-                disabled={loading}
-                className={`w-7 h-7 rounded-lg font-bold text-xs transition-colors ${
-                  pagination.page === pageNum
-                    ? "bg-[#3B2D6D] text-white"
-                    : "hover:bg-slate-100 text-slate-700 font-medium"
-                }`}
+                type="button"
+                onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                disabled={pagination.page <= 1 || loading}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label="Trang trước"
               >
-                {pageNum}
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            ))}
 
-            <button
-              onClick={() =>
-                setPagination((prev) => ({
-                  ...prev,
-                  page: Math.min(prev.total_pages, prev.page + 1),
-                }))
-              }
-              disabled={pagination.page >= (pagination.total_pages || 1) || loading}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 transition-colors font-medium"
-            >
-              <span>Sau</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md">
+                {pagination.page} / {pagination.total_pages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPagination((prev) => ({
+                    ...prev,
+                    page: Math.min(prev.total_pages, prev.page + 1),
+                  }))
+                }
+                disabled={pagination.page >= (pagination.total_pages || 1) || loading}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label="Trang sau"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
       {/* ================= MODAL CẤP TÀI KHOẢN MỚI ================= */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-orange-50 text-[#F26F21]">
-                  <UserPlus className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">
-                    Cấp Phát Tài Khoản Mới
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Lưu trữ trực tiếp vào cơ sở dữ liệu AITA Backend
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base">
+                  Cấp tài khoản mới
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tạo tài khoản quản trị hoặc giảng viên trong hệ thống
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                aria-label="Đóng"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-3.5 mt-4">
+            <form onSubmit={handleCreateUser} className="space-y-3.5 mt-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Tên Đăng Nhập <span className="text-red-500">*</span>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Tên đăng nhập <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -786,19 +727,19 @@ export default function UsersManagementPage() {
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
                     placeholder="vd: teacher_nam"
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                   />
                   <p className="text-[10px] text-slate-400 mt-0.5">Chữ thường, số, dấu _ (3-30 ký tự)</p>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Vai Trò <span className="text-red-500">*</span>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Vai trò <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                   >
                     <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
                     <option value="ADMIN">Quản trị viên (ADMIN)</option>
@@ -807,23 +748,23 @@ export default function UsersManagementPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Mật Khẩu Khởi Tạo <span className="text-red-500">*</span>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Mật khẩu khởi tạo <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="password"
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="vd: User@123456"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  placeholder="••••••••"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors font-mono"
                 />
                 <p className="text-[10px] text-slate-400 mt-0.5">Tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số</p>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Họ và Tên Đầy Đủ <span className="text-red-500">*</span>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Họ và tên đầy đủ <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -831,56 +772,55 @@ export default function UsersManagementPage() {
                   value={newFullName}
                   onChange={(e) => setNewFullName(e.target.value)}
                   placeholder="vd: ThS. Nguyễn Văn A"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Địa Chỉ Email <span className="text-red-500">*</span>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Địa chỉ email <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="vd: nguyenvana@aita.edu.vn"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  placeholder="vd: nguyenvana@fe.edu.vn"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase">
-                    Hạn Ngạch AI Hằng Ngày (Tokens)
-                  </label>
-                  <span className="text-[10px] font-semibold text-slate-400">(Không bắt buộc)</span>
-                </div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Hạn ngạch AI (Tokens/ngày)
+                </label>
                 <input
                   type="number"
+                  min="0"
                   value={newQuota}
                   onChange={(e) => setNewQuota(e.target.value)}
-                  placeholder="Nhập số token tùy ý (để trống sẽ mặc định 50,000)"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  placeholder="Mặc định: 50,000 (Không bắt buộc)"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">Để trống sẽ tự động áp dụng 50,000 tokens/ngày</p>
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  disabled={isActionLoading}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
                 >
                   Hủy bỏ
                 </button>
+
                 <button
                   type="submit"
                   disabled={isActionLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#F26F21] hover:bg-[#D95A0E] text-white font-bold text-xs shadow-md shadow-orange-500/20 disabled:opacity-50 transition-all"
+                  className="px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isActionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Xác Nhận Tạo Tài Khoản</span>
+                  {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Xác nhận tạo tài khoản</span>
                 </button>
               </div>
             </form>
@@ -891,49 +831,43 @@ export default function UsersManagementPage() {
       {/* ================= MODAL CHỈNH SỬA TÀI KHOẢN ================= */}
       {showEditModal && editingUser && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                  <Edit3 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">
-                    Chỉnh Sửa Tài Khoản ({editingUser.username})
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Cập nhật thông tin và hạn ngạch trên hệ thống
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base">
+                  Chỉnh sửa tài khoản
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                  @{editingUser.username}
+                </p>
               </div>
               <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingUser(null);
-                }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                aria-label="Đóng"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateUser} className="space-y-3.5 mt-4">
+            <form onSubmit={handleUpdateUser} className="space-y-3.5 mt-4 text-xs">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Họ và Tên
+                <label className="block font-medium text-slate-700 mb-1">
+                  Họ và tên
                 </label>
                 <input
                   type="text"
                   required
                   value={editFullName}
                   onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  <label className="block font-medium text-slate-700 mb-1">
                     Email
                   </label>
                   <input
@@ -941,18 +875,18 @@ export default function UsersManagementPage() {
                     required
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Vai Trò
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Vai trò
                   </label>
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                   >
                     <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
                     <option value="ADMIN">Quản trị viên (ADMIN)</option>
@@ -961,57 +895,48 @@ export default function UsersManagementPage() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase">
-                    Hạn Ngạch AI Hằng Ngày (Tokens)
-                  </label>
-                  <span className="text-[10px] font-semibold text-slate-400">(Không bắt buộc)</span>
-                </div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Hạn ngạch AI (Tokens/ngày)
+                </label>
                 <input
                   type="number"
+                  min="0"
                   value={editQuota}
                   onChange={(e) => setEditQuota(e.target.value)}
-                  placeholder="Nhập số token tùy ý (để trống sẽ giữ nguyên)"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
+                  placeholder="Nhập số token/ngày"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Đặt Mật Khẩu Mới (Để trống nếu không đổi)
+                <label className="block font-medium text-slate-700 mb-1">
+                  Đổi mật khẩu mới (Bỏ trống nếu không đổi)
                 </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    value={editNewPassword}
-                    onChange={(e) => setEditNewPassword(e.target.value)}
-                    placeholder="Nhập mật khẩu mới nếu muốn đổi..."
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#F26F21]"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường và số</p>
+                <input
+                  type="password"
+                  value={editNewPassword}
+                  onChange={(e) => setEditNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors font-mono"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingUser(null);
-                  }}
-                  disabled={isActionLoading}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
                 >
                   Hủy bỏ
                 </button>
+
                 <button
                   type="submit"
                   disabled={isActionLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 disabled:opacity-50 transition-all"
+                  className="px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isActionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Lưu Thay Đổi</span>
+                  {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Lưu thay đổi</span>
                 </button>
               </div>
             </form>
@@ -1022,49 +947,34 @@ export default function UsersManagementPage() {
       {/* ================= MODAL XÁC NHẬN XÓA ================= */}
       {showDeleteConfirm && deletingUser && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 rounded-2xl bg-red-100 text-red-600 flex-shrink-0">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  Xác Nhận Xóa Tài Khoản
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Hành động này sẽ vô hiệu hóa và xóa mềm tài khoản
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
-              Bạn có chắc chắn muốn xóa tài khoản{" "}
-              <strong className="text-slate-900 font-bold font-mono">
-                {deletingUser.username}
-              </strong>{" "}
-              ({deletingUser.full_name})?
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="font-semibold text-slate-900 text-base">
+              Xác nhận xóa tài khoản?
+            </h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản <strong className="text-slate-800">@{deletingUser.username}</strong> ({deletingUser.full_name})? Thao tác này sẽ vô hiệu hóa quyền truy cập của người dùng.
             </p>
 
-            <div className="flex items-center justify-end gap-2.5">
+            <div className="flex items-center justify-end gap-2.5 pt-5 mt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setDeletingUser(null);
                 }}
-                disabled={isActionLoading}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs transition-colors"
               >
                 Hủy bỏ
               </button>
+
               <button
                 type="button"
                 onClick={handleDeleteUser}
                 disabled={isActionLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-500/20 disabled:opacity-50 transition-all"
+                className="px-4 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isActionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Xóa Tài Khoản</span>
+                {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Xác nhận xóa</span>
               </button>
             </div>
           </div>

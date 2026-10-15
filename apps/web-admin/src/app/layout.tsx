@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "AITA - Hệ Thống Chấm Điểm AI | FPT University",
@@ -12,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body className="antialiased selection:bg-orange-500 selection:text-white">
+    <html lang="vi" className={inter.variable}>
+      <body className="font-sans antialiased text-slate-800 bg-slate-50 selection:bg-indigo-500 selection:text-white">
         {children}
       </body>
     </html>

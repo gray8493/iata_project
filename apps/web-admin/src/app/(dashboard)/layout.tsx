@@ -11,6 +11,8 @@ import {
   Search,
   Bell,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 
 interface UserProfile {
@@ -29,6 +31,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [searchHeader, setSearchHeader] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<UserProfile>({
     username: "Nguyễn Hoàng Đức",
     email: "admin@fe.edu.vn",
@@ -52,7 +55,6 @@ export default function DashboardLayout({
       }
     }
 
-    // Call GET /auth/me from Backend if token exists
     const token = localStorage.getItem("aita_access_token");
     if (token) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
@@ -75,10 +77,15 @@ export default function DashboardLayout({
           }
         })
         .catch(() => {
-          // Backend offline - giữ nguyên fallback
+          // Giữ fallback an toàn
         });
     }
   }, []);
+
+  // Đóng mobile menu khi chuyển trang
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("aita_access_token");
@@ -111,146 +118,186 @@ export default function DashboardLayout({
 
   const firstLetter = (user.username || "A").charAt(0).toUpperCase();
 
+  const renderNavLinks = () => (
+    <nav className="space-y-1">
+      {menuItems.map((item) => {
+        const Icon = item.icon;
+        const isActive =
+          pathname === item.href ||
+          (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+              isActive
+                ? "bg-indigo-50 text-indigo-600 font-semibold"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <Icon className={`w-5 h-5 shrink-0 ${isActive ? "text-indigo-600" : "text-slate-400"}`} />
+            <span>{item.title}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex text-slate-800 font-sans">
-      {/* ================= LEFT SIDEBAR ================= */}
-      <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between p-5 shrink-0 hidden lg:flex sticky top-0 h-screen">
+    <div className="min-h-screen bg-slate-50 flex text-slate-800 font-sans">
+      {/* ================= DESKTOP SIDEBAR ================= */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between p-4 shrink-0 hidden lg:flex sticky top-0 h-screen">
         <div>
-          {/* Logo Area */}
-          <div className="flex items-center justify-between pb-5 mb-5 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <img
-                src="/fptulogo_transparent.png"
-                alt="FPT Education Logo"
-                className="h-8 w-auto object-contain"
-              />
-              <span className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase pl-1.5 border-l border-slate-200">
-                AITA
-              </span>
-            </div>
-            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/60 font-bold text-[10px] tracking-wider uppercase">
-              ADMIN
+          {/* Logo Brand Header */}
+          <div className="flex items-center gap-2.5 px-2 pb-5 mb-4 border-b border-slate-100">
+            <img
+              src="/fptulogo_transparent.png"
+              alt="FPT University Logo"
+              className="h-8 w-auto object-contain"
+            />
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-2 border-l border-slate-200">
+              AITA
             </span>
           </div>
 
-          {/* Section Heading */}
-          <div className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-2">
-            HỆ THỐNG QUẢN TRỊ
+          {/* Section Label */}
+          <div className="text-xs font-medium text-slate-400 px-3 mb-2">
+            Hệ thống quản trị
           </div>
 
-          {/* Navigation Menu */}
-          <nav className="space-y-1.5">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname?.startsWith(item.href));
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-xs transition-all ${
-                    isActive
-                      ? "bg-[#FFF4EC] text-[#F26F21] font-bold shadow-sm"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-                >
-                  <Icon
-                    className={`w-4 h-4 ${
-                      isActive ? "text-[#F26F21]" : "text-slate-400"
-                    }`}
-                  />
-                  <span>{item.title}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Navigation Links */}
+          {renderNavLinks()}
         </div>
 
-        {/* Sidebar Footer Box */}
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col gap-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-slate-700">FPT University</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
-              v1.0.0
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-400">
-            SWD392 - AI-Assisted Assessment
-          </span>
+        {/* Sidebar Footer: Rút gọn chỉ còn Tên & Phiên bản, không còn SWD392 */}
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between text-slate-500">
+          <span className="font-medium text-slate-700">FPT University</span>
+          <span className="font-mono text-[11px] text-slate-500">v1.0.0</span>
         </div>
       </aside>
 
-      {/* ================= RIGHT WORKSPACE ================= */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar */}
-        <header className="bg-white border-b border-slate-200/80 px-6 py-3.5 flex items-center justify-between gap-4 sticky top-0 z-20">
-          {/* Search bar */}
-          <div className="relative w-full max-w-md hidden sm:block">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchHeader}
-              onChange={(e) => setSearchHeader(e.target.value)}
-              placeholder="Tìm kiếm giảng viên, báo cáo, khóa học..."
-              className="w-full pl-9 pr-4 py-2 rounded-full text-xs bg-slate-50 border border-slate-200/80 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#F26F21] transition-all"
-            />
-          </div>
+      {/* ================= MOBILE DRAWER BACKDROP & SIDEBAR ================= */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside className="fixed inset-y-0 left-0 w-64 bg-white p-4 shadow-xl flex flex-col justify-between z-50">
+            <div>
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <img
+                    src="/fptulogo_transparent.png"
+                    alt="FPT University Logo"
+                    className="h-7 w-auto object-contain"
+                  />
+                  <span className="text-xs font-semibold text-slate-500 uppercase pl-2 border-l border-slate-200">
+                    AITA
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 text-slate-500 hover:text-slate-800 rounded-lg min-h-[40px] min-w-[40px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  aria-label="Đóng menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-          {/* User & Status Controls */}
-          <div className="flex items-center gap-3 sm:gap-4 ml-auto">
-            {/* Gemini Status Chip */}
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-600">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span>Gemini 1.5 Pro Active</span>
+              <div className="text-xs font-medium text-slate-400 px-3 mb-2">
+                Hệ thống quản trị
+              </div>
+              {renderNavLinks()}
             </div>
 
-            {/* Notification Bell */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between text-slate-500">
+              <span className="font-medium text-slate-700">FPT University</span>
+              <span className="font-mono text-[11px] text-slate-500">v1.0.0</span>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* ================= RIGHT WORKSPACE ================= */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sticky top-0 z-20">
+          {/* Mobile Menu Button & Search */}
+          <div className="flex items-center gap-3 flex-1 max-w-md">
             <button
-              onClick={() => alert("Hệ thống hiện không có cảnh báo mới.")}
-              className="relative p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
-              title="Thông báo"
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg min-h-[40px] min-w-[40px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Mở menu điều hướng"
             >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+              <Menu className="w-5 h-5" />
             </button>
 
-            {/* User Profile */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0054A6] to-[#F26F21] p-0.5 flex-shrink-0">
-                <div className="w-full h-full rounded-full bg-white flex items-center justify-center font-bold text-xs text-[#0054A6]">
-                  {firstLetter}
-                </div>
+            {/* Ô tìm kiếm */}
+            <div className="relative w-full hidden sm:block">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchHeader}
+                onChange={(e) => setSearchHeader(e.target.value)}
+                placeholder="Tìm kiếm giảng viên, báo cáo, khóa học..."
+                className="w-full pl-9 pr-3 h-9 text-xs bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* User Controls */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Chuông thông báo */}
+            <button
+              type="button"
+              onClick={() => alert("Hệ thống hiện không có cảnh báo mới.")}
+              className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Thông báo hệ thống"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-600 rounded-full ring-2 ring-white" />
+            </button>
+
+            {/* Profile: Nhãn ADMIN xuất hiện 1 lần duy nhất tại đây */}
+            <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs flex items-center justify-center shrink-0">
+                {firstLetter}
               </div>
               <div className="hidden sm:flex flex-col text-left">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-800 leading-none">
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="text-sm font-medium text-slate-900">
                     {user.username}
                   </span>
-                  <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1 py-0.2 rounded uppercase">
+                  <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded uppercase">
                     {user.role}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                <span className="text-xs text-slate-500 leading-tight mt-1">
                   {user.email}
                 </span>
               </div>
             </div>
 
-            {/* Logout Button */}
+            {/* Nút Đăng xuất */}
             <button
+              type="button"
               onClick={handleLogout}
-              className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-              title="Đăng xuất"
+              className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Đăng xuất khỏi hệ thống"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </header>
 
         {/* Content Body */}
-        <main className="p-4 sm:p-6 lg:p-8 flex-1">{children}</main>
+        <main className="p-4 sm:p-6 lg:p-8 flex-1 max-w-7xl w-full mx-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
