@@ -29,6 +29,8 @@ if str(SRC_DIR) not in sys.path:
 
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.web_rubric_service import WebRubricEngine
+from ui.dialogs.web_folder_import_dialog import WebFolderImportDialog, MSSV_PATTERN
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_PRIMARY_BG, COLOR_PRIMARY_LIGHT, COLOR_BG, COLOR_SURFACE,
@@ -37,6 +39,58 @@ from ui.styles.theme import (
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG,
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
+
+
+# ==============================================================================
+# 0. WORKER THẨM ĐỊNH WEB THẬT (PLAYWRIGHT + BEAUTIFULSOUP + TINYCSS2 + GEMINI VISION)
+# ==============================================================================
+class WebGradingWorker(QThread):
+    """Runs the real 4-criteria web rubric engine off the UI thread."""
+
+    progress = pyqtSignal(int, str)
+    graded_one = pyqtSignal(dict)
+    all_done = pyqtSignal(int)
+
+    def __init__(self, students: List[Dict[str, Any]], engine: WebRubricEngine, parent=None):
+        super().__init__(parent)
+        self._students = students
+        self._engine = engine
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        total = len(self._students)
+        for idx, st in enumerate(self._students):
+            if self._cancelled:
+                break
+            percent = int((idx / total) * 100) if total else 0
+            self.progress.emit(percent, f"Đang thẩm định: {st.get('mssv', '')} ({idx + 1}/{total} bài — {percent}%)")
+
+            local_dir = (
+                st.get("local_dir") or st.get("source_file_path")
+                or st.get("source_folder_path") or st.get("path")
+            )
+            result = self._engine.grade(
+                live_url=st.get("live_url"),
+                local_dir=local_dir,
+                repo_url=st.get("repo_url"),
+                mssv=st.get("mssv", "")
+            )
+
+            st["score_dom"] = result.score_dom
+            st["score_lint"] = result.score_lint
+            st["score_e2e"] = result.score_func
+            st["score_ui"] = result.score_ui
+            st["total_score"] = result.total_score
+            st["verdict"] = result.verdict
+            st["rubric_log"] = result.rubric_log
+            st["ai_feedback"] = result.ai_feedback
+            st["screenshot_path"] = result.screenshot_path
+            self.graded_one.emit(st)
+
+        self.all_done.emit(total)
 
 
 # ==============================================================================
@@ -744,6 +798,7 @@ class WebGradingMainWindow(QMainWindow):
 
         self.db = DatabaseManager()
         self._web_students: List[Dict[str, Any]] = []
+        self._web_root_folder: Optional[str] = None
 
         self._init_ui()
         self._load_submissions_from_db()
@@ -1011,6 +1066,23 @@ class WebGradingMainWindow(QMainWindow):
         self.btn_add_sub.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_add_sub.clicked.connect(self._open_add_submission_dialog)
         layout.addWidget(self.btn_add_sub)
+
+        # 2b. Nút Nạp Từ Thư Mục (nhận diện MSSV theo tên thư mục con, không icon)
+        self.btn_import_folder = QPushButton("Nạp Từ Thư Mục", card)
+        self.btn_import_folder.setProperty("class", "ToolbarActionBtn")
+        self.btn_import_folder.setFixedHeight(38)
+        self.btn_import_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_import_folder.clicked.connect(self._import_web_folder)
+        layout.addWidget(self.btn_import_folder)
+
+        # 2c. Nút Quét Lại Thư Mục (chỉ hiện sau khi đã nạp một thư mục gốc)
+        self.btn_rescan_folder = QPushButton("Quét Lại Thư Mục", card)
+        self.btn_rescan_folder.setProperty("class", "ToolbarActionBtn")
+        self.btn_rescan_folder.setFixedHeight(38)
+        self.btn_rescan_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_rescan_folder.clicked.connect(self._rescan_web_folder)
+        self.btn_rescan_folder.setVisible(False)
+        layout.addWidget(self.btn_rescan_folder)
 
         # 3. Nhóm Chế Độ Chấm (Bỏ số 1. 2. 3., hiển thị đủ "Chế Độ Chấm:", "Live URL", "GitHub", "Hybrid")
         mode_box = QFrame(card)
@@ -1288,15 +1360,28 @@ class WebGradingMainWindow(QMainWindow):
         self.lbl_progress_detail.setText(f"Đã có {total} bài nộp.")
         self.table.setRowCount(total)
 
+        has_any_name = any((s.get("name") or "").strip() for s in self._web_students)
+        self.table.setColumnHidden(1, not has_any_name)
+
         for r, item in enumerate(self._web_students):
             self.table.setRowHeight(r, 48)
 
-            # Cột chữ căn trái
-            item_mssv = QTableWidgetItem(item.get("mssv", ""))
+            # Cột MSSV: dùng nhãn hiển thị (có hậu tố khi trùng) và đánh dấu thư mục đã mất trên đĩa
+            display_mssv = item.get("display_mssv") or item.get("mssv", "")
+            is_missing = bool(item.get("is_missing"))
+            mssv_text = f"{display_mssv} — Không còn trên đĩa" if is_missing else display_mssv
+            item_mssv = QTableWidgetItem(mssv_text)
             item_mssv.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            if is_missing:
+                item_mssv.setForeground(QColor(COLOR_ERROR))
+                item_mssv.setToolTip("Thư mục gốc không còn trên đĩa. Điểm số hiện có được giữ nguyên.")
+            else:
+                src = item.get("source_folder_path")
+                if src:
+                    item_mssv.setToolTip(f"Tên thư mục gốc: {Path(src).name}")
             self.table.setItem(r, 0, item_mssv)
 
-            item_name = QTableWidgetItem(item.get("name", ""))
+            item_name = QTableWidgetItem(item.get("name") or "")
             item_name.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             item_name.setFont(QFont("Inter", 10, QFont.Weight.Medium))
             self.table.setItem(r, 1, item_name)
@@ -1443,6 +1528,132 @@ class WebGradingMainWindow(QMainWindow):
                     pass
             self._load_submissions_from_db()
 
+    def _import_web_folder(self):
+        """Recognizes submissions from a root folder (folder name = MSSV) and imports the chosen items."""
+        root = QFileDialog.getExistingDirectory(
+            self, "Chọn Thư Mục Gốc Chứa Bài Nộp", str(Path.home())
+        )
+        if not root:
+            return
+
+        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
+        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        added = 0
+        for item in dlg.import_items:
+            try:
+                self.db.add_web_submission(
+                    mssv=item["mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"],
+                    mode=self._get_current_grading_mode_code(),
+                    course_code=self.current_course_code,
+                    class_name=self.current_class_name,
+                    source_folder_path=item["source_folder_path"],
+                    display_mssv=item["display_mssv"]
+                )
+                added += 1
+            except Exception:
+                pass
+
+        self._web_root_folder = root
+        self.btn_rescan_folder.setVisible(True)
+        self._load_submissions_from_db()
+
+        skipped_note = ""
+        if dlg.skipped_dirs or dlg.skipped_files:
+            skipped_note = (
+                f"\n• Đã bỏ qua {len(dlg.skipped_dirs)} thư mục hệ thống/ẩn "
+                f"và {len(dlg.skipped_files)} file lẻ ở thư mục gốc."
+            )
+        QMessageBox.information(
+            self,
+            "Nạp Thư Mục Hoàn Tất",
+            f"Đã nạp {added} bài nộp từ thư mục:\n{root}{skipped_note}\n\n"
+            "Quy ước: tên thư mục con chính là MSSV của sinh viên."
+        )
+
+    def _rescan_web_folder(self):
+        """Re-recognizes the previously loaded root folder; adds new MSSVs and marks vanished folders."""
+        if not self._web_root_folder:
+            QMessageBox.warning(
+                self, "Chưa Có Thư Mục",
+                "Vui lòng bấm 'Nạp Từ Thư Mục' trước khi quét lại!"
+            )
+            return
+
+        root = self._web_root_folder
+        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
+        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        recognized_dirs = {item["source_folder_path"] for item in dlg.import_items}
+        folder_rows = {
+            s.get("source_folder_path"): s
+            for s in self._web_students if s.get("source_folder_path")
+        }
+
+        added = 0
+        refreshed = 0
+        for item in dlg.import_items:
+            path = item["source_folder_path"]
+            existing = folder_rows.get(path)
+            if existing:
+                self.db.update_web_submission_source(
+                    submission_id=existing["id"],
+                    source_folder_path=path,
+                    display_mssv=item["display_mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"]
+                )
+                refreshed += 1
+            else:
+                self.db.add_web_submission(
+                    mssv=item["mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"],
+                    mode=self._get_current_grading_mode_code(),
+                    course_code=self.current_course_code,
+                    class_name=self.current_class_name,
+                    source_folder_path=path,
+                    display_mssv=item["display_mssv"]
+                )
+                added += 1
+
+        missing = 0
+        for path, row in folder_rows.items():
+            if path not in recognized_dirs:
+                self.db.set_web_submission_missing(row["id"], True)
+                missing += 1
+
+        self._load_submissions_from_db()
+
+        invalid_existing = []
+        for s in self._web_students:
+            src = s.get("source_folder_path")
+            label = Path(src).name if src else (s.get("mssv") or "")
+            if label and not re.match(MSSV_PATTERN, label.strip().upper()):
+                invalid_existing.append(label)
+
+        message = (
+            f"Quét lại hoàn tất cho thư mục:\n{root}\n\n"
+            f"• Thêm mới: {added} bài\n"
+            f"• Cập nhật: {refreshed} bài\n"
+            f"• Không còn trên đĩa: {missing} bài (điểm số được giữ nguyên)"
+        )
+        if invalid_existing:
+            message += (
+                "\n• Tên thư mục không khớp mẫu MSSV trong dữ liệu hiện có: "
+                + ", ".join(sorted(set(invalid_existing)))
+            )
+        QMessageBox.information(self, "Quét Lại Thư Mục", message)
+
     def _open_bulk_submission_dialog(self):
         """Opens dialog focusing directly on the bulk paste tab."""
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
@@ -1526,51 +1737,52 @@ class WebGradingMainWindow(QMainWindow):
         if not self._web_students:
             return
 
+        self.btn_start.setEnabled(False)
         self.progress_bar.setValue(0)
         self.lbl_progress_percent.setText("0%")
         self.lbl_progress_detail.setText("Đang khởi tạo Playwright Chromium & BeautifulSoup...")
 
-        total = len(self._web_students)
-        for idx, st in enumerate(self._web_students):
-            percent = int(((idx + 1) / total) * 100)
-            self.progress_bar.setValue(percent)
-            self.lbl_progress_percent.setText(f"{percent}%")
-            self.lbl_progress_detail.setText(f"Đang kiểm tra: {st['mssv']} ({idx + 1}/{total} bài — {percent}%)")
-            QApplication.processEvents()
+        self._web_engine = WebRubricEngine(ai_service=AiService())
+        self._web_worker = WebGradingWorker(self._web_students, self._web_engine, parent=self)
+        self._web_worker.progress.connect(self._on_web_grading_progress)
+        self._web_worker.graded_one.connect(self._on_web_submission_graded)
+        self._web_worker.all_done.connect(self._on_web_grading_done)
+        self._web_worker.start()
 
-            # Giữ nguyên mô phỏng rubric điểm theo logic hiện có
-            st["score_dom"] = 8.5
-            st["score_lint"] = 9.0
-            st["score_e2e"] = 8.0
-            st["score_ui"] = 8.5
-            st["total_score"] = 8.5
-            st["verdict"] = "PASSED"
+    def _on_web_grading_progress(self, percent: int, detail: str):
+        self.progress_bar.setValue(percent)
+        self.lbl_progress_percent.setText(f"{percent}%")
+        self.lbl_progress_detail.setText(detail)
 
-            sub_id = st.get("id")
-            if sub_id:
-                try:
-                    self.db.update_web_submission_scores(
-                        submission_id=sub_id,
-                        score_dom=st["score_dom"],
-                        score_lint=st["score_lint"],
-                        score_e2e=st["score_e2e"],
-                        score_ui=st["score_ui"],
-                        total_score=st["total_score"],
-                        verdict=st["verdict"]
-                    )
-                except Exception:
-                    pass
+    def _on_web_submission_graded(self, st: Dict[str, Any]):
+        """Persists one freshly graded submission and refreshes the row."""
+        sub_id = st.get("id")
+        if sub_id:
+            try:
+                self.db.update_web_submission_scores(
+                    submission_id=sub_id,
+                    score_dom=st["score_dom"],
+                    score_lint=st["score_lint"],
+                    score_e2e=st["score_e2e"],
+                    score_ui=st["score_ui"],
+                    total_score=st["total_score"],
+                    verdict=st["verdict"]
+                )
+            except Exception:
+                pass
 
+    def _on_web_grading_done(self, total: int):
         self._populate_table()
         self.progress_bar.setValue(100)
         self.lbl_progress_percent.setText("100%")
-        self.lbl_progress_detail.setText(f"Hoàn tất: Đã kiểm tra xong toàn bộ {total} bài tập Web!")
+        self.lbl_progress_detail.setText(f"Hoàn tất: Đã thẩm định xong toàn bộ {total} bài tập Web!")
+        self.btn_start.setEnabled(True)
 
         QMessageBox.information(
             self,
             "Chấm Điểm Hoàn Tất",
             f"Đã thẩm định thành công toàn bộ {total} bài tập Web!\n"
-            "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán.\n"
+            "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán thực tế.\n"
             "• Dữ liệu đã được lưu an toàn vào CSDL SQLite.\n"
             "• Bạn có thể bấm 'Xuất Bảng Điểm' để lưu file Excel (.xlsx) hoặc PDF."
         )
@@ -1630,19 +1842,25 @@ class WebGradingMainWindow(QMainWindow):
             ws = wb.active
             ws.title = "Bảng Điểm Đồ Án Web"
 
+            # Cột Họ và Tên chỉ xuất khi có ít nhất một bài có tên (nguồn: file .txt của thư mục)
+            include_name = any((st.get("name") or "").strip() for st in self._web_students)
+
             # Tiêu đề bảng
-            ws.merge_cells("A1:K1")
+            headers = ["MSSV"]
+            if include_name:
+                headers.append("Họ và Tên")
+            headers += [
+                "Live Website URL", "GitHub Repo URL",
+                "Chế Độ", "DOM (10)", "Lint (10)", "Function (10)", "UI/UX (10)", "Tổng Điểm (10)", "Trạng Thái"
+            ]
+            last_col_letter = get_column_letter(len(headers))
+            ws.merge_cells(f"A1:{last_col_letter}1")
             title_cell = ws["A1"]
             title_cell.value = f"BẢNG ĐIỂM THẨM ĐỊNH ĐỒ ÁN WEB — LỚP {self.current_class_name} ({self.current_course_code})"
             title_cell.font = Font(name="Arial", size=14, bold=True, color="1E3A8A")
             title_cell.alignment = Alignment(horizontal="center", vertical="center")
             ws.row_dimensions[1].height = 36
 
-            # Header columns
-            headers = [
-                "MSSV", "Họ và Tên", "Live Website URL", "GitHub Repo URL",
-                "Chế Độ", "DOM (10)", "Lint (10)", "Function (10)", "UI/UX (10)", "Tổng Điểm (10)", "Trạng Thái"
-            ]
             ws.append([])  # Dòng trống A2
             ws.append(headers)  # Dòng header A3
 
@@ -1664,10 +1882,12 @@ class WebGradingMainWindow(QMainWindow):
             ws.row_dimensions[3].height = 28
 
             # Dữ liệu
+            left_align_cols = {1, 2, 3, 4} if include_name else {1, 2, 3}
             for st in self._web_students:
-                row_data = [
-                    st.get("mssv", ""),
-                    st.get("name", ""),
+                row_data = [st.get("display_mssv") or st.get("mssv", "")]
+                if include_name:
+                    row_data.append(st.get("name", ""))
+                row_data += [
                     st.get("live_url", ""),
                     st.get("repo_url", ""),
                     st.get("mode", "HYBRID"),
@@ -1686,13 +1906,16 @@ class WebGradingMainWindow(QMainWindow):
                     c = ws.cell(row=curr_row, column=col_num)
                     c.font = Font(name="Arial", size=10)
                     c.border = thin_border
-                    if col_num in [1, 2, 3, 4]:
+                    if col_num in left_align_cols:
                         c.alignment = Alignment(horizontal="left", vertical="center")
                     else:
                         c.alignment = Alignment(horizontal="center", vertical="center")
 
             # Tự động điều chỉnh độ rộng cột
-            col_widths = [14, 24, 34, 34, 12, 12, 12, 14, 12, 14, 16]
+            col_widths = [14]
+            if include_name:
+                col_widths.append(24)
+            col_widths += [34, 34, 12, 12, 12, 14, 12, 14, 16]
             for idx, width in enumerate(col_widths, start=1):
                 col_letter = get_column_letter(idx)
                 ws.column_dimensions[col_letter].width = width
@@ -1722,17 +1945,25 @@ class WebGradingMainWindow(QMainWindow):
             pdf_writer.setPageOrientation(QPageLayout.Orientation.Landscape)
 
             # Tạo HTML hiển thị tài liệu chuẩn
+            include_name = any((st.get("name") or "").strip() for st in self._web_students)
+            name_th = '<th width="16%">Họ và Tên</th>' if include_name else ""
+
             html_rows = ""
             for idx, st in enumerate(self._web_students, start=1):
                 tot = st.get("total_score")
                 tot_str = f"{tot:.1f}" if tot is not None else "—"
+                mssv_display = st.get("display_mssv") or st.get("mssv", "")
+                name_td = (
+                    f'<td style="padding: 6px; border: 1px solid #CBD5E1;">{st.get("name", "")}</td>'
+                    if include_name else ""
+                )
                 html_rows += f"""
                 <tr style="background-color: {'#F8FAFC' if idx % 2 == 0 else '#FFFFFF'};">
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{idx}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1;"><b>{st.get('mssv', '')}</b></td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('name', '')}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('live_url', '—')}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('repo_url', '—')}</td>
+                    <td style="padding: 6px; border: 1px solid #CBD5E1;"><b>{mssv_display}</b></td>
+                    {name_td}
+                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('live_url') or '—'}</td>
+                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('repo_url') or '—'}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('mode', 'HYBRID')}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('score_dom', '—')}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('score_lint', '—')}</td>
@@ -1762,7 +1993,7 @@ class WebGradingMainWindow(QMainWindow):
                         <tr>
                             <th width="3%">STT</th>
                             <th width="8%">MSSV</th>
-                            <th width="16%">Họ và Tên</th>
+                            {name_th}
                             <th width="20%">Live Website</th>
                             <th width="20%">GitHub Repo</th>
                             <th width="6%">Chế Độ</th>
