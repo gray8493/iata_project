@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   User,
   Lock,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +52,7 @@ export default function LoginPage() {
           localStorage.setItem("aita_user", JSON.stringify(data.data.user));
         }
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          router.replace("/dashboard");
         }, 800);
       } else {
         setErrorMessage(
@@ -74,9 +77,12 @@ export default function LoginPage() {
         {/* Header: Logo & Tiêu đề */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="flex items-center gap-2.5 mb-5">
-            <img
+            <Image
               src="/fptulogo_transparent.png"
               alt="FPT University Logo"
+              width={160}
+              height={40}
+              priority
               className="h-10 w-auto object-contain"
             />
             <div className="h-6 w-px bg-slate-300" />

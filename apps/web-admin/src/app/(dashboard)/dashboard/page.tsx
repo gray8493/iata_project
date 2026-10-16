@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import useSWR from "swr";
+import { swrFetcher } from "@/lib/api";
 import {
   RefreshCw,
   FileDown,
@@ -62,7 +64,16 @@ export default function DashboardOverviewPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Real backend states
-  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const {
+    data: overview,
+    error: overviewError,
+    mutate: mutateOverview,
+  } = useSWR<OverviewData>("/admin/reports/overview", swrFetcher, {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+    dedupingInterval: 30000,
+  });
+  const overviewLoading = !overview && !overviewError;
   const [usageItems, setUsageItems] = useState<AiUsageItem[]>([]);
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
@@ -91,29 +102,16 @@ export default function DashboardOverviewPage() {
         Authorization: `Bearer ${token}`,
       };
 
-      const [resOverview, resUsage] = await Promise.all([
-        fetch(`${apiUrl}/admin/reports/overview`, { method: "GET", headers }),
-        fetch(`${apiUrl}/admin/reports/ai-usage?page=${pageNumber}&page_size=10`, {
-          method: "GET",
-          headers,
-        }),
-      ]);
+      const resUsage = await fetch(
+        `${apiUrl}/admin/reports/ai-usage?page=${pageNumber}&page_size=10`,
+        { method: "GET", headers }
+      );
 
-      if (resOverview.status === 401 || resUsage.status === 401) {
+      if (resUsage.status === 401) {
         setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         localStorage.removeItem("aita_access_token");
         setLoading(false);
         return;
-      }
-
-      if (resOverview.ok) {
-        const jsonOverview = await resOverview.json();
-        if (jsonOverview.success && jsonOverview.data) {
-          setOverview(jsonOverview.data);
-        }
-      } else {
-        const err = await resOverview.json().catch(() => ({}));
-        setErrorMessage(err.message || "Không thể tải báo cáo tổng quan từ máy chủ.");
       }
 
       if (resUsage.ok) {
@@ -147,9 +145,20 @@ export default function DashboardOverviewPage() {
     fetchDashboardData(currentPage);
   }, [fetchDashboardData, currentPage]);
 
+  useEffect(() => {
+    if (overviewError) {
+      setErrorMessage(
+        overviewError instanceof Error
+          ? overviewError.message
+          : "Không thể tải báo cáo tổng quan từ máy chủ."
+      );
+    }
+  }, [overviewError]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchDashboardData(currentPage);
+    await Promise.all([fetchDashboardData(currentPage), mutateOverview()]);
+    setIsRefreshing(false);
   };
 
   // Tính toán tỷ lệ phần trăm hạn ngạch AI tiêu thụ thực tế
@@ -320,7 +329,7 @@ export default function DashboardOverviewPage() {
             </div>
           </div>
           <div className="mt-3">
-            {loading ? (
+            {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
             ) : (
               <div className="text-3xl font-semibold text-slate-900 tracking-tight">
@@ -344,7 +353,7 @@ export default function DashboardOverviewPage() {
             </div>
           </div>
           <div className="mt-3">
-            {loading ? (
+            {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
             ) : (
               <div className="text-3xl font-semibold text-slate-900 tracking-tight">
@@ -398,7 +407,7 @@ export default function DashboardOverviewPage() {
             </div>
           </div>
           <div className="mt-3">
-            {loading ? (
+            {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
             ) : topFeatureDisplay ? (
               <div className="text-lg font-semibold text-slate-900 tracking-tight truncate" title={topFeatureDisplay}>

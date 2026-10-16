@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
+import { swrFetcher } from "@/lib/api";
 import {
   FileText,
   Search,
@@ -96,7 +98,11 @@ export default function ReportsPage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   // Dữ liệu từ Backend NestJS
-  const [overview, setOverview] = useState<OverviewMetrics | null>(null);
+  const { data: overview, mutate: mutateOverview } = useSWR<OverviewMetrics>(
+    "/admin/reports/overview",
+    swrFetcher,
+    { revalidateOnFocus: false, shouldRetryOnError: false, dedupingInterval: 30000 }
+  );
   const [logs, setLogs] = useState<AiUsageLogItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
@@ -183,12 +189,7 @@ export default function ReportsPage() {
       setErrorMessage("");
 
       try {
-        // 1. Gọi GET /admin/reports/overview
-        const overviewPromise = fetch(`${apiUrl}/admin/reports/overview`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        // 2. Xây dựng Query Params cho GET /admin/reports/ai-usage
+        // Xây dựng Query Params cho GET /admin/reports/ai-usage
         const queryParams = new URLSearchParams();
         queryParams.set("page", String(targetPage));
         queryParams.set("page_size", String(pagination.page_size));
@@ -205,18 +206,9 @@ export default function ReportsPage() {
           queryParams.set("to", endOfDay.toISOString());
         }
 
-        const logsPromise = fetch(`${apiUrl}/admin/reports/ai-usage?${queryParams.toString()}`, {
+        const resLogs = await fetch(`${apiUrl}/admin/reports/ai-usage?${queryParams.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        const [resOverview, resLogs] = await Promise.all([overviewPromise, logsPromise]);
-
-        if (resOverview.ok) {
-          const overviewJson = await resOverview.json();
-          if (overviewJson.success && overviewJson.data) {
-            setOverview(overviewJson.data);
-          }
-        }
 
         if (resLogs.ok) {
           const logsJson = await resLogs.json();
@@ -299,6 +291,7 @@ export default function ReportsPage() {
     setToDate("");
     setSearchKeyword("");
     fetchReportsData(1);
+    mutateOverview();
     setSuccessMessage("Đã đặt lại bộ lọc tìm kiếm.");
   };
 
@@ -424,7 +417,10 @@ export default function ReportsPage() {
         {/* Nút thao tác */}
         <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => fetchReportsData(pagination.page)}
+            onClick={() => {
+              fetchReportsData(pagination.page);
+              mutateOverview();
+            }}
             disabled={loading}
             title="Làm mới dữ liệu"
             className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 transition shadow-sm disabled:opacity-50"

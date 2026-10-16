@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
+import { swrFetcher } from "@/lib/api";
 import {
   RefreshCw,
   Cpu,
@@ -74,7 +76,11 @@ export default function AiQuotaPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const { data: overview, mutate: mutateOverview } = useSWR<OverviewData>(
+    "/admin/reports/overview",
+    swrFetcher,
+    { revalidateOnFocus: false, shouldRetryOnError: false, dedupingInterval: 30000 }
+  );
   const [instructors, setInstructors] = useState<InstructorQuotaItem[]>([]);
   const [usageLogs, setUsageLogs] = useState<AiUsageLogItem[]>([]);
   const [logsPagination, setLogsPagination] = useState<PaginationData>({
@@ -85,8 +91,14 @@ export default function AiQuotaPage() {
   });
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editingInstructor, setEditingInstructor] = useState<InstructorQuotaItem | null>(null);
   const [newQuotaValue, setNewQuotaValue] = useState<string>("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (successMessage) {
@@ -125,24 +137,18 @@ export default function AiQuotaPage() {
         Authorization: `Bearer ${token}`,
       };
 
-      const [resOverview, resInstructors, resLogs] = await Promise.all([
-        fetch(`${apiUrl}/admin/reports/overview`, { headers }),
+      const [resInstructors, resLogs] = await Promise.all([
         fetch(`${apiUrl}/admin/users?role=INSTRUCTOR&page=1&page_size=50`, { headers }),
         fetch(`${apiUrl}/admin/reports/ai-usage?page=${logPage}&page_size=${logsPagination.page_size}`, { headers }),
       ]);
 
-      if (resOverview.status === 401 || resInstructors.status === 401 || resLogs.status === 401) {
+      if (resInstructors.status === 401 || resLogs.status === 401) {
         setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         if (typeof window !== "undefined") {
           localStorage.removeItem("aita_access_token");
         }
         setLoading(false);
         return;
-      }
-
-      if (resOverview.ok) {
-        const json = await resOverview.json();
-        if (json.success && json.data) setOverview(json.data);
       }
 
       if (resInstructors.ok) {
@@ -196,6 +202,7 @@ export default function AiQuotaPage() {
         setSuccessMessage(`Đã cập nhật hạn ngạch cho "${editingInstructor.full_name}" thành ${quotaNum.toLocaleString()} tokens/ngày.`);
         setEditingInstructor(null);
         fetchData();
+        mutateOverview();
       } else {
         const msg = Array.isArray(json.details) ? json.details.join(", ") : (json.message || "Không thể cập nhật hạn ngạch.");
         setErrorMessage(msg);
@@ -207,14 +214,16 @@ export default function AiQuotaPage() {
     }
   };
 
-  const filteredInstructors = instructors.filter((ins) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      ins.full_name.toLowerCase().includes(q) ||
-      ins.username.toLowerCase().includes(q) ||
-      ins.email.toLowerCase().includes(q)
+  const filteredInstructors = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    if (!q) return instructors;
+    return instructors.filter(
+      (ins) =>
+        ins.full_name.toLowerCase().includes(q) ||
+        ins.username.toLowerCase().includes(q) ||
+        ins.email.toLowerCase().includes(q)
     );
-  });
+  }, [instructors, debouncedSearch]);
 
   const totalConsumed = overview?.ai_token_usage?.total_tokens_consumed_month ?? 0;
   const totalBudget = overview?.ai_token_usage?.total_budget_limit ?? 1;
@@ -325,7 +334,10 @@ export default function AiQuotaPage() {
 
         <button
           type="button"
-          onClick={() => fetchData()}
+          onClick={() => {
+            fetchData();
+            mutateOverview();
+          }}
           disabled={loading}
           className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           aria-label="Làm mới dữ liệu"

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -151,9 +152,12 @@ export default function DashboardLayout({
         <div>
           {/* Logo Brand Header */}
           <div className="flex items-center gap-2.5 px-2 pb-5 mb-4 border-b border-slate-100">
-            <img
+            <Image
               src="/fptulogo_transparent.png"
               alt="FPT University Logo"
+              width={120}
+              height={32}
+              priority
               className="h-8 w-auto object-contain"
             />
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-2 border-l border-slate-200">
@@ -188,9 +192,11 @@ export default function DashboardLayout({
             <div>
               <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <img
+                  <Image
                     src="/fptulogo_transparent.png"
                     alt="FPT University Logo"
+                    width={112}
+                    height={28}
                     className="h-7 w-auto object-contain"
                   />
                   <span className="text-xs font-semibold text-slate-500 uppercase pl-2 border-l border-slate-200">
