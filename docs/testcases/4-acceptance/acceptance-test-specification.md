@@ -13,52 +13,52 @@
 
 ---
 
-# AT01_SubmissionIngestion_TC001: Nạp danh sách lớp từ file students.csv chuẩn 2 cột thành công
+# AT01_SubmissionIngestion_TC001: Quét thư mục bài nộp tự động nhận diện mã sinh viên thành công
 
 #### Loại test
 Normal
 
 #### Tiền điều kiện (Pre-condition)
 - Giảng viên đã tạo một đợt chấm bài mới trên Desktop App (`UC-07`).
-- File `students.csv` nằm trong thư mục bài làm, chứa danh sách sinh viên gồm đúng 2 cột: `MSSV` và `File`.
+- Thư mục bài làm chứa các thư mục con hoặc file mã nguồn đặt theo định dạng chuẩn sinh viên (ví dụ: `SE180001_Q1.c`, `SE180002_Q1.c`, hoặc thư mục `SE180001`).
 
 #### Các bước thực hiện (Test Steps)
-1. Giảng viên bấm nút **"Nạp Danh Sách Sinh Viên"** (`UC-08`).
-2. Chọn đường dẫn đến file `students.csv`.
-3. Hệ thống tiến hành phân tích cú pháp (parse) file và đối chiếu với các file bài nộp trong thư mục.
+1. Giảng viên bấm nút **"Duyệt Thư Mục..."** bài nộp (`UC-08`).
+2. Chọn đường dẫn đến thư mục chứa bài làm của sinh viên.
+3. Hệ thống tiến hành quét thư mục, bóc tách mã sinh viên (MSSV) tự động qua biểu thức chính quy (Regex) và kiểm tra file mục tiêu.
 
 #### Kết quả kỳ vọng (Expected Result)
-- Bảng danh sách sinh viên hiển thị đầy đủ thông tin: Mã sinh viên, tên file bài làm (`.c`, `.java`, `.py`).
+- Bảng danh sách sinh viên hiển thị đầy đủ thông tin: Mã sinh viên (MSSV), tên file bài làm (`.c`, `.java`, `.py`), trạng thái tìm thấy file.
 - Cột trạng thái ban đầu hiển thị `Pending` (Sẵn sàng chấm).
-- Hệ thống thông báo: "Đã nạp thành công X sinh viên sẵn sàng chấm bài".
+- Hệ thống hiển thị bảng xem trước (Preview Table) với tổng số sinh viên quét được.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Nạp đầy đủ 45 sinh viên, ánh xạ đúng file bài làm | 95 ms | ✅ PASSED | Giao diện nạp mượt mà |
+| Lần 1 | 01/10/2026 | Đinh Thành Nam | Quét và nhận diện đầy đủ 45 sinh viên, ánh xạ đúng file bài làm | 85 ms | ✅ PASSED | Giao diện quét thư mục mượt mà |
 
 ---
 
-# AT01_SubmissionIngestion_TC002: Bật cảnh báo khi nạp file CSV sai cấu trúc hoặc thiếu cột bắt buộc
+# AT01_SubmissionIngestion_TC002: Bật cảnh báo khi thư mục bài nộp rỗng hoặc không trích xuất được mã sinh viên
 
 #### Loại test
 Exception
 
 #### Tiền điều kiện (Pre-condition)
-- File CSV đầu vào bị thiếu cột `File` hoặc đặt sai tên tiêu đề cột (ví dụ: `ID, FileName`).
+- Thư mục bài nộp được chọn là thư mục rỗng, hoặc các file bên trong không chứa mã sinh viên hợp lệ theo chuẩn định dạng (không khớp pattern Regex MSSV).
 
 #### Các bước thực hiện (Test Steps)
-1. Giảng viên chọn nạp file CSV bị sai cấu trúc cột.
-2. Hệ thống kiểm tra định dạng dòng tiêu đề (Header row).
+1. Giảng viên chọn thư mục bài nộp rỗng hoặc đặt sai quy cách đặt tên file/folder.
+2. Hệ thống thực hiện quét và thẩm định cấu trúc thư mục.
 
 #### Kết quả kỳ vọng (Expected Result)
-- Hệ thống từ chối nạp file, không làm crash ứng dụng.
-- Bật hộp thoại cảnh báo lỗi thân thiện: "File CSV không đúng định dạng chuẩn. File bắt buộc phải có đúng 2 cột tiêu đề: 'MSSV' và 'File'. Vui lòng kiểm tra lại".
+- Hệ thống từ chối nạp đợt chấm, không làm crash ứng dụng.
+- Bật hộp thoại cảnh báo thân thiện: "Không tìm thấy bài nộp hợp lệ nào trong thư mục đã chọn. Vui lòng kiểm tra lại cấu trúc thư mục hoặc tên file bài làm".
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Bật thông báo lỗi chi tiết, từ chối nạp file sai định dạng | 45 ms | ✅ PASSED | Kiểm soát đầu vào chặt chẽ |
+| Lần 1 | 01/10/2026 | Đinh Thành Nam | Bật thông báo lỗi chi tiết, từ chối tạo đợt chấm khi thư mục không có bài hợp lệ | 35 ms | ✅ PASSED | Kiểm soát đầu vào an toàn |
 
 ---
 

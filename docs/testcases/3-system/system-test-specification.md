@@ -19,7 +19,7 @@
 Normal
 
 #### Tiền điều kiện (Pre-condition)
-- Desktop App đã nạp danh sách 45 sinh viên từ file `students.csv`.
+- Desktop App đã quét và nạp danh sách 45 sinh viên từ thư mục bài làm.
 - Đợt chấm đã được cấu hình bộ 5 testcase chuẩn và chọn chiến lược `IgnoreWhitespaceStrategy`.
 - Trình biên dịch GCC/MinGW đã được cấu hình sẵn sàng trên máy trạm.
 

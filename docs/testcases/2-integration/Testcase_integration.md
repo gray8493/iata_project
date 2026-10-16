@@ -21,7 +21,7 @@
   - **Phân hệ Ứng dụng Máy trạm Giảng viên (Desktop App Client - PyQt6 / Python):**
     - `AuthClientService`: Kết nối RESTful API với Backend, quản lý lưu trữ an toàn Token trong bộ nhớ phiên, xử lý tự động gia hạn phiên (Auto-Refresh Token).
     - `SessionClassService`: Quản lý đợt chấm bài, thông tin lớp học và môn học (`PRF`, `PRO`, `DSA`, `PHP`, `WEB`) lưu trữ trực tiếp vào CSDL cục bộ `LOCAL_CLASSES`.
-    - `CsvService`: Đọc và thẩm định định dạng file `students.csv` chuẩn 2 cột (`MSSV`, `File`), kiểm tra tính hợp lệ của thư mục bài nộp, thực hiện giao dịch ghi vào `LOCAL_STUDENT_SUBMISSIONS` và kết xuất bảng điểm hoàn chỉnh ra `results.csv` / Excel `.xlsx`.
+    - `SubmissionService` & `CsvExportService`: Quét thư mục bài nộp, tự động trích xuất mã sinh viên (MSSV) từ tên file/thư mục, kiểm tra tính hợp lệ của bài nộp, thực hiện giao dịch ghi vào `LOCAL_STUDENT_SUBMISSIONS` và kết xuất bảng điểm hoàn chỉnh ra `results.csv` (7 cột chuẩn) / Excel `.xlsx`.
     - `TestcaseService`: Quản lý bộ kiểm thử Black-box (chỉ cần cặp `INPUT` và `OUTPUT kỳ vọng`, không cần code giải mẫu), nạp/xuất qua file `testcases.json`, đồng bộ với dữ liệu sinh tự động từ Gemini AI vào `LOCAL_TESTCASES`.
     - `MatchingEngineService`: Động cơ so khớp kết quả đầu ra theo Strategy Pattern gồm 7 chiến lược độc lập: `ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`.
     - `SandboxExecutionEngine`: Môi trường thực thi an toàn đa tiến trình (`QThread`), sử dụng Factory Pattern (`RunnerFactory`) khởi tạo các Runner tương ứng (`CRunner`, `JavaRunner`, `PythonRunner`, `WebRunner`), cô lập subprocess gọi trình biên dịch của Hệ điều hành (`GCC/MinGW`, `Javac/JVM`, `Python Runtime`), kết hợp thư viện `psutil` đo lường thời gian chạy (ms) và dung lượng RAM (MB), cưỡng chế ngắt tiến trình bắt lỗi `TLE` và `MLE`.
@@ -59,7 +59,7 @@
 | **IT02_Admin_Disable_User_Revoke** | Khóa tài khoản Giảng viên thu hồi quyền truy cập API Gateway tức thì | AdminController $\leftrightarrow$ UsersService $\leftrightarrow$ JwtAuthGuard $\leftrightarrow$ Neon DB | `PUT /api/v1/admin/users/:id` `{ "is_active": false }` | Cập nhật `is_active=false`, Desktop App dùng token cũ bị chặn với HTTP 403 `AUTH_ACCOUNT_DISABLED` |  |
 | **IT03_Admin_Quota_Allocation** | Admin điều chỉnh hạn ngạch Token AI và áp dụng ràng buộc thời gian thực | AdminController $\leftrightarrow$ AiGatewayModule $\leftrightarrow$ Prisma $\leftrightarrow$ Neon DB | `PUT /api/v1/ai/quota-config` (`user_id`, `daily_token_limit`) | Cập nhật `AI_QUOTA_CONFIGS`, AiGatewayGuard áp dụng hạn mức mới cho Giảng viên |  |
 | **IT04_Desktop_Auth_Sync** | Giảng viên đăng nhập Desktop App qua REST API, xác thực JWT và kiểm tra Quota AI | Desktop App $\leftrightarrow$ AuthController $\leftrightarrow$ AiGatewayController $\leftrightarrow$ Neon DB | `POST /api/v1/auth/login` $\rightarrow$ `GET /api/v1/ai/quota` | Trả về Access Token, Refresh Token, đồng bộ thông tin hạn ngạch AI còn lại trong ngày |  |
-| **IT05_Session_CSV_Import_LocalDB** | Khởi tạo đợt chấm, nạp danh sách sinh viên từ `students.csv` và lưu an toàn vào SQLite | Desktop UI $\leftrightarrow$ CsvService $\leftrightarrow$ File System $\leftrightarrow$ Local SQLite | File `students.csv` (MSSV, File) + Thư mục bài nộp mã nguồn | Tạo bản ghi `LOCAL_CLASSES`, lưu danh sách vào `LOCAL_STUDENT_SUBMISSIONS`, xác thực file tồn tại |  |
+| **IT05_Session_FolderScan_Import_LocalDB** | Khởi tạo đợt chấm, quét thư mục bài nộp tự động trích xuất MSSV và lưu an toàn vào SQLite | Desktop UI $\leftrightarrow$ SessionDialog $\leftrightarrow$ File System $\leftrightarrow$ Local SQLite | Thư mục bài nộp mã nguồn sinh viên | Tạo bản ghi `LOCAL_CLASSES`, lưu danh sách vào `LOCAL_STUDENT_SUBMISSIONS`, xác thực file tồn tại |  |
 | **IT06_Manual_Testcase_Config** | Nạp bộ testcase Black-box thủ công / JSON và lưu cấu hình điểm số vào Local DB | Desktop UI $\leftrightarrow$ TestcaseService $\leftrightarrow$ Local SQLite | Bảng Testcase (Input, Expected Output, Time Limit, Mem Limit) | Lưu danh sách testcase vào `LOCAL_TESTCASES`, sẵn sàng cấp phát cho Runner |  |
 | **IT07_AI_Generate_Boundary_Testcases** | Nhập đề bài trên Desktop App, Gemini AI sinh bộ testcase biên và trừ hạn ngạch Token | Desktop App $\leftrightarrow$ AiGatewayService $\leftrightarrow$ Gemini API $\leftrightarrow$ Local DB | `POST /api/v1/ai/generate-testcases` (đề bài, ngôn ngữ, count) | Gemini sinh JSON testcase biên, ghi log `AI_QUOTA_LOGS`, trừ quota, nạp vào `LOCAL_TESTCASES` |  |
 | **IT08_Batch_Grading_C_Execution** | Chấm bài C hàng loạt: Biên dịch GCC, chạy subprocess qua hàm `main()`, so khớp `ExactMatch` | Desktop App $\leftrightarrow$ CRunner $\leftrightarrow$ Subprocess $\leftrightarrow$ psutil $\leftrightarrow$ Local DB | Thư mục bài nộp `.c`, bộ testcase C, Strategy `ExactMatch` | Biên dịch thành công, đo thời gian/RAM, so khớp kết quả chuẩn xác, ghi nhận điểm vào `LOCAL_GRADING_RESULTS` |  |
@@ -74,7 +74,7 @@
 | **IT17_AI_Daily_Quota_Exceeded_Block** | Chặn yêu cầu gọi AI khi Giảng viên đã sử dụng hết hạn ngạch Token trong ngày | AiGatewayGuard $\leftrightarrow$ Prisma $\leftrightarrow$ Neon Database | `POST /api/v1/ai/generate-testcases` khi used >= limit | Trả về HTTP 429 `AI_QUOTA_EXCEEDED`, chặn ngay tại Guard trước khi gọi sang Gemini API |  |
 | **IT18_Sandbox_Timeout_Quarantine_TLE** | Sinh viên nộp bài có vòng lặp vô hạn `while(true)`, ProcessWatcher kill tiến trình an toàn | SandboxEngine $\leftrightarrow$ ProcessWatcher $\leftrightarrow$ psutil $\leftrightarrow$ C/Py Runner | Bài nộp mã nguồn chứa vòng lặp vô hạn, Time Limit 1000ms | Cưỡng chế kill subprocess sau 1000ms, trả kết quả `TLE`, giải phóng CPU, không treo UI |  |
 | **IT19_Sandbox_Memory_Limit_Exceeded_MLE** | Sinh viên nộp bài đệ quy vô hạn / tràn RAM, ProcessWatcher kill tiến trình bắt `MLE` | SandboxEngine $\leftrightarrow$ ProcessWatcher $\leftrightarrow$ psutil $\leftrightarrow$ Java/C Runner | Bài nộp đệ quy vô hạn ngốn RAM > 128MB (Memory Limit) | `psutil` phát hiện vượt ngưỡng bộ nhớ, kill tiến trình ngay lập tức, trả kết quả `MLE` an toàn |  |
-| **IT20_CSV_Duplicate_MSSV_Rollback** | Nạp file `students.csv` chứa mã sinh viên trùng lặp kích hoạt Rollback toàn bộ | CsvImportService $\leftrightarrow$ Local SQLite Transaction | File `students.csv` có 2 dòng cùng chứa mã `SE180001` | Phát hiện trùng lặp, rollback giao dịch, không lưu bản ghi rác, báo lỗi `CSV_DUPLICATE_STUDENT` |  |
+| **IT20_FolderScan_Duplicate_MSSV_Rollback** | Quét thư mục bài nộp chứa bài thi trùng mã sinh viên kích hoạt Rollback toàn bộ | SessionDialog $\leftrightarrow$ Local SQLite Transaction | Thư mục bài nộp có 2 file/thư mục cùng chứa mã `SE180001` | Phát hiện trùng lặp MSSV, rollback giao dịch, không lưu bản ghi rác, báo lỗi `DUPLICATE_STUDENT_SUBMISSION` |  |
 | **IT21_RBAC_Instructor_AdminEndpoint_Block** | Chặn Giảng viên cố tình gọi các API quản trị cấp cao của Quản trị viên | RolesGuard $\leftrightarrow$ UsersController $\leftrightarrow$ AiGatewayController | Request với Bearer token của `INSTRUCTOR` tới endpoint Admin | Trả về HTTP 403 `FORBIDDEN_ADMIN_ONLY`, từ chối truy cập và ghi log cảnh báo bảo mật |  |
 | **IT22_Token_Expired_Refresh_Rotation** | Tự động làm mới Access Token khi hết hạn bằng Refresh Token Rotation an toàn | Desktop App $\leftrightarrow$ AuthController $\leftrightarrow$ Prisma $\leftrightarrow$ Neon DB | `POST /api/v1/auth/refresh` kèm `refresh_token` hợp lệ | Cấp Access Token & Refresh Token mới, thu hồi token cũ, duy trì phiên làm việc không ngắt quãng |  |
 | **IT23_Soft_Delete_Cascade_Exclusion** | Xóa mềm tài khoản Giảng viên và tự động loại trừ khỏi mọi truy vấn danh sách hệ thống | AdminController $\leftrightarrow$ UsersService $\leftrightarrow$ Prisma $\leftrightarrow$ Neon DB | `DELETE /api/v1/admin/users/:id` | Cập nhật `is_deleted=true`, `deleted_at=now`, loại khỏi danh sách, bảo toàn nhật ký `AI_QUOTA_LOGS` |  |
@@ -266,35 +266,29 @@
 
 ---
 
-##### IT05_Session_CSV_Import_LocalDB : NẠP DANH SÁCH SINH VIÊN TỪ FILE CSV CHUẨN VÀ LƯU AN TOÀN VÀO CSDL CỤC BỘ
+##### IT05_Session_FolderScan_Import_LocalDB : QUÉT THƯ MỤC BÀI NỘP TỰ ĐỘNG TRÍCH XUẤT MSSV VÀ LƯU AN TOÀN VÀO CSDL CỤC BỘ
 
 - **ĐIỀU KIỆN TIÊN QUYẾT:**
   - Giảng viên đã mở Desktop App và chọn môn học Lập trình cơ sở (`course_code: "PRF"`).
-  - File `students.csv` chuẩn bị sẵn gồm đúng 2 cột `MSSV,File` chứa 3 sinh viên (`SE180001`, `SE180002`, `SE180003`).
-  - Thư mục bài nộp chứa đầy đủ 3 file mã nguồn tương ứng: `SE180001_Q1.c`, `SE180002_Q1.c`, `SE180003_Q1.c`.
+  - Thư mục bài nộp chuẩn bị sẵn chứa đầy đủ 3 bài thi tương ứng của 3 sinh viên (`SE180001`, `SE180002`, `SE180003`) dưới dạng file mã nguồn trực tiếp hoặc thư mục con chứa file mục tiêu: `SE180001_Q1.c`, `SE180002_Q1.c`, `SE180003_Q1.c`.
   - File CSDL cục bộ SQLite3 (`aita_local.db`) đã được khởi tạo các bảng `LOCAL_CLASSES` và `LOCAL_STUDENT_SUBMISSIONS`.
 - **CÁC THÀNH PHẦN THAM GIA TÍCH HỢP:**
-  - `Desktop App SessionUI` & `CsvService`.
+  - `Desktop App SessionUI` (`SessionDialog`).
   - Hệ thống tệp tin cục bộ Hệ điều hành (File System).
   - Cơ sở dữ liệu Cục bộ SQLite3 (`LOCAL_CLASSES`, `LOCAL_STUDENT_SUBMISSIONS`).
 - **DỮ LIỆU ĐẦU VÀO:**
   - **Tên đợt chấm / Lớp học:** `"SE1801_PRF192_PE"`
   - **Môn học:** `"PRF"`
-  - **Nội dung file `students.csv`:**
-    ```csv
-    MSSV,File
-    SE180001,SE180001_Q1.c
-    SE180002,SE180002_Q1.c
-    SE180003,SE180003_Q1.c
-    ```
+  - **Tên file mục tiêu:** `"Q1.c"`
+  - **Đường dẫn thư mục bài nộp:** Thư mục chứa 3 bài làm `SE180001_Q1.c`, `SE180002_Q1.c`, `SE180003_Q1.c`.
 - **CÁC BƯỚC THỰC HIỆN:**
-  1. Giảng viên nhập tên đợt chấm, chọn môn học và bấm "Chọn file students.csv".
-  2. Bấm "Chọn thư mục bài nộp" trỏ tới folder chứa các file `.c`.
-  3. `CsvService` mở file CSV, thẩm định tính hợp lệ của Header (chỉ gồm 2 cột `MSSV,File`), kiểm tra mã hóa UTF-8.
-  4. Quét kiểm tra sự tồn tại vật lý của từng file bài làm trong thư mục.
+  1. Giảng viên nhập tên đợt chấm, chọn ngôn ngữ C và chỉ định tên file mục tiêu `Q1.c`.
+  2. Bấm "Duyệt Thư Mục..." trỏ tới folder chứa bài làm của sinh viên.
+  3. Hệ thống kích hoạt bộ quét thư mục, áp dụng biểu thức chính quy Regex nhận diện mã sinh viên (`[A-Za-z]{2}\d{6,8}`) từ tên tệp tin hoặc thư mục con.
+  4. Quét kiểm tra sự tồn tại vật lý và tính hợp lệ của từng file mã nguồn.
   5. Mở SQLite Transaction: Tạo 1 bản ghi trong `LOCAL_CLASSES` và ghi 3 bản ghi vào `LOCAL_STUDENT_SUBMISSIONS`.
 - **KẾT QUẢ MONG ĐỢI (ASSERTIONS):**
-  - **Xử lý CSV:** Phân tích cú pháp thành công 3/3 sinh viên, không có lỗi định dạng hay thiếu file.
+  - **Xử lý Quét Thư Mục:** Quét và nhận diện thành công 3/3 sinh viên, trích xuất chính xác mã `SE180001`, `SE180002`, `SE180003`, không có lỗi định dạng hay thiếu file.
   - **Trạng thái Database Cục bộ (SQLite3):**
     - Bảng `LOCAL_CLASSES`: Có 1 bản ghi mới với `class_name = "SE1801_PRF192_PE"`, `course_code = "PRF"`, `is_deleted = 0`.
     - Bảng `LOCAL_STUDENT_SUBMISSIONS`: Lưu 3 bản ghi tương ứng với 3 MSSV, mỗi bản ghi lưu đầy đủ đường dẫn tuyệt đối của file và nội dung mã nguồn đọc từ đĩa.
@@ -578,7 +572,7 @@
 - **DỮ LIỆU ĐẦU VÀO:**
   - Yêu cầu xuất file từ giao diện: Đường dẫn lưu file `D:/Grades/SE1801_results.csv`.
 - **CÁC BƯỚC THỰC HIỆN:**
-  1. Giảng viên bấm nút "XUẤT BẢNG ĐIỂM CSV".
+  1. Giảng viên bấm nút "XUẤT BẢNG ĐIỂM" và chọn định dạng "Xuất file CSV (.csv)".
   2. `CsvExportService` thực thi câu lệnh SQL SELECT liên kết giữa `LOCAL_STUDENT_SUBMISSIONS` và `LOCAL_GRADING_RESULTS`.
   3. Định dạng dữ liệu thành chuỗi CSV theo chuẩn 7 cột bắt buộc:
      - Cột 1: `MSSV`
@@ -594,7 +588,7 @@
   - **Toàn vẹn Dữ liệu:**
     - Sinh viên `SE180001`: Đạt `10.0`, `2/2`, `AC`, `35ms`, Nhận xét: `""`.
     - Sinh viên `SE180002`: Đạt `5.0`, `1/2`, `WA`, `42ms`, Nhận xét: `"Em đã xử lý đúng thuật toán... kiểm tra lại for(i=1; i<=n; i++)..."`.
-  - Mở file trên Excel hoặc Notepad hiển thị đúng cấu trúc và không bị lỗi font tiếng Việt.
+  - Mở file trên Excel hoặc Notepad hiển thị đúng cấu trúc 7 cột và không bị lỗi font tiếng Việt.
 - **TRẠNG THÁI KIỂM THỬ:**
 
 ---
@@ -777,24 +771,24 @@
 
 ---
 
-##### IT20_CSV_Duplicate_MSSV_Rollback : ROLLBACK TOÀN BỘ GIAO DỊCH KHI PHÁT HIỆN TRÙNG MÃ SINH VIÊN TRONG FILE CSV
+##### IT20_FolderScan_Duplicate_MSSV_Rollback : ROLLBACK TOÀN BỘ GIAO DỊCH KHI PHÁT HIỆN TRÙNG MÃ SINH VIÊN TRONG THƯ MỤC BÀI NỘP
 
 - **ĐIỀU KIỆN TIÊN QUYẾT:**
-  - Giảng viên nạp file `students.csv` có 10 dòng, trong đó dòng 3 và dòng 8 đều mang cùng mã số sinh viên `"SE180001"`.
+  - Giảng viên chọn thư mục bài nộp có 10 bài, trong đó có 2 file hoặc thư mục con chứa cùng mã sinh viên `"SE180001"` (ví dụ: `SE180001_Q1.c` và thư mục `SE180001_NguyenVanA/Q1.c`).
 - **CÁC THÀNH PHẦN THAM GIA TÍCH HỢP:**
-  - `CsvService` (Thẩm định dữ liệu đầu vào).
+  - `SessionDialog` (Thẩm định dữ liệu quét thư mục).
   - `Local Database SQLite` (SQLite Transaction Context Manager).
 - **DỮ LIỆU ĐẦU VÀO:**
-  - File `students.csv` chứa dữ liệu trùng lặp nội bộ.
+  - Thư mục bài nộp chứa dữ liệu sinh viên bị trùng lặp mã số.
 - **CÁC BƯỚC THỰC HIỆN:**
-  1. Giảng viên bấm nạp file CSV.
-  2. `CsvService` duyệt qua các dòng và đưa MSSV vào tập hợp kiểm tra tính duy nhất (`Set`).
+  1. Giảng viên bấm duyệt thư mục bài nộp và chọn thư mục có bài thi bị trùng mã.
+  2. Bộ quét thư mục duyệt qua các tệp tin/thư mục con và đưa MSSV bóc tách được vào tập hợp kiểm tra tính duy nhất (`Set`).
   3. Phát hiện mã `"SE180001"` xuất hiện lần thứ hai.
   4. Kích hoạt ngoại lệ nghiệp vụ và thực hiện lệnh `ROLLBACK` toàn bộ giao dịch CSDL cục bộ.
 - **KẾT QUẢ MONG ĐỢI (ASSERTIONS):**
-  - Quá trình nạp bị hủy bỏ ngay lập tức, trả về mã lỗi nội bộ: `CSV_DUPLICATE_STUDENT`.
-  - Hiển thị hộp thoại cảnh báo: *"Phát hiện mã sinh viên SE180001 bị lặp lại tại dòng 8 trong file CSV. Vui lòng kiểm tra lại file!"*.
-  - **Tính toàn vẹn CSDL (Rollback):** Bảng `LOCAL_CLASSES` không tạo đợt chấm dở dang, bảng `LOCAL_STUDENT_SUBMISSIONS` không lưu bất kỳ sinh viên nào của file bị lỗi. Trạng thái SQLite giữ nguyên 100%.
+  - Quá trình nạp bị hủy bỏ ngay lập tức, trả về mã lỗi nội bộ: `DUPLICATE_STUDENT_SUBMISSION`.
+  - Hiển thị hộp thoại cảnh báo: *"Phát hiện mã sinh viên SE180001 bị lặp lại trong thư mục bài nộp. Vui lòng kiểm tra lại cấu trúc thư mục!"*.
+  - **Tính toàn vẹn CSDL (Rollback):** Bảng `LOCAL_CLASSES` không tạo đợt chấm dở dang, bảng `LOCAL_STUDENT_SUBMISSIONS` không lưu bất kỳ sinh viên nào của đợt nạp bị lỗi. Trạng thái SQLite giữ nguyên 100%.
 - **TRẠNG THÁI KIỂM THỬ:**
 
 ---
@@ -910,7 +904,7 @@
      cd apps/desktop-client
      # Cài đặt các thư viện kiểm thử phụ thuộc
      pip install -r requirements.txt pytest pytest-mock pytest-qt
-     # Chạy toàn bộ kịch bản kiểm thử tích hợp luồng Runner, CSV và Database
+     # Chạy toàn bộ kịch bản kiểm thử tích hợp luồng Runner, Folder Ingestion, Export và Database
      pytest tests/integration/ -v --durations=10
      ```
 3. **Tiêu chuẩn Hoàn tất (Definition of Done - DoD):**
