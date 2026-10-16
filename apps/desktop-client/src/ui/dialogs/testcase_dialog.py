@@ -222,18 +222,43 @@ class TestcaseEditDialog(QDialog):
         layout.addLayout(footer)
 
     def _validate_and_save(self):
+        # IT06: validate the manual black-box testcase before persisting to LOCAL_TESTCASES
+        question_number = self.cb_q.currentText().strip() or "Q1"
+        input_data = self.txt_input.toPlainText()
         output = self.txt_output.toPlainText()
+        score_weight = float(self.sp_weight.value())
+        time_limit_ms = int(self.sp_time.value())
+        memory_limit_mb = int(self.sp_mem.value())
+
+        errors = []
         if not output.strip():
-            QMessageBox.warning(self, "Thiếu Dữ Liệu", "Kết quả mong đợi (stdout) không được để trống.")
+            errors.append("Kết quả mong đợi (stdout) không được để trống.")
+        if score_weight <= 0:
+            errors.append("Trọng số điểm phải lớn hơn 0.")
+        if time_limit_ms <= 0:
+            errors.append("Giới hạn thời gian phải lớn hơn 0 ms.")
+        if memory_limit_mb <= 0:
+            errors.append("Giới hạn bộ nhớ phải lớn hơn 0 MB.")
+        if len(input_data.encode("utf-8")) > 256 * 1024:
+            errors.append("Dữ liệu đầu vào (stdin) vượt quá giới hạn 256 KB.")
+        if len(output.encode("utf-8")) > 256 * 1024:
+            errors.append("Kết quả mong đợi (stdout) vượt quá giới hạn 256 KB.")
+
+        if errors:
+            QMessageBox.warning(
+                self,
+                "Dữ Liệu Không Hợp Lệ",
+                "Vui lòng kiểm tra lại cấu hình testcase:\n\n• " + "\n• ".join(errors)
+            )
             return
 
         self.testcase_data = {
-            "question_number": self.cb_q.currentText().strip() or "Q1",
-            "input_data": self.txt_input.toPlainText(),
-            "expected_output": self.txt_output.toPlainText(),
-            "score_weight": self.sp_weight.value(),
-            "time_limit_ms": self.sp_time.value(),
-            "memory_limit_mb": self.sp_mem.value()
+            "question_number": question_number,
+            "input_data": input_data,
+            "expected_output": output,
+            "score_weight": score_weight,
+            "time_limit_ms": time_limit_ms,
+            "memory_limit_mb": memory_limit_mb
         }
         self.accept()
 

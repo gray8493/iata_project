@@ -31,6 +31,22 @@ from ui.styles.theme import (
 from database.db_manager import DatabaseManager
 
 
+DUPLICATE_STUDENT_SUBMISSION = "DUPLICATE_STUDENT_SUBMISSION"
+
+
+class DuplicateStudentSubmissionError(Exception):
+    """Business exception raised when the scanned folder contains a duplicated MSSV (IT20)."""
+
+    code = DUPLICATE_STUDENT_SUBMISSION
+
+    def __init__(self, duplicated_codes):
+        self.duplicated_codes = list(duplicated_codes)
+        super().__init__(
+            f"{DUPLICATE_STUDENT_SUBMISSION}: trùng mã sinh viên "
+            f"{', '.join(self.duplicated_codes)}"
+        )
+
+
 class SessionDialog(QDialog):
     """
     Dialog for creating a new grading session and importing student submissions via directory scanning.
@@ -517,18 +533,33 @@ class SessionDialog(QDialog):
         valid_items = [it for it in all_items if it["is_valid"]]
         invalid_items = [it for it in all_items if not it["is_valid"]]
 
-        if invalid_items:
-            dup_items = [it for it in invalid_items if "Trùng lặp MSSV" in it["reason"]]
-            if dup_items:
-                dup_str = ", ".join(set(it["mssv"] for it in dup_items))
-                QMessageBox.critical(
-                    self,
-                    "Phát Hiện Trùng MSSV",
-                    f"Có các bài nộp bị trùng lặp MSSV trong thư mục:\n{dup_str}\n\n"
-                    "Hệ thống không ghi đè tự động. Vui lòng kiểm tra lại thư mục bài nộp trước khi tiếp tục."
-                )
-                return
+        # IT20: Trùng mã sinh viên => hủy toàn bộ giao dịch, không tạo đợt chấm dở dang.
+        dup_items = [it for it in all_items if it["reason"].startswith("Trùng lặp MSSV")]
+        if dup_items:
+            dup_str = ", ".join(sorted({it["mssv"] for it in dup_items if it["mssv"]}))
+            dup_error = DuplicateStudentSubmissionError(sorted({it["mssv"] for it in dup_items if it["mssv"]}))
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Critical)
+            box.setWindowTitle("Phát Hiện Trùng Mã Sinh Viên")
+            box.setText(
+                f"Phát hiện mã sinh viên {dup_str} bị lặp lại trong thư mục bài nộp. "
+                "Vui lòng kiểm tra lại cấu trúc thư mục!"
+            )
+            box.setDetailedText(f"Mã lỗi nội bộ: {dup_error.code}")
+            box.exec()
+            return
 
+        # AT01_TC002: Không có bài nộp hợp lệ => từ chối nạp đợt chấm.
+        if not valid_items:
+            QMessageBox.warning(
+                self,
+                "Không Có Bài Nộp Hợp Lệ",
+                "Không tìm thấy bài nộp hợp lệ nào trong thư mục đã chọn. "
+                "Vui lòng kiểm tra lại cấu trúc thư mục hoặc tên file bài làm"
+            )
+            return
+
+        if invalid_items:
             reply = QMessageBox.question(
                 self,
                 "Có Mục Không Hợp Lệ",

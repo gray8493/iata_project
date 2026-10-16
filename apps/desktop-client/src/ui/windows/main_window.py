@@ -8,13 +8,13 @@ Strictly NO emojis/icons in the UI. All text in Vietnamese.
 
 import sys
 import re
-import csv
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from collections import Counter
 
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QCursor, QGuiApplication, QPixmap, QTextDocument
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QUrl
+from PyQt6.QtGui import QFont, QColor, QCursor, QGuiApplication, QPixmap, QTextDocument, QDesktopServices
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -44,6 +44,7 @@ from ui.dialogs.plagiarism_dialog import PlagiarismDialog
 from database.db_manager import DatabaseManager
 from services.grading_service import GradingService
 from services.ai_service import AiService
+from services.export_service import ExportService
 
 
 # ==============================================================================
@@ -137,6 +138,40 @@ class MetricCardWidget(QFrame):
 
     def set_value(self, val: str):
         self.lbl_value.setText(val)
+
+
+# ==============================================================================
+# BACKGROUND GRADING WORKER (ProcessPoolExecutor behind a QThread, ST01_TC001)
+# ==============================================================================
+class BatchGradingWorker(QThread):
+    """
+    Runs the batch grading pipeline off the UI thread.
+
+    `GradingService.grade_class_batch` dispatches work to a `ProcessPoolExecutor`
+    (4-8 workers), so the UI stays fully responsive while 45+ submissions are
+    compiled and executed in parallel.
+    """
+
+    progress = pyqtSignal(int, int, str)
+    finished_ok = pyqtSignal(int, float)
+    failed = pyqtSignal(str)
+
+    def __init__(self, grading_service: GradingService, class_id: int, parent=None):
+        super().__init__(parent)
+        self._service = grading_service
+        self._class_id = class_id
+
+    def run(self):
+        started = time.perf_counter()
+        try:
+            def on_progress(curr, total, mssv):
+                self.progress.emit(curr, total, mssv)
+
+            results = self._service.grade_class_batch(self._class_id, progress_callback=on_progress)
+            elapsed = time.perf_counter() - started
+            self.finished_ok.emit(len(results), elapsed)
+        except Exception as ex:
+            self.failed.emit(str(ex))
 
 
 # ==============================================================================
@@ -1744,37 +1779,50 @@ class AITAMainWindow(QMainWindow):
 
         self.progress_bar.setValue(0)
         total_count = len(submissions)
-        
-        def update_progress(curr, total, mssv):
-            percent = int((curr / total) * 100)
-            self.progress_bar.setValue(percent)
-            self.lbl_progress_detail.setText(f"{curr}/{total} bài ({percent}%)")
-            self.lbl_progress_status.setText(f"Đang chấm: {mssv}")
-            QApplication.processEvents()
+        self.lbl_progress_detail.setText(f"0/{total_count} bài (0%)")
+        self.lbl_progress_status.setText(f"Đang khởi tạo tiến trình chấm song song ({total_count} bài)...")
+        self.btn_step3.setEnabled(False)
 
-        try:
-            results = self.grading_service.grade_class_batch(class_id, progress_callback=update_progress)
-            self.progress_bar.setValue(100)
-            self.lbl_progress_status.setText(f"Có {len(results)} bài nộp")
-            self.lbl_progress_detail.setText(f"{len(results)}/{len(results)} bài")
-            self._load_submissions_table(class_id)
-            
-            QMessageBox.information(
-                self,
-                "Chấm Bài Thành Công",
-                f"Đã hoàn thành chấm tự động toàn bộ {len(results)} bài thi!\n\n"
-                f"• Thuật toán so khớp: 7 chế độ tự động\n"
-                f"• Giám sát Sandbox: RAM & CPU đo thời gian thực\n"
-                f"• CSDL: Toàn bộ điểm số đã được ghi an toàn vào SQLite cục bộ (local_grading.db)."
-            )
-        except Exception as ex:
-            QMessageBox.critical(self, "Lỗi Quá Trình Chấm", f"Có lỗi xảy ra trong quá trình chấm:\n{str(ex)}")
+        self._grading_worker = BatchGradingWorker(self.grading_service, class_id, parent=self)
+        self._grading_worker.progress.connect(self._on_batch_grade_progress)
+        self._grading_worker.finished_ok.connect(lambda count, secs: self._on_batch_grade_done(class_id, count, secs))
+        self._grading_worker.failed.connect(self._on_batch_grade_failed)
+        self._grading_worker.start()
+
+    def _on_batch_grade_progress(self, curr: int, total: int, mssv: str):
+        percent = int((curr / total) * 100) if total else 0
+        self.progress_bar.setValue(percent)
+        self.lbl_progress_detail.setText(f"{curr}/{total} bài ({percent}%)")
+        self.lbl_progress_status.setText(f"Đang chấm: {mssv}")
+
+    def _on_batch_grade_done(self, class_id: int, count: int, elapsed_seconds: float):
+        self.progress_bar.setValue(100)
+        self.lbl_progress_status.setText(f"Có {count} bài nộp")
+        self.lbl_progress_detail.setText(f"{count}/{count} bài")
+        self.btn_step3.setEnabled(True)
+        self._load_submissions_table(class_id)
+
+        QMessageBox.information(
+            self,
+            "Chấm Bài Thành Công",
+            f"Chấm xong {count} bài trong {elapsed_seconds:.1f} giây!\n\n"
+            f"• Luồng xử lý nền đa tiến trình (ProcessPoolExecutor 4-8 workers) đã hoàn tất.\n"
+            f"• Thuật toán so khớp: 7 chế độ tự động\n"
+            f"• Giám sát Sandbox: RAM & CPU đo thời gian thực\n"
+            f"• CSDL: Toàn bộ điểm số đã được ghi an toàn vào SQLite cục bộ (local_grading.db)."
+        )
+
+    def _on_batch_grade_failed(self, message: str):
+        self.btn_step3.setEnabled(True)
+        self.progress_bar.setValue(0)
+        self.lbl_progress_status.setText("Chấm bài thất bại")
+        QMessageBox.critical(self, "Lỗi Quá Trình Chấm", f"Có lỗi xảy ra trong quá trình chấm:\n{message}")
 
     # --------------------------------------------------------------------------
-    # 8. Step 5 Export Menu (Excel, PDF, CSV)
+    # 8. Step 5 Export Menu (CSV, Excel, PDF)
     # --------------------------------------------------------------------------
     def _handle_step5_export_menu(self):
-        """Shows format chooser popup menu: Excel (.xlsx), PDF (.pdf), CSV (.csv)."""
+        """Shows format chooser popup menu: CSV (.csv), Excel (.xlsx), PDF (.pdf)."""
         class_id = self.class_selector.currentData() or self.current_class_id
         if not class_id:
             return
@@ -1807,195 +1855,105 @@ class AITAMainWindow(QMainWindow):
                 color: #2F80ED;
             }
         """)
-        
-        act_excel = menu.addAction("Xuất file Excel (.xlsx)")
-        act_pdf = menu.addAction("Xuất file PDF (.pdf)")
-        act_csv = menu.addAction("Xuất file CSV (.csv)")
+
+        act_csv = menu.addAction("Xuất File CSV (.csv)")
+        act_excel = menu.addAction("Xuất File Excel (.xlsx)")
+        act_pdf = menu.addAction("Xuất File Báo Cáo PDF (.pdf)")
 
         action = menu.exec(QCursor.pos())
-        if action == act_excel:
+        if action == act_csv:
+            self._export_to_csv(class_id, submissions)
+        elif action == act_excel:
             self._export_to_excel(class_id, submissions)
         elif action == act_pdf:
             self._export_to_pdf(class_id, submissions)
-        elif action == act_csv:
-            self._export_to_csv(class_id, submissions)
+
+    def _notify_export_success(self, title: str, file_path: str):
+        """Shows a success dialog offering to open the containing folder (AT02)."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Xuất Thành Công")
+        box.setText(title)
+        box.setInformativeText(file_path)
+        open_btn = box.addButton("Mở Thư Mục", QMessageBox.ButtonRole.ActionRole)
+        box.addButton("Đóng", QMessageBox.ButtonRole.AcceptRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(file_path).parent)))
 
     def _export_to_csv(self, class_id: int, submissions: List[Dict[str, Any]]):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Lưu Bảng Điểm CSV", "bang_diem.csv", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Lưu Bảng Điểm CSV", "results.csv", "CSV Files (*.csv)")
         if not file_path:
             return
 
+        testcases = self.db.get_testcases_by_class(class_id)
         try:
-            with open(file_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["STT", "MSSV", "Họ và tên", "Tên File", "Thời gian (ms)", "Bộ nhớ (MB)", "Trạng thái", "Điểm số", "Chấm tay / Ghi đè"])
-                for idx, s in enumerate(submissions, start=1):
-                    score = s.get("calculated_score") or 0.0
-                    override = s.get("manual_override_score")
-                    override_str = f"{override:.1f}" if override is not None else "Tự động"
-                    writer.writerow([
-                        idx,
-                        s['student_mssv'],
-                        s.get('student_name', ''),
-                        Path(s['source_file_path']).name,
-                        f"{s.get('execution_time_ms', 0):.0f}",
-                        f"{s.get('memory_used_mb', 0):.1f}",
-                        s.get('final_verdict', 'PENDING'),
-                        f"{score:.1f}",
-                        override_str
-                    ])
-            self.has_exported_grades = True
-            testcases = self.db.get_testcases_by_class(class_id)
-            graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
-            self._update_step_buttons(len(submissions), graded, len(testcases))
-            QMessageBox.information(self, "Xuất Thành Công", f"Đã xuất bảng điểm CSV thành công:\n{file_path}")
+            export = ExportService()
+            rows = export.build_grade_rows(submissions, len(testcases))
+            export.export_csv(rows, file_path)
+        except PermissionError:
+            QMessageBox.critical(
+                self, "Không Thể Ghi File",
+                "Không thể ghi file. File kết quả đang được mở bởi ứng dụng khác. "
+                "Vui lòng đóng file và thử lại."
+            )
+            return
         except Exception as ex:
             QMessageBox.critical(self, "Lỗi Xuất File", f"Không thể xuất file CSV:\n{str(ex)}")
+            return
+
+        self.has_exported_grades = True
+        graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
+        self._update_step_buttons(len(submissions), graded, len(testcases))
+        self._notify_export_success("Đã xuất bảng điểm results.csv (7 cột) thành công.", file_path)
 
     def _export_to_excel(self, class_id: int, submissions: List[Dict[str, Any]]):
         file_path, _ = QFileDialog.getSaveFileName(self, "Lưu Bảng Điểm Excel", "bang_diem.xlsx", "Excel Files (*.xlsx)")
         if not file_path:
             return
 
+        testcases = self.db.get_testcases_by_class(class_id)
+        classes = self.db.get_all_classes()
+        c_info = next((c for c in classes if c["id"] == class_id), None)
+        c_name = c_info.get("class_name", "") if c_info else ""
+        c_code = c_info.get("course_code", "") if c_info else ""
+
         try:
-            import openpyxl
-            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-            from openpyxl.utils import get_column_letter
-
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "BangDiem"
-
-            headers = ["STT", "MSSV", "Họ và tên", "Tên File", "Thời gian (ms)", "Bộ nhớ (MB)", "Trạng thái", "Điểm số", "Chấm tay"]
-            ws.append(headers)
-
-            header_fill = PatternFill(start_color="2F80ED", end_color="2F80ED", fill_type="solid")
-            header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
-            thin_border = Border(
-                left=Side(style='thin', color='CBD5E1'),
-                right=Side(style='thin', color='CBD5E1'),
-                top=Side(style='thin', color='CBD5E1'),
-                bottom=Side(style='thin', color='CBD5E1')
+            export = ExportService()
+            rows = export.build_grade_rows(submissions, len(testcases))
+            export.export_excel(rows, file_path, class_name=c_name, course_code=c_code)
+        except PermissionError:
+            QMessageBox.critical(
+                self, "Không Thể Ghi File",
+                "Không thể ghi file. File kết quả đang được mở bởi ứng dụng khác. "
+                "Vui lòng đóng file Excel và thử lại."
             )
-
-            for col_num in range(1, len(headers) + 1):
-                cell = ws.cell(row=1, column=col_num)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.border = thin_border
-
-            for idx, s in enumerate(submissions, start=1):
-                score = s.get("calculated_score") or 0.0
-                override = s.get("manual_override_score")
-                override_str = f"{override:.1f}" if override is not None else "Tự động"
-                row_data = [
-                    idx,
-                    s['student_mssv'],
-                    s.get('student_name', ''),
-                    Path(s['source_file_path']).name,
-                    f"{s.get('execution_time_ms', 0):.0f}",
-                    f"{s.get('memory_used_mb', 0):.1f}",
-                    s.get('final_verdict', 'PENDING'),
-                    round(score, 1),
-                    override_str
-                ]
-                ws.append(row_data)
-                row_idx = idx + 1
-                for c_idx in range(1, len(row_data) + 1):
-                    c = ws.cell(row=row_idx, column=c_idx)
-                    c.border = thin_border
-                    if c_idx in (1, 5, 6, 7, 8, 9):
-                        c.alignment = Alignment(horizontal="center", vertical="center")
-                    else:
-                        c.alignment = Alignment(horizontal="left", vertical="center")
-
-            # Column widths
-            for col in ws.columns:
-                max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = get_column_letter(col[0].column)
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-
-            wb.save(file_path)
-            self.has_exported_grades = True
-            testcases = self.db.get_testcases_by_class(class_id)
-            graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
-            self._update_step_buttons(len(submissions), graded, len(testcases))
-            QMessageBox.information(self, "Xuất Thành Công", f"Đã xuất bảng điểm Excel (.xlsx) thành công:\n{file_path}")
+            return
         except Exception as ex:
             QMessageBox.critical(self, "Lỗi Xuất Excel", f"Không thể xuất file Excel:\n{str(ex)}")
+            return
+
+        self.has_exported_grades = True
+        graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
+        self._update_step_buttons(len(submissions), graded, len(testcases))
+        self._notify_export_success("Đã xuất bảng điểm Excel (.xlsx) thành công.", file_path)
 
     def _export_to_pdf(self, class_id: int, submissions: List[Dict[str, Any]]):
         file_path, _ = QFileDialog.getSaveFileName(self, "Lưu Bảng Điểm PDF", "bang_diem.pdf", "PDF Files (*.pdf)")
         if not file_path:
             return
 
+        testcases = self.db.get_testcases_by_class(class_id)
+        classes = self.db.get_all_classes()
+        c_info = next((c for c in classes if c["id"] == class_id), None)
+        c_name = c_info.get("class_name", "") if c_info else ""
+        c_code = c_info.get("course_code", "") if c_info else ""
+        c_lang = c_info.get("programming_language", "C") if c_info else "C"
+
         try:
-            classes = self.db.get_all_classes()
-            c_info = next((c for c in classes if c["id"] == class_id), None)
-            c_name = c_info.get("class_name", "") if c_info else ""
-            c_code = c_info.get("course_code", "") if c_info else ""
-            c_lang = c_info.get("programming_language", "C") if c_info else "C"
-
-            rows_html = ""
-            for idx, s in enumerate(submissions, start=1):
-                score = s.get("calculated_score") or 0.0
-                override = s.get("manual_override_score")
-                override_str = f"{override:.1f}" if override is not None else "Tự động"
-                verdict = s.get('final_verdict', 'PENDING')
-                v_color = "#16A34A" if verdict == "AC" else ("#DC2626" if verdict in ("WA", "CE", "TLE") else "#2563EB")
-                
-                rows_html += f"""
-                <tr>
-                    <td align="center">{idx}</td>
-                    <td>{s['student_mssv']}</td>
-                    <td>{s.get('student_name', '')}</td>
-                    <td>{Path(s['source_file_path']).name}</td>
-                    <td align="center">{s.get('execution_time_ms', 0):.0f} ms</td>
-                    <td align="center">{s.get('memory_used_mb', 0):.1f} MB</td>
-                    <td align="center" style="color: {v_color}; font-weight: bold;">{verdict}</td>
-                    <td align="center" style="font-weight: bold;">{score:.1f}</td>
-                    <td align="center">{override_str}</td>
-                </tr>
-                """
-
-            html_content = f"""
-            <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; font-size: 11px; color: #1E293B; }}
-                    h2 {{ color: #2F80ED; text-align: center; margin-bottom: 4px; }}
-                    .meta {{ text-align: center; font-size: 12px; color: #64748B; margin-bottom: 18px; }}
-                    table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-                    th {{ background-color: #2F80ED; color: white; padding: 6px; font-size: 11px; text-align: center; }}
-                    td {{ border: 1px solid #CBD5E1; padding: 5px; font-size: 10px; }}
-                    tr:nth-child(even) {{ background-color: #F8FAFC; }}
-                </style>
-            </head>
-            <body>
-                <h2>BẢNG ĐIỂM THI THỰC HÀNH - AITA</h2>
-                <div class="meta">Lớp: {c_name} | Mã môn: {c_code} | Ngôn ngữ: {c_lang}</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>STT</th>
-                            <th>MSSV</th>
-                            <th>Họ và tên</th>
-                            <th>Tệp bài nộp</th>
-                            <th>Thời gian</th>
-                            <th>Bộ nhớ</th>
-                            <th>Trạng thái</th>
-                            <th>Điểm số</th>
-                            <th>Chấm tay</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows_html}
-                    </tbody>
-                </table>
-            </body>
-            </html>
-            """
+            export = ExportService()
+            rows = export.build_grade_rows(submissions, len(testcases))
+            html_content = export.build_report_html(rows, class_name=c_name, course_code=c_code, language=c_lang)
 
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
             printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
@@ -2004,14 +1962,21 @@ class AITAMainWindow(QMainWindow):
             doc = QTextDocument()
             doc.setHtml(html_content)
             doc.print(printer)
-
-            self.has_exported_grades = True
-            testcases = self.db.get_testcases_by_class(class_id)
-            graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
-            self._update_step_buttons(len(submissions), graded, len(testcases))
-            QMessageBox.information(self, "Xuất Thành Công", f"Đã xuất bảng điểm PDF thành công:\n{file_path}")
+        except PermissionError:
+            QMessageBox.critical(
+                self, "Không Thể Ghi File",
+                "Không thể ghi file. File kết quả đang được mở bởi ứng dụng khác. "
+                "Vui lòng đóng file và thử lại."
+            )
+            return
         except Exception as ex:
             QMessageBox.critical(self, "Lỗi Xuất PDF", f"Không thể xuất file PDF:\n{str(ex)}")
+            return
+
+        self.has_exported_grades = True
+        graded = sum(1 for s in submissions if s.get("calculated_score") is not None and s.get("final_verdict") != "PENDING")
+        self._update_step_buttons(len(submissions), graded, len(testcases))
+        self._notify_export_success("Đã xuất bảng điểm PDF thành công.", file_path)
 
     def _handle_step6_end_session(self):
         """Step 6: End and finalize the current grading session."""
