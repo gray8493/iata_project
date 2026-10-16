@@ -4,6 +4,7 @@ Starts the application and launches Login Window or Main Workspace.
 """
 
 import sys
+import multiprocessing
 from pathlib import Path
 
 # Thêm thư mục src vào sys.path
@@ -34,4 +35,5 @@ def main():
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()

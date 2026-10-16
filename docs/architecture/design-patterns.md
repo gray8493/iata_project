@@ -17,7 +17,7 @@ Dưới đây là ma trận tổng quan 3 mẫu thiết kế được lựa ch�
 | Nhóm mẫu (Category) | Tên mẫu thiết kế (Pattern Name) | Thành phần áp dụng trong AITA | Vấn đề kỹ thuật được giải quyết |
 | :--- | :--- | :--- | :--- |
 | **Creational** | **Factory Method Pattern** | `RunnerFactory` $\rightarrow$ `BaseRunner` | Tự động nhận diện phần mở rộng bài nộp (`.c`, `.java`, `.py`) để khởi tạo Runner tương ứng mà không làm phụ thuộc mã nguồn điều khiển. |
-| **Structural** | **Adapter Pattern** | `CompilerAdapter` $\rightarrow$ `GccAdapter`, `JavacAdapter`, `PythonAdapter` | Chuẩn hóa giao diện gọi lệnh dòng lệnh (CLI) và định dạng log lỗi bất đồng nhất giữa các trình biên dịch (`gcc`, `javac`, `python.exe`). |
+| **Structural** | **Adapter Pattern** | `CompilerAdapter` $\rightarrow$ `GccCompilerAdapter`, `JavacCompilerAdapter`, `PythonInterpreterAdapter` | Chuẩn hóa giao diện gọi lệnh dòng lệnh (CLI) và định dạng log lỗi bất đồng nhất giữa các trình biên dịch (`gcc`, `javac`, `python -m py_compile`). |
 | **Behavioral** | **Strategy Pattern** | `IMatchingStrategy` $\rightarrow$ 7 Strategies + `FlexibleMatchingStrategy` | Cho phép Giảng viên hoán đổi linh hoạt giữa 7 giải thuật so khớp đầu ra (`stdout`) và kết hợp đa cờ tại thời điểm chấm mà không cần lồng ghép các câu lệnh `if/else` phức tạp. |
 
 Sơ đồ UML chi tiết: [class_diagram.puml](file:///e:/AITA/docs/diagrams/puml/class_diagram.puml) và [Component_diagram.puml](file:///e:/AITA/docs/diagrams/puml/Component_diagram.puml).
@@ -108,7 +108,7 @@ class BaseRunner(ABC):
 class CRunner(BaseRunner):
     """Concrete Product cho ngôn ngữ C (Môn PRF)."""
     def compile(self) -> "CompileResult":
-        # Ủy thác cho GccAdapter biên dịch qua MinGW gcc
+        # Ủy thác cho GccCompilerAdapter biên dịch qua MinGW gcc
         return self.compiler_adapter.compile(self.source_path)
 
     def execute_main(self, stdin_input: str) -> "ExecutionResult":
@@ -182,31 +182,34 @@ Nếu các Runner tự viết lệnh gọi `subprocess.Popen` riêng lẻ, hệ 
 
 ### 2.2. Giải pháp kiến trúc Adapter Pattern
 AITA sử dụng mẫu **Adapter Pattern (Object Adapter)**:
-- **Target Interface**: `CompilerAdapter` định nghĩa phương thức thống nhất `compile(source_path, output_dir) -> CompileResult`.
+- **Target Interface**: `CompilerAdapter` định nghĩa phương thức thống nhất `compile(source_path) -> CompileResult`.
 - **Adaptees (Các công cụ thực tế)**: Công cụ dòng lệnh `gcc.exe`, `javac.exe`, và `py_compile`.
-- **Adapters (Lớp bao bọc)**: `GccAdapter`, `JavacAdapter`, `PythonAdapter`.
-- **Client**: `CRunner` và `JavaRunner` giữ một tham chiếu đến `CompilerAdapter` và tương tác thông qua Target Interface.
+- **Adapters (Lớp bao bọc)**: `GccCompilerAdapter`, `JavacCompilerAdapter`, `PythonInterpreterAdapter` (đặt tại `core/adapters/compiler_adapter.py`).
+- **Client**: `CRunner`, `JavaRunner` và `PythonRunner` giữ một tham chiếu đến `CompilerAdapter` và tương tác thông qua Target Interface; `CompilerAdapterFactory` tra cứu Adapter phù hợp theo ngôn ngữ intelec của đợt chấm.
 
 ```text
 +--------------------------------------------------------------------+
 |                         <<interface>>                              |
 |                        CompilerAdapter                             |
 +--------------------------------------------------------------------+
-| + compile(source_path: Path, output_dir: Path): CompileResult      |
+| + compile(source_path: Path): CompileResult                        |
 +--------------------------------------------------------------------+
-        ▲                                              ▲
-        │ implements                                   │ implements
-+-------------------------------+              +-------------------------------+
-|          GccAdapter           |              |         JavacAdapter          |
-+-------------------------------+              +-------------------------------+
-| - gcc_binary_path: str        |              | - javac_binary_path: str      |
-+-------------------------------+              +-------------------------------+
-| + compile(...): CompileResult |              | + compile(...): CompileResult |
-| - parse_gcc_stderr(...): str  |              | - parse_javac_stderr(...): str|
-+-------------------------------+              +-------------------------------+
+        ▲                                                    ▲
+        │ implements                                         │ implements
++--------------------------------+              +--------------------------------+
+|       GccCompilerAdapter       |              |     JavacCompilerAdapter       |
++--------------------------------+              +--------------------------------+
+| - timeout: float = 12.0        |              | - timeout: float = 12.0        |
++--------------------------------+              +--------------------------------+
+| + compile(...): CompileResult  |              | + compile(...): CompileResult |
+|   gcc -O2 -std=c11 -Wall       |              |   javac -encoding UTF-8        |
++--------------------------------+              +--------------------------------+
         │ invokes CLI                                  │ invokes CLI
         ▼                                              ▼
 [ OS Subprocess: gcc.exe ]                     [ OS Subprocess: javac.exe ]
+
+        (PythonInterpreterAdapter: py_compile kiểm tra cú pháp offline,
+         không sinh tệp nhị phân — trả về target = nguồn .py gốc)
 ```
 
 ### 2.3. Cấu trúc mã nguồn thiết kế mẫu
@@ -214,55 +217,91 @@ AITA sử dụng mẫu **Adapter Pattern (Object Adapter)**:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, Optional, Type
+import os
+import shutil
 import subprocess
+import py_compile
 
 @dataclass
 class CompileResult:
-    """Đối tượng kết quả biên dịch chuẩn hóa dùng chung toàn hệ thống."""
-    is_success: bool
-    executable_path: Path | None = None
-    error_message: str = ""
-    exit_code: int = 0
+    """Kết quả biên dịch chuẩn hóa dùng chung toàn hệ thống."""
+    success: bool
+    log: str
+    target: Optional[str] = None
+    compiler: str = ""
+    timed_out: bool = False
 
 
 class CompilerAdapter(ABC):
     """Target Interface: Giao diện chuẩn hóa cho mọi trình biên dịch."""
+    name = "compiler"
+
     @abstractmethod
-    def compile(self, source_path: Path, output_dir: Path) -> CompileResult:
-        pass
+    def compile(self, source_path: Path) -> CompileResult:
+        raise NotImplementedError
 
 
-class GccAdapter(CompilerAdapter):
+class GccCompilerAdapter(CompilerAdapter):
     """Adapter bọc MinGW-w64 GCC CLI."""
-    def __init__(self, gcc_bin: str = "gcc"):
-        self.gcc_bin = gcc_bin
+    name = "GCC"
 
-    def compile(self, source_path: Path, output_dir: Path) -> CompileResult:
-        out_exe = output_dir / f"{source_path.stem}.exe"
-        cmd = [self.gcc_bin, "-O2", str(source_path), "-o", str(out_exe)]
+    def compile(self, source_path: Path) -> CompileResult:
+        gcc_bin = find_gcc_executable()
+        output_exe = source_path.parent / f"{source_path.stem}_build.exe"
+        cmd = [gcc_bin, str(source_path), "-o", str(output_exe), "-O2", "-std=c11", "-Wall"]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
             if proc.returncode == 0:
-                return CompileResult(is_success=True, executable_path=out_exe)
-            return CompileResult(is_success=False, error_message=proc.stderr, exit_code=proc.returncode)
-        except Exception as e:
-            return CompileResult(is_success=False, error_message=str(e), exit_code=-1)
+                return CompileResult(True, "Biên dịch thành công", str(output_exe), self.name)
+            return CompileResult(False, proc.stderr or proc.stdout, compiler=self.name)
+        except subprocess.TimeoutExpired:
+            return CompileResult(False, "Quá thời gian biên dịch (Compile Timeout)",
+                                 compiler=self.name, timed_out=True)
 
 
-class JavacAdapter(CompilerAdapter):
+class JavacCompilerAdapter(CompilerAdapter):
     """Adapter bọc OpenJDK Javac CLI."""
-    def __init__(self, javac_bin: str = "javac"):
-        self.javac_bin = javac_bin
+    name = "JAVAC"
 
-    def compile(self, source_path: Path, output_dir: Path) -> CompileResult:
-        cmd = [self.javac_bin, "-encoding", "UTF-8", "-d", str(output_dir), str(source_path)]
+    def compile(self, source_path: Path) -> CompileResult:
+        cmd = ["javac", "-encoding", "UTF-8", str(source_path)]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+        class_name = source_path.stem
+        if proc.returncode == 0:
+            return CompileResult(True, "Biên dịch Java thành công",
+                                 f"{source_path.parent}:{class_name}", self.name)
+        return CompileResult(False, proc.stderr or proc.stdout, compiler=self.name)
+
+
+class PythonInterpreterAdapter(CompilerAdapter):
+    """Adapter bọc CPython runtime (Kiểm tra cú pháp offline bằng py_compile)."""
+    name = "PYTHON"
+
+    def compile(self, source_path: Path) -> CompileResult:
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            if proc.returncode == 0:
-                return CompileResult(is_success=True, executable_path=output_dir)
-            return CompileResult(is_success=False, error_message=proc.stderr, exit_code=proc.returncode)
-        except Exception as e:
-            return CompileResult(is_success=False, error_message=str(e), exit_code=-1)
+            py_compile.compile(str(source_path), doraise=True)
+            return CompileResult(True, "Cú pháp Python hợp lệ", str(source_path), self.name)
+        except py_compile.PyCompileError as err:
+            return CompileResult(False, f"Lỗi cú pháp Python (Syntax Error):\n{str(err)}",
+                                 compiler=self.name)
+
+
+class CompilerAdapterFactory:
+    """Tra cứu Adapter phù hợp theo ngôn ngữ đợt chấm (C / JAVA / PYTHON)."""
+    ADAPTERS: Dict[str, Type[CompilerAdapter]] = {
+        "C": GccCompilerAdapter,
+        "JAVA": JavacCompilerAdapter,
+        "PYTHON": PythonInterpreterAdapter,
+    }
+
+    @classmethod
+    def get_adapter(cls, language: str, timeout: float = 12.0) -> CompilerAdapter:
+        key = (language or "").strip().upper()
+        for alias, adapter_cls in cls.ADAPTERS.items():
+            if alias in key:
+                return adapter_cls(timeout=timeout)
+        return GccCompilerAdapter(timeout=timeout)
 ```
 
 ### 2.4. Phân tích Nguyên lý Thiết kế (Design Principles Justification)
