@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { json } from 'express';
+import compression = require('compression');
 import { UnprocessableEntityException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -10,6 +11,7 @@ import { ResponseEnvelopeInterceptor } from './common/interceptors/response-enve
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
+  app.use(compression({ threshold: 1024 }));
   app.use(json({ limit: '7mb' }));
   app.setGlobalPrefix('api/v1');
   const config = app.get(ConfigService);

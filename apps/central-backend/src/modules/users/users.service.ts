@@ -72,7 +72,10 @@ export class UsersService {
   }
 
   async update(id: string, input: UpdateUserDto, actorId: string) {
-    const current = await this.prisma.user.findFirst({ where: { id, isDeleted: false } });
+    const current = await this.prisma.user.findFirst({
+      where: { id, isDeleted: false },
+      select: { id: true, role: true, isActive: true },
+    });
     if (!current) throw this.notFound();
     if (id === actorId && input.is_active === false) {
       throw new ForbiddenException({ error_code: 'USER_CANNOT_DISABLE_SELF', message: 'Bạn không thể tự vô hiệu hóa tài khoản đang sử dụng.', details: null });
@@ -112,7 +115,10 @@ export class UsersService {
   }
 
   async delete(id: string, actorId: string) {
-    const current = await this.prisma.user.findFirst({ where: { id, isDeleted: false } });
+    const current = await this.prisma.user.findFirst({
+      where: { id, isDeleted: false },
+      select: { id: true, role: true, isActive: true },
+    });
     if (!current) throw this.notFound();
     if (id === actorId) {
       throw new ForbiddenException({ error_code: 'USER_CANNOT_DELETE_SELF', message: 'Bạn không thể xóa tài khoản đang sử dụng.', details: null });
