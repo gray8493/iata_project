@@ -98,3 +98,10 @@ class AuthService:
     def logout(self):
         """Clears local authentication state."""
         self.api_client.clear_tokens()
+
+    def refresh_session(self) -> bool:
+        """
+        Manually rotates the token pair through the backend (IT22).
+        Returns True when a fresh access token was obtained.
+        """
+        return self.api_client.refresh_access_token()

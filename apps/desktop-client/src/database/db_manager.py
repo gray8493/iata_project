@@ -194,6 +194,24 @@ class DatabaseManager:
             
             conn.commit()
 
+        self._ensure_web_submission_columns()
+
+    def _ensure_web_submission_columns(self):
+        """Lightweight migration for folder-import metadata on local_web_submissions."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(local_web_submissions)")
+            existing = {row[1] for row in cursor.fetchall()}
+            additions = {
+                "source_folder_path": "TEXT",
+                "is_missing": "INTEGER DEFAULT 0",
+                "display_mssv": "TEXT",
+            }
+            for column, ddl in additions.items():
+                if column not in existing:
+                    cursor.execute(f"ALTER TABLE local_web_submissions ADD COLUMN {column} {ddl}")
+            conn.commit()
+
     # ==========================================================================
     # CRUD OPERATIONS FOR SESSIONS & SUBMISSIONS
     # ==========================================================================
@@ -585,6 +603,73 @@ class DatabaseManager:
             conn.commit()
 
     # ==========================================================================
+    # CRUD OPERATIONS FOR PLAGIARISM REPORTS (UC-17)
+    # ==========================================================================
+    def clear_plagiarism_reports(self, class_id: int):
+        """Soft-deletes previous plagiarism reports of a class before a re-scan."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_plagiarism_reports
+                SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
+                WHERE class_id = ? AND is_deleted = 0
+            """, (class_id,))
+            conn.commit()
+
+    def save_plagiarism_report(
+        self,
+        class_id: int,
+        student_a_mssv: str,
+        student_b_mssv: str,
+        similarity_percentage: float,
+        ai_evidence_details: Optional[str] = None
+    ) -> int:
+        """Persists one flagged plagiarism pair into local_plagiarism_reports."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO local_plagiarism_reports (
+                    class_id, student_a_mssv, student_b_mssv,
+                    similarity_percentage, ai_evidence_details
+                ) VALUES (?, ?, ?, ?, ?)
+            """, (class_id, student_a_mssv, student_b_mssv, similarity_percentage, ai_evidence_details))
+            conn.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Failed to retrieve row ID from local_plagiarism_reports.")
+            return cursor.lastrowid
+
+    def update_plagiarism_report_evidence(
+        self,
+        class_id: int,
+        student_a_mssv: str,
+        student_b_mssv: str,
+        ai_evidence_details: str
+    ) -> bool:
+        """Attaches Stage-2 AI verification evidence to an existing report row."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_plagiarism_reports
+                SET ai_evidence_details = ?
+                WHERE class_id = ? AND is_deleted = 0
+                  AND ((student_a_mssv = ? AND student_b_mssv = ?)
+                    OR (student_a_mssv = ? AND student_b_mssv = ?))
+            """, (ai_evidence_details, class_id, student_a_mssv, student_b_mssv, student_b_mssv, student_a_mssv))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_plagiarism_reports(self, class_id: int) -> List[Dict[str, Any]]:
+        """Fetches all active plagiarism reports for a class, highest similarity first."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM local_plagiarism_reports
+                WHERE class_id = ? AND is_deleted = 0
+                ORDER BY similarity_percentage DESC
+            """, (class_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    # ==========================================================================
     # CRUD OPERATIONS FOR WEB SUBMISSIONS (WEB STUDIO)
     # ==========================================================================
     def get_all_web_submissions(self, course_code: str = "WEB201c", class_name: str = "SE1806") -> List[Dict[str, Any]]:
@@ -606,16 +691,20 @@ class DatabaseManager:
         repo_url: str = "",
         mode: str = "HYBRID",
         course_code: str = "WEB201c",
-        class_name: str = "SE1806"
+        class_name: str = "SE1806",
+        source_folder_path: Optional[str] = None,
+        display_mssv: Optional[str] = None
     ) -> int:
         """Adds a single web assignment submission."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO local_web_submissions (
-                    course_code, class_name, mssv, name, live_url, repo_url, mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (course_code, class_name, mssv.strip(), name.strip(), live_url.strip(), repo_url.strip(), mode.strip()))
+                    course_code, class_name, mssv, name, live_url, repo_url, mode,
+                    source_folder_path, display_mssv
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (course_code, class_name, mssv.strip(), name.strip(), live_url.strip(),
+                  repo_url.strip(), mode.strip(), source_folder_path, display_mssv))
             conn.commit()
             if cursor.lastrowid is None:
                 raise RuntimeError("Failed to retrieve row ID from local_web_submissions.")
@@ -671,6 +760,41 @@ class DatabaseManager:
                 SET score_dom = ?, score_lint = ?, score_e2e = ?, score_ui = ?, total_score = ?, verdict = ?
                 WHERE id = ? AND is_deleted = 0
             """, (score_dom, score_lint, score_e2e, score_ui, total_score, verdict, submission_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def set_web_submission_missing(self, submission_id: int, missing: bool) -> bool:
+        """Flags a folder-imported submission whose source folder is no longer on disk (scores preserved)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_web_submissions SET is_missing = ? WHERE id = ? AND is_deleted = 0
+            """, (1 if missing else 0, submission_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def update_web_submission_source(
+        self,
+        submission_id: int,
+        source_folder_path: Optional[str],
+        display_mssv: Optional[str] = None,
+        name: Optional[str] = None,
+        live_url: Optional[str] = None,
+        repo_url: Optional[str] = None
+    ) -> bool:
+        """Refreshes folder-import metadata (path, display label, name/links) after a re-scan."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_web_submissions
+                SET source_folder_path = COALESCE(?, source_folder_path),
+                    display_mssv = COALESCE(?, display_mssv),
+                    name = COALESCE(?, name),
+                    live_url = COALESCE(?, live_url),
+                    repo_url = COALESCE(?, repo_url),
+                    is_missing = 0
+                WHERE id = ? AND is_deleted = 0
+            """, (source_folder_path, display_mssv, name, live_url, repo_url, submission_id))
             conn.commit()
             return cursor.rowcount > 0
 
