@@ -84,9 +84,9 @@ Exception
 
 ---
 
-## Ngoài phạm vi (Desktop/pytest) — chưa tự động hóa ở tầng backend
-- `AT01_SubmissionIngestion_TC001/TC002`: quét thư mục bài nộp, nhận diện MSSV, cảnh báo thư mục rỗng.
-- `AT02_ExportGradebook_TC001/TC002`: xuất `results.csv` 7 cột, Excel tô màu, xử lý file bị khóa.
-- `AT03_ManualScoreOverride_TC001`: ghi đè điểm thủ công kèm lý do giải trình.
+## Phân hệ Desktop Client (Pytest) — Hiện trạng tự động hóa
+- `AT01_SubmissionIngestion`: Đã tự động hóa trong [test_submission_ingestion.py](file:///e:/AITA/apps/desktop-client/tests/test_submission_ingestion.py) (quét thư mục bài nộp, nhận diện MSSV, đồng bộ đợt chấm).
+- `AT02_ExportGradebook`: Đã tự động hóa trong [test_export_service.py](file:///e:/AITA/apps/desktop-client/tests/test_export_service.py) (xuất `results.csv` 7 cột UTF-8 BOM, định dạng có điều kiện Excel, xử lý file bị khóa `PermissionError`).
+- `AT03_ManualScoreOverride`: Đã tự động hóa trong [test_export_service.py](file:///e:/AITA/apps/desktop-client/tests/test_export_service.py) và [test_db_manager.py](file:///e:/AITA/apps/desktop-client/tests/test_db_manager.py) (ghi đè điểm thủ công, lưu lý do giải trình).
 
-Các tiêu chí trên thuộc `apps/desktop-client` và cần bộ kiểm thử Python (pytest) riêng.
+Toàn bộ các ca nghiệm thu Desktop trên đều đã chạy thành công qua bộ kiểm thử `pytest apps/desktop-client/tests/`.

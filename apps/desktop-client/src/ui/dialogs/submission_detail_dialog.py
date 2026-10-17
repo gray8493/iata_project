@@ -378,18 +378,22 @@ class SubmissionDetailDialog(QDialog):
         
         # 1. Bảng Chi Tiết Testcase: Xóa cột số thứ tự thừa, căn tiêu đề & dữ liệu thẳng cột
         self.table_tc_results = QTableWidget(tab_tc)
-        self.table_tc_results.setColumnCount(5)
-        self.table_tc_results.setHorizontalHeaderLabels(["#", "Input", "Expected Output", "Actual Output", "Kết Quả"])
+        self.table_tc_results.setColumnCount(6)
+        self.table_tc_results.setHorizontalHeaderLabels([
+            "#", "Input", "Expected Output", "Actual Output", "Kết Quả", "Thời Gian"
+        ])
         self.table_tc_results.verticalHeader().setVisible(False)  # Xóa cột số thứ tự thừa ngoài cùng bên trái
-        
+
         header = self.table_tc_results.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table_tc_results.setColumnWidth(0, 45)  # # nhỏ
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Input rộng
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Expected Output rộng
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng (thật - pain #4)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         self.table_tc_results.setColumnWidth(4, 95)  # Kết Quả vừa
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.table_tc_results.setColumnWidth(5, 82)  # Thời gian chạy hiệu dụng mỗi testcase
         
         # 5. Bảng testcase cao vừa theo số dòng (tối thiểu 4 dòng)
         self.table_tc_results.setMinimumHeight(150)
@@ -659,6 +663,45 @@ class SubmissionDetailDialog(QDialog):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(2000, lambda: self.btn_copy_log.setText("Sao Chép Nhật Ký"))
 
+    def _parse_evidence_items(self, raw_details: Any) -> Optional[List[Dict[str, Any]]]:
+        """
+        Pain #4: đọc chứng cứ per-testcase JSON mà GradingService lưu vào cột diff_details.
+        Trả None nếu diff_details là văn bản cũ (diff plain text của bản trước hợp nhất JSON).
+        """
+        if not raw_details or not isinstance(raw_details, str):
+            return None
+        try:
+            parsed = json.loads(raw_details)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        items = parsed.get("items")
+        if not isinstance(items, list) or not items:
+            return None
+        return [it for it in items if isinstance(it, dict)]
+
+    @staticmethod
+    def _truncate_cell(text: str, limit: int = 35) -> str:
+        display = (text or "").replace("\n", " ⏎ ")
+        if len(display) > limit:
+            return display[: limit - 3] + "..."
+        return display
+
+    @staticmethod
+    def _verdict_style(verdict: str):
+        """(text, QColor) cho từng trạng thái của một testcase trong bảng chi tiết."""
+        return {
+            "PASS": ("AC", Qt.GlobalColor.darkGreen),
+            "AC": ("AC", Qt.GlobalColor.darkGreen),
+            "WA": ("WA", Qt.GlobalColor.red),
+            "TLE": ("TLE", Qt.GlobalColor.darkYellow),
+            "MLE": ("MLE", Qt.GlobalColor.darkYellow),
+            "RE": ("RE", Qt.GlobalColor.darkRed),
+            "CE": ("CE", Qt.GlobalColor.darkRed),
+            "SKIP": ("SKIP", Qt.GlobalColor.gray),
+        }.get(verdict, (verdict, Qt.GlobalColor.red))
+
     def _load_real_submission_data(self):
         """Loads actual source file content and actual grading results from SQLite."""
         # 1. Load Real Source File
@@ -734,28 +777,41 @@ class SubmissionDetailDialog(QDialog):
         final_verdict = result.get("final_verdict", self.verdict)
         is_ce = (final_verdict == "CE" or "Không tìm thấy trình biên dịch" in c_log)
 
+        # Pain #4: tăng cường bảng bằng chứng lấy output thật theo từng testcase đã chạy
+        evidence_items = self._parse_evidence_items(result.get("diff_details"))
+
         # Nếu có danh sách testcase thật trong CSDL
         if real_testcases:
             self.table_tc_results.setRowCount(len(real_testcases))
             for r, tc in enumerate(real_testcases):
                 inp = str(tc.get("input_data", "")).strip()
                 exp = str(tc.get("expected_output", "")).strip()
-                
-                # Cắt ngắn nếu quá dài, hiển thị đầy đủ trong tooltip
-                inp_display = inp.replace("\n", " ⏎ ")
-                if len(inp_display) > 35:
-                    inp_display = inp_display[:32] + "..."
-                    
-                exp_display = exp.replace("\n", " ⏎ ")
-                if len(exp_display) > 35:
-                    exp_display = exp_display[:32] + "..."
+                inp_display = self._truncate_cell(inp)
+                exp_display = self._truncate_cell(exp)
+                act_tooltip = ""
 
                 # 3. Khi CE: Cột Actual Output để trống, không ghi Khớp hay Không chạy được
                 if is_ce:
                     act_display = ""
                     tc_verdict = "Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else "CE"
                     v_color = Qt.GlobalColor.darkRed
+                    ev = None
                 else:
+                    ev = evidence_items[r] if evidence_items and r < len(evidence_items) else None
+
+                if ev is not None:
+                    # Có bằng chứng JSON mới: hiển thị đúng verdict riêng của từng testcase
+                    tc_verdict, v_color = self._verdict_style(str(ev.get("verdict", "WA")))
+                    actual = str(ev.get("actual", "") or "")
+                    if not actual and str(ev.get("stderr", "") or ""):
+                        actual = f"(stderr) {str(ev.get('stderr'))}"
+                    act_display = self._truncate_cell(actual)
+                    act_tooltip = (
+                        f"Actual Output đầy đủ:\n{actual or '(trống)'}\n\n"
+                        f"Strategy: {ev.get('strategy', '')} | Weight: {ev.get('weight', '')}"
+                    )
+                elif not is_ce:
+                    # Fallback hành vi cũ khi không có bằng chứng (bài chấm trước khi có JSON)
                     if final_verdict == "AC":
                         act_display = exp_display
                         tc_verdict = "AC"
@@ -783,11 +839,13 @@ class SubmissionDetailDialog(QDialog):
                 item_exp.setToolTip(f"Expected Output đầy đủ:\n{exp}")
                 self.table_tc_results.setItem(r, 2, item_exp)
 
-                # Cột 3: Actual Output
+                # Cột 3: Actual Output (thật theo từng testcase khi có bằng chứng JSON)
                 item_act = QTableWidgetItem(act_display)
                 item_act.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 if is_ce:
                     item_act.setForeground(Qt.GlobalColor.gray)
+                if act_tooltip:
+                    item_act.setToolTip(act_tooltip)
                 self.table_tc_results.setItem(r, 3, item_act)
 
                 # Cột 4: Kết Quả
@@ -795,7 +853,27 @@ class SubmissionDetailDialog(QDialog):
                 item_verd.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item_verd.setForeground(v_color)
                 item_verd.setFont(QFont("Inter", 9, QFont.Weight.Bold))
+                if ev is not None and str(ev.get("verdict", "")) == "SKIP":
+                    item_verd.setToolTip("Testcase này không chạy: bài nộp dừng sớm ở một testcase trước (TLE/RE/MLE/CE).")
                 self.table_tc_results.setItem(r, 4, item_verd)
+
+                # Cột 5: Thời gian chạy hiệu dụng của testcase này (không có với bản cũ)
+                time_label = ""
+                if ev is not None:
+                    try:
+                        t_val = float(ev.get("time_ms", 0.0))
+                        time_label = f"{t_val:.0f}ms"
+                    except (TypeError, ValueError):
+                        time_label = "—"
+                    if str(ev.get("verdict", "")) == "SKIP":
+                        time_label = "—"
+                else:
+                    time_label = "—"
+                item_time = QTableWidgetItem(time_label)
+                item_time.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_time.setForeground(QColor("#64748B"))
+                item_time.setFont(QFont("Consolas", 9))
+                self.table_tc_results.setItem(r, 5, item_time)
             return
 
         # Fallback nếu chưa có testcase trong CSDL

@@ -2,22 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import {
-  Search,
-  Download,
-  UserPlus,
-  RefreshCw,
-  Edit3,
-  Trash2,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Shield,
-  GraduationCap,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface UserItem {
   id: string;
@@ -48,12 +33,15 @@ export default function UsersManagementPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"ALL" | "ADMIN" | "INSTRUCTOR">("ALL");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "ADMIN" | "INSTRUCTOR">("INSTRUCTOR");
 
   const [loading, setLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  // Tài khoản đang đăng nhập (để chặn thao tác trên chính mình)
+  const [currentUser, setCurrentUser] = useState<{ id?: string; username?: string }>({});
 
   // Modal Cấp Tài Khoản Mới
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,6 +64,33 @@ export default function UsersManagementPage() {
   // Modal Xác Nhận Xóa
   const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Nạp thông tin tài khoản đang đăng nhập từ localStorage
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("aita_user") : null;
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setCurrentUser({ id: parsed.id, username: parsed.username });
+      } catch {
+        // Bỏ qua nếu dữ liệu cache không hợp lệ
+      }
+    }
+  }, []);
+
+  const isSelf = useCallback(
+    (u: UserItem) =>
+      (currentUser.id && u.id === currentUser.id) ||
+      (!!currentUser.username && u.username === currentUser.username),
+    [currentUser]
+  );
+
+  const countLabel =
+    roleFilter === "INSTRUCTOR"
+      ? "giảng viên (không gồm quản trị viên)"
+      : roleFilter === "ADMIN"
+      ? "quản trị viên"
+      : "tài khoản";
 
   // Debounce tìm kiếm 350ms
   useEffect(() => {
@@ -249,9 +264,11 @@ export default function UsersManagementPage() {
         fetchUsers(pagination.page);
       } else {
         setErrorMessage(json.message || "Không thể cập nhật trạng thái tài khoản.");
+        fetchUsers(pagination.page);
       }
     } catch {
       setErrorMessage("Lỗi kết nối khi thay đổi trạng thái tài khoản.");
+      fetchUsers(pagination.page);
     }
   };
 
@@ -406,26 +423,20 @@ export default function UsersManagementPage() {
     <div className="flex flex-col w-full gap-6">
       {/* Thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
-          </div>
-          <button onClick={() => setErrorMessage("")} className="hover:text-rose-900" aria-label="Đóng thông báo">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng thông báo">
+            Đóng
           </button>
         </div>
       )}
 
       {/* Thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{successMessage}</span>
-          </div>
-          <button onClick={() => setSuccessMessage("")} className="hover:text-emerald-950" aria-label="Đóng thông báo">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{successMessage}</span>
+          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng thông báo">
+            Đóng
           </button>
         </div>
       )}
@@ -444,8 +455,8 @@ export default function UsersManagementPage() {
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
             Quản lý tài khoản giảng viên
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {pagination.total_items} tài khoản được ghi nhận trong hệ thống
+          <p className="text-[13px] text-slate-500 mt-1">
+            {pagination.total_items} {countLabel}
           </p>
         </div>
 
@@ -455,10 +466,9 @@ export default function UsersManagementPage() {
             type="button"
             onClick={handleExportCsv}
             disabled={users.length === 0}
-            className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-40 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Xuất file CSV"
           >
-            <Download className="w-4 h-4 text-slate-500" />
             <span>Xuất CSV</span>
           </button>
 
@@ -468,10 +478,9 @@ export default function UsersManagementPage() {
               setErrorMessage("");
               setShowCreateModal(true);
             }}
-            className="flex items-center gap-2 px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
+            className="flex items-center gap-2 px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             aria-label="Cấp tài khoản mới"
           >
-            <UserPlus className="w-4 h-4" />
             <span>Cấp tài khoản mới</span>
           </button>
         </div>
@@ -482,13 +491,12 @@ export default function UsersManagementPage() {
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {/* Ô tìm kiếm */}
           <div className="relative min-w-[260px] flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo username, họ tên, email..."
-              className="w-full pl-9 pr-3 h-10 rounded-lg text-xs bg-slate-50 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+              className="w-full px-3 h-10 rounded-lg text-[13px] bg-slate-50 border border-slate-200 placeholder:text-slate-500 focus:outline-none focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
             />
           </div>
 
@@ -499,11 +507,11 @@ export default function UsersManagementPage() {
               setRoleFilter(e.target.value as any);
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-            className="h-10 px-3 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+            className="h-10 px-3 rounded-lg text-[13px] bg-slate-50 border border-slate-200 text-slate-700 font-medium focus:outline-none focus:border-primary focus:bg-white transition-colors"
           >
-            <option value="ALL">Tất cả vai trò</option>
             <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
             <option value="ADMIN">Quản trị viên (ADMIN)</option>
+            <option value="ALL">Tất cả vai trò</option>
           </select>
 
           {/* Nút Làm mới */}
@@ -512,10 +520,10 @@ export default function UsersManagementPage() {
             onClick={() => fetchUsers(pagination.page)}
             disabled={loading}
             title="Làm mới danh sách"
-            className="h-10 w-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="h-10 px-3.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center justify-center text-[13px] font-medium transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Tải lại dữ liệu"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
+            {loading ? "Đang tải..." : "Làm mới"}
           </button>
         </div>
       </section>
@@ -523,7 +531,7 @@ export default function UsersManagementPage() {
       {/* ================= BẢNG DỮ LIỆU TÀI KHOẢN ================= */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-[13px]">
             <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4 font-medium">Tên đăng nhập</th>
@@ -538,114 +546,137 @@ export default function UsersManagementPage() {
             <tbody className="divide-y divide-slate-100 font-normal">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <Loader2 className="w-5 h-5 mx-auto animate-spin text-indigo-600 mb-1.5" />
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                    <Loader2 className="w-5 h-5 mx-auto animate-spin text-primary mb-1.5" />
                     <span>Đang tải danh sách tài khoản...</span>
                   </td>
                 </tr>
               ) : users.length > 0 ? (
-                users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 flex items-center justify-center font-semibold text-xs shrink-0">
-                          {u.username.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-mono text-xs font-medium text-slate-900">
-                          {u.username}
-                        </span>
-                      </div>
-                    </td>
+                users.map((u) => {
+                  const self = isSelf(u);
+                  const isAdmin = u.role === "ADMIN";
+                  const lockDisabled = self || isAdmin;
+                  const deleteDisabled = self || isAdmin;
+                  const lockTooltip = self
+                    ? "Không thể khóa tài khoản đang đăng nhập"
+                    : isAdmin
+                    ? "Không thao tác khóa trên tài khoản quản trị viên"
+                    : u.is_active
+                    ? "Khóa tài khoản"
+                    : "Mở khóa tài khoản";
+                  const deleteTooltip = self
+                    ? "Không thể xóa tài khoản đang đăng nhập"
+                    : isAdmin
+                    ? "Không thao tác xóa trên tài khoản quản trị viên"
+                    : "Xóa tài khoản";
 
-                    <td className="py-3 px-4 text-slate-900 font-medium whitespace-nowrap">
-                      {u.full_name}
-                    </td>
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 whitespace-nowrap text-[13px] font-medium text-slate-900">
+                        {u.username}
+                      </td>
 
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                      {u.email}
-                    </td>
+                      <td className="py-3 px-4 text-slate-900 font-medium whitespace-nowrap">
+                        {u.full_name}
+                      </td>
 
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {u.role === "ADMIN" ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700 font-medium">
-                          <Shield className="w-3 h-3 text-slate-500" />
-                          Quản trị viên
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 font-medium">
-                          <GraduationCap className="w-3 h-3 text-indigo-600" />
-                          Giảng viên
-                        </span>
-                      )}
-                    </td>
+                      <td className="py-3 px-4 text-[13px] text-slate-500 whitespace-nowrap">
+                        {u.email}
+                      </td>
 
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      {u.is_active ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Hoạt động
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                          Đã khóa
-                        </span>
-                      )}
-                    </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {isAdmin ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[13px] bg-slate-100 text-slate-700 font-medium">
+                            Quản trị viên
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[13px] bg-primary-bg text-primary font-medium">
+                            Giảng viên
+                          </span>
+                        )}
+                      </td>
 
-                    <td className="py-3 px-4 text-slate-500 text-[11px] whitespace-nowrap">
-                      {new Date(u.created_at).toLocaleDateString("vi-VN")}
-                    </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        {u.is_active ? (
+                          <span className="inline-flex items-center gap-1.5 text-[13px] text-emerald-700 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Hoạt động
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            Đã khóa
+                          </span>
+                        )}
+                      </td>
 
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-2">
-                        {/* Switch Khóa / Mở Khóa */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(u)}
-                          className={`w-8 h-4 rounded-full p-0.5 transition-colors relative flex items-center ${
-                            u.is_active ? "bg-emerald-500" : "bg-slate-300"
-                          }`}
-                          title={u.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                          aria-label={u.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                        >
-                          <div
-                            className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${
-                              u.is_active ? "translate-x-4" : "translate-x-0"
+                      <td className="py-3 px-4 text-slate-500 text-[13px] whitespace-nowrap">
+                        {new Date(u.created_at).toLocaleDateString("vi-VN")}
+                      </td>
+
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-3">
+                          {/* Nút chữ Khóa / Mở khóa */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(u)}
+                            disabled={lockDisabled}
+                            className={`text-[13px] font-medium rounded-md px-2 py-1 transition-colors ${
+                              lockDisabled
+                                ? "text-slate-400 cursor-not-allowed"
+                                : u.is_active
+                                ? "text-amber-700 hover:bg-amber-50"
+                                : "text-emerald-700 hover:bg-emerald-50"
                             }`}
-                          />
-                        </button>
+                            title={lockTooltip}
+                            aria-label={lockTooltip}
+                          >
+                            {u.is_active ? "Khóa" : "Mở khóa"}
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(u)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
-                          title="Chỉnh sửa tài khoản"
-                          aria-label="Chỉnh sửa tài khoản"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                          {/* Nút chữ Sửa */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(u)}
+                            className="text-[13px] font-medium rounded-md px-2 py-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                            title="Sửa tài khoản"
+                            aria-label="Sửa tài khoản"
+                          >
+                            Sửa
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeletingUser(u);
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                          title="Xóa tài khoản"
-                          aria-label="Xóa tài khoản"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {/* Nút chữ Xóa */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeletingUser(u);
+                              setShowDeleteConfirm(true);
+                            }}
+                            disabled={deleteDisabled}
+                            className={`text-[13px] font-medium rounded-md px-2 py-1 transition-colors ${
+                              deleteDisabled
+                                ? "text-slate-400 cursor-not-allowed"
+                                : "text-rose-600 hover:bg-rose-50"
+                            }`}
+                            title={deleteTooltip}
+                            aria-label={deleteTooltip}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
-                    Không tìm thấy tài khoản nào phù hợp với bộ lọc.
+                  <td colSpan={7} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
+                      <p className="text-[13px] text-slate-500">
+                        Không có tài khoản nào phù hợp với bộ lọc hiện tại.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -655,7 +686,7 @@ export default function UsersManagementPage() {
 
         {/* Phân trang */}
         <div className="p-4 border-t border-slate-200 flex items-center justify-between text-sm text-slate-500">
-          <span>{pagination.total_items} tài khoản</span>
+          <span>{pagination.total_items} {countLabel}</span>
 
           {pagination.total_items > pagination.page_size && (
             <div className="flex items-center gap-1.5">
@@ -663,13 +694,13 @@ export default function UsersManagementPage() {
                 type="button"
                 onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                 disabled={pagination.page <= 1 || loading}
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Trang trước"
               >
-                <ChevronLeft className="w-4 h-4" />
+                Trước
               </button>
 
-              <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md">
+              <span className="px-2.5 py-1 text-[13px] font-medium text-slate-700 bg-slate-100 rounded-md">
                 {pagination.page} / {pagination.total_pages}
               </span>
 
@@ -682,10 +713,10 @@ export default function UsersManagementPage() {
                   }))
                 }
                 disabled={pagination.page >= (pagination.total_pages || 1) || loading}
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Trang sau"
               >
-                <ChevronRight className="w-4 h-4" />
+                Sau
               </button>
             </div>
           )}
@@ -701,21 +732,21 @@ export default function UsersManagementPage() {
                 <h3 className="font-semibold text-slate-900 text-base">
                   Cấp tài khoản mới
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[13px] text-slate-500 mt-0.5">
                   Tạo tài khoản quản trị hoặc giảng viên trong hệ thống
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
                 aria-label="Đóng"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-3.5 mt-4 text-xs">
+            <form onSubmit={handleCreateUser} className="space-y-3.5 mt-4 text-[13px]">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">
@@ -727,9 +758,9 @@ export default function UsersManagementPage() {
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
                     placeholder="vd: teacher_nam"
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">Chữ thường, số, dấu _ (3-30 ký tự)</p>
+                  <p className="text-[13px] text-slate-500 mt-0.5">Chữ thường, số, dấu _ (3-30 ký tự)</p>
                 </div>
 
                 <div>
@@ -739,7 +770,7 @@ export default function UsersManagementPage() {
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                   >
                     <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
                     <option value="ADMIN">Quản trị viên (ADMIN)</option>
@@ -757,9 +788,9 @@ export default function UsersManagementPage() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors font-mono"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
-                <p className="text-[10px] text-slate-400 mt-0.5">Tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số</p>
+                <p className="text-[13px] text-slate-500 mt-0.5">Tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số</p>
               </div>
 
               <div>
@@ -772,7 +803,7 @@ export default function UsersManagementPage() {
                   value={newFullName}
                   onChange={(e) => setNewFullName(e.target.value)}
                   placeholder="vd: ThS. Nguyễn Văn A"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
@@ -785,8 +816,8 @@ export default function UsersManagementPage() {
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="vd: nguyenvana@fe.edu.vn"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  placeholder="vd: nguyenvana@aita.edu.vn"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
@@ -800,9 +831,9 @@ export default function UsersManagementPage() {
                   value={newQuota}
                   onChange={(e) => setNewQuota(e.target.value)}
                   placeholder="Mặc định: 50,000 (Không bắt buộc)"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
-                <p className="text-[10px] text-slate-400 mt-0.5">Để trống sẽ tự động áp dụng 50,000 tokens/ngày</p>
+                <p className="text-[13px] text-slate-500 mt-0.5">Để trống sẽ tự động áp dụng 50,000 tokens/ngày</p>
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
@@ -817,7 +848,7 @@ export default function UsersManagementPage() {
                 <button
                   type="submit"
                   disabled={isActionLoading}
-                  className="px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Xác nhận tạo tài khoản</span>
@@ -837,21 +868,21 @@ export default function UsersManagementPage() {
                 <h3 className="font-semibold text-slate-900 text-base">
                   Chỉnh sửa tài khoản
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                <p className="text-[13px] text-slate-500 mt-0.5">
                   @{editingUser.username}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
                 aria-label="Đóng"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleUpdateUser} className="space-y-3.5 mt-4 text-xs">
+            <form onSubmit={handleUpdateUser} className="space-y-3.5 mt-4 text-[13px]">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
                   Họ và tên
@@ -861,7 +892,7 @@ export default function UsersManagementPage() {
                   required
                   value={editFullName}
                   onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
@@ -875,7 +906,7 @@ export default function UsersManagementPage() {
                     required
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -886,11 +917,16 @@ export default function UsersManagementPage() {
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                    disabled={isSelf(editingUser)}
+                    title={isSelf(editingUser) ? "Không thể hạ quyền tài khoản đang đăng nhập" : undefined}
+                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors disabled:text-slate-400 disabled:cursor-not-allowed"
                   >
                     <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
                     <option value="ADMIN">Quản trị viên (ADMIN)</option>
                   </select>
+                  {isSelf(editingUser) && (
+                    <p className="text-[13px] text-slate-500 mt-0.5">Không thể đổi vai trò của tài khoản đang đăng nhập.</p>
+                  )}
                 </div>
               </div>
 
@@ -904,7 +940,7 @@ export default function UsersManagementPage() {
                   value={editQuota}
                   onChange={(e) => setEditQuota(e.target.value)}
                   placeholder="Nhập số token/ngày"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
@@ -917,7 +953,7 @@ export default function UsersManagementPage() {
                   value={editNewPassword}
                   onChange={(e) => setEditNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors font-mono"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
@@ -933,7 +969,7 @@ export default function UsersManagementPage() {
                 <button
                   type="submit"
                   disabled={isActionLoading}
-                  className="px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Lưu thay đổi</span>
@@ -951,7 +987,7 @@ export default function UsersManagementPage() {
             <h3 className="font-semibold text-slate-900 text-base">
               Xác nhận xóa tài khoản?
             </h3>
-            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">
               Bạn có chắc chắn muốn xóa tài khoản <strong className="text-slate-800">@{deletingUser.username}</strong> ({deletingUser.full_name})? Thao tác này sẽ vô hiệu hóa quyền truy cập của người dùng.
             </p>
 
@@ -962,7 +998,7 @@ export default function UsersManagementPage() {
                   setShowDeleteConfirm(false);
                   setDeletingUser(null);
                 }}
-                className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs transition-colors"
+                className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-[13px] transition-colors"
               >
                 Hủy bỏ
               </button>
@@ -971,7 +1007,7 @@ export default function UsersManagementPage() {
                 type="button"
                 onClick={handleDeleteUser}
                 disabled={isActionLoading}
-                className="px-4 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Xác nhận xóa</span>

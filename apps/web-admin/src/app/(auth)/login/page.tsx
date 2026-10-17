@@ -3,16 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import {
-  User,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -67,26 +58,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center px-4 py-12 font-sans relative overflow-hidden">
+    <div className="aita-login min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center px-4 py-12 font-sans relative overflow-hidden">
       {/* Vòng sáng nền mờ tạo chiều sâu tối giản */}
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Khung Đăng Nhập Chính */}
-      <div className="w-full max-w-[420px] relative z-10">
+      {/* Khung Đăng Nhập Chính: tối đa 480px, chừa 16px mỗi bên trên màn hình nhỏ (360px OK) */}
+      <div className="w-full max-w-[480px] relative z-10">
         {/* Header: Logo & Tiêu đề */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex items-center gap-3 mb-5">
             <Image
-              src="/fptulogo_transparent.png"
-              alt="FPT University Logo"
-              width={160}
-              height={40}
+              src="/aita-logo.png"
+              alt="AITA - Trợ lý điểm tự động"
+              width={512}
+              height={292}
               priority
-              className="h-10 w-auto object-contain"
+              className="h-11 w-auto object-contain"
             />
-            <div className="h-6 w-px bg-slate-300" />
-            <span className="text-xs font-black tracking-widest text-slate-500 uppercase">
+            <div className="h-8 w-px bg-slate-300" />
+            <span className="text-lg font-bold text-[#1E293B] tracking-tight">
               AITA
             </span>
           </div>
@@ -94,53 +85,42 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Đăng nhập Quản Trị
           </h1>
-          <p className="text-xs text-slate-500 mt-1.5">
-            Hệ thống Quản lý Khảo thí & Chấm điểm Tự động
+          <p className="text-[13px] text-slate-500 mt-2 max-w-[400px]">
+            Dành cho quản trị viên. Giảng viên vui lòng dùng ứng dụng AITA trên
+            máy tính.
           </p>
         </div>
 
         {/* Card Form */}
         <div className="bg-white rounded-2xl p-7 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-200/80">
-          {/* Thông báo lỗi */}
-          {errorMessage && (
-            <div className="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Thông báo thành công */}
-          {successMessage && (
-            <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2 animate-in fade-in duration-200">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Trường Tài khoản / Email */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label
+                htmlFor="username"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
+              >
                 Tài khoản hoặc Email
               </label>
-              <div className="relative flex items-center">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin@fe.edu.vn"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#F26F21] focus:ring-2 focus:ring-orange-500/20 transition"
-                />
-              </div>
+              <input
+                id="username"
+                type="text"
+                required
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Nhập tài khoản hoặc email"
+                className="aita-input w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 transition"
+              />
             </div>
 
             {/* Trường Mật khẩu */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-700">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-semibold text-slate-700"
+                >
                   Mật khẩu
                 </label>
                 <a
@@ -149,39 +129,42 @@ export default function LoginPage() {
                     e.preventDefault();
                     setErrorMessage("Vui lòng liên hệ Quản trị viên phòng IT để được cấp lại mật khẩu.");
                   }}
-                  className="text-[11px] font-medium text-slate-500 hover:text-[#F26F21] transition"
+                  className="text-xs font-medium text-primary hover:text-primary-hover transition"
                 >
                   Quên mật khẩu?
                 </a>
               </div>
               <div className="relative flex items-center">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
                 <input
+                  id="password"
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#F26F21] focus:ring-2 focus:ring-orange-500/20 transition"
+                  className="aita-input w-full pl-4 pr-14 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 transition"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 text-slate-400 hover:text-slate-600 transition"
+                  className="absolute right-0 py-1.5 px-2 text-xs font-medium text-slate-500 hover:text-slate-700 transition"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? "Ẩn" : "Hiện"}
                 </button>
               </div>
             </div>
 
             {/* Checkbox Ghi nhớ đăng nhập */}
             <div className="flex items-center pt-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600">
+              <label
+                htmlFor="rememberMe"
+                className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600"
+              >
                 <input
+                  id="rememberMe"
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-[#F26F21] rounded border-slate-300 focus:ring-orange-500 accent-[#F26F21]"
+                  className="w-4 h-4 rounded border-slate-300 accent-primary"
                 />
                 <span>Ghi nhớ phiên đăng nhập</span>
               </label>
@@ -191,25 +174,42 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-2.5 px-4 rounded-xl bg-[#F26F21] hover:bg-[#D95A0E] active:scale-[0.99] text-white font-semibold text-xs transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full mt-2 py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover disabled:hover:bg-primary active:scale-[0.99] text-white font-semibold text-xs transition-all shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Đang xác thực...</span>
+                  <span>Đang đăng nhập...</span>
                 </>
               ) : (
-                <>
-                  <span>Đăng Nhập</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
+                <span>Đăng nhập</span>
               )}
             </button>
           </form>
+
+          {/* Thông báo lỗi — hiển thị dưới form */}
+          {errorMessage && (
+            <div
+              role="alert"
+              className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs"
+            >
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Thông báo thành công — hiển thị dưới form */}
+          {successMessage && (
+            <div
+              role="status"
+              className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs"
+            >
+              {successMessage}
+            </div>
+          )}
         </div>
 
         {/* Footer bản quyền */}
-        <div className="text-center mt-6 text-[11px] text-slate-400">
+        <div className="text-center mt-6 text-[13px] text-[#64748B]">
           <span>Trường Đại học FPT • Ban Khảo Thí & Đào Tạo</span>
         </div>
       </div>

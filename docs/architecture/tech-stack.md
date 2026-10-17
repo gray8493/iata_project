@@ -62,9 +62,8 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
   - **Giao tiếp API**: Sử dụng **Axios** hoặc **Fetch API** kết hợp Interceptor tự động gán Bearer Token.
 - **Chức năng trọng tâm của Web Admin Dashboard**:
   1. **Quản lý tài khoản Giảng viên & Phân quyền**: Tạo mới, chỉnh sửa thông tin, khóa tài khoản và gán Role (`admin`, `instructor`).
-  2. **Quản lý danh mục học thuật**: Quản lý danh mục 4 môn học lập trình cốt lõi (PRF, PRO, DSA, PHP).
-  3. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. Gemini API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
-  4. **Báo cáo & Thống kê toàn trường**: Xem tổng hợp số phiên chấm và biểu đồ điểm số các môn thi toàn trường.
+  2. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. Gemini API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
+  3. **Báo cáo & Thống kê toàn trường**: Xem tổng hợp số lượng giảng viên, mức độ tiêu thụ Token AI và nhật ký kiểm toán hệ thống.
 
 ### 2.3. Desktop App Client (Ứng Dụng Chấm Bài Dành Cho Giảng Viên - Python / PyQt6)
 

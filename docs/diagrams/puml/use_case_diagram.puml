@@ -52,6 +52,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
     package "Phân Hệ Web Admin Dashboard (Dành cho Quản trị viên)" #E3F2FD {
         usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
         usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
+        usecase "UC-03: Cấp mới Access Token bằng Refresh Token" as UC03
         usecase "UC-04: Quản lý hạn ngạch & Giám sát sử dụng AI" as UC04
         usecase "UC-05: Xem Báo cáo tài khoản & Sử dụng AI" as UC05
     }

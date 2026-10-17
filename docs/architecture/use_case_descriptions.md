@@ -9,9 +9,9 @@
 
 ## 1. Giới Thiệu & Mục Đích Tài Liệu
 
-Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **18 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
+Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **19 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
 
-Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///d:/Java%20FPT/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///d:/Java%20FPT/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///d:/Java%20FPT/AITA/docs/architecture/tech-stack.md).
+Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///e:/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md).
 
 Mỗi Use Case được đặc tả bao gồm:
 1. **Mã & Tên Use Case** (Song ngữ Việt - Anh).
@@ -25,13 +25,14 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-## 2. Ma Trận 18 Use Cases Theo 6 Phân Hệ Chức Năng
+## 2. Ma Trận 19 Use Cases Theo 6 Phân Hệ Chức Năng
 
 | Mã UC | Tên Use Case | Tác nhân chính | Giao diện thực hiện | Tác nhân ngoài hỗ trợ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
+| **UC-03** | Cấp mới Access Token bằng Refresh Token | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
 | **UC-05** | Xem Báo cáo tài khoản & Sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |

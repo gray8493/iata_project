@@ -4,27 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/api";
-import {
-  FileText,
-  Search,
-  RotateCw,
-  Download,
-  FileSpreadsheet,
-  Filter,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  Cpu,
-  Users,
-  Layers,
-  Sparkles,
-  BarChart3,
-  ShieldCheck,
-  Printer,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 // ==========================================
 // ĐỊNH NGHĨA DỮ LIỆU CHUẨN TỪ CENTRAL BACKEND
@@ -65,12 +45,14 @@ export interface InstructorOption {
   full_name: string;
 }
 
-// Bảng ánh xạ tên tiếng Việt cho các tính năng AI với phong cách tối giản
+const EMPTY_TEXT = "Chưa có dữ liệu";
+
+// Bảng ánh xạ tên tiếng Việt cho các tính năng AI
 const FEATURE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   GENERATE_TESTCASES: {
     label: "Sinh testcase tự động",
-    color: "text-indigo-700",
-    bg: "bg-indigo-50",
+    color: "text-primary",
+    bg: "bg-primary-bg",
   },
   REVIEW_CODE: {
     label: "Đánh giá & review code",
@@ -189,7 +171,6 @@ export default function ReportsPage() {
       setErrorMessage("");
 
       try {
-        // Xây dựng Query Params cho GET /admin/reports/ai-usage
         const queryParams = new URLSearchParams();
         queryParams.set("page", String(targetPage));
         queryParams.set("page_size", String(pagination.page_size));
@@ -365,30 +346,31 @@ export default function ReportsPage() {
   const totalBudgetLimit = overview?.ai_token_usage?.total_budget_limit ?? 1;
   const budgetPercentage = Math.min(100, Math.round((totalTokensConsumed / totalBudgetLimit) * 100));
 
+  const hasRecords = pagination.total_items > 0;
+
+  const topFeatureLabel =
+    FEATURE_MAP[overview?.ai_token_usage?.top_consuming_feature || ""]?.label ||
+    overview?.ai_token_usage?.top_consuming_feature ||
+    EMPTY_TEXT;
+
   return (
     <div className="flex flex-col w-full gap-6 pb-12">
       {/* Toast thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
-          </div>
-          <button onClick={() => setErrorMessage("")} className="hover:text-rose-900" aria-label="Đóng">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng">
+            Đóng
           </button>
         </div>
       )}
 
       {/* Toast thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{successMessage}</span>
-          </div>
-          <button onClick={() => setSuccessMessage("")} className="hover:text-emerald-950" aria-label="Đóng">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{successMessage}</span>
+          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng">
+            Đóng
           </button>
         </div>
       )}
@@ -409,12 +391,12 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
             Báo cáo & kiểm toán sử dụng AI
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-[13px] text-slate-500 mt-1">
             Lịch sử thực thi tác vụ AI, kiểm toán token tiêu thụ và đối soát theo thời gian thực
           </p>
         </div>
 
-        {/* Nút thao tác */}
+        {/* Nút thao tác — tất cả dùng kiểu nút phụ (viền) */}
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={() => {
@@ -423,65 +405,59 @@ export default function ReportsPage() {
             }}
             disabled={loading}
             title="Làm mới dữ liệu"
-            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 transition shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-700 hover:text-slate-900 transition shadow-sm disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed"
             aria-label="Làm mới dữ liệu"
           >
-            <RotateCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
+            <span>{loading ? "Đang tải..." : "Làm mới"}</span>
           </button>
 
           <button
             onClick={handleDownloadJson}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 transition shadow-sm"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-700 hover:text-slate-900 transition shadow-sm"
           >
-            <Download className="w-4 h-4 text-slate-500" />
             <span>Tải JSON</span>
           </button>
 
           <button
             onClick={() => setShowExportModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-700 hover:text-slate-900 transition shadow-sm"
           >
-            <FileSpreadsheet className="w-4 h-4" />
             <span>Xuất báo cáo</span>
           </button>
         </div>
       </section>
 
       {/* ==========================================
-          4 THẺ KPI ĐỒNG BỘ TÔNG INDIGO
+          4 THẺ KPI
       ========================================== */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Tổng bản ghi nhật ký */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-500">Tổng bản ghi nhật ký</span>
-            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-semibold text-slate-900 tracking-tight">
-              {pagination.total_items.toLocaleString()}
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Trang {pagination.page} trên tổng {pagination.total_pages || 1} trang
-            </p>
+          <span className="text-[13px] font-medium text-slate-500">Tổng bản ghi nhật ký</span>
+          <div className="mt-3">
+            {hasRecords ? (
+              <>
+                <div className="text-2xl font-semibold text-slate-900 tracking-tight">
+                  {pagination.total_items.toLocaleString()}
+                </div>
+                <p className="mt-1 text-[13px] text-slate-500">
+                  Trang {pagination.page} trên tổng {pagination.total_pages || 1} trang
+                </p>
+              </>
+            ) : (
+              <div className="text-lg font-medium text-slate-500">{EMPTY_TEXT}</div>
+            )}
           </div>
         </div>
 
         {/* KPI 2: Token đã tiêu thụ trong tháng */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-500">Token đã dùng tháng này</span>
-            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Cpu className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-semibold text-slate-900 tracking-tight font-mono">
+          <span className="text-[13px] font-medium text-slate-500">Token đã dùng tháng này</span>
+          <div className="mt-3">
+            <div className="text-2xl font-semibold text-slate-900 tracking-tight">
               {totalTokensConsumed.toLocaleString()}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-[13px] text-slate-500">
               Chiếm {budgetPercentage}% tổng định mức
             </p>
           </div>
@@ -489,17 +465,12 @@ export default function ReportsPage() {
 
         {/* KPI 3: Tổng định mức tháng */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-500">Tổng định mức tháng</span>
-            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-semibold text-slate-900 tracking-tight font-mono">
+          <span className="text-[13px] font-medium text-slate-500">Tổng định mức tháng</span>
+          <div className="mt-3">
+            <div className="text-2xl font-semibold text-slate-900 tracking-tight">
               {(overview?.ai_token_usage?.total_budget_limit || 0).toLocaleString()}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-[13px] text-slate-500">
               Ngân sách token toàn hệ thống
             </p>
           </div>
@@ -507,22 +478,15 @@ export default function ReportsPage() {
 
         {/* KPI 4: Tổng số giảng viên */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-500">Tổng giảng viên</span>
-            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
+          <span className="text-[13px] font-medium text-slate-500">Giảng viên (không gồm quản trị viên)</span>
+          <div className="mt-3">
             <div className="text-2xl font-semibold text-slate-900 tracking-tight">
               {overview?.total_instructors ?? instructors.length}
             </div>
-            <p className="mt-1 text-xs text-slate-500 truncate">
+            <p className="mt-1 text-[13px] text-slate-500 truncate">
               Tác vụ nhiều nhất:{" "}
               <span className="font-medium text-slate-700">
-                {FEATURE_MAP[overview?.ai_token_usage?.top_consuming_feature || ""]?.label ||
-                  overview?.ai_token_usage?.top_consuming_feature ||
-                  "Chưa có"}
+                {topFeatureLabel}
               </span>
             </p>
           </div>
@@ -536,40 +500,34 @@ export default function ReportsPage() {
         {/* Khối Trái: Tiến độ ngân sách Token trong tháng */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <BarChart3 className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Tiến độ tiêu thụ hạn ngạch tháng này
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Tỷ lệ token tiêu hao so với định mức ngân sách quy định
-                </p>
-              </div>
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Tiến độ tiêu thụ hạn ngạch tháng này
+              </h3>
+              <p className="text-[13px] text-slate-500">
+                Tỷ lệ token tiêu hao so với định mức ngân sách quy định
+              </p>
             </div>
 
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200/80 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-[13px]">
                 <span className="text-slate-600 font-medium">Tỷ lệ tiêu thụ định mức:</span>
                 <span className="font-semibold text-slate-900">{budgetPercentage}%</span>
               </div>
               <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                  className="h-full bg-primary rounded-full transition-all duration-500"
                   style={{ width: `${budgetPercentage}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-500 font-mono">
+              <div className="flex items-center justify-between text-[13px] text-slate-500">
                 <span>Đã dùng: {totalTokensConsumed.toLocaleString()}</span>
                 <span>Định mức: {(overview?.ai_token_usage?.total_budget_limit || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-[13px] text-slate-600">
             <span>
               Mọi yêu cầu gọi mô hình Gemini đều được kiểm tra hạn ngạch tự động và lưu trữ nhật ký đối soát.
             </span>
@@ -579,38 +537,33 @@ export default function ReportsPage() {
         {/* Khối Phải: Phân bổ tỷ trọng các tính năng AI */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <Layers className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Phân bổ theo tác vụ AI
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Tỷ trọng token thực tế theo từng nghiệp vụ khảo thí
-                </p>
-              </div>
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Phân bổ theo tác vụ AI
+              </h3>
+              <p className="text-[13px] text-slate-500">
+                Tỷ trọng token thực tế theo từng nghiệp vụ khảo thí
+              </p>
             </div>
 
             <div className="space-y-2">
               {featureDistribution.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-xs">
-                  Chưa có dữ liệu gọi API AI trong khoảng thời gian này.
+                <div className="py-8 text-center text-slate-500 text-[13px]">
+                  {EMPTY_TEXT}
                 </div>
               ) : (
                 featureDistribution.map((item) => (
                   <div
                     key={item.feature}
-                    className="flex items-center justify-between text-xs py-2 border-b border-slate-100 last:border-b-0"
+                    className="flex items-center justify-between text-[13px] py-2 border-b border-slate-100 last:border-b-0"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
                       <span className="font-medium text-slate-700">{item.label}</span>
                     </div>
                     <div className="text-right">
                       <span className="font-semibold text-slate-900">{item.percentage}%</span>{" "}
-                      <span className="text-slate-400 text-xs font-mono">
+                      <span className="text-slate-500 text-[13px]">
                         ({item.tokens.toLocaleString()} tokens - {item.count} lượt)
                       </span>
                     </div>
@@ -620,13 +573,9 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="mt-4 text-xs text-slate-400 text-right">
+          <div className="mt-4 text-[13px] text-slate-500 text-right">
             Tác vụ tiêu tốn nhiều nhất:{" "}
-            <span className="font-medium text-slate-700">
-              {FEATURE_MAP[overview?.ai_token_usage?.top_consuming_feature || ""]?.label ||
-                overview?.ai_token_usage?.top_consuming_feature ||
-                "N/A"}
-            </span>
+            <span className="font-medium text-slate-700">{topFeatureLabel}</span>
           </div>
         </div>
       </section>
@@ -636,13 +585,12 @@ export default function ReportsPage() {
       ========================================== */}
       <section className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <span>Bộ lọc tìm kiếm & đối soát</span>
+          <div className="text-[13px] font-semibold text-slate-700">
+            Bộ lọc tìm kiếm & đối soát
           </div>
           <button
             onClick={handleResetFilters}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            className="text-[13px] text-primary hover:text-primary-hover font-medium transition-colors"
           >
             Đặt lại bộ lọc
           </button>
@@ -651,13 +599,12 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Ô tìm kiếm từ khóa */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               placeholder="Tìm theo tên GV, model, ID..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             />
           </div>
 
@@ -666,7 +613,7 @@ export default function ReportsPage() {
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             >
               <option value="ALL">Tất cả giảng viên</option>
               {instructors.map((ins) => (
@@ -682,7 +629,7 @@ export default function ReportsPage() {
             <select
               value={selectedFeature}
               onChange={(e) => setSelectedFeature(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             >
               <option value="ALL">Tất cả tác vụ AI</option>
               <option value="GENERATE_TESTCASES">Sinh testcase tự động</option>
@@ -699,7 +646,7 @@ export default function ReportsPage() {
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               title="Từ ngày"
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             />
           </div>
 
@@ -710,7 +657,7 @@ export default function ReportsPage() {
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               title="Đến ngày"
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             />
           </div>
         </div>
@@ -725,23 +672,25 @@ export default function ReportsPage() {
             <h2 className="text-sm font-semibold text-slate-900">
               Nhật ký gọi API & kiểm toán hệ thống
             </h2>
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
-              {pagination.total_items.toLocaleString()} bản ghi
+            <span className="px-2 py-0.5 rounded text-[13px] font-medium bg-slate-100 text-slate-600">
+              {hasRecords ? `${pagination.total_items.toLocaleString()} bản ghi` : EMPTY_TEXT}
             </span>
           </div>
 
-          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <span>Trang</span>
-            <span className="font-semibold text-slate-800">{pagination.page}</span>
-            <span>/</span>
-            <span>{pagination.total_pages || 1}</span>
-          </div>
+          {hasRecords && (
+            <div className="text-[13px] text-slate-500 flex items-center gap-1.5">
+              <span>Trang</span>
+              <span className="font-semibold text-slate-800">{pagination.page}</span>
+              <span>/</span>
+              <span>{pagination.total_pages || 1}</span>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-medium text-slate-500">
+              <tr className="border-b border-slate-200 bg-slate-50/75 text-[13px] font-medium text-slate-500">
                 <th className="py-3 px-4">Mã bản ghi</th>
                 <th className="py-3 px-4">Thời gian</th>
                 <th className="py-3 px-4">Giảng viên</th>
@@ -752,19 +701,21 @@ export default function ReportsPage() {
                 <th className="py-3 px-4 text-center">Chi tiết</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+            <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <RotateCw className="w-6 h-6 mx-auto animate-spin text-indigo-600 mb-2" />
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <Loader2 className="w-6 h-6 mx-auto animate-spin text-primary mb-2" />
                     <span>Đang tải nhật ký kiểm toán từ máy chủ...</span>
                   </td>
                 </tr>
               ) : displayedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <AlertCircle className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                    <span>Không có bản ghi nhật ký nào phù hợp với bộ lọc.</span>
+                  <td colSpan={8} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <span className="text-sm font-medium text-slate-600">{EMPTY_TEXT}</span>
+                      <p className="text-[13px] text-slate-500">Không có bản ghi nhật ký nào phù hợp với bộ lọc.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -781,8 +732,8 @@ export default function ReportsPage() {
                       className="hover:bg-slate-50/75 transition-colors cursor-pointer"
                       onClick={() => setSelectedLog(log)}
                     >
-                      {/* Mã log rút gọn */}
-                      <td className="py-3 px-4 font-mono font-medium text-slate-600 text-xs">
+                      {/* Mã log rút gọn (giữ monospace cho cột mã) */}
+                      <td className="py-3 px-4 font-mono font-medium text-slate-600 text-[13px]">
                         #{log.id.slice(0, 8)}
                       </td>
 
@@ -793,31 +744,31 @@ export default function ReportsPage() {
 
                       {/* Giảng viên */}
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="font-medium text-slate-900">{log.full_name || "Chưa đặt tên"}</div>
-                        <div className="text-xs text-slate-400 font-mono">@{log.username}</div>
+                        <div className="font-medium text-slate-900">{log.full_name || EMPTY_TEXT}</div>
+                        <div className="text-[13px] text-slate-500">@{log.username}</div>
                       </td>
 
                       {/* Tính năng AI */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${featureInfo.bg} ${featureInfo.color}`}
+                          className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium ${featureInfo.bg} ${featureInfo.color}`}
                         >
                           {featureInfo.label}
                         </span>
                       </td>
 
                       {/* Mô hình */}
-                      <td className="py-3 px-4 font-mono text-xs text-slate-600 whitespace-nowrap">
+                      <td className="py-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">
                         {log.model_name}
                       </td>
 
                       {/* Prompt / Completion */}
-                      <td className="py-3 px-4 text-right font-mono text-slate-500 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right text-slate-500 whitespace-nowrap">
                         {log.prompt_tokens.toLocaleString()} / {log.completion_tokens.toLocaleString()}
                       </td>
 
                       {/* Tổng tokens */}
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-semibold text-slate-900 whitespace-nowrap">
                         {log.total_tokens.toLocaleString()}
                       </td>
 
@@ -828,11 +779,11 @@ export default function ReportsPage() {
                             e.stopPropagation();
                             setSelectedLog(log);
                           }}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          className="px-2.5 py-1 text-[13px] font-medium text-primary hover:bg-primary-bg rounded-lg transition"
                           title="Xem chi tiết"
                           aria-label="Xem chi tiết bản ghi"
                         >
-                          <Eye className="w-4 h-4" />
+                          Xem
                         </button>
                       </td>
                     </tr>
@@ -844,42 +795,50 @@ export default function ReportsPage() {
         </div>
 
         {/* Phân trang */}
-        <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 bg-white">
+        <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px] text-slate-500 bg-white">
           <div>
-            Hiển thị{" "}
-            <span className="font-semibold text-slate-800">
-              {displayedLogs.length > 0 ? (pagination.page - 1) * pagination.page_size + 1 : 0}
-            </span>{" "}
-            -{" "}
-            <span className="font-semibold text-slate-800">
-              {Math.min(pagination.page * pagination.page_size, pagination.total_items)}
-            </span>{" "}
-            trong tổng số <span className="font-semibold text-slate-800">{pagination.total_items}</span> bản ghi
+            {hasRecords ? (
+              <>
+                Hiển thị{" "}
+                <span className="font-semibold text-slate-800">
+                  {displayedLogs.length > 0 ? (pagination.page - 1) * pagination.page_size + 1 : 0}
+                </span>{" "}
+                -{" "}
+                <span className="font-semibold text-slate-800">
+                  {Math.min(pagination.page * pagination.page_size, pagination.total_items)}
+                </span>{" "}
+                trong tổng số <span className="font-semibold text-slate-800">{pagination.total_items}</span> bản ghi
+              </>
+            ) : (
+              EMPTY_TEXT
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 self-center">
-            <button
-              onClick={() => fetchReportsData(pagination.page - 1)}
-              disabled={pagination.page <= 1 || loading}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              aria-label="Trang trước"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+          {hasRecords && (
+            <div className="flex items-center gap-1.5 self-center">
+              <button
+                onClick={() => fetchReportsData(pagination.page - 1)}
+                disabled={pagination.page <= 1 || loading}
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-[13px] font-medium"
+                aria-label="Trang trước"
+              >
+                Trước
+              </button>
 
-            <span className="px-3 py-1 font-medium text-slate-700 bg-slate-100 rounded-lg">
-              Trang {pagination.page} / {pagination.total_pages || 1}
-            </span>
+              <span className="px-3 py-1 font-medium text-slate-700 bg-slate-100 rounded-lg">
+                Trang {pagination.page} / {pagination.total_pages || 1}
+              </span>
 
-            <button
-              onClick={() => fetchReportsData(pagination.page + 1)}
-              disabled={pagination.page >= pagination.total_pages || loading}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              aria-label="Trang sau"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+              <button
+                onClick={() => fetchReportsData(pagination.page + 1)}
+                disabled={pagination.page >= pagination.total_pages || loading}
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-[13px] font-medium"
+                aria-label="Trang sau"
+              >
+                Sau
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -890,53 +849,48 @@ export default function ReportsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-xl rounded-xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-mono font-semibold text-xs">
-                  LOG
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 text-sm">Chi tiết nhật ký sử dụng AI</h3>
-                  <p className="text-xs text-slate-500 font-mono">{selectedLog.id}</p>
-                </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 text-sm">Chi tiết nhật ký sử dụng AI</h3>
+                <p className="text-[13px] text-slate-500">{selectedLog.id}</p>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/50 transition"
+                className="px-2.5 py-1 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/50 transition"
                 aria-label="Đóng"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700">
+            <div className="p-6 overflow-y-auto space-y-4 text-[13px] text-slate-700">
               <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200/70">
                 <div>
-                  <span className="text-xs text-slate-400 font-medium">Thời gian gọi:</span>
+                  <span className="text-[13px] text-slate-500 font-medium">Thời gian gọi:</span>
                   <div className="font-medium text-slate-900 mt-0.5">
                     {new Date(selectedLog.created_at).toLocaleString("vi-VN")}
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-medium">Mô hình AI:</span>
-                  <div className="font-mono text-slate-900 mt-0.5 font-medium">
+                  <span className="text-[13px] text-slate-500 font-medium">Mô hình AI:</span>
+                  <div className="text-slate-900 mt-0.5 font-medium">
                     {selectedLog.model_name}
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-medium">Giảng viên:</span>
+                  <span className="text-[13px] text-slate-500 font-medium">Giảng viên:</span>
                   <div className="font-medium text-slate-900 mt-0.5">{selectedLog.full_name}</div>
-                  <div className="text-xs text-slate-500 font-mono">@{selectedLog.username}</div>
+                  <div className="text-[13px] text-slate-500">@{selectedLog.username}</div>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-medium">Mã User ID:</span>
-                  <div className="font-mono text-xs text-slate-600 truncate mt-0.5">
+                  <span className="text-[13px] text-slate-500 font-medium">Mã User ID:</span>
+                  <div className="text-[13px] text-slate-600 truncate mt-0.5">
                     {selectedLog.user_id}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-500 block mb-1">
+                <label className="text-[13px] font-medium text-slate-500 block mb-1">
                   Nghiệp vụ thực thi:
                 </label>
                 <div className="p-3 bg-white border border-slate-200 rounded-lg font-medium text-slate-800">
@@ -945,25 +899,25 @@ export default function ReportsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-500 block mb-1">
+                <label className="text-[13px] font-medium text-slate-500 block mb-1">
                   Chi tiết phân bổ Tokens:
                 </label>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <span className="text-xs text-slate-500 font-medium block">Prompt</span>
-                    <span className="font-mono font-semibold text-slate-900 text-sm mt-1 block">
+                    <span className="text-[13px] text-slate-500 font-medium block">Prompt</span>
+                    <span className="font-semibold text-slate-900 text-sm mt-1 block">
                       {selectedLog.prompt_tokens.toLocaleString()}
                     </span>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <span className="text-xs text-slate-500 font-medium block">Completion</span>
-                    <span className="font-mono font-semibold text-slate-900 text-sm mt-1 block">
+                    <span className="text-[13px] text-slate-500 font-medium block">Completion</span>
+                    <span className="font-semibold text-slate-900 text-sm mt-1 block">
                       {selectedLog.completion_tokens.toLocaleString()}
                     </span>
                   </div>
-                  <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                    <span className="text-xs text-indigo-600 font-medium block">Tổng cộng</span>
-                    <span className="font-mono font-semibold text-indigo-700 text-sm mt-1 block">
+                  <div className="p-3 bg-primary-bg border border-primary rounded-lg">
+                    <span className="text-[13px] text-primary font-medium block">Tổng cộng</span>
+                    <span className="font-semibold text-primary text-sm mt-1 block">
                       {selectedLog.total_tokens.toLocaleString()}
                     </span>
                   </div>
@@ -974,7 +928,7 @@ export default function ReportsPage() {
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-xs transition"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-[13px] transition"
               >
                 Đóng
               </button>
@@ -990,20 +944,17 @@ export default function ReportsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-md rounded-xl shadow-xl border border-slate-200 overflow-hidden">
             <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
-                <h3 className="font-semibold text-slate-900 text-sm">Xuất báo cáo kiểm toán</h3>
-              </div>
+              <h3 className="font-semibold text-slate-900 text-sm">Xuất báo cáo kiểm toán</h3>
               <button
                 onClick={() => setShowExportModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                className="px-2.5 py-1 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg"
                 aria-label="Đóng"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs text-slate-600">
+            <div className="p-6 space-y-4 text-[13px] text-slate-600">
               <p>
                 Chọn định dạng xuất dữ liệu cho <b>{displayedLogs.length}</b> bản ghi nhật ký hiện đang hiển thị:
               </p>
@@ -1011,22 +962,16 @@ export default function ReportsPage() {
               <div className="space-y-3">
                 <button
                   onClick={handleExportCsv}
-                  className="w-full p-3.5 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/30 rounded-xl flex items-center justify-between text-left transition group"
+                  className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-semibold text-xs">
-                      CSV
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      Bảng tính Excel (.CSV UTF-8)
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                        Bảng tính Excel (.CSV UTF-8)
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        Mở trực tiếp trên Microsoft Excel, Google Sheets không lỗi font tiếng Việt
-                      </div>
+                    <div className="text-[13px] text-slate-500">
+                      Mở trực tiếp trên Microsoft Excel, Google Sheets không lỗi font tiếng Việt
                     </div>
                   </div>
-                  <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                 </button>
 
                 <button
@@ -1034,22 +979,16 @@ export default function ReportsPage() {
                     setShowExportModal(false);
                     window.print();
                   }}
-                  className="w-full p-3.5 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/30 rounded-xl flex items-center justify-between text-left transition group"
+                  className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-xs">
-                      PDF
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      In báo cáo / Lưu PDF (Print)
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                        In báo cáo / Lưu PDF (Print)
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        In trực tiếp ra văn bản hoặc lưu định dạng PDF
-                      </div>
+                    <div className="text-[13px] text-slate-500">
+                      In trực tiếp ra văn bản hoặc lưu định dạng PDF
                     </div>
                   </div>
-                  <Printer className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                 </button>
               </div>
             </div>
@@ -1057,7 +996,7 @@ export default function ReportsPage() {
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-[13px] transition"
               >
                 Hủy bỏ
               </button>

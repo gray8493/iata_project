@@ -4,11 +4,120 @@
 - **Người thực hiện (Tester/Dev)**: Đinh Thành Nam
 - **Cập nhật lần cuối**: 17/10/2026
 - **Tài liệu liên quan**: `rules/testcase-rules.md`, `docs/architecture/`
-- **Tổng số Testcase trong phạm vi backend**: 4 (02 Normal, 01 Boundary, 01 Exception)
+- **Tổng số Testcase**: 09 Testcases (04 Normal, 03 Boundary, 02 Exception)
+  - Phân hệ Desktop Client (ST01): 05 Testcases (01 Normal, 02 Boundary, 02 Exception)
+  - Phân hệ Central Backend (ST02 - ST03): 04 Testcases (02 Normal, 01 Boundary, 01 Exception)
 
-> Tài liệu đã được viết lại cho khớp mã nguồn `apps/central-backend`.
-> Phạm vi tự động hóa: các kịch bản liên quan tới Backend (AI testcase generation, AI plagiarism verification).
-> Kịch bản thuần Desktop client (sandbox chấm bài, quét AST offline) **không** được gắn ID `ST..` để tránh trùng nguồn kiểm thử; xem mục "Ngoài phạm vi".
+---
+
+# ST01_TestcaseImport_TC001: Nạp nội dung đề bài từ file .docx vào ô Prompt AI thành công
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Ứng dụng Desktop Client đang mở màn hình `AiTestcaseDialog`.
+- File đề bài Word `.docx` tồn tại và hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+1. Giảng viên bấm nút "Nhập Từ File Đề Bài".
+2. Chọn file `de_bai.docx` chứa các đoạn văn đề bài.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Nội dung văn bản trong file Word được đổ chính xác vào ô `txt_prompt`.
+- Tên tệp hiển thị đầy đủ trên nhãn `lbl_doc_name`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Đổ nội dung Word vào ô prompt chuẩn xác | 15 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST01_TestcaseImport_TC002: Nối thêm nội dung khi ô Prompt đã có dữ liệu
+
+#### Loại test
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+- Ô `txt_prompt` đang chứa sẵn một phần nội dung đề bài cũ.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm nút nhập file và chọn file `de_bai.txt`.
+2. Khi hộp thoại hỏi "Ghi đè hay Nối thêm", chọn "No" (Nối thêm).
+
+#### Kết quả kỳ vọng (Expected Result)
+- Nội dung mới được nối tiếp vào cuối nội dung cũ mà không làm mất dữ liệu đang soạn.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Nối thêm chuỗi chính xác | 8 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST01_TestcaseImport_TC003: Cắt ngắn đề bài vượt quá giới hạn 5000 ký tự của Backend
+
+#### Loại test
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+- File đề bài chứa chuỗi văn bản dài trên 5000 ký tự (ví dụ: 6000 ký tự).
+
+#### Các bước thực hiện (Test Steps)
+1. Nhập file văn bản dung lượng lớn vào dialog.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Hệ thống hiển thị hộp thoại cảnh báo "Đề Bài Quá Dài".
+- Nội dung trong ô `txt_prompt` tự động cắt đúng 5000 ký tự đầu tiên để đảm bảo hợp lệ khi gửi API.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Cắt đúng 5000 ký tự, bật thông báo | 10 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST01_TestcaseImport_TC004: Cảnh báo khi nạp định dạng file không hỗ trợ (.doc)
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Người dùng chọn file Word nhị phân cũ `.doc`.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm nút chọn file `de_bai.doc`.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Hiển thị hộp thoại cảnh báo định dạng không hỗ trợ.
+- Ô `txt_prompt` giữ nguyên trạng thái cũ, không nạp rác nhị phân.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Bật cảnh báo, bảo toàn ô prompt | 6 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST01_TestcaseImport_TC005: Người dùng hủy hộp thoại chọn file
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Dialog chọn file xuất hiện.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm nút "Cancel" hoặc đóng hộp thoại chọn tệp.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Không có lỗi ngoại lệ (No-op), trạng thái giao diện được giữ nguyên vẹn.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Xử lý no-op an toàn | 5 ms | ✅ PASSED | PyQt6 Offscreen |
 
 ---
 

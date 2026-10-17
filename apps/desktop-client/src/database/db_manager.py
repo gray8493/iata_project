@@ -196,6 +196,7 @@ class DatabaseManager:
 
         self._ensure_web_submission_columns()
         self._drop_legacy_student_name_column()
+        self._ensure_class_columns()
 
     def _drop_legacy_student_name_column(self):
         """
@@ -215,6 +216,25 @@ class DatabaseManager:
             except Exception:
                 # SQLite < 3.35 fallback. Old clients would need app schema upgrade via rescan.
                 pass
+
+    def _ensure_class_columns(self):
+        """
+        Lightweight migration for local_classes metadata columns.
+        - sessions_dir_path: kept so 'Quét Lại' resolves the last used submissions folder.
+        - config_source_class_id: stamp of the class whose testcase config was copied (preset feature).
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(local_classes)")
+            existing = {row[1] for row in cursor.fetchall()}
+            additions = {
+                "submissions_dir_path": "TEXT",
+                "config_source_class_id": "INTEGER",
+            }
+            for column, ddl in additions.items():
+                if column not in existing:
+                    cursor.execute(f"ALTER TABLE local_classes ADD COLUMN {column} {ddl}")
+            conn.commit()
 
     def _ensure_web_submission_columns(self):
         """Lightweight migration for folder-import metadata on local_web_submissions."""
@@ -481,6 +501,63 @@ class DatabaseManager:
                 WHERE class_id = ? AND is_deleted = 0
             """, (strategy, class_id))
             conn.commit()
+
+    def copy_testcases_from_class(self, source_class_id: int, target_class_id: int) -> int:
+        """
+        Preset feature (#10): clones the whole active testcase config of one class
+        into a newly created class so instructors do not re-enter data every session.
+        Returns the number of copied testcases.
+        """
+        copied = 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT question_number, input_data, expected_output, score_weight,
+                       time_limit_ms, memory_limit_mb, matching_strategy, is_hidden
+                FROM local_test_cases
+                WHERE class_id = ? AND is_deleted = 0 ORDER BY id ASC
+            """, (source_class_id,))
+
+            rows = cursor.fetchall()
+            for row in rows:
+                cursor.execute("""
+                    INSERT INTO local_test_cases (
+                        class_id, question_number, input_data, expected_output,
+                        score_weight, time_limit_ms, memory_limit_mb, matching_strategy, is_hidden
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    target_class_id,
+                    row["question_number"],
+                    row["input_data"],
+                    row["expected_output"],
+                    row["score_weight"],
+                    row["time_limit_ms"],
+                    row["memory_limit_mb"],
+                    row["matching_strategy"],
+                    row["is_hidden"],
+                ))
+                copied += 1
+
+            cursor.execute("""
+                UPDATE local_classes SET config_source_class_id = ? WHERE id = ?
+            """, (source_class_id, target_class_id))
+            conn.commit()
+        return copied
+
+    def get_preset_source_candidates(self) -> List[Dict[str, Any]]:
+        """Lists active classes that have at least one testcase (usable as preset source)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT c.id, c.class_name, c.course_code, c.programming_language,
+                       COUNT(t.id) AS testcase_count
+                FROM local_classes c
+                JOIN local_test_cases t ON t.class_id = c.id AND t.is_deleted = 0
+                WHERE c.is_deleted = 0
+                GROUP BY c.id, c.class_name, c.course_code, c.programming_language
+                ORDER BY c.created_at DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
 
     def update_testcase(
         self,

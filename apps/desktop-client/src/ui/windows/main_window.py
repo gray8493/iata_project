@@ -9,6 +9,8 @@ Strictly NO emojis/icons in the UI. All text in Vietnamese.
 import sys
 import re
 import time
+import threading
+import statistics
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from collections import Counter
@@ -34,12 +36,13 @@ from ui.styles.theme import (
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG,
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
+from ui.components.toast import show_toast
 from ui.dialogs.session_dialog import SessionDialog
 from ui.dialogs.history_dialog import HistoryDialog
 from ui.dialogs.grading_guide_dialog import GradingGuideDialog
 from ui.dialogs.testcase_dialog import TestcaseDialog
 from ui.dialogs.settings_dialog import SettingsDialog
-from ui.dialogs.submission_detail_dialog import SubmissionDetailDialog
+from ui.dialogs.submission_detail_dialog import SubmissionDetailDialog, RegradeWorker
 from ui.dialogs.plagiarism_dialog import PlagiarismDialog
 from database.db_manager import DatabaseManager
 from services.grading_service import GradingService
@@ -156,10 +159,27 @@ class BatchGradingWorker(QThread):
     finished_ok = pyqtSignal(int, float)
     failed = pyqtSignal(str)
 
-    def __init__(self, grading_service: GradingService, class_id: int, parent=None):
+    def __init__(
+        self,
+        grading_service: GradingService,
+        class_id: int,
+        submission_ids: Optional[List[int]] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._service = grading_service
         self._class_id = class_id
+        self._submission_ids = submission_ids
+        # Pain #2: huỷ chấm giữa đường — cờ thread-safe checked bởi service bên trong
+        self._cancel_event = threading.Event()
+
+    def request_cancel(self):
+        """UI gọi khi bấm 'Hủy Chấm'; futures chưa chạy sẽ được ngừng, bài đang chạy chạy hết nốt."""
+        self._cancel_event.set()
+
+    @property
+    def cancel_event(self) -> threading.Event:
+        return self._cancel_event
 
     def run(self):
         started = time.perf_counter()
@@ -167,7 +187,12 @@ class BatchGradingWorker(QThread):
             def on_progress(curr, total, mssv):
                 self.progress.emit(curr, total, mssv)
 
-            results = self._service.grade_class_batch(self._class_id, progress_callback=on_progress)
+            results = self._service.grade_class_batch(
+                self._class_id,
+                progress_callback=on_progress,
+                submission_ids=self._submission_ids,
+                cancel_event=self._cancel_event,
+            )
             elapsed = time.perf_counter() - started
             self.finished_ok.emit(len(results), elapsed)
         except Exception as ex:
@@ -628,6 +653,7 @@ class AITAMainWindow(QMainWindow):
         lbl_sp.setToolTip("Số token AI còn lại trong tháng")
         sp_layout.addWidget(lbl_sp)
         self.lbl_ai_quota = lbl_sp
+        self.pill_ai_container = status_pill
         layout.addWidget(status_pill, alignment=Qt.AlignmentFlag.AlignVCenter)
         
         # User Avatar & Name
@@ -996,40 +1022,124 @@ class AITAMainWindow(QMainWindow):
             tooltip_str="Điểm trung bình của các bài thi đã được chấm điểm (thang 10)",
             value_color=COLOR_PRIMARY
         )
-        
+        self.mc_stats = MetricCardWidget(
+            "—", "Thống Kê & Phân Bố",
+            tooltip_str="Trung vị, độ lệch chuẩn và tỉ lệ đạt (điểm >= 5.0) của các bài đã chấm",
+            value_color=COLOR_TEXT_PRIMARY
+        )
+
         cards_layout.addWidget(self.mc_total)
         cards_layout.addWidget(self.mc_ac)
         cards_layout.addWidget(self.mc_err)
         cards_layout.addWidget(self.mc_avg)
+        cards_layout.addWidget(self.mc_stats)
         c_layout.addLayout(cards_layout)
-        
+
         # Progress Card (Clean 10-12px Progress Bar)
         prog_card = QFrame(container)
         prog_card.setProperty("class", "Card")
         p_layout = QVBoxLayout(prog_card)
         p_layout.setContentsMargins(20, 14, 20, 14)
         p_layout.setSpacing(10)
-        
+
         top_p = QHBoxLayout()
         self.lbl_progress_status = QLabel("Chưa có bài nộp", prog_card)
         self.lbl_progress_status.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         top_p.addWidget(self.lbl_progress_status)
         top_p.addStretch(1)
-        
+
         self.lbl_progress_detail = QLabel("0/0 bài", prog_card)
         self.lbl_progress_detail.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLOR_PRIMARY};")
         top_p.addWidget(self.lbl_progress_detail)
         p_layout.addLayout(top_p)
-        
+
         self.progress_bar = QProgressBar(prog_card)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(12)
         p_layout.addWidget(self.progress_bar)
-        
+
+        # Pain #2: đợt chấm có thể dài vài phút -> cung cấp Hủy Chấm + Chấm Tiếp (resume PENDING)
+        controls_p = QHBoxLayout()
+        controls_p.setSpacing(8)
+        self.btn_cancel_grade = QPushButton("Hủy Chấm", prog_card)
+        self.btn_cancel_grade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_cancel_grade.setToolTip("Ngừng đợt chấm: các bài chưa bắt đầu giữ nguyên trạng thái, sau đó có thể 'Chấm Tiếp'")
+        self.btn_cancel_grade.setEnabled(False)
+        self.btn_cancel_grade.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_ERROR_BG};
+                color: #B91C1C; border: 1px solid #FECACA;
+                border-radius: {RADIUS_BUTTON}; padding: 6px 14px;
+                font-size: 12px; font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+            }}
+            QPushButton:hover:enabled {{ background-color: #FEE2E2; border-color: #FCA5A5; }}
+            QPushButton:disabled {{ color: #CBD5E1; border-color: {COLOR_BORDER_LIGHT}; background-color: {COLOR_SURFACE_SECONDARY}; }}
+        """)
+        controls_p.addWidget(self.btn_cancel_grade)
+
+        self.btn_resume_grade = QPushButton("Chấm Tiếp Bài Chưa Xong", prog_card)
+        self.btn_resume_grade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_resume_grade.setToolTip("Chỉ chấm những bài còn PENDING (bài bị hủy hoặc lỗi giữa chừng), không chấm đè bài đã có kết quả")
+        self.btn_resume_grade.setEnabled(False)
+        self.btn_resume_grade.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_PRIMARY_BG};
+                color: {COLOR_PRIMARY}; border: 1px solid {COLOR_PRIMARY_LIGHT};
+                border-radius: {RADIUS_BUTTON}; padding: 6px 14px;
+                font-size: 12px; font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+            }}
+            QPushButton:hover:enabled {{ background-color: #DBEAFE; border-color: #93C5FD; }}
+            QPushButton:disabled {{ color: #CBD5E1; border-color: {COLOR_BORDER_LIGHT}; background-color: {COLOR_SURFACE_SECONDARY}; }}
+        """)
+        controls_p.addWidget(self.btn_resume_grade)
+        controls_p.addStretch(1)
+        p_layout.addLayout(controls_p)
+
+        self.btn_cancel_grade.clicked.connect(self._request_cancel_grading)
+        self.btn_resume_grade.clicked.connect(self._start_resume_grade)
+
         c_layout.addWidget(prog_card)
         return container
+
+    def _request_cancel_grading(self):
+        """Hủy đợt chấm đang chạy (pain #2): các bài chưa chạy giữ PENDING để 'chấm tiếp'."""
+        worker = getattr(self, "_grading_worker", None)
+        if worker is None or not worker.isRunning():
+            self.btn_cancel_grade.setEnabled(False)
+            return
+        self._batch_cancel_requested = True
+        worker.request_cancel()
+        self.btn_cancel_grade.setEnabled(False)
+        self.btn_resume_grade.setEnabled(False)
+        self.lbl_progress_status.setText("Đang hủy đợt chấm...")
+        self.lbl_progress_status.setStyleSheet("font-size: 13px; font-weight: 700; color: #B91C1C;")
+        show_toast(self, "Đã gửi yêu cầu hủy. Các bài chưa bắt đầu sẽ giữ trạng thái PENDING.", kind="warning")
+
+    def _start_resume_grade(self):
+        """Chấm lại đúng phần còn lại: chỉ các bài nộp chưa có kết quả (PENDING)."""
+        if self.current_class_id is None:
+            msg = "Chưa mở đợt chấm nào để chấm tiếp."
+            show_toast(self, msg, kind="warning")
+            return
+        pending_ids: List[int] = []
+        try:
+            subs = self.db.get_submissions_by_class(self.current_class_id)
+        except Exception:
+            subs = []
+        for sub in subs:
+            verdict = (sub.get("final_verdict") or "PENDING").strip().upper()
+            if verdict != "PENDING":
+                continue
+            pending_ids.append(sub.get("id"))
+        if not pending_ids:
+            msg = "Không còn bài nào ở trạng thái PENDING trong đợt này."
+            show_toast(self, msg, kind="info")
+            return
+        self._start_batch_grade(submission_ids=pending_ids)
 
     # --------------------------------------------------------------------------
     # 5. Submissions DataTable & Table Empty State
@@ -1109,6 +1219,10 @@ class AITAMainWindow(QMainWindow):
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        # Pain #8: chuột phải nhanh trên một dòng — chấm lại bài nộp ngay (UC-15) không cần mở dialog
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_submission_context_menu)
         
         # Yêu cầu 6 & 14: Tô nền cả dòng đồng nhất khi chọn (không có viền lặp từng ô), thanh cuộn dọc rõ hơn 11px
         self.table.setStyleSheet(f"""
@@ -1263,16 +1377,19 @@ class AITAMainWindow(QMainWindow):
         submissions = self.db.get_submissions_by_class(class_id)
         testcases = self.db.get_testcases_by_class(class_id)
         testcase_count = len(testcases)
-        
+
         classes = self.db.get_all_classes()
         class_info = next((c for c in classes if c["id"] == class_id), None)
         lang = class_info.get("programming_language", "C") if class_info else "C"
-        
+
         total_ac = 0
         total_errors = 0
         total_score_sum = 0.0
         graded_count = 0
-        
+        graded_scores: List[float] = []
+        # Pain #8: nhớ dòng -> submission để menu chuột phải 'Chấm Lại Bài Này' hoạt động
+        self._row_submissions: Dict[int, Dict[str, Any]] = {}
+
         # Check if submissions empty -> show empty state widget inside table card
         if not submissions:
             self.table_stack.setCurrentIndex(1)
@@ -1285,7 +1402,10 @@ class AITAMainWindow(QMainWindow):
             self.mc_ac.set_value("0")
             self.mc_err.set_value("0")
             self.mc_avg.set_value("— / 10")
+            self.mc_stats.set_value("—")
             self._update_step_buttons(0, 0, testcase_count)
+            self.btn_resume_grade.setEnabled(False)
+            self.btn_resume_grade.setText("Chấm Tiếp Bài Chưa Xong")
             return
 
         self.table_stack.setCurrentIndex(0)
@@ -1302,6 +1422,7 @@ class AITAMainWindow(QMainWindow):
             file_path = sub["source_file_path"]
             fname = Path(file_path).name
             verdict = sub.get("final_verdict") or sub.get("status") or "PENDING"
+            self._row_submissions[row_idx] = sub
             
             score_num = sub.get("calculated_score")
             score_str = f"{score_num:.1f} / 10" if score_num is not None and verdict != "PENDING" else "—"
@@ -1320,6 +1441,10 @@ class AITAMainWindow(QMainWindow):
             if verdict != "PENDING" and score_num is not None:
                 total_score_sum += score_num
                 graded_count += 1
+                try:
+                    graded_scores.append(float(score_num))
+                except (TypeError, ValueError):
+                    pass
 
             self.table.setRowHeight(row_idx, 52)
 
@@ -1429,6 +1554,16 @@ class AITAMainWindow(QMainWindow):
         self.mc_ac.set_value(str(total_ac))
         self.mc_err.set_value(str(total_errors))
         self.mc_avg.set_value(f"{avg_score} / 10" if graded_count > 0 else "— / 10")
+        self._update_stats_card(graded_scores)
+
+        # Nút "Chấm Tiếp" luôn phản ánh đúng số bài PENDING còn lại trong đợt
+        pending_now = sum(1 for s in submissions if (s.get("final_verdict") or "PENDING").strip().upper() == "PENDING")
+        self.btn_resume_grade.setText(f"Chấm Tiếp Bài Chưa Xong ({pending_now})" if pending_now else "Chấm Tiếp Bài Chưa Xong")
+        active_worker = getattr(self, "_grading_worker", None)
+        grading_running = active_worker is not None and active_worker.isRunning()
+        if not grading_running:
+            self.btn_resume_grade.setEnabled(pending_now > 0)
+            self.btn_cancel_grade.setEnabled(False)
         
         # Yêu cầu 13: Cập nhật dòng tiến độ 'Đã chấm X/X bài' khi xong, 'Chưa chấm' khi chưa chấm
         sub_count = len(submissions)
@@ -1453,7 +1588,39 @@ class AITAMainWindow(QMainWindow):
         # Update step buttons states
         self._update_step_buttons(sub_count, graded_count, testcase_count)
 
-    # --------------------------------------------------------------------------
+    def _update_stats_card(self, graded_scores: List[float]) -> None:
+        """
+        Pain #9: thẻ 'Thống Kê & Phân Bố' — trung vị, độ lệch chuẩn, tỉ lệ đạt (>= 5.0),
+        và phân bố khoảng điểm ngay trên tooltip để giảng viên nắm mặt bằng lớp 1 lần nhìn.
+        """
+        if not graded_scores:
+            self.mc_stats.set_value("—")
+            self.mc_stats.setToolTip("Chưa có bài nào được chấm điểm")
+            return
+
+        try:
+            median = statistics.median(graded_scores)
+            stdev = statistics.pstdev(graded_scores)
+        except statistics.StatisticsError:
+            median, stdev = graded_scores[0], 0.0
+
+        pass_count = sum(1 for s in graded_scores if s >= 5.0)
+        pass_ratio = (pass_count / len(graded_scores)) * 100.0
+        self.mc_stats.set_value(f"TV {median:.1f} | σ {stdev:.1f}")
+        tooltip = (
+            f"Phân bố điểm của {len(graded_scores)} bài đã chấm:\n"
+            f"- Trung vị (median): {median:.2f}\n"
+            f"- Độ lệch chuẩn (σ): {stdev:.2f}\n"
+            f"- Tỉ lệ đạt (điểm >= 5.0): {pass_count}/{len(graded_scores)} bài ({pass_ratio:.0f}%)\n"
+            f"- Khoảng điểm: 0-3: {sum(1 for s in graded_scores if s < 3.0)} | 3-5: "
+            f"{sum(1 for s in graded_scores if 3.0 <= s < 5.0)} | 5-6.5: "
+            f"{sum(1 for s in graded_scores if 5.0 <= s < 6.5)} | 6.5-8: "
+            f"{sum(1 for s in graded_scores if 6.5 <= s < 8.0)} | 8-10: "
+            f"{sum(1 for s in graded_scores if s >= 8.0)}"
+        )
+        self.mc_stats.setToolTip(tooltip)
+
+        # --------------------------------------------------------------------------
     # 7. Action Handlers (Wizard, Ingest, Rescan, Testcases, Batch Grade, Export)
     # --------------------------------------------------------------------------
     def _open_session_dialog(self):
@@ -1495,14 +1662,11 @@ class AITAMainWindow(QMainWindow):
 
         self._load_classes_selector(target_class_id=created_class_id)
 
-        QMessageBox.information(
+        # Pain #3: thông báo hoàn tất không chặn giảng viên (đơn giản là toast)
+        show_toast(
             self,
-            "Hoàn Tất Thiết Lập",
-            "Đã hoàn thành toàn bộ quy trình cấu hình đợt chấm bài!\n\n"
-            "• Bước 1: Khởi tạo đợt chấm & nạp mã nguồn thành công\n"
-            "• Bước 2: Cấu hình môi trường biên dịch & Sandbox sẵn sàng\n"
-            "• Bước 3: Bộ Testcase & thuật toán so khớp đã được thiết lập\n\n"
-            "Màn hình chấm bài đã sẵn sàng! Bạn có thể bắt đầu chấm bài ngay."
+            "Đã hoàn thành 3 bước thiết lập đợt chấm: nạp bài nộp, môi trường biên dịch và bộ Testcase!",
+            kind="success",
         )
 
     def _handle_step1_ingest(self):
@@ -1545,12 +1709,12 @@ class AITAMainWindow(QMainWindow):
         added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
         self._load_submissions_table(self.current_class_id)
 
-        QMessageBox.information(
-            self, "Nạp Bài Nộp Thành Công",
-            f"Đã cập nhật bài nộp từ thư mục:\n{folder}\n\n"
-            f"• Số bài nhận diện hợp lệ: {len(valid_items)}\n"
-            f"• Bài mới được thêm vào: {added}\n"
-            f"• Bài đã tồn tại (giữ nguyên điểm): {existing}"
+        # Pain #3: nạp bài xong chỉ cần thông tin tổng quan — toast không khóa màn hình
+        show_toast(
+            self,
+            f"Đã cập nhật bài nộp từ thư mục: {len(valid_items)} bài hợp lệ "
+            f"({added} mới, {existing} giữ nguyên điểm).",
+            kind="success",
         )
 
     def _handle_rescan_directory(self):
@@ -1702,6 +1866,7 @@ class AITAMainWindow(QMainWindow):
             self.mc_ac.set_value("0")
             self.mc_err.set_value("0")
             self.mc_avg.set_value("— / 10")
+            self.mc_stats.set_value("—")
             self.lbl_progress_status.setText("Chưa có bài nộp")
             self.lbl_progress_detail.setText("0/0 bài")
         self._load_classes_selector(target_class_id=self.current_class_id)
@@ -1729,6 +1894,56 @@ class AITAMainWindow(QMainWindow):
             if class_id:
                 self._load_submissions_table(class_id)
 
+    def _show_submission_context_menu(self, pos) -> None:
+        """Pain #8: menu chuột phải trên một dòng bài nộp — chấm lại ngay (UC-15) hoặc mở chi tiết."""
+        row = self.table.rowAt(pos.y())
+        sub = (getattr(self, "_row_submissions", {}) or {}).get(row)
+        if not sub:
+            return
+
+        menu = QMenu(self)
+        act_regrade = menu.addAction("Chấm Lại Bài Này (UC-15)")
+        act_detail = menu.addAction("Mở Khung Chi Tiết")
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if chosen is None:
+            return
+
+        if chosen == act_detail:
+            verdict = sub.get("final_verdict") or sub.get("status") or "PENDING"
+            score_num = sub.get("calculated_score")
+            score_str = f"{score_num:.1f} / 10" if score_num is not None and verdict != "PENDING" else "—"
+            self._open_detail_dialog(sub, verdict, score_str)
+            return
+
+        if chosen == act_regrade:
+            active_regrade = getattr(self, "_regrade_worker", None)
+            if active_regrade is not None and active_regrade.isRunning():
+                show_toast(self, "Đang chấm lại một bài khác, vui lòng đợi hoàn tất.", kind="warning")
+                return
+            sid = sub.get("id")
+            if sid is None:
+                return
+            show_toast(self, f"Đang chấm lại bài của sinh viên {sub.get('student_mssv', '')}...", kind="info")
+            regrade_worker = RegradeWorker(int(sid), parent=self)
+            self._regrade_worker = regrade_worker
+            regrade_worker.regrade_finished.connect(self._on_row_regrade_done)
+            regrade_worker.start()
+
+    def _on_row_regrade_done(self, payload: dict) -> None:
+        self._regrade_worker = None
+        if not payload.get("success"):
+            show_toast(self, f"Chấm lại thất bại: {payload.get('message', '')}", kind="error")
+            return
+        result = payload.get("result") or {}
+        show_toast(
+            self,
+            f"Đã chấm lại bài {result.get('mssv', '')}: {result.get('verdict', '')}, điểm {result.get('score', '')}",
+            kind="success",
+        )
+        class_id = self.class_selector.currentData() or self.current_class_id
+        if class_id:
+            self._load_submissions_table(class_id)
+
     def _open_plagiarism_dialog(self):
         class_id = self.class_selector.currentData() or self.current_class_id
         if not class_id:
@@ -1737,7 +1952,7 @@ class AITAMainWindow(QMainWindow):
         dlg = PlagiarismDialog(self, class_id=class_id)
         dlg.exec()
 
-    def _start_batch_grade(self):
+    def _start_batch_grade(self, submission_ids: Optional[List[int]] = None):
         class_id = self.class_selector.currentData()
         if not class_id:
             QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Vui lòng chọn đợt chấm bài từ danh sách!")
@@ -1758,21 +1973,31 @@ class AITAMainWindow(QMainWindow):
             return
 
         submissions = self.db.get_submissions_by_class(class_id)
+        if submission_ids:
+            wanted = {sid for sid in submission_ids}
+            submissions = [s for s in submissions if s.get("id") in wanted]
         if not submissions:
             QMessageBox.warning(self, "Chưa Có Bài Nộp", "Đợt chấm này chưa có sinh viên nộp bài!")
             return
 
         self.progress_bar.setValue(0)
         total_count = len(submissions)
+        mode_note = "tiếp các bài chưa xong" if submission_ids else "song song"
         self.lbl_progress_detail.setText(f"0/{total_count} bài (0%)")
-        self.lbl_progress_status.setText(f"Đang khởi tạo tiến trình chấm song song ({total_count} bài)...")
+        self.lbl_progress_status.setText(f"Đang khởi tạo tiến trình chấm {mode_note} ({total_count} bài)...")
+        self.lbl_progress_status.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         self.btn_step3.setEnabled(False)
+        self.btn_resume_grade.setEnabled(False)
+        self.btn_cancel_grade.setEnabled(True)
 
-        self._grading_worker = BatchGradingWorker(self.grading_service, class_id, parent=self)
+        self._grading_worker = BatchGradingWorker(
+            self.grading_service, class_id, submission_ids=submission_ids, parent=self
+        )
         self._grading_worker.progress.connect(self._on_batch_grade_progress)
         self._grading_worker.finished_ok.connect(lambda count, secs: self._on_batch_grade_done(class_id, count, secs))
         self._grading_worker.failed.connect(self._on_batch_grade_failed)
         self._grading_worker.start()
+        self._batch_cancel_requested = False
 
     def _on_batch_grade_progress(self, curr: int, total: int, mssv: str):
         percent = int((curr / total) * 100) if total else 0
@@ -1781,24 +2006,57 @@ class AITAMainWindow(QMainWindow):
         self.lbl_progress_status.setText(f"Đang chấm: {mssv}")
 
     def _on_batch_grade_done(self, class_id: int, count: int, elapsed_seconds: float):
-        self.progress_bar.setValue(100)
-        self.lbl_progress_status.setText(f"Có {count} bài nộp")
-        self.lbl_progress_detail.setText(f"{count}/{count} bài")
         self.btn_step3.setEnabled(True)
+        self.btn_cancel_grade.setEnabled(False)
+        self._grading_worker = None
         self._load_submissions_table(class_id)
 
-        QMessageBox.information(
-            self,
-            "Chấm Bài Thành Công",
-            f"Chấm xong {count} bài trong {elapsed_seconds:.1f} giây!\n\n"
-            f"• Luồng xử lý nền đa tiến trình (ProcessPoolExecutor 4-8 workers) đã hoàn tất.\n"
-            f"• Thuật toán so khớp: 7 chế độ tự động\n"
-            f"• Giám sát Sandbox: RAM & CPU đo thời gian thực\n"
-            f"• CSDL: Toàn bộ điểm số đã được ghi an toàn vào SQLite cục bộ (local_grading.db)."
-        )
+        was_cancelled = getattr(self, "_batch_cancel_requested", False)
+        self.progress_bar.setValue(100 if not was_cancelled else min(100, self._percent_clean()))
+        self.lbl_progress_status.setText("Đã hủy đợt chấm (các bài còn lại giữ PENDING)" if was_cancelled else f"Có {count} bài nộp")
+        self.lbl_progress_detail.setText(f"{count} bài đã chấm")
+        # Nút "Chấm Tiếp" bật khi đợt còn bài PENDING
+        pending_left = self._count_pending_submissions(class_id)
+        self.btn_resume_grade.setEnabled(pending_left > 0)
+        if pending_left > 0:
+            self.btn_resume_grade.setText(f"Chấm Tiếp Bài Chưa Xong ({pending_left})")
+        else:
+            self.btn_resume_grade.setText("Chấm Tiếp Bài Chưa Xong")
+
+        if was_cancelled:
+            show_toast(
+                self,
+                f"Đã hủy: {count} bài chấm xong trong {elapsed_seconds:.1f}s. "
+                f"Còn {pending_left} bài PENDING — bấm 'Chấm Tiếp Bài Chưa Xong' để chạy tiếp.",
+                kind="warning",
+            )
+        else:
+            show_toast(
+                self,
+                f"Chấm xong {count} bài trong {elapsed_seconds:.1f} giây! "
+                "Điểm đã ghi an toàn vào local SQLite (local_grading.db).",
+                kind="success",
+            )
+        # Cập nhật hạn mức AI sau khi đợt chấm kết thúc (có thể vừa dùng token AI review)
+        self._refresh_ai_quota()
+
+    def _percent_clean(self) -> int:
+        return self.progress_bar.value()
+
+    def _count_pending_submissions(self, class_id: Optional[int]) -> int:
+        if not class_id:
+            return 0
+        try:
+            subs = self.db.get_submissions_by_class(class_id)
+        except Exception:
+            return 0
+        return sum(1 for s in subs if (s.get("final_verdict") or "PENDING").strip().upper() == "PENDING")
 
     def _on_batch_grade_failed(self, message: str):
         self.btn_step3.setEnabled(True)
+        self.btn_cancel_grade.setEnabled(False)
+        self.btn_resume_grade.setEnabled(False)
+        self._grading_worker = None
         self.progress_bar.setValue(0)
         self.lbl_progress_status.setText("Chấm bài thất bại")
         QMessageBox.critical(self, "Lỗi Quá Trình Chấm", f"Có lỗi xảy ra trong quá trình chấm:\n{message}")
@@ -2018,20 +2276,70 @@ class AITAMainWindow(QMainWindow):
         self.quota_worker.start()
 
     def _on_quota_received(self, res: Dict[str, Any]):
-        if hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota:
-            if res.get("success"):
-                rem = res.get("remaining_tokens", 50000)
-                limit = res.get("daily_limit_tokens", 50000)
-                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
-                self.lbl_ai_quota.setToolTip(
-                    f"Số token AI còn lại trong tháng:\n"
-                    f"• Hạn mức: {limit:,} tokens\n"
-                    f"• Còn lại: {rem:,} tokens\n"
-                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens"
-                )
+        """
+        Pain #6: pill Gemini phản ánh rõ 3 trạng thái hạn mức, không để giảng viên
+        bấm AI Review xong mới phát hiện hết/ít token:
+        - Binh thường: xanh dương, hiện số dư.
+        - Sắp hết (ratio < 20%): cam cảnh báo + số dư.
+        - Hết token: đỏ, hiện 'Hết Token'.
+        """
+        if not (hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota):
+            return
+        tip = "Số token AI còn lại trong tháng"
+        if res.get("success"):
+            rem = int(res.get("remaining_tokens", 0) or 0)
+            limit = int(res.get("daily_limit_tokens", 0) or 0)
+            ratio = (rem / limit) if limit > 0 else 1.0
+            tip = (
+                f"Quota Gemini AI:\n"
+                f"- Hạn mức: {limit:,} tokens\n"
+                f"- Còn lại: {rem:,} tokens\n"
+                f"- Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens"
+            )
+            if rem <= 0:
+                text = "Gemini AI: Hết Token Hôm Nay"
+                self.lbl_ai_quota.setText(text)
+                self._style_ai_pill("out")
+            elif ratio < 0.2:
+                text = f"Gemini AI: Sắp Hết ({rem:,} tokens)"
+                self.lbl_ai_quota.setText(text)
+                self._style_ai_pill("low")
             else:
-                self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
-                self.lbl_ai_quota.setToolTip("Số token AI còn lại trong tháng")
+                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self._style_ai_pill("normal")
+        else:
+            self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
+            self._style_ai_pill("normal")
+        self.lbl_ai_quota.setToolTip(tip)
+        if getattr(self, "pill_ai_container", None):
+            self.pill_ai_container.setToolTip(tip)
+
+    def _style_ai_pill(self, state: str = "normal") -> None:
+        """Tô lại pill Gemini AI theo trạng thái hạn mức (normal / low / out)."""
+        container = getattr(self, "pill_ai_container", None)
+        label = getattr(self, "lbl_ai_quota", None)
+        if not (container and label):
+            return
+        palettes = {
+            "normal": {"bg": "#EFF6FF", "text": COLOR_PRIMARY, "border": "#BFDBFE"},
+            "low": {"bg": "#FFF7E6", "text": "#B45309", "border": "#FDE68A"},
+            "out": {"bg": "#FEF2F2", "text": "#B91C1C", "border": "#FECACA"},
+        }
+        p = palettes.get(state) or palettes["normal"]
+        container.setStyleSheet(f"""
+            QFrame {{
+                background-color: {p['bg']};
+                border: 1.5px solid {p['border']};
+                border-radius: 16px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+                color: {p['text']};
+                font-size: 12px;
+                font-weight: 600;
+            }}
+        """)
 
 
 if __name__ == "__main__":

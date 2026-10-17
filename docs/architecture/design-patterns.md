@@ -47,14 +47,16 @@ Khi muốn mở rộng thêm môn học mới (ví dụ môn C++ `.cpp` hoặc W
 ### 2.2. Giải pháp kiến trúc Factory Method
 AITA áp dụng mẫu **Factory Method**:
 - **Product (Sản phẩm trừu tượng)**: `BaseRunner` định nghĩa các phương thức chuẩn mực: `compile()`, `execute_main()`, `monitor_resources()`.
-- **Concrete Products (Sản phẩm cụ thể)**: `CRunner`, `JavaRunner`, `PythonRunner`, `WebRunner`.
-- **Creator (Nhà máy khởi tạo)**: `RunnerFactory` cung cấp phương thức tĩnh `create_runner(file_extension, source_path, time_limit, memory_limit)`.
+- **Concrete Products (Sản phẩm cụ thể)**: `CRunner`, `JavaRunner`, `PythonRunner` (kết hợp dịch vụ chấm bài Web chuyên biệt `WebRubricEngine` ở tầng Services).
+- **Creator (Nhà máy khởi tạo)**: `RunnerFactory` cung cấp phương thức `get_runner(language)` và `register_runner(language_key, runner_cls)`.
 
 ```text
 +-------------------------------------------------------------------+
 |                           RunnerFactory                           |
 +-------------------------------------------------------------------+
-| + create_runner(file_ext: str, source: Path, ...): BaseRunner     |
+| + _REGISTRY: Dict[str, Type[BaseRunner]]                          |
+| + register_runner(language_key: str, runner_cls: Type): void      |
+| + get_runner(language: str): BaseRunner                           |
 +-------------------------------------------------------------------+
                                   │
                                   │ <<creates>>
@@ -138,25 +140,30 @@ class PythonRunner(BaseRunner):
 
 
 class RunnerFactory:
-    """Creator: Factory Method chịu trách nhiệm sản xuất Runner theo đuôi file."""
-    _registry: Dict[str, Type[BaseRunner]] = {
-        ".c": CRunner,
-        ".java": JavaRunner,
-        ".py": PythonRunner,
+    """Creator: Factory Method chịu trách nhiệm sản xuất Runner theo ngôn ngữ lập trình."""
+    _REGISTRY: Dict[str, Type[BaseRunner]] = {
+        "C": CRunner,
+        "JAVA": JavaRunner,
+        "PYTHON": PythonRunner
     }
 
     @classmethod
-    def register_runner(cls, ext: str, runner_cls: Type[BaseRunner]) -> None:
-        """Cho phép đăng ký thêm runner mới tại runtime mà không sửa code cũ."""
-        cls._registry[ext.lower()] = runner_cls
+    def register_runner(cls, language_key: str, runner_cls: Type[BaseRunner]) -> None:
+        """Tuân thủ nguyên lý OCP: Cho phép mở rộng ngôn ngữ mới tại thời điểm chạy."""
+        cls._REGISTRY[language_key.upper()] = runner_cls
 
     @classmethod
-    def create_runner(cls, source_file: Path, time_limit_ms: int = 2000, memory_limit_mb: int = 128) -> BaseRunner:
-        ext = source_file.suffix.lower()
-        runner_cls = cls._registry.get(ext)
-        if not runner_cls:
-            raise ValueError(f"Không hỗ trợ định dạng tệp: {ext}")
-        return runner_cls(source_file, time_limit_ms, memory_limit_mb)
+    def get_runner(cls, language: str) -> BaseRunner:
+        """Chuẩn hóa nhãn ngôn ngữ và trả về BaseRunner tương ứng."""
+        lang_upper = language.upper()
+        if "JAVA" in lang_upper:
+            return cls._REGISTRY["JAVA"]()
+        elif "PYTHON" in lang_upper or "PY" in lang_upper:
+            return cls._REGISTRY["PYTHON"]()
+        elif "C" in lang_upper and "C++" not in lang_upper:
+            return cls._REGISTRY["C"]()
+        else:
+            return cls._REGISTRY["C"]()
 ```
 
 ### 2.4. Phân tích Nguyên lý Thiết kế (Design Principles Justification)

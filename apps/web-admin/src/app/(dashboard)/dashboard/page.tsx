@@ -4,21 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/api";
-import {
-  RefreshCw,
-  FileDown,
-  FileSpreadsheet,
-  Printer,
-  ChevronDown,
-  Users,
-  Cpu,
-  Activity,
-  Layers,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface OverviewData {
   total_instructors: number;
@@ -178,7 +164,7 @@ export default function DashboardOverviewPage() {
 
     const totalConsumed = overview?.ai_token_usage?.total_tokens_consumed_month ?? 0;
     const totalBudget = overview?.ai_token_usage?.total_budget_limit ?? 0;
-    const topFeature = overview?.ai_token_usage?.top_consuming_feature || "Chưa có lượt gọi";
+    const topFeature = overview?.ai_token_usage?.top_consuming_feature || "Chưa có dữ liệu";
 
     let csv = "\uFEFF";
     csv += "BÁO CÁO TỔNG QUAN HỆ THỐNG AITA\n";
@@ -186,7 +172,7 @@ export default function DashboardOverviewPage() {
     csv += `Cổng quản trị:,Hệ thống Khảo thí AITA - Đại học FPT\n\n`;
 
     csv += "--- 1. CHỈ SỐ HỆ THỐNG & HẠN NGẠCH AI ---\n";
-    csv += `Tổng số giảng viên hoạt động:,${overview?.total_instructors ?? 0}\n`;
+    csv += `Tổng số giảng viên (không gồm quản trị viên):,${overview?.total_instructors ?? 0}\n`;
     csv += `Tổng token đã tiêu thụ trong tháng:,${totalConsumed}\n`;
     csv += `Ngân sách token toàn hệ thống:,${totalBudget}\n`;
     csv += `Tỷ lệ sử dụng thực tế:,${totalBudget > 0 ? ((totalConsumed / totalBudget) * 100).toFixed(2) : 0}%\n`;
@@ -200,7 +186,7 @@ export default function DashboardOverviewPage() {
         csv += `"${log.id}","${log.full_name}","${log.username}","${log.feature_type}","${log.model_name}",${log.prompt_tokens},${log.completion_tokens},${log.total_tokens},"${new Date(log.created_at).toLocaleString("vi-VN")}"\n`;
       });
     } else {
-      csv += "Chưa có bản ghi nhật ký nào trong cơ sở dữ liệu.\n";
+      csv += "Chưa có dữ liệu\n";
     }
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -224,12 +210,14 @@ export default function DashboardOverviewPage() {
     ? FEATURE_NAMES[topFeatureRaw] || topFeatureRaw
     : null;
 
+  const hasUsageRecords = pagination.total_items > 0;
+
   return (
     <div className="flex flex-col w-full gap-6">
       {/* ================= HEADER TRANG ================= */}
       <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          {/* Breadcrumb chữ thường, tối giản */}
+          {/* Breadcrumb tối giản */}
           <nav className="flex items-center gap-1.5 text-sm text-slate-500 mb-1">
             <Link href="/dashboard" className="hover:text-slate-800 transition-colors">
               Trang chủ
@@ -238,11 +226,11 @@ export default function DashboardOverviewPage() {
             <span className="text-slate-800 font-medium">Tổng quan</span>
           </nav>
 
-          {/* Tiêu đề & Trạng thái đồng bộ 1 dòng nhỏ */}
+          {/* Tiêu đề & Trạng thái đồng bộ */}
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
             Bảng điều khiển tổng quan
           </h1>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+          <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
             <span>Cập nhật lúc {lastSyncText}</span>
           </div>
@@ -254,12 +242,9 @@ export default function DashboardOverviewPage() {
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 active:scale-[0.99] transition-colors min-h-[40px] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 active:scale-[0.99] transition-colors min-h-[40px] disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Làm mới dữ liệu"
           >
-            <RefreshCw
-              className={`w-4 h-4 text-slate-500 ${isRefreshing ? "animate-spin text-indigo-600" : ""}`}
-            />
             <span>{isRefreshing ? "Đang cập nhật..." : "Làm mới"}</span>
           </button>
 
@@ -268,12 +253,10 @@ export default function DashboardOverviewPage() {
             <button
               type="button"
               onClick={() => setShowExportMenu(!showExportMenu)}
-              className="flex items-center gap-2 px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
+              className="flex items-center gap-2 px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               aria-label="Xuất báo cáo dữ liệu"
             >
-              <FileDown className="w-4 h-4" />
               <span>Xuất báo cáo</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
             </button>
 
             {showExportMenu && (
@@ -281,18 +264,16 @@ export default function DashboardOverviewPage() {
                 <button
                   type="button"
                   onClick={handleExportCsv}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                  className="w-full px-3 py-2 rounded-md text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors text-left"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-slate-500" />
-                  <span>Xuất file Excel (.csv)</span>
+                  Xuất file Excel (.csv)
                 </button>
                 <button
                   type="button"
                   onClick={handlePrintPdf}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                  className="w-full px-3 py-2 rounded-md text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors text-left"
                 >
-                  <Printer className="w-4 h-4 text-slate-500" />
-                  <span>In hoặc lưu PDF</span>
+                  In hoặc lưu PDF
                 </button>
               </div>
             )}
@@ -302,11 +283,8 @@ export default function DashboardOverviewPage() {
 
       {/* Thông báo lỗi nếu có */}
       {errorMessage && (
-        <section className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-xs text-rose-700">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
+        <section className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-[13px] text-rose-700">
+          <span>{errorMessage}</span>
           <Link
             href="/login"
             className="font-medium underline hover:text-rose-900 shrink-0"
@@ -316,18 +294,13 @@ export default function DashboardOverviewPage() {
         </section>
       )}
 
-      {/* ================= 4 THẺ KPI (ĐỒNG NHẤT CHIỀU CAO & TONE MÀU INDIGO) ================= */}
+      {/* ================= 4 THẺ KPI ================= */}
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Thẻ 1: Tổng Giảng Viên */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Tổng số giảng viên
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Tổng số giảng viên
+          </span>
           <div className="mt-3">
             {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -336,22 +309,17 @@ export default function DashboardOverviewPage() {
                 {overview?.total_instructors ?? 0}
               </div>
             )}
-            <div className="text-xs text-slate-500 mt-1">
-              Giảng viên trong hệ thống
+            <div className="text-[13px] text-slate-500 mt-1">
+              Không gồm quản trị viên
             </div>
           </div>
         </div>
 
         {/* Thẻ 2: Token Đã Sử Dụng */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Token đã sử dụng
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Cpu className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Token đã sử dụng
+          </span>
           <div className="mt-3">
             {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -362,11 +330,11 @@ export default function DashboardOverviewPage() {
             )}
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-2">
               <div
-                className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                className="bg-primary h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(usagePercentage, 100)}%` }}
               />
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-[13px] text-slate-500">
               {totalTokensUsed.toLocaleString()} / {totalBudgetLimit.toLocaleString()} token ({usagePercentage}%)
             </div>
           </div>
@@ -374,38 +342,30 @@ export default function DashboardOverviewPage() {
 
         {/* Thẻ 3: Lượt Sử Dụng AI */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Lượt yêu cầu AI
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Lượt yêu cầu AI
+          </span>
           <div className="mt-3">
             {loading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-            ) : (
+            ) : hasUsageRecords ? (
               <div className="text-3xl font-semibold text-slate-900 tracking-tight">
                 {pagination.total_items.toLocaleString()}
               </div>
+            ) : (
+              <div className="text-lg font-medium text-slate-500">Chưa có dữ liệu</div>
             )}
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-[13px] text-slate-500 mt-1">
               Ghi nhận trong tháng này
             </div>
           </div>
         </div>
 
-        {/* Thẻ 4: Tính Năng Dùng Nhiều Nhất (Hiện "—" và "Chưa có dữ liệu" khi trống) */}
+        {/* Thẻ 4: Tính Năng Dùng Nhiều Nhất */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Tính năng dùng nhiều nhất
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Tính năng dùng nhiều nhất
+          </span>
           <div className="mt-3">
             {overviewLoading ? (
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -414,12 +374,10 @@ export default function DashboardOverviewPage() {
                 {topFeatureDisplay}
               </div>
             ) : (
-              <div className="text-3xl font-semibold text-slate-400">
-                —
-              </div>
+              <div className="text-lg font-medium text-slate-500">Chưa có dữ liệu</div>
             )}
-            <div className="text-xs text-slate-400 mt-1">
-              {topFeatureDisplay ? "Chiếm tỷ trọng cao nhất" : "Chưa có dữ liệu"}
+            <div className="text-[13px] text-slate-500 mt-1">
+              {topFeatureDisplay ? "Chiếm tỷ trọng cao nhất" : "Chưa có lượt gọi AI nào"}
             </div>
           </div>
         </div>
@@ -427,24 +385,23 @@ export default function DashboardOverviewPage() {
 
       {/* ================= BẢNG NHẬT KÝ SỬ DỤNG AI ================= */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        {/* Header bảng: 1 câu mô tả ngắn, không lộ thông tin kỹ thuật */}
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
               Nhật ký sử dụng AI
             </h2>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-[13px] text-slate-500 mt-0.5">
               Lịch sử các yêu cầu xử lý AI được ghi nhận gần đây.
             </p>
           </div>
-          <span className="text-xs text-slate-500 font-medium">
-            {pagination.total_items} bản ghi
+          <span className="text-[13px] text-slate-500 font-medium">
+            {hasUsageRecords ? `${pagination.total_items} bản ghi` : "Chưa có dữ liệu"}
           </span>
         </div>
 
         {/* Table Content */}
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-[13px]">
             <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4 font-medium">Mã log</th>
@@ -460,8 +417,8 @@ export default function DashboardOverviewPage() {
             <tbody className="divide-y divide-slate-100 font-normal">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400">
-                    <Loader2 className="w-5 h-5 mx-auto animate-spin text-indigo-600 mb-1.5" />
+                  <td colSpan={8} className="py-10 text-center text-slate-500">
+                    <Loader2 className="w-5 h-5 mx-auto animate-spin text-primary mb-1.5" />
                     <span>Đang tải nhật ký...</span>
                   </td>
                 </tr>
@@ -471,47 +428,46 @@ export default function DashboardOverviewPage() {
                     key={item.id}
                     className="hover:bg-slate-50 transition-colors"
                   >
-                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                    <td className="py-3 px-4 font-mono text-slate-500 text-[13px] whitespace-nowrap">
                       {item.id.slice(0, 8)}...
                     </td>
                     <td className="py-3 px-4 text-slate-900 font-medium whitespace-nowrap">
                       <div>{item.full_name || item.username}</div>
-                      <div className="text-[11px] text-slate-400 font-normal font-mono">
+                      <div className="text-[13px] text-slate-500 font-normal">
                         @{item.username}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700">
+                      <span className="inline-block px-2 py-0.5 rounded text-[13px] bg-slate-100 text-slate-700">
                         {FEATURE_NAMES[item.feature_type] || item.feature_type}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                    <td className="py-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">
                       {item.model_name}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                    <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                       {item.prompt_tokens.toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                    <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                       {item.completion_tokens.toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-medium text-slate-900 whitespace-nowrap">
+                    <td className="py-3 px-4 text-right font-medium text-slate-900 whitespace-nowrap">
                       {item.total_tokens.toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-500 text-[11px] whitespace-nowrap">
+                    <td className="py-3 px-4 text-right text-slate-500 text-[13px] whitespace-nowrap">
                       {new Date(item.created_at).toLocaleString("vi-VN")}
                     </td>
                   </tr>
                 ))
               ) : (
-                /* Empty state thấp gọn */
+                /* Empty state */
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-1.5">
-                      <Layers className="w-6 h-6 text-slate-400" />
                       <span className="text-sm font-medium text-slate-600">
-                        Chưa có nhật ký sử dụng AI
+                        Chưa có dữ liệu
                       </span>
-                      <p className="text-xs text-slate-400 max-w-sm">
+                      <p className="text-[13px] text-slate-500 max-w-sm">
                         Các hoạt động gọi AI sẽ được tự động ghi nhận và hiển thị tại đây.
                       </p>
                     </div>
@@ -524,7 +480,7 @@ export default function DashboardOverviewPage() {
 
         {/* Footer bảng: Chỉ hiển thị phân trang khi tổng bản ghi > page_size */}
         <div className="p-4 border-t border-slate-200 flex items-center justify-between text-sm text-slate-500">
-          <span>{pagination.total_items} bản ghi</span>
+          <span>{hasUsageRecords ? `${pagination.total_items} bản ghi` : "Chưa có dữ liệu"}</span>
 
           {pagination.total_items > pagination.page_size && (
             <div className="flex items-center gap-1.5">
@@ -532,12 +488,12 @@ export default function DashboardOverviewPage() {
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage <= 1 || loading}
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Trang trước"
               >
-                <ChevronLeft className="w-4 h-4" />
+                Trước
               </button>
-              <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md">
+              <span className="px-2.5 py-1 text-[13px] font-medium text-slate-700 bg-slate-100 rounded-md">
                 {currentPage} / {pagination.total_pages}
               </span>
               <button
@@ -552,10 +508,10 @@ export default function DashboardOverviewPage() {
                   loading ||
                   pagination.total_pages === 0
                 }
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Trang sau"
               >
-                <ChevronRight className="w-4 h-4" />
+                Sau
               </button>
             </div>
           )}

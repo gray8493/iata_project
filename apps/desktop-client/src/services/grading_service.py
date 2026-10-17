@@ -6,8 +6,11 @@ Batch grading runs on a process pool (`ProcessPoolExecutor`, 4-8 workers) so the
 stays responsive while submissions are compiled and executed in parallel.
 """
 
+import json
 import os
 import re
+import sys
+import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, Any, List, Callable, Optional, Tuple
@@ -15,12 +18,69 @@ from typing import Dict, Any, List, Callable, Optional, Tuple
 from database.db_manager import DatabaseManager
 from core.factories.runner_factory import RunnerFactory
 from core.strategies.context import MatchingContext
+from core.sandbox.runner import SandboxRunner
 
 MIN_WORKERS = 4
 MAX_WORKERS = 8
 
 # Severity ranking khi một bài nộp gặp nhiều loại lỗi khác nhau (multi-question mode)
 VERDICT_SEVERITY: Dict[str, int] = {"AC": 0, "WA": 1, "CE": 2, "TLE": 3, "MLE": 3, "RE": 4}
+
+# Cache 1 lần/batch: thời gian khởi động trình thông dịch Python (pass trống).
+# Dùng để cộng thêm vào time_limit và trừ ra khỏi thời gian ghi nhận (chấm công bằng - pain #5).
+_PY_STARTUP_CACHE: Optional[float] = None
+
+# Giới hạn mỗi trường bằng chứng lưu vào JSON để DB payload không phình vô hạn
+_EVIDENCE_FIELD_CAP = 4000
+
+
+def _is_python_language(language: str) -> bool:
+    return "PY" in (language or "").strip().upper()
+
+
+def measure_python_startup_baseline() -> float:
+    """
+    Fairness (#5): đo thời gian chỉ để khởi chạy trình thông dịch Python.
+    Giá trị này được cộng thêm vào time_limit của từng testcase trước khi chạy
+    và trừ ra khỏi execution_time ghi nhận, để con số hiển thị phản ánh mã sinh viên
+    thay vì chi phí boot interpreter (tránh TLE oan oải hàng loạt bài Python).
+    """
+    global _PY_STARTUP_CACHE
+    if _PY_STARTUP_CACHE is not None:
+        return _PY_STARTUP_CACHE
+    value = 0.0
+    try:
+        res = SandboxRunner.run_process(
+            command=[sys.executable, "-u", "-c", "pass"],
+            input_data="",
+            time_limit_ms=15000,
+            memory_limit_mb=128,
+        )
+        if res.verdict == "OK":
+            value = float(res.execution_time_ms)
+    except Exception:
+        value = 0.0
+    _PY_STARTUP_CACHE = value
+    return value
+
+
+def _cap_field(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return text[:_EVIDENCE_FIELD_CAP]
+
+
+def _build_evidence_payload(
+    language: str,
+    python_baseline_ms: float,
+    items: List[Dict[str, Any]]
+) -> str:
+    """Chứng cứ per-testcase (pain #4): JSON chuẩn được lưu vào cột diff_details."""
+    payload = {
+        "language": language,
+        "python_baseline_ms": round(python_baseline_ms, 2) if _is_python_language(language) else 0.0,
+        "items": items,
+    }
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _pick_worse(a: str, b: str) -> str:
@@ -68,7 +128,8 @@ def grade_single_submission(
     submission: Dict[str, Any],
     language: str,
     testcases: List[Dict[str, Any]],
-    total_weight: float
+    total_weight: float,
+    python_baseline_ms: float = 0.0
 ) -> Dict[str, Any]:
     """
     Compiles and grades one submission in a worker process (no DB access here).
@@ -87,6 +148,7 @@ def grade_single_submission(
     submission_id = submission.get("id")
     matching_strategy = testcases[0].get("matching_strategy", "EXACT_MATCH") if testcases else "EXACT_MATCH"
     source_root = Path(submission["source_file_path"])
+    is_py = _is_python_language(language)
 
     result = {
         "submission_id": submission_id,
@@ -106,11 +168,28 @@ def grade_single_submission(
     max_mem = 0.0
     first_diff: Optional[str] = None
     logs: List[str] = []
+    evidence: List[Dict[str, Any]] = []
 
     def record_diff(message: str) -> None:
         nonlocal first_diff
         if first_diff is None:
             first_diff = message
+
+    def new_evidence(q_label: str, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """One per-testcase evidence row (pain #4): later filled after execution."""
+        return {
+            "q": q_label,
+            "input": _cap_field(tc.get("input_data", "")),
+            "expected": _cap_field(tc.get("expected_output", "")),
+            "actual": "",
+            "stderr": "",
+            "verdict": "SKIP",
+            "time_ms": 0.0,
+            "memory_mb": 0.0,
+            "strategy": tc.get("matching_strategy", "EXACT_MATCH"),
+            "weight": tc.get("score_weight", 1.0),
+            "passed": False,
+        }
 
     if source_root.is_dir():
         # —— Multi-question mode: file bài làm `Q<nn>.<ext>` theo question_number ——
@@ -122,6 +201,10 @@ def grade_single_submission(
             qfile = _resolve_question_file(source_root, qnum, language)
             if qfile is None:
                 logs.append(f"{qnum}: Không tìm thấy file bài làm trong thư mục sinh viên.")
+                entry = new_evidence(str(qnum), tc)
+                entry["verdict"] = "CE"
+                entry["stderr"] = f"Thiếu file bài làm {qnum} trong thư mục sinh viên."
+                evidence.append(entry)
                 record_diff(f"({qnum}) Thiếu file bài làm {qnum} trong thư mục sinh viên.")
                 worst_verdict = _pick_worse(worst_verdict, "CE")
                 continue
@@ -133,28 +216,50 @@ def grade_single_submission(
 
             if not success or not exec_target:
                 logs.append(f"{qnum}: CE - {compile_log or 'Lỗi biên dịch.'}")
+                entry = new_evidence(str(qnum), tc)
+                entry["verdict"] = "CE"
+                entry["stderr"] = _cap_field(compile_log or "Lỗi biên dịch.")
+                evidence.append(entry)
                 record_diff(f"({qnum}) Lỗi biên dịch: {compile_log or ''}")
                 worst_verdict = _pick_worse(worst_verdict, "CE")
                 continue
 
             matching_ctx.set_strategy_by_name(tc.get("matching_strategy", "EXACT_MATCH"))
+            # Fairness (#5): Python cộng thêm baseline khởi động interpreter vào time_limit
+            base_limit = int(tc.get("time_limit_ms", 1500) or 1500)
+            limit_ms = base_limit + (int(python_baseline_ms) if (is_py and python_baseline_ms > 0) else 0)
             res = runner.execute(
                 executable_target=exec_target,
                 input_data=tc.get("input_data", ""),
-                time_limit_ms=tc.get("time_limit_ms", 1500),
+                time_limit_ms=limit_ms,
                 memory_limit_mb=tc.get("memory_limit_mb", 128)
             )
-            max_exec_time = max(max_exec_time, res.execution_time_ms)
+            # Thời gian hiệu dụng: trừ phần boot interpreter (chỉ áp dụng Python)
+            effective_ms = res.execution_time_ms
+            if is_py and python_baseline_ms > 0:
+                effective_ms = max(0.0, float(res.execution_time_ms) - python_baseline_ms)
+            max_exec_time = max(max_exec_time, effective_ms)
             max_mem = max(max_mem, res.memory_used_mb)
+
+            entry = new_evidence(str(qnum), tc)
+            entry["time_ms"] = round(effective_ms, 2)
+            entry["memory_mb"] = res.memory_used_mb
+            evidence.append(entry)
 
             if res.verdict != "OK":
                 # TLE, MLE, or RE stops the run (old semantics preserved)
                 worst_verdict = res.verdict
+                entry["verdict"] = res.verdict
+                entry["actual"] = _cap_field(res.stdout)
+                entry["stderr"] = _cap_field(res.stderr or res.error_message)
                 record_diff(f"({qnum}) {res.error_message}")
                 logs.append(f"{qnum}: dừng sớm ({res.verdict}).")
                 break
 
             match_res = matching_ctx.compare(res.stdout, tc.get("expected_output", ""))
+            entry["actual"] = _cap_field(res.stdout)
+            entry["verdict"] = "PASS" if match_res.is_matched else "WA"
+            entry["passed"] = bool(match_res.is_matched)
             if match_res.is_matched:
                 earned_weight += tc.get("score_weight", 1.0)
             else:
@@ -173,22 +278,39 @@ def grade_single_submission(
 
         for tc in testcases:
             matching_ctx.set_strategy_by_name(tc.get("matching_strategy", "EXACT_MATCH"))
+            # Fairness (#5): Python cộng thêm baseline khởi động interpreter vào time_limit
+            base_limit = int(tc.get("time_limit_ms", 1500) or 1500)
+            limit_ms = base_limit + (int(python_baseline_ms) if (is_py and python_baseline_ms > 0) else 0)
             res = runner.execute(
                 executable_target=exec_target,
                 input_data=tc.get("input_data", ""),
-                time_limit_ms=tc.get("time_limit_ms", 1500),
+                time_limit_ms=limit_ms,
                 memory_limit_mb=tc.get("memory_limit_mb", 128)
             )
-            max_exec_time = max(max_exec_time, res.execution_time_ms)
+            effective_ms = res.execution_time_ms
+            if is_py and python_baseline_ms > 0:
+                effective_ms = max(0.0, float(res.execution_time_ms) - python_baseline_ms)
+            max_exec_time = max(max_exec_time, effective_ms)
             max_mem = max(max_mem, res.memory_used_mb)
+
+            entry = new_evidence("", tc)
+            entry["time_ms"] = round(effective_ms, 2)
+            entry["memory_mb"] = res.memory_used_mb
+            evidence.append(entry)
 
             if res.verdict != "OK":
                 # TLE, MLE, or RE stops the whole run (old semantics preserved)
                 worst_verdict = res.verdict
+                entry["verdict"] = res.verdict
+                entry["actual"] = _cap_field(res.stdout)
+                entry["stderr"] = _cap_field(res.stderr or res.error_message)
                 record_diff(res.error_message)
                 break
 
             match_res = matching_ctx.compare(res.stdout, tc.get("expected_output", ""))
+            entry["actual"] = _cap_field(res.stdout)
+            entry["verdict"] = "PASS" if match_res.is_matched else "WA"
+            entry["passed"] = bool(match_res.is_matched)
             if match_res.is_matched:
                 earned_weight += tc.get("score_weight", 1.0)
             else:
@@ -203,9 +325,35 @@ def grade_single_submission(
         "score": final_score,
         "execution_time_ms": max_exec_time,
         "memory_used_mb": max_mem,
-        "diff_details": first_diff
     })
+    # Chứng cứ per-testcase (pain #4): JSON chuẩn thay thế diff text rời rạc.
+    # Fallback: nếu không có evidence nào (ví dụ CE sớm) giữ nguyên diff text cũ cho UI.
+    if evidence:
+        result["diff_details"] = _build_evidence_payload(language, python_baseline_ms, evidence)
+    else:
+        result["diff_details"] = first_diff
     return result
+
+
+def _kill_process_tree(pid: int) -> None:
+    """
+    Hủy chấm (#2): terminate worker + toàn bộ tiến trình con của nó (sandbox, compiler,
+    tiến trình sinh viên đang chạy). Tránh rơi orphan process khi batch bị hủy giữa đường.
+    """
+    try:
+        import psutil
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+            try:
+                child.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        try:
+            parent.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    except Exception:
+        pass
 
 
 class GradingService:
@@ -218,15 +366,21 @@ class GradingService:
         self,
         class_id: int,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
-        max_workers: Optional[int] = None
+        max_workers: Optional[int] = None,
+        submission_ids: Optional[List[int]] = None,
+        cancel_event: Optional[threading.Event] = None
     ) -> List[Dict[str, Any]]:
         """
-        Grades all active student submissions for a given class session in parallel.
+        Grades active student submissions for a given class session in parallel.
 
         Args:
             class_id: Target class session ID
             progress_callback: Optional callable(completed_count, total_count, current_student_mssv)
             max_workers: Optional override for the process pool size (defaults to 4-8)
+            submission_ids: Optional whitelist — chỉ chấm các bài này (dùng cho "Chấm Tiếp": resume PENDING).
+            cancel_event: Optional threading.Event — khi được set, đợt chấm dừng khỏe ngang:
+                bài đang chạy bị terminate hẳn (giữ PENDING), bài chưa chạy bị hủy khỏi queue,
+                để lần sau "Chấm Tiếp" chọn đúng các bài còn PENDING.
         """
         # 1. Fetch class info, submissions and testcases
         classes = self.db.get_all_classes()
@@ -237,6 +391,11 @@ class GradingService:
         language = class_info.get("programming_language", "C")
         submissions = self.db.get_submissions_by_class(class_id)
         testcases = self.db.get_testcases_by_class(class_id)
+
+        # Resume mode (#2): chỉ chấm lô con được chỉ định
+        if submission_ids:
+            wanted = {int(sid) for sid in submission_ids}
+            submissions = [s for s in submissions if s.get("id") in wanted]
 
         if not testcases:
             raise ValueError(
@@ -251,26 +410,39 @@ class GradingService:
 
         total_weight = sum(tc.get("score_weight", 1.0) for tc in testcases) or 10.0
 
+        # Fairness (#5): đo baseline khởi động interpreter một lần cho cả batch (Python only)
+        python_baseline_ms = measure_python_startup_baseline() if _is_python_language(language) else 0.0
+
         # 2. Resolve pool size: honour documented 4-8 workers, bounded by workload
         if max_workers is None:
             cpu = os.cpu_count() or MIN_WORKERS
             max_workers = min(MAX_WORKERS, max(MIN_WORKERS, cpu))
         num_workers = max(1, min(max_workers, total_subs))
 
-        # 3. Dispatch submissions to the worker pool and persist results as they complete
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # 3. Dispatch submissions to the worker pool and persist results as they complete.
+        #    Dùng executor thủ công (không dùng with) để còn hủy können batch giữa đường bằng
+        #    terminate worker processes - future.cancel() là vô dụng vì worker nhặt việc gần như tức thời.
+        executor = ProcessPoolExecutor(max_workers=num_workers)
+        try:
             future_to_index = {
-                executor.submit(grade_single_submission, sub, language, testcases, total_weight): idx
+                executor.submit(
+                    grade_single_submission, sub, language, testcases,
+                    total_weight, python_baseline_ms
+                ): idx
                 for idx, sub in enumerate(submissions)
             }
 
             completed = 0
+            cancel_applied = False
             for future in as_completed(future_to_index):
                 idx = future_to_index[future]
                 sub = submissions[idx]
                 try:
                     res = future.result()
                 except Exception as ex:
+                    if cancel_event is not None and cancel_event.is_set():
+                        # Future bị hủy/terminate khi có yêu cầu hủy: giữ PENDING cho lần sau
+                        continue
                     res = {
                         "submission_id": sub.get("id"),
                         "mssv": sub.get("student_mssv", ""),
@@ -283,12 +455,42 @@ class GradingService:
                         "matching_strategy": testcases[0].get("matching_strategy", "EXACT_MATCH")
                     }
 
+                # Lưu kết quả bài vừa hoàn tất (kể cả trong phiên hợp lệ khi yêu cầu hủy đã bật)
                 self._save_result(res)
-                results[idx] = {"mssv": res["mssv"], "verdict": res["verdict"], "score": res["score"]}
+                results[idx] = {
+                    "submission_id": res["submission_id"],
+                    "mssv": res["mssv"],
+                    "verdict": res["verdict"],
+                    "score": res["score"],
+                }
 
                 completed += 1
                 if progress_callback:
                     progress_callback(completed, total_subs, res["mssv"])
+
+                # Cancel propagation (#2): dừng hẳn batch sau khi lưu xong bài đang nắm:
+                # - hủy future chưa chạy (cancel_futures=True)
+                # - terminate worker đang chạy + cây tiến trình con của nó
+                if cancel_event is not None and cancel_event.is_set() and not cancel_applied:
+                    cancel_applied = True
+                    # Snapshot trước shutdown vì executor._processes triệt tiêu về None sau đó
+                    worker_procs = list((getattr(executor, "_processes", None) or {}).values())
+                    try:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                    except Exception:
+                        pass
+                    for proc in worker_procs:
+                        try:
+                            if proc.is_alive():
+                                _kill_process_tree(proc.pid)
+                        except Exception:
+                            pass
+                    break
+        finally:
+            try:
+                executor.shutdown(wait=not cancel_applied, cancel_futures=True)
+            except Exception:
+                pass
 
         return [r for r in results if r is not None]
 
@@ -311,7 +513,8 @@ class GradingService:
             )
 
         total_weight = sum(tc.get("score_weight", 1.0) for tc in testcases) or 10.0
-        result = grade_single_submission(sub, language, testcases, total_weight)
+        python_baseline_ms = measure_python_startup_baseline() if _is_python_language(language) else 0.0
+        result = grade_single_submission(sub, language, testcases, total_weight, python_baseline_ms)
         self._save_result(result)
         return result
 

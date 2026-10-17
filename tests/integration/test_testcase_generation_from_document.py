@@ -40,8 +40,8 @@ def ai_service():
 # ------------------------------------------------------------------------------
 # Normal
 # ------------------------------------------------------------------------------
-def test_it01_aitestcasegeneration_tc001_document_text_is_sent_to_ai(monkeypatch, tmp_path, ai_service):
-    """IT01_AiTestcaseGeneration_TC001: nội dung file đề bài được gửi tới AI Gateway."""
+def test_it05_aitestcasegeneration_tc001_document_text_is_sent_to_ai(monkeypatch, tmp_path, ai_service):
+    """IT05_AiTestcaseGeneration_TC001: nội dung file đề bài được gửi tới AI Gateway."""
     f = tmp_path / "de_bai.txt"
     f.write_text(
         "Đếm số nguyên tố nhỏ hơn N. Input: số nguyên N. Output: số lượng nguyên tố.",
@@ -74,8 +74,8 @@ def test_it01_aitestcasegeneration_tc001_document_text_is_sent_to_ai(monkeypatch
 # ------------------------------------------------------------------------------
 # Boundary
 # ------------------------------------------------------------------------------
-def test_it01_aitestcasegeneration_tc002_clamps_count_and_language(monkeypatch, ai_service):
-    """IT01_AiTestcaseGeneration_TC002: count bị kẹp về 10, ngôn ngữ lạ -> 'C' (biên)."""
+def test_it05_aitestcasegeneration_tc002_clamps_count_and_language(monkeypatch, ai_service):
+    """IT05_AiTestcaseGeneration_TC002: count bị kẹp về 10, ngôn ngữ lạ -> 'C' (biên)."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -92,8 +92,8 @@ def test_it01_aitestcasegeneration_tc002_clamps_count_and_language(monkeypatch, 
 # ------------------------------------------------------------------------------
 # Exception
 # ------------------------------------------------------------------------------
-def test_it01_aitestcasegeneration_tc003_surfaces_backend_error(monkeypatch, ai_service):
-    """IT01_AiTestcaseGeneration_TC003: backend trả lỗi -> AiService trả success=False."""
+def test_it05_aitestcasegeneration_tc003_surfaces_backend_error(monkeypatch, ai_service):
+    """IT05_AiTestcaseGeneration_TC003: backend trả lỗi -> AiService trả success=False."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

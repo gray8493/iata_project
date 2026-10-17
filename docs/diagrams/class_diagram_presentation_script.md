@@ -5,7 +5,7 @@
 ---
 
 > [!NOTE]
-> **Tài liệu tham chiếu:** [`docs/diagrams/puml/class_diagram.puml`](file:///d:/SWD_Project/docs/diagrams/puml/class_diagram.puml)  
+> **Tài liệu tham chiếu:** [`docs/diagrams/puml/class_diagram.puml`](file:///e:/AITA/docs/diagrams/puml/class_diagram.puml)  
 > **Thời lượng báo cáo đề xuất:** 4 – 6 phút thuyết trình + 4 phút trả lời câu hỏi phản biện (Q&A).  
 > **Mục tiêu chính:** Trình bày rõ ràng kiến trúc 3 phân hệ, cách phân tách ranh giới an toàn giữa Local Engine và Cloud Backend, và phân tích sâu **3 Mẫu thiết kế Gang of Four (GoF)** theo rubric đồ án.
 
@@ -55,8 +55,8 @@
 > Tại đây, nhóm áp dụng 2 Design Pattern quan trọng:
 >
 > **1. Creational Pattern — Factory Method:**
-> * Lớp `RunnerFactory` cung cấp phương thức tĩnh `create_runner(file_extension, source_path)`. Dựa trên phần mở rộng tệp nộp, nó sẽ tự động nhận diện và sản xuất đối tượng Runner tương ứng kế thừa từ `BaseRunner`: đó là `CRunner`, `JavaRunner`, `PythonRunner` hoặc `WebRunner`.
-> * **Lợi ích kiến trúc:** Tuân thủ triệt để nguyên lý *Open/Closed (OCP)*. Khi nhà trường muốn bổ sung ngôn ngữ mới như C++ hay Rust, nhóm chỉ cần viết thêm class Runner mới mà không phải sửa đổi mã nguồn của tầng điều phối chấm bài.
+> * Lớp `RunnerFactory` cung cấp phương thức `get_runner(language)` cùng cơ chế đăng ký động `register_runner(language_key, runner_cls)`. Dựa trên ngôn ngữ của môn thi, nó sẽ tự động phân giải và khởi tạo đối tượng Runner tương ứng kế thừa từ `BaseRunner`: đó là `CRunner`, `JavaRunner`, hoặc `PythonRunner` (kết hợp dịch vụ chấm Web chuyên biệt `WebRubricEngine` ở tầng Services).
+> * **Lợi ích kiến trúc:** Tuân thủ triệt để nguyên lý *Open/Closed (OCP)*. Khi nhà trường muốn bổ sung ngôn ngữ mới như C++ hay Rust, nhóm chỉ cần viết thêm class Runner mới và đăng ký vào Factory qua `register_runner` tại runtime mà không phải sửa đổi mã nguồn của tầng điều phối chấm bài.
 >
 > **2. Structural Pattern — Adapter Pattern:**
 > * Trình biên dịch C (`gcc`) và Java (`javac`) có giao diện dòng lệnh (CLI flags) hoàn toàn khác nhau, và định dạng log lỗi `stderr` cũng không đồng nhất.

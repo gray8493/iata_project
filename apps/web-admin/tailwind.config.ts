@@ -31,6 +31,11 @@ const config: Config = {
         ],
       },
       colors: {
+        primary: {
+          DEFAULT: "var(--color-primary)",
+          hover: "var(--color-primary-hover)",
+          bg: "var(--color-primary-bg)",
+        },
         brand: {
           50: "#EEF2FF",
           100: "#E0E7FF",

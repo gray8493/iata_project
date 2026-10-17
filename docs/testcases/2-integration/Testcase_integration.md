@@ -26,6 +26,9 @@ npm test -- integration.docs.spec.ts
 | IT02_DisableRevoke_TC002 | DisableRevoke | Exception | `JwtStrategy.validate` |
 | IT03_QuotaAllocation_TC001 | QuotaAllocation | Normal | `PUT /api/v1/admin/users/:id` |
 | IT04_AuthQuotaSync_TC001 | AuthQuotaSync | Normal | `POST /api/v1/auth/login` + `GET /api/v1/ai/quota` |
+| IT05_AiTestcaseGeneration_TC001 | AiTestcaseGeneration | Normal | `POST /api/v1/ai/generate-testcases` (Desktop -> Backend) |
+| IT05_AiTestcaseGeneration_TC002 | AiTestcaseGeneration | Boundary | `POST /api/v1/ai/generate-testcases` (Desktop -> Backend) |
+| IT05_AiTestcaseGeneration_TC003 | AiTestcaseGeneration | Exception | `POST /api/v1/ai/generate-testcases` (Desktop -> Backend) |
 | IT15_ReportOverview_TC001 | ReportOverview | Normal | `GET /api/v1/admin/reports/overview` |
 | IT15_ReportAiUsage_TC002 | ReportOverview | Normal | `GET /api/v1/admin/reports/ai-usage` |
 | IT15_ReportAiUsage_TC003 | ReportOverview | Exception | `GET /api/v1/admin/reports/ai-usage` |
@@ -92,6 +95,26 @@ npm test -- integration.docs.spec.ts
 - **Expected Result:**
   - Login trả `expires_in = 900` (mặc định `15m`) và `user.role = INSTRUCTOR`.
   - Snapshot trả `daily_limit_tokens = 50000`, `used_tokens_today = 12000`, `remaining_tokens = 38000`.
+
+### IT05_AiTestcaseGeneration_TC001 — Nạp đề bài từ file và gửi tới AI Gateway
+- **Loại test:** Normal
+- **Pre-condition:** `AiService` khởi tạo với `ApiClient`, nạp thành công file đề bài qua `document_reader`.
+- **Test Data:** Nội dung đề bài hợp lệ, `count = 2`, `language = "python"`.
+- **Test Steps:** Gọi `AiService.generate_testcases`.
+- **Expected Result:** Gửi request chuẩn cấu trúc tới backend `POST /api/v1/ai/generate-testcases`; trả về danh sách testcase và token tiêu thụ.
+
+### IT05_AiTestcaseGeneration_TC002 — Kẹp giá trị count và chuẩn hóa ngôn ngữ (Biên)
+- **Loại test:** Boundary
+- **Pre-condition:** `AiService` sẵn sàng.
+- **Test Data:** `count = 99` (vượt trần 10), `language = "rust"` (ngôn ngữ không thuộc danh mục).
+- **Test Steps:** Gọi `AiService.generate_testcases`.
+- **Expected Result:** Payload gửi đi tự kẹp `count = 10` và fallback `language = "C"`.
+
+### IT05_AiTestcaseGeneration_TC003 — Lan truyền lỗi từ Backend lên Desktop UI (Ngoại lệ)
+- **Loại test:** Exception
+- **Pre-condition:** Backend phản hồi `429 AI_QUOTA_EXCEEDED`.
+- **Test Steps:** Gọi `AiService.generate_testcases`.
+- **Expected Result:** `AiService` bắt lỗi an toàn, trả về `success = False` và `error_code = "AI_QUOTA_EXCEEDED"`.
 
 ### IT15_ReportOverview_TC001 — Báo cáo tổng quan tổng hợp nhiều bảng
 - **Loại test:** Normal
@@ -165,9 +188,10 @@ npm test -- integration.docs.spec.ts
 
 ---
 
-## 6. Ngoài phạm vi (Desktop/pytest) — chưa tự động hóa ở tầng backend
-- Chạy biên dịch & chấm bài trên sandbox cục bộ (TLE/MLE/RE/CE).
-- Quét thư mục submission, sinh `results.csv`, so khớp MSSV ↔ file.
-- Trích xuất `main()` và so khớp stdout (matching strategies).
-
-Các kịch bản trên thuộc `apps/desktop-client` và cần bộ kiểm thử Python (pytest) riêng.
+## 6. Phân hệ Desktop Client (Pytest Integration)
+Các kịch bản tích hợp thuộc phân hệ Desktop Client được tự động hóa độc lập qua bộ test Python:
+- `IT05_AiTestcaseGeneration`: Tích hợp nạp file đề bài với `AiService` và `ApiClient` (đã test tại `tests/integration/test_testcase_generation_from_document.py`).
+- `IT08_CExactMatch`: Tích hợp biên dịch và so khớp byte-exact cho môn C (`test_matching_strategies.py`).
+- `IT09_JavaFloatingPoint`: Tích hợp máy ảo Java và so khớp sai số thực epsilon $\le 10^{-5}$ (`test_matching_strategies.py`).
+- `IT10_PythonUnorderedTokens`: Tích hợp trình thông dịch Python và so khớp token không phụ thuộc thứ tự (`test_matching_strategies.py`).
+- `IT14_GradebookExport`: Tích hợp dữ liệu chấm điểm và xuất file `results.csv` 7 cột UTF-8 BOM (`test_export_service.py`).

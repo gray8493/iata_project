@@ -4,22 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/api";
-import {
-  RefreshCw,
-  Cpu,
-  Users,
-  Search,
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Sliders,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  Activity,
-  Layers,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface OverviewData {
   total_instructors: number;
@@ -69,11 +54,14 @@ const FEATURE_NAMES: Record<string, string> = {
   EVALUATE_WEB_UI: "Đánh giá giao diện web",
 };
 
+const REQUEST_TIMEOUT_MS = 12000;
+
 export default function AiQuotaPage() {
   const [activeTab, setActiveTab] = useState<"INSTRUCTORS" | "LOGS">("INSTRUCTORS");
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [quotaError, setQuotaError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   const { data: overview, mutate: mutateOverview } = useSWR<OverviewData>(
@@ -130,6 +118,11 @@ export default function AiQuotaPage() {
 
     setLoading(true);
     setErrorMessage("");
+    setQuotaError("");
+
+    // Giới hạn thời gian phản hồi để tránh tab kẹt trạng thái "Đang tải"
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const headers = {
@@ -138,8 +131,14 @@ export default function AiQuotaPage() {
       };
 
       const [resInstructors, resLogs] = await Promise.all([
-        fetch(`${apiUrl}/admin/users?role=INSTRUCTOR&page=1&page_size=50`, { headers }),
-        fetch(`${apiUrl}/admin/reports/ai-usage?page=${logPage}&page_size=${logsPagination.page_size}`, { headers }),
+        fetch(`${apiUrl}/admin/users?role=INSTRUCTOR&page=1&page_size=50`, {
+          headers,
+          signal: controller.signal,
+        }),
+        fetch(`${apiUrl}/admin/reports/ai-usage?page=${logPage}&page_size=${logsPagination.page_size}`, {
+          headers,
+          signal: controller.signal,
+        }),
       ]);
 
       if (resInstructors.status === 401 || resLogs.status === 401) {
@@ -154,6 +153,8 @@ export default function AiQuotaPage() {
       if (resInstructors.ok) {
         const json = await resInstructors.json();
         if (json.success && json.data?.items) setInstructors(json.data.items);
+      } else {
+        setQuotaError("Không tải được dữ liệu hạn ngạch.");
       }
 
       if (resLogs.ok) {
@@ -163,9 +164,15 @@ export default function AiQuotaPage() {
           if (json.data.pagination) setLogsPagination(json.data.pagination);
         }
       }
-    } catch {
-      setErrorMessage("Lỗi kết nối tới máy chủ.");
+    } catch (err) {
+      if ((err as any)?.name === "AbortError") {
+        setQuotaError("Không tải được dữ liệu hạn ngạch (máy chủ phản hồi quá lâu).");
+      } else {
+        setErrorMessage("Lỗi kết nối tới máy chủ.");
+        setQuotaError("Không tải được dữ liệu hạn ngạch.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [logsPagination.page, logsPagination.page_size]);
@@ -229,6 +236,9 @@ export default function AiQuotaPage() {
   const totalBudget = overview?.ai_token_usage?.total_budget_limit ?? 1;
   const usagePercentage = Math.min(100, Math.round((totalConsumed / totalBudget) * 100));
 
+  // Số giảng viên dùng chung cho thẻ "Giảng viên có hạn ngạch" và tab — luôn khớp nhau
+  const instructorCount = overview?.total_instructors ?? instructors.length;
+
   const handleExportInstructorsCsv = () => {
     if (instructors.length === 0) return;
     const headers = ["ID", "Giảng viên", "Username", "Email", "Hạn ngạch ngày (Tokens)", "Đã dùng hôm nay", "Còn lại", "Trạng thái"];
@@ -289,26 +299,20 @@ export default function AiQuotaPage() {
     <div className="flex flex-col w-full gap-6">
       {/* Thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
-          </div>
-          <button onClick={() => setErrorMessage("")} className="hover:text-rose-900" aria-label="Đóng thông báo">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng thông báo">
+            Đóng
           </button>
         </div>
       )}
 
       {/* Thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{successMessage}</span>
-          </div>
-          <button onClick={() => setSuccessMessage("")} className="hover:text-emerald-950" aria-label="Đóng thông báo">
-            <X className="w-4 h-4" />
+        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
+          <span>{successMessage}</span>
+          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng thông báo">
+            Đóng
           </button>
         </div>
       )}
@@ -327,7 +331,7 @@ export default function AiQuotaPage() {
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
             Giám sát hạn ngạch AI
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-[13px] text-slate-500 mt-1">
             Quản lý lưu lượng token và phân bổ hạn ngạch cho giảng viên
           </p>
         </div>
@@ -339,37 +343,31 @@ export default function AiQuotaPage() {
             mutateOverview();
           }}
           disabled={loading}
-          className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Làm mới dữ liệu"
         >
-          <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? "animate-spin text-indigo-600" : ""}`} />
-          <span>Làm mới</span>
+          <span>{loading ? "Đang tải..." : "Làm mới"}</span>
         </button>
       </section>
 
-      {/* ================= 4 THẺ KPI ĐỒNG NHẤT (INDIGO + SLATE) ================= */}
+      {/* ================= 4 THẺ KPI ================= */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Thẻ 1: Ngân sách tháng */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Định mức tháng
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Cpu className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Định mức tháng
+          </span>
           <div className="mt-3">
             <div className="text-3xl font-semibold text-slate-900 tracking-tight">
               {(overview?.ai_token_usage?.total_budget_limit ?? 0).toLocaleString()}
             </div>
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-2">
               <div
-                className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                className="bg-primary h-full rounded-full transition-all duration-500"
                 style={{ width: `${usagePercentage}%` }}
               />
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-[13px] text-slate-500">
               Tổng ngân sách toàn hệ thống
             </div>
           </div>
@@ -377,19 +375,14 @@ export default function AiQuotaPage() {
 
         {/* Thẻ 2: Đã tiêu thụ */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Token đã sử dụng
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Token đã sử dụng
+          </span>
           <div className="mt-3">
             <div className="text-3xl font-semibold text-slate-900 tracking-tight">
               {(overview?.ai_token_usage?.total_tokens_consumed_month ?? 0).toLocaleString()}
             </div>
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-[13px] text-slate-500 mt-1">
               Đạt {usagePercentage}% định mức tháng
             </div>
           </div>
@@ -397,65 +390,70 @@ export default function AiQuotaPage() {
 
         {/* Thẻ 3: Top tính năng */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Tính năng dùng nhiều nhất
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Tính năng dùng nhiều nhất
+          </span>
           <div className="mt-3">
             {topFeatureDisplay ? (
               <div className="text-lg font-semibold text-slate-900 tracking-tight truncate" title={topFeatureDisplay}>
                 {topFeatureDisplay}
               </div>
             ) : (
-              <div className="text-3xl font-semibold text-slate-400">
-                —
+              <div className="text-lg font-medium text-slate-500">
+                Chưa có dữ liệu
               </div>
             )}
-            <div className="text-xs text-slate-400 mt-1">
-              {topFeatureDisplay ? "Chiếm tỷ trọng cao nhất" : "Chưa có dữ liệu"}
+            <div className="text-[13px] text-slate-500 mt-1">
+              {topFeatureDisplay ? "Chiếm tỷ trọng cao nhất" : "Chưa có lượt gọi AI nào"}
             </div>
           </div>
         </div>
 
         {/* Thẻ 4: Tổng giảng viên */}
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-sm text-slate-500 font-normal">
-              Giảng viên có hạn ngạch
-            </span>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
+          <span className="text-sm text-slate-500 font-normal">
+            Giảng viên có hạn ngạch
+          </span>
           <div className="mt-3">
             <div className="text-3xl font-semibold text-slate-900 tracking-tight">
-              {overview?.total_instructors ?? instructors.length}
+              {instructorCount}
             </div>
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-[13px] text-slate-500 mt-1">
               Giảng viên đang hoạt động
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= TAB CONTROLS (TỐI GIẢN) ================= */}
+      {/* Thông báo lỗi tải hạn ngạch + nút Thử lại */}
+      {quotaError && (
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium">
+          <span>{quotaError}</span>
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            disabled={loading}
+            className="px-3 h-8 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-100 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {/* ================= TAB CONTROLS ================= */}
       <div className="flex items-center gap-6 border-b border-slate-200 text-sm">
         <button
           type="button"
           onClick={() => setActiveTab("INSTRUCTORS")}
           className={`pb-3 font-medium transition-colors relative ${
             activeTab === "INSTRUCTORS"
-              ? "text-indigo-600 font-semibold"
+              ? "text-primary font-semibold"
               : "text-slate-500 hover:text-slate-800"
           }`}
         >
-          <span>Hạn ngạch giảng viên ({instructors.length})</span>
+          <span>Hạn ngạch giảng viên ({instructorCount})</span>
           {activeTab === "INSTRUCTORS" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
         </button>
 
@@ -464,13 +462,13 @@ export default function AiQuotaPage() {
           onClick={() => setActiveTab("LOGS")}
           className={`pb-3 font-medium transition-colors relative ${
             activeTab === "LOGS"
-              ? "text-indigo-600 font-semibold"
+              ? "text-primary font-semibold"
               : "text-slate-500 hover:text-slate-800"
           }`}
         >
           <span>Nhật ký sử dụng AI ({logsPagination.total_items})</span>
           {activeTab === "LOGS" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
         </button>
       </div>
@@ -481,13 +479,12 @@ export default function AiQuotaPage() {
           {/* Header & Bộ lọc */}
           <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="relative w-full max-w-sm">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm giảng viên theo tên, email..."
-                className="w-full pl-9 pr-3 h-10 rounded-lg text-xs bg-slate-50 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                className="w-full px-3 h-10 rounded-lg text-[13px] bg-slate-50 border border-slate-200 placeholder:text-slate-500 focus:outline-none focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
               />
             </div>
 
@@ -495,17 +492,16 @@ export default function AiQuotaPage() {
               type="button"
               onClick={handleExportInstructorsCsv}
               disabled={instructors.length === 0}
-              className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-50 transition-colors disabled:opacity-40 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-[13px] hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Xuất file CSV hạn ngạch"
             >
-              <Download className="w-4 h-4 text-slate-500" />
               <span>Xuất CSV</span>
             </button>
           </div>
 
           {/* Table */}
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-[13px]">
               <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4 font-medium">Giảng viên</th>
@@ -520,9 +516,24 @@ export default function AiQuotaPage() {
               <tbody className="divide-y divide-slate-100 font-normal">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      <Loader2 className="w-5 h-5 mx-auto animate-spin text-indigo-600 mb-1.5" />
+                    <td colSpan={7} className="py-12 text-center text-slate-500">
+                      <Loader2 className="w-5 h-5 mx-auto animate-spin text-primary mb-1.5" />
                       <span>Đang tải dữ liệu hạn ngạch...</span>
+                    </td>
+                  </tr>
+                ) : quotaError && instructors.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="text-sm font-medium text-slate-600">Không tải được dữ liệu hạn ngạch</span>
+                        <button
+                          type="button"
+                          onClick={() => fetchData()}
+                          className="px-3.5 h-9 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[13px] font-medium transition-colors min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          Thử lại
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredInstructors.length > 0 ? (
@@ -536,28 +547,28 @@ export default function AiQuotaPage() {
                       <tr key={ins.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-4 whitespace-nowrap">
                           <div className="font-medium text-slate-900">{ins.full_name}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">@{ins.username}</div>
+                          <div className="text-[13px] text-slate-500">@{ins.username}</div>
                         </td>
-                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                        <td className="py-3 px-4 text-[13px] text-slate-500 whitespace-nowrap">
                           {ins.email}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-medium text-slate-900 whitespace-nowrap">
+                        <td className="py-3 px-4 text-right font-medium text-slate-900 whitespace-nowrap">
                           {quota.toLocaleString()}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                        <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                           {used.toLocaleString()} ({percent}%)
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-medium text-indigo-600 whitespace-nowrap">
+                        <td className="py-3 px-4 text-right font-medium text-primary whitespace-nowrap">
                           {remaining.toLocaleString()}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {ins.is_active ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
+                            <span className="inline-flex items-center gap-1.5 text-[13px] text-emerald-700 font-medium">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Hoạt động
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                            <span className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 font-medium">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               Đã khóa
                             </span>
@@ -570,10 +581,9 @@ export default function AiQuotaPage() {
                               setEditingInstructor(ins);
                               setNewQuotaValue(String(ins.daily_token_quota || 50000));
                             }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+                            className="inline-flex items-center px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[13px] font-medium transition-colors"
                           >
-                            <Sliders className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Điều chỉnh</span>
+                            Điều chỉnh
                           </button>
                         </td>
                       </tr>
@@ -581,8 +591,11 @@ export default function AiQuotaPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
-                      Không tìm thấy giảng viên nào.
+                    <td colSpan={7} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
+                        <p className="text-[13px] text-slate-500">Không có giảng viên nào phù hợp với bộ lọc hiện tại.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -604,7 +617,7 @@ export default function AiQuotaPage() {
               <h2 className="text-base font-semibold text-slate-900">
                 Nhật ký sử dụng AI
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-[13px] text-slate-500 mt-0.5">
                 Các bản ghi gọi API xử lý bài nộp và sinh testcase
               </p>
             </div>
@@ -613,16 +626,15 @@ export default function AiQuotaPage() {
               type="button"
               onClick={handleExportLogsCsv}
               disabled={usageLogs.length === 0}
-              className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-50 transition-colors disabled:opacity-40 min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-[13px] hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Xuất file CSV nhật ký"
             >
-              <Download className="w-4 h-4 text-slate-500" />
               <span>Xuất CSV</span>
             </button>
           </div>
 
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-[13px]">
               <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4 font-medium">Mã log</th>
@@ -638,47 +650,50 @@ export default function AiQuotaPage() {
               <tbody className="divide-y divide-slate-100 font-normal">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <Loader2 className="w-5 h-5 mx-auto animate-spin text-indigo-600 mb-1.5" />
+                    <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <Loader2 className="w-5 h-5 mx-auto animate-spin text-primary mb-1.5" />
                       <span>Đang tải nhật ký...</span>
                     </td>
                   </tr>
                 ) : usageLogs.length > 0 ? (
                   usageLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-slate-500 text-[13px] whitespace-nowrap">
                         {log.id.slice(0, 8)}...
                       </td>
                       <td className="py-3 px-4 text-slate-900 font-medium whitespace-nowrap">
                         <div>{log.full_name}</div>
-                        <div className="text-[11px] text-slate-400 font-mono font-normal">@{log.username}</div>
+                        <div className="text-[13px] text-slate-500 font-normal">@{log.username}</div>
                       </td>
                       <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700">
+                        <span className="inline-block px-2 py-0.5 rounded text-[13px] bg-slate-100 text-slate-700">
                           {FEATURE_NAMES[log.feature_type] || log.feature_type}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                      <td className="py-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">
                         {log.model_name}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                         {log.prompt_tokens.toLocaleString()}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                         {log.completion_tokens.toLocaleString()}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-medium text-slate-900 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-medium text-slate-900 whitespace-nowrap">
                         {log.total_tokens.toLocaleString()}
                       </td>
-                      <td className="py-3 px-4 text-right text-slate-500 text-[11px] whitespace-nowrap">
+                      <td className="py-3 px-4 text-right text-slate-500 text-[13px] whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString("vi-VN")}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
-                      Chưa có bản ghi nhật ký nào.
+                    <td colSpan={8} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
+                        <p className="text-[13px] text-slate-500">Chưa có bản ghi nhật ký nào.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -687,7 +702,7 @@ export default function AiQuotaPage() {
           </div>
 
           <div className="p-4 border-t border-slate-200 flex items-center justify-between text-sm text-slate-500">
-            <span>{logsPagination.total_items} bản ghi</span>
+            <span>{logsPagination.total_items > 0 ? `${logsPagination.total_items} bản ghi` : "Chưa có dữ liệu"}</span>
 
             {logsPagination.total_items > logsPagination.page_size && (
               <div className="flex items-center gap-1.5">
@@ -695,22 +710,22 @@ export default function AiQuotaPage() {
                   type="button"
                   onClick={() => fetchData(Math.max(1, logsPagination.page - 1))}
                   disabled={logsPagination.page <= 1 || loading}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   aria-label="Trang trước"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  Trước
                 </button>
-                <span className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-md">
+                <span className="px-2.5 py-1 text-[13px] font-medium text-slate-700 bg-slate-100 rounded-md">
                   {logsPagination.page} / {logsPagination.total_pages}
                 </span>
                 <button
                   type="button"
                   onClick={() => fetchData(Math.min(logsPagination.total_pages, logsPagination.page + 1))}
                   disabled={logsPagination.page >= logsPagination.total_pages || loading}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="px-3 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[36px] flex items-center justify-center text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   aria-label="Trang sau"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  Sau
                 </button>
               </div>
             )}
@@ -727,21 +742,21 @@ export default function AiQuotaPage() {
                 <h3 className="font-semibold text-slate-900 text-base">
                   Điều chỉnh hạn ngạch AI
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[13px] text-slate-500 mt-0.5">
                   {editingInstructor.full_name} (@{editingInstructor.username})
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingInstructor(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
                 aria-label="Đóng"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleUpdateQuota} className="space-y-4 mt-4 text-xs">
+            <form onSubmit={handleUpdateQuota} className="space-y-4 mt-4 text-[13px]">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
                   Định mức tokens mỗi ngày
@@ -752,9 +767,9 @@ export default function AiQuotaPage() {
                   required
                   value={newQuotaValue}
                   onChange={(e) => setNewQuotaValue(e.target.value)}
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-[13px] text-slate-500 mt-1">
                   Mặc định: 50,000 tokens/ngày. Đã dùng hôm nay: {(editingInstructor.used_tokens_today || 0).toLocaleString()} tokens.
                 </p>
               </div>
@@ -763,14 +778,14 @@ export default function AiQuotaPage() {
                 <button
                   type="button"
                   onClick={() => setEditingInstructor(null)}
-                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs transition-colors"
+                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-[13px] transition-colors"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Lưu thay đổi</span>

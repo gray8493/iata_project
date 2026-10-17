@@ -1,15 +1,15 @@
-# Thông Tin Chung Kiểm Thử Unit Test - Phân Hệ Web Admin (Backend API)
+# Bảng Kiểm Thử Unit Test Trọng Tâm Phục Vụ Giao Diện Web Admin (Backend Services)
 
 - **API / Module kiểm thử**: `AuthService`, `UsersService`, `AuditLogsService`, `AiQuotaService`
 - **Người thực hiện (Tester/Dev)**: AITA Development Team
 - **Ngày tạo**: 14/10/2026
-- **Cập nhật lần cuối**: 14/10/2026 - 15:00
+- **Cập nhật lần cuối**: 17/10/2026 - 15:00
 - **Tài liệu liên quan**:
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
   - [Đặc tả API Auth](file:///e:/AITA/docs/apis/auth/auth-api.md)
   - [Đặc tả API Users](file:///e:/AITA/docs/apis/users/users-api.md)
   - [Đặc tả API Reports](file:///e:/AITA/docs/apis/reports/reports-api.md)
-- **Tổng số Testcase**: 24 Testcases (24 Passed, 00 Failed)
+- **Tổng số Testcase**: 08 Testcases (08 Passed, 00 Failed) [Trích xuất các kịch bản cốt lõi kết nối Web Admin với Backend]
 
 ---
 
@@ -176,7 +176,7 @@ Normal
 
 ---
 
-# UT03_Reports_TC001: Lấy báo cáo thống kê tổng quan (Overview)
+# UT04_Reports_TC001: Lấy báo cáo thống kê tổng quan (Overview)
 
 #### Loại test
 
@@ -202,7 +202,7 @@ Trả về `total_instructors`, `total_tokens_consumed_month`, và `top_consumin
 
 ---
 
-# UT04_AiQuota_TC001: Lấy snapshot hạn mức AI trong ngày
+# UT03_AiQuota_TC001: Lấy snapshot hạn mức AI trong ngày
 
 #### Loại test
 
