@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from './users.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { UsersService } from '../modules/users/users.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 jest.mock('bcrypt');
 
