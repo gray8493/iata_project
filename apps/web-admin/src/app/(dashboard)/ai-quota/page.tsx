@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { swrFetcher, apiGet } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 interface OverviewData {
@@ -47,11 +47,26 @@ interface PaginationData {
   total_pages: number;
 }
 
+interface ProviderAccountStatus {
+  account: string;
+  key_hint: string;
+  state: "READY" | "COOLDOWN";
+  cooldown_remaining_seconds: number;
+}
+
+interface ProviderStatus {
+  provider: string;
+  model: string;
+  accounts_configured: number;
+  structured_outputs_supported: boolean;
+  accounts: ProviderAccountStatus[];
+}
+
 const FEATURE_NAMES: Record<string, string> = {
-  GENERATE_TESTCASES: "Sinh testcase tự động",
-  REVIEW_CODE: "Đánh giá & review code",
-  VERIFY_PLAGIARISM: "Kiểm tra đạo văn",
-  EVALUATE_WEB_UI: "Đánh giá giao diện web",
+  TESTCASE_GEN: "Sinh testcase tự động",
+  CODE_REVIEW: "Đánh giá & review code",
+  PLAGIARISM: "Kiểm tra đạo văn",
+  UI_EVALUATION: "Đánh giá giao diện web",
 };
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -71,6 +86,21 @@ export default function AiQuotaPage() {
   );
   const [instructors, setInstructors] = useState<InstructorQuotaItem[]>([]);
   const [usageLogs, setUsageLogs] = useState<AiUsageLogItem[]>([]);
+  const [hub, setHub] = useState<ProviderStatus | null>(null);
+  const [hubLoading, setHubLoading] = useState(true);
+  const [hubError, setHubError] = useState(false);
+
+  const fetchHub = useCallback(async () => {
+    setHubLoading(true);
+    setHubError(false);
+    try {
+      setHub(await apiGet<ProviderStatus>("/ai/provider-status"));
+    } catch {
+      setHubError(true);
+    } finally {
+      setHubLoading(false);
+    }
+  }, []);
   const [logsPagination, setLogsPagination] = useState<PaginationData>({
     page: 1,
     page_size: 10,
@@ -101,6 +131,10 @@ export default function AiQuotaPage() {
       return () => clearTimeout(timer);
     }
   }, [errorMessage]);
+
+  useEffect(() => {
+    fetchHub();
+  }, [fetchHub]);
 
   const getApiConfig = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
@@ -341,6 +375,7 @@ export default function AiQuotaPage() {
           onClick={() => {
             fetchData();
             mutateOverview();
+            fetchHub();
           }}
           disabled={loading}
           className="flex items-center gap-2 px-3.5 h-10 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:text-slate-400 disabled:cursor-not-allowed min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -422,6 +457,85 @@ export default function AiQuotaPage() {
               Giảng viên đang hoạt động
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ================= AI HUB (OPENROUTER) — TRẠNG THÁI POOL ================= */}
+      <section className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-semibold text-slate-900">AI Hub — OpenRouter</h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[13px] bg-indigo-50 text-indigo-700 font-medium font-mono">
+                {hub ? hub.model : "..."}
+              </span>
+              {hub && (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[13px] font-medium ${
+                    hub.structured_outputs_supported
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {hub.structured_outputs_supported ? "JSON Schema sẵn sàng" : "JSON Schema fallback"}
+                </span>
+              )}
+            </div>
+            <p className="text-[13px] text-slate-500 mt-0.5">
+              Bể API key xoay vòng tự động — khi một tài khoản hết hạn mức, request tự chuyển sang tài khoản kế tiếp
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchHub}
+            disabled={hubLoading}
+            className="flex-shrink-0 px-3 h-9 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Làm mới trạng thái AI Hub"
+          >
+            Làm mới
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {hubLoading && (
+            <span className="text-[13px] text-slate-500 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span>Đang tải trạng thái pool...</span>
+            </span>
+          )}
+          {!hubLoading && hubError && (
+            <span className="text-[13px] text-rose-600">
+              Không tải được trạng thái AI Hub (yêu cầu quyền ADMIN hoặc máy chủ chưa cấu hình OPENROUTER_API_KEYS).
+            </span>
+          )}
+          {!hubLoading && !hubError && hub && (
+            <>
+              <span className="text-[13px] text-slate-500 mr-1">
+                {hub.accounts_configured} tài khoản trong bể:
+              </span>
+              {hub.accounts.map((account) => (
+                <span
+                  key={account.account}
+                  title={account.key_hint}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-medium border ${
+                    account.state === "READY"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      account.state === "READY" ? "bg-emerald-500" : "bg-amber-500"
+                    }`}
+                  />
+                  <span>
+                    {account.account} —{" "}
+                    {account.state === "READY" ? "Sẵn sàng" : `Nghỉ ${account.cooldown_remaining_seconds}s`}
+                  </span>
+                </span>
+              ))}
+            </>
+          )}
         </div>
       </section>
 

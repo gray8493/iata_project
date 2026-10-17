@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { AiGatewayService } from '../modules/ai-gateway/ai-gateway.service';
-import { GeminiService } from '../modules/ai-gateway/gemini.service';
+import { OpenRouterService } from '../modules/ai-gateway/openrouter.service';
 import { AuditLogsService } from '../modules/audit-logs/audit-logs.service';
 import { UsersService } from '../modules/users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,13 +25,13 @@ describe('Acceptance (docs: docs/testcases/4-acceptance/acceptance-test-specific
 
   describe('AT03_PedagogicalAIReview_TC001: AI sinh nhận xét sư phạm cho bài sai logic', () => {
     it('trả về nhận xét và dòng lỗi nghi vấn, không trả lời giải hoàn chỉnh', async () => {
-      const gemini = {
+      const provider = {
         generateJson: jest.fn().mockResolvedValue({
           data: { suspected_error_line: 18, issue_summary: 'Biến đếm không được cập nhật trong vòng lặp', pedagogical_feedback: 'Em hãy kiểm tra lại điều kiện cập nhật biến đếm?', bug_category: 'LOGIC_ERROR' },
           tokensConsumed: 500,
         }),
       };
-      const ai = new AiGatewayService(gemini as unknown as GeminiService);
+      const ai = new AiGatewayService(provider as unknown as OpenRouterService);
 
       const result = await ai.reviewCode('u1', {
         source_code: 'int main() { return 0; }'.repeat(2), language: 'C', problem_statement: 'Đếm số nguyên tố',
@@ -42,7 +42,7 @@ describe('Acceptance (docs: docs/testcases/4-acceptance/acceptance-test-specific
       expect(result.data.tokens_consumed).toBe(500);
       expect((result.data as any).suspected_error_line).toBe(18);
       expect((result.data as any).bug_category).toBe('LOGIC_ERROR');
-      expect(gemini.generateJson).toHaveBeenCalledWith(expect.objectContaining({ feature: 'CODE_REVIEW' }));
+      expect(provider.generateJson).toHaveBeenCalledWith(expect.objectContaining({ feature: 'CODE_REVIEW' }));
     });
   });
 

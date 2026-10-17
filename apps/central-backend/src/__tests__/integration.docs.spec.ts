@@ -5,7 +5,7 @@ import { UsersService } from '../modules/users/users.service';
 import { AuthService } from '../modules/auth/auth.service';
 import { AuditLogsService } from '../modules/audit-logs/audit-logs.service';
 import { AiQuotaService } from '../modules/ai-gateway/ai-quota.service';
-import { GeminiService } from '../modules/ai-gateway/gemini.service';
+import { OpenRouterService } from '../modules/ai-gateway/openrouter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService, REPORTS_OVERVIEW_CACHE_KEY } from '../common/redis.service';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -222,11 +222,11 @@ describe('Integration (docs: docs/testcases/2-integration/Testcase_integration.m
   describe('IT16_AiResilience_TC001: Lỗi nhà cung cấp AI được hoàn hạn ngạch', () => {
     it('ném 502 AI_PROVIDER_ERROR và release phần đã giữ chỗ', async () => {
       const quota = { reserve: jest.fn().mockResolvedValue({ configId: 'q1', reserved: 600, date: todayUtc() }), release: jest.fn().mockResolvedValue(undefined), settle: jest.fn() };
-      const aiConfig = { get: jest.fn((key: string, def?: string) => (key === 'GEMINI_API_KEY' ? 'test-key' : def)), getOrThrow: jest.fn() };
-      const gemini = new GeminiService(aiConfig as any, quota as unknown as AiQuotaService);
-      (gemini as any).client = { models: { generateContent: jest.fn().mockRejectedValue({ status: 503 }) } };
+      const aiConfig = { get: jest.fn((key: string, def?: string) => (key === 'OPENROUTER_API_KEYS' ? 'test-key' : def)), getOrThrow: jest.fn() };
+      const provider = new OpenRouterService(aiConfig as any, quota as unknown as AiQuotaService);
+      (provider as any).post = jest.fn().mockRejectedValue({ status: 503 });
 
-      const error = await gemini.generateJson({ userId: 'u1', feature: 'TESTCASE_GEN', prompt: 'p'.repeat(40), schema: {} as any, maxOutputTokens: 100 }).catch((e) => e);
+      const error = await provider.generateJson({ userId: 'u1', feature: 'TESTCASE_GEN', prompt: 'p'.repeat(40), schema: {} as any, maxOutputTokens: 100 }).catch((e) => e);
 
       expect(error).toBeInstanceOf(HttpException);
       expect(error.getStatus()).toBe(502);

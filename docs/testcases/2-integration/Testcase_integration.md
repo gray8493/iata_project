@@ -139,9 +139,9 @@ npm test -- integration.docs.spec.ts
 
 ### IT16_AiResilience_TC001 — Lỗi nhà cung cấp AI được hoàn hạn ngạch
 - **Loại test:** Exception
-- **Pre-condition:** `GEMINI_API_KEY` đã cấu hình; `AiQuotaService.reserve` thành công.
+- **Pre-condition:** `OPENROUTER_API_KEYS` đã cấu hình; `AiQuotaService.reserve` thành công.
 - **Test Data:** `client.models.generateContent` từ chối với `{ status: 503 }`.
-- **Test Steps:** Gọi `GeminiService.generateJson(...)`.
+- **Test Steps:** Gọi `OpenRouterService.generateJson(...)`.
 - **Expected Result:** Ném `502` với `error_code = "AI_PROVIDER_ERROR"`; `quota.release` được gọi để hoàn phần đã giữ chỗ.
 
 ### IT17_QuotaGuard_TC001 — Chặn khi vượt hạn ngạch trong ngày
