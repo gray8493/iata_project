@@ -15,7 +15,7 @@ from PyQt6.QtGui import QCursor, QGuiApplication, QFont
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox
+    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox, QFileDialog
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -29,6 +29,9 @@ from ui.styles.theme import (
 )
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.document_reader import (
+    MAX_PROBLEM_CHARS, DocumentReadError, read_document_text
+)
 
 logger = logging.getLogger("AITA.TestcaseDialog")
 
@@ -319,9 +322,27 @@ class AiTestcaseDialog(QDialog):
         v_prompt = QVBoxLayout()
         v_prompt.setSpacing(8)
 
+        prompt_head = QHBoxLayout()
+        prompt_head.setSpacing(8)
+
         lbl_prompt = QLabel("Đề bài:", self)
         lbl_prompt.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_prompt.addWidget(lbl_prompt)
+        prompt_head.addWidget(lbl_prompt)
+        prompt_head.addStretch(1)
+
+        # Nút nhập đề bài từ file Word / PDF / văn bản để AI sinh testcase
+        self.btn_import_doc = QPushButton("Nhập Từ File Đề Bài", self)
+        self.btn_import_doc.setProperty("class", "SecondaryBtn")
+        self.btn_import_doc.setFixedHeight(32)
+        self.btn_import_doc.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_import_doc.setToolTip(
+            "Nhập đề bài từ file Word (.docx), PDF (.pdf) hoặc văn bản (.txt, .md) "
+            "để AI sinh testcase."
+        )
+        self.btn_import_doc.clicked.connect(self._import_problem_document)
+        prompt_head.addWidget(self.btn_import_doc)
+
+        v_prompt.addLayout(prompt_head)
 
         self.txt_prompt = QTextEdit(self)
         self.txt_prompt.setFixedHeight(85)
@@ -335,6 +356,13 @@ class AiTestcaseDialog(QDialog):
             }
         """)
         v_prompt.addWidget(self.txt_prompt)
+
+        self.lbl_doc_name = QLabel("", self)
+        self.lbl_doc_name.setStyleSheet(f"font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
+        self.lbl_doc_name.setWordWrap(True)
+        self.lbl_doc_name.setVisible(False)
+        v_prompt.addWidget(self.lbl_doc_name)
+
         layout.addLayout(v_prompt)
 
         # 2. Hàng điều khiển: Số lượng testcase + Tùy chọn thu gọn + Nút Sinh / Hủy
@@ -490,6 +518,69 @@ class AiTestcaseDialog(QDialog):
 
     def _toggle_options(self, checked: bool):
         self.frame_options.setVisible(checked)
+
+    def _import_problem_document(self):
+        """Loads a problem statement from a Word/PDF/text file into the prompt box."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Chọn File Đề Bài",
+            str(Path.home()),
+            "Đề bài (*.docx *.pdf *.txt *.md *.csv *.log);;"
+            "Word (*.docx);;PDF (*.pdf);;Văn bản (*.txt *.md *.csv *.log);;Tất cả (*.*)"
+        )
+        if not file_path:
+            return
+
+        try:
+            text = read_document_text(file_path)
+        except DocumentReadError as ex:
+            QMessageBox.warning(self, "Không Đọc Được File", str(ex))
+            return
+        except Exception as ex:
+            QMessageBox.warning(self, "Lỗi Đọc File", f"Không thể đọc file đề bài:\n{ex}")
+            return
+
+        if not text.strip():
+            QMessageBox.warning(
+                self, "File Rỗng",
+                "Không tìm thấy nội dung văn bản trong file đã chọn."
+            )
+            return
+
+        existing = self.txt_prompt.toPlainText().strip()
+        if existing:
+            choice = QMessageBox.question(
+                self,
+                "Ô Đề Bài Đã Có Nội Dung",
+                "Ô đề bài hiện đang có nội dung.\n\n"
+                "Chọn 'Yes' để THAY THẾ bằng nội dung file vừa chọn.\n"
+                "Chọn 'No' để NỐI THÊM vào cuối nội dung hiện tại.",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes
+            )
+            if choice == QMessageBox.StandardButton.Cancel:
+                return
+            if choice == QMessageBox.StandardButton.No:
+                text = f"{existing}\n\n{text}"
+
+        note = ""
+        if len(text) > MAX_PROBLEM_CHARS:
+            text = text[:MAX_PROBLEM_CHARS]
+            note = f" — chỉ dùng {MAX_PROBLEM_CHARS:,} ký tự đầu (giới hạn máy chủ AI)"
+            QMessageBox.information(
+                self,
+                "Đề Bài Quá Dài",
+                f"Nội dung file vượt quá {MAX_PROBLEM_CHARS:,} ký tự.\n"
+                "Chỉ phần đầu được đưa vào để sinh testcase."
+            )
+
+        self.txt_prompt.setPlainText(text)
+        self.lbl_doc_name.setText(
+            f"Đã nhập đề bài từ: {Path(file_path).name} ({len(text):,} ký tự){note}"
+        )
+        self.lbl_doc_name.setVisible(True)
 
     def _start_generation(self):
         prompt = self.txt_prompt.toPlainText().strip()
