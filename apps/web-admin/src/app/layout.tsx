@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "AITA - Hệ Thống Chấm Điểm AI | FPT University",
   description: "Web Admin Portal dành cho cán bộ quản lý hệ thống AITA",
+  icons: {
+    icon: "/aita-avatar.png",
+  },
 };
 
 export default function RootLayout({

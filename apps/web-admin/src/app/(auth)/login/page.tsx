@@ -69,10 +69,10 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center mb-8">
           <div className="flex items-center gap-3 mb-5">
             <Image
-              src="/aita-logo.png"
-              alt="AITA - Trợ lý điểm tự động"
-              width={512}
-              height={292}
+              src="/fpt-education-logo.png"
+              alt="FPT Education"
+              width={248}
+              height={85}
               priority
               className="h-11 w-auto object-contain"
             />
