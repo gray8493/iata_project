@@ -247,20 +247,39 @@ class ModeSelectionWindow(QMainWindow):
                 sep.setStyleSheet("background-color: #CBD5E1; border: none;")
                 header_layout.addWidget(sep)
         
-        # 1.2 Ô vuông xanh chữ "A" thay cho biểu tượng
-        logo_box = QLabel("A", header)
-        logo_box.setFixedSize(28, 28)
-        logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_box.setStyleSheet(f"""
-            QLabel {{
-                background-color: {COLOR_PRIMARY};
-                color: #FFFFFF;
-                font-weight: 700;
-                font-size: 15px;
-                border-radius: 6px;
-            }}
-        """)
-        header_layout.addWidget(logo_box)
+        # 1.2 Avatar AITA (fallback: ô vuông xanh chữ "A" nếu thiếu tệp ảnh)
+        _avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
+        if _avatar_path.exists():
+            avatar_label = QLabel(header)
+            avatar_label.setFixedSize(28, 28)
+            avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            avatar_label.setStyleSheet("""
+                QLabel {
+                    background-color: #0B132B;
+                    border-radius: 6px;
+                }
+            """)
+            _pm = QPixmap(str(_avatar_path)).scaled(
+                22, 22,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            avatar_label.setPixmap(_pm)
+            header_layout.addWidget(avatar_label)
+        else:
+            logo_box = QLabel("A", header)
+            logo_box.setFixedSize(28, 28)
+            logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo_box.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {COLOR_PRIMARY};
+                    color: #FFFFFF;
+                    font-weight: 700;
+                    font-size: 15px;
+                    border-radius: 6px;
+                }}
+            """)
+            header_layout.addWidget(logo_box)
         
         # App Title (Không dùng emoji)
         app_title = QLabel("AITA", header)

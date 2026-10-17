@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any
 from PyQt6.QtCore import Qt, QRect, QSize, QRegularExpression, QThread, pyqtSignal
 from PyQt6.QtGui import (
     QFont, QColor, QPainter, QTextFormat, QSyntaxHighlighter,
-    QTextCharFormat, QGuiApplication, QCursor
+    QTextCharFormat, QGuiApplication, QCursor, QIcon
 )
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -232,9 +232,15 @@ class SubmissionDetailDialog(QDialog):
         self.verdict = verdict
         self.score = score
         self.db = DatabaseManager()
+        self._source_is_placeholder = True
         
         self.setWindowTitle(f"Chi Tiết Bài Nộp - {self.mssv} ({self.file_name})")
-        
+
+        # Đảm bảo title bar luôn có avatar AITA ngay cả khi chạy ngoài entry point chính
+        avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
+        if avatar_path.exists():
+            self.setWindowIcon(QIcon(str(avatar_path)))
+
         # 10. Giới hạn chiều cao theo vùng làm việc màn hình
         screen = QGuiApplication.primaryScreen()
         if screen:
@@ -702,21 +708,73 @@ class SubmissionDetailDialog(QDialog):
             "SKIP": ("SKIP", Qt.GlobalColor.gray),
         }.get(verdict, (verdict, Qt.GlobalColor.red))
 
+    # Phần mở rộng mã nguồn được nhận diện khi đường dẫn là thư mục bài nộp
+    SOURCE_EXTENSIONS = (".java", ".py", ".c", ".cpp", ".cc", ".h", ".hpp", ".cs")
+
+    @staticmethod
+    def _comment_prefix(file_name: str) -> str:
+        if file_name.lower().endswith((".py", ".rb", ".sh")):
+            return "#"
+        return "//"
+
+    def _read_source_code_text(self) -> str:
+        """Đọc mã nguồn trực tiếp: nếu là tệp thì đọc, nếu là thư mục thì gộp tất cả file code.
+
+        Đồng bộ cờ self._source_is_placeholder để các phần khác biết panel đang
+        hiển thị mã thật hay thông báo lỗi.
+        """
+        def finish(text: str, is_placeholder: bool) -> str:
+            self._source_is_placeholder = is_placeholder
+            return text
+
+        self._source_is_placeholder = True
+
+        if not self.source_file_path:
+            return finish(
+                "// Chưa xác định đường dẫn mã nguồn trong CSDL.\n"
+                "// Hãy bấm 'Quét lại thư mục' ở màn hình chính để cập nhật bài nộp.",
+                True,
+            )
+        base = Path(self.source_file_path)
+        if base.is_file():
+            try:
+                return finish(base.read_text(encoding="utf-8", errors="replace"), False)
+            except Exception as e:
+                return finish(f"// Không thể đọc tệp mã nguồn:\n// {str(e)}", True)
+        if base.is_dir():
+            source_files = sorted(
+                f for f in base.iterdir() if f.is_file() and f.suffix.lower() in self.SOURCE_EXTENSIONS
+            )
+            if source_files:
+                parts = []
+                for f in source_files:
+                    try:
+                        body = f.read_text(encoding="utf-8", errors="replace")
+                    except Exception as e:
+                        body = f"(Không đọc được tệp: {e})"
+                    sep = self._comment_prefix(f.name)
+                    parts.append(f"{sep} ===== {f.name} =====\n{body}".rstrip())
+                return finish("\n\n".join(parts), False)
+            other_files = sorted(f.name for f in base.iterdir() if f.is_file())
+            if other_files:
+                return finish(
+                    "// Thư mục bài nộp không chứa tệp mã nguồn quen thuộc "
+                    f"({', '.join(self.SOURCE_EXTENSIONS)}).\n"
+                    f"// Các tệp hiện có: {', '.join(other_files[:20])}",
+                    True,
+                )
+        return finish(
+            "// Không tìm thấy tệp mã nguồn tại đường dẫn:\n"
+            f"// {self.source_file_path}\n"
+            "// Vui lòng kiểm tra lại cấu trúc thư mục bài nộp hoặc bấm 'Quét lại thư mục'.",
+            True,
+        )
+
     def _load_real_submission_data(self):
         """Loads actual source file content and actual grading results from SQLite."""
-        # 1. Load Real Source File
-        if self.source_file_path and Path(self.source_file_path).is_file():
-            try:
-                code_text = Path(self.source_file_path).read_text(encoding="utf-8", errors="replace")
-                self.txt_source_code.setPlainText(code_text)
-            except Exception as e:
-                self.txt_source_code.setPlainText(f"// Không thể đọc tệp mã nguồn:\n// {str(e)}")
-        else:
-            self.txt_source_code.setPlainText(
-                f"// Không tìm thấy tệp mã nguồn tại đường dẫn:\n"
-                f"// {self.source_file_path or 'Chưa xác định đường dẫn'}\n"
-                f"// Vui lòng kiểm tra lại cấu trúc thư mục bài nộp."
-            )
+        # 1. Load Real Source File (hỗ trợ cả đường dẫn dạng thư mục chứa nhiều file)
+        source_text = self._read_source_code_text()
+        self.txt_source_code.setPlainText(source_text)
 
         # 2. Load Real Grading Results from SQLite
         if not self.submission_id:
@@ -902,7 +960,7 @@ class SubmissionDetailDialog(QDialog):
     def _run_ai_review(self):
         """Calls Central Backend AI Gateway to review student code with pedagogical feedback."""
         code = self.txt_source_code.toPlainText().strip()
-        if not code or code.startswith("// Không tìm thấy"):
+        if not code or getattr(self, "_source_is_placeholder", True):
             QMessageBox.warning(self, "Không Có Mã Nguồn", "Không tìm thấy mã nguồn của sinh viên để phân tích!")
             return
 

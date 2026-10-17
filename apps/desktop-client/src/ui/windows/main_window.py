@@ -453,12 +453,28 @@ class AITAMainWindow(QMainWindow):
             background-color: {COLOR_PRIMARY};
             border-radius: 10px;
         """)
-        li_layout = QHBoxLayout(logo_icon)
-        li_layout.setContentsMargins(0, 0, 0, 0)
-        lbl_li = QLabel("A", logo_icon)
-        lbl_li.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 800;")
-        lbl_li.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        li_layout.addWidget(lbl_li)
+        _avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
+        if _avatar_path.exists():
+            li_layout = QVBoxLayout(logo_icon)
+            li_layout.setContentsMargins(3, 3, 3, 3)
+            avatar_label = QLabel(logo_icon)
+            _pixmap = QPixmap(str(_avatar_path)).scaled(
+                32, 32,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            avatar_label.setPixmap(_pixmap)
+            avatar_label.setFixedSize(32, 32)
+            avatar_label.setScaledContents(True)
+            avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            li_layout.addWidget(avatar_label)
+        else:
+            li_layout = QHBoxLayout(logo_icon)
+            li_layout.setContentsMargins(0, 0, 0, 0)
+            lbl_li = QLabel("A", logo_icon)
+            lbl_li.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 800;")
+            lbl_li.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            li_layout.addWidget(lbl_li)
         la_layout.addWidget(logo_icon)
         
         title_box = QVBoxLayout()

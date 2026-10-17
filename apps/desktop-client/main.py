@@ -20,6 +20,15 @@ from ui.windows.main_window import AITAMainWindow
 
 
 def main():
+    # Windows: nhóm taskbar riêng cho AITA để taskbar/tiêu đề dùng icon của app
+    # thay vì icon Python mặc định. Phải đặt trước khi tạo QApplication.
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AITA.DesktopClient.1")
+        except Exception:
+            pass
+
     app = QApplication(sys.argv)
     
     # Set default modern SaaS font (Inter fallback to Segoe UI / Arial)
