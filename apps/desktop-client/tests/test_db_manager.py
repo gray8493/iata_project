@@ -1,4 +1,4 @@
-"""DatabaseManager (database.db_manager) on an in-memory SQLite.
+﻿"""DatabaseManager (database.db_manager) on an in-memory SQLite.
 
 Covers UC-17 plagiarism report persistence (save / update evidence /
 soft-delete on re-scan / ranked listing), grading result persistence and
@@ -43,8 +43,8 @@ def test_create_class_session_roundtrip(db, class_id):
 
 def test_bulk_insert_updates_total_submissions(db, class_id):
     added = db.bulk_insert_submissions([
-        (class_id, "SE180001", None, "D:/Sub/SE180001_Q1.c"),
-        (class_id, "SE180002", None, "D:/Sub/SE180002_Q1.c"),
+        (class_id, "SE180001", "D:/Sub/SE180001_Q1.c"),
+        (class_id, "SE180002", "D:/Sub/SE180002_Q1.c"),
     ])
     assert added == 2
     subs = db.get_submissions_by_class(class_id)
@@ -75,7 +75,7 @@ def test_testcase_crud_and_strategy_update(db, class_id):
 
 
 def test_save_console_result_updates_submission_status(db, class_id):
-    db.bulk_insert_submissions([(class_id, "SE180001", None, "D:/Sub/a.c")])
+    db.bulk_insert_submissions([(class_id, "SE180001", "D:/Sub/a.c")])
     sub_id = db.get_submissions_by_class(class_id)[0]["id"]
 
     db.save_console_grading_result(
@@ -91,7 +91,7 @@ def test_save_console_result_updates_submission_status(db, class_id):
 
 
 def test_override_score_creates_manual_result(db, class_id):
-    db.bulk_insert_submissions([(class_id, "SE180001", None, "D:/Sub/a.c")])
+    db.bulk_insert_submissions([(class_id, "SE180001", "D:/Sub/a.c")])
     sub_id = db.get_submissions_by_class(class_id)[0]["id"]
 
     db.override_submission_score(sub_id, 4.5, "Sua for(i=1;i<=n;i++) de quay lai")
@@ -102,7 +102,7 @@ def test_override_score_creates_manual_result(db, class_id):
 
 
 def test_update_ai_feedback_writes_latest_result(db, class_id):
-    db.bulk_insert_submissions([(class_id, "SE180001", None, "D:/Sub/a.c")])
+    db.bulk_insert_submissions([(class_id, "SE180001", "D:/Sub/a.c")])
     sub_id = db.get_submissions_by_class(class_id)[0]["id"]
     db.save_console_grading_result(sub_id, "EXACT_MATCH", 10.0, "AC")
     db.update_ai_feedback(sub_id, "Em da dung thuat toan DP.")
@@ -209,3 +209,4 @@ def test_update_web_submission_source_keeps_fields_when_none_given(db):
     db.update_web_submission_source(id_, source_folder_path=None)
     row = db.get_all_web_submissions()[0]
     assert row["live_url"] == "http://old.dev" and row["is_missing"] == 0
+

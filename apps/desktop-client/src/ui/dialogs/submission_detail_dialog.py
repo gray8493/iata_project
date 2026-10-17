@@ -53,6 +53,23 @@ class AiReviewWorker(QThread):
         self.finished.emit(result)
 
 
+class RegradeWorker(QThread):
+    """Re-grades this single submission off the UI thread (UC-15)."""
+    regrade_finished = pyqtSignal(dict)
+
+    def __init__(self, submission_id: int, parent=None):
+        super().__init__(parent)
+        self.submission_id = submission_id
+
+    def run(self):
+        from services.grading_service import GradingService
+        try:
+            result = GradingService().regrade_submission(self.submission_id)
+            self.regrade_finished.emit({"success": True, "result": result})
+        except Exception as ex:
+            self.regrade_finished.emit({"success": False, "message": str(ex)})
+
+
 class LineNumberArea(QWidget):
     """Line number margin for CodeEditor."""
     def __init__(self, editor):
@@ -303,43 +320,17 @@ class SubmissionDetailDialog(QDialog):
         self.btn_open_env.setVisible(False)
         t_layout.addWidget(self.btn_open_env)
         
-        # Nhãn Trạng Thái
-        self.lbl_verdict_badge = QLabel(f"Trạng thái: <b>{self.verdict}</b>", top_card)
+        # Nhãn Trạng Thái + Nhãn Điểm Số (style được tái sử dụng khi chấm lại)
+        self.lbl_verdict_badge = QLabel(top_card)
         self.lbl_verdict_badge.setFixedHeight(32)
-        v_bg = "#DCFCE7" if self.verdict == "AC" else ("#FEE2E2" if self.verdict in ("WA", "CE", "RE", "TLE") else "#F1F5F9")
-        v_color = "#15803D" if self.verdict == "AC" else ("#B91C1C" if self.verdict in ("WA", "CE", "RE", "TLE") else "#475569")
-        self.lbl_verdict_badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {v_bg};
-                color: {v_color};
-                font-weight: 700;
-                font-size: 12px;
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-                padding: 0 14px;
-                line-height: 1.4;
-            }}
-        """)
         if self.verdict == "CE":
             self.lbl_verdict_badge.setToolTip("CE = Compile Error (lỗi biên dịch cú pháp mã nguồn)")
         t_layout.addWidget(self.lbl_verdict_badge)
-        
-        # Nhãn Điểm Số
-        self.lbl_score_badge = QLabel(f"Điểm số: <b>{self.score}</b>", top_card)
+
+        self.lbl_score_badge = QLabel(top_card)
         self.lbl_score_badge.setFixedHeight(32)
-        self.lbl_score_badge.setStyleSheet("""
-            QLabel {
-                background-color: #EFF6FF;
-                color: #1D4ED8;
-                font-weight: 800;
-                font-size: 12px;
-                border: 1px solid #BFDBFE;
-                border-radius: 8px;
-                padding: 0 14px;
-                line-height: 1.4;
-            }
-        """)
         t_layout.addWidget(self.lbl_score_badge)
+        self._refresh_header_badges()
         
         layout.addWidget(top_card)
         
@@ -529,9 +520,16 @@ class SubmissionDetailDialog(QDialog):
         splitter.setSizes([540, 660])
         layout.addWidget(splitter, stretch=1)
         
-        # 10. Footer: Nút Đóng cách mép ít nhất 16px
+        # 10. Footer: Nút Chấm Lại bên trái, Nút Đóng bên phải cách mép ít nhất 16px
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 4, 16, 16)
+        self.btn_regrade = QPushButton("Chấm Lại Bài Này", self)
+        self.btn_regrade.setProperty("class", "PrimaryBtn")
+        self.btn_regrade.setFixedHeight(36)
+        self.btn_regrade.setFixedWidth(150)
+        self.btn_regrade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_regrade.clicked.connect(self._regrade)
+        footer.addWidget(self.btn_regrade)
         footer.addStretch(1)
         btn_close = QPushButton("Đóng", self)
         btn_close.setProperty("class", "SecondaryBtn")
@@ -550,6 +548,106 @@ class SubmissionDetailDialog(QDialog):
             dlg.exec()
         except Exception as ex:
             QMessageBox.warning(self, "Lỗi Mở Cấu Hình", f"Không thể mở cửa sổ Cấu hình: {str(ex)}")
+
+    def _refresh_header_badges(self):
+        """Re-renders verdict & score badges (used on first show and after re-grade)."""
+        v_bg = "#DCFCE7" if self.verdict == "AC" else (
+            "#FEE2E2" if self.verdict in ("WA", "CE", "RE", "TLE") else "#F1F5F9"
+        )
+        v_color = "#15803D" if self.verdict == "AC" else (
+            "#B91C1C" if self.verdict in ("WA", "CE", "RE", "TLE") else "#475569"
+        )
+        self.lbl_verdict_badge.setText(f"Trạng thái: <b>{self.verdict}</b>")
+        self.lbl_verdict_badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: {v_bg};
+                color: {v_color};
+                font-weight: 700;
+                font-size: 12px;
+                border: 1px solid #E2E8F0;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }}
+        """)
+        self.lbl_score_badge.setText(f"Điểm số: <b>{self.score}</b>")
+        self.lbl_score_badge.setStyleSheet("""
+            QLabel {
+                background-color: #EFF6FF;
+                color: #1D4ED8;
+                font-weight: 800;
+                font-size: 12px;
+                border: 1px solid #BFDBFE;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }
+        """)
+
+    def _regrade(self):
+        """Re-runs the sandbox grading pipeline for this single submission (UC-15)."""
+        if not self.submission_id:
+            QMessageBox.warning(self, "Không Xác Định", "Không xác định được ID bài nộp để chấm lại!")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Chấm Lại Bài Nộp",
+            f"Chạy lại sandbox chấm bài của sinh viên {self.mssv} với bộ testcase hiện tại?\n"
+            "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.btn_regrade.setEnabled(False)
+        self.btn_regrade.setText("Đang Chạy Sandbox Chấm Lại...")
+        self.regrade_worker = RegradeWorker(self.submission_id, parent=self)
+        self.regrade_worker.regrade_finished.connect(self._on_regrade_finished)
+        self.regrade_worker.start()
+
+    def _on_regrade_finished(self, res: Dict[str, Any]):
+        self.btn_regrade.setEnabled(True)
+        self.btn_regrade.setText("Chấm Lại Bài Này")
+
+        if not res.get("success"):
+            QMessageBox.critical(
+                self,
+                "Chấm Lại Thất Bại",
+                f"Không thể chấm lại bài nộp của sinh viên {self.mssv}:\n{res.get('message', '')}"
+            )
+            return
+
+        result = res.get("result", {})
+        self.verdict = result.get("verdict", self.verdict)
+        self.score = f"{result.get('score', 0.0)} / 10"
+        try:
+            self.score = f"{float(result.get('score', 0.0)):.1f} / 10"
+        except (TypeError, ValueError):
+            pass
+
+        self.btn_open_env.setVisible(False)
+        self._refresh_header_badges()
+        self._load_real_submission_data()
+
+        # Tab AI chỉ kích hoạt cho bài sinh viên chạy được nhưng sai kết quả (WA)
+        is_wa = (self.verdict == "WA")
+        self.tabs.setTabEnabled(1, is_wa)
+        self.tabs.setTabToolTip(
+            1,
+            "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)" if not is_wa else ""
+        )
+
+        QMessageBox.information(
+            self,
+            "Đã Chấm Lại Xong",
+            f"Bài nộp của sinh viên {self.mssv} vừa được chấm lại:\n"
+            f"• Trạng thái: {self.verdict}\n"
+            f"• Điểm số: {self.score}\n"
+            f"• Thời gian chạy: {float(result.get('execution_time_ms', 0.0)):.0f}ms | "
+            f"RAM: {float(result.get('memory_used_mb', 0.0)):.1f}MB"
+        )
+
 
     def _copy_compile_log(self):
         """Sao chép nhật ký biên dịch vào clipboard."""
@@ -593,6 +691,7 @@ class SubmissionDetailDialog(QDialog):
         self.txt_compile_log.setPlainText(c_log)
 
         # 4. Kiểm tra nếu nhật ký có chữ "Không tìm thấy trình biên dịch"
+        self.btn_open_env.setVisible("Không tìm thấy trình biên dịch" in c_log)
         if "Không tìm thấy trình biên dịch" in c_log:
             self.lbl_verdict_badge.setText("Lỗi hệ thống")
             self.lbl_verdict_badge.setStyleSheet("""

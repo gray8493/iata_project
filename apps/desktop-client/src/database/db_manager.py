@@ -64,13 +64,13 @@ class DatabaseManager:
             );
             """)
 
-            # 2. Bảng local_student_submissions (Danh sách sinh viên nộp bài)
+            # 2. Bảng local_student_submissions (Danh sách sinh viên nộp bài,
+            #    chỉ lưu MSSV theo chuẩn input 2 cột `MSSV,File`)
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS local_student_submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 class_id INTEGER NOT NULL,
                 student_mssv TEXT NOT NULL,
-                student_name TEXT,
                 source_file_path TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'PENDING',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -195,6 +195,26 @@ class DatabaseManager:
             conn.commit()
 
         self._ensure_web_submission_columns()
+        self._drop_legacy_student_name_column()
+
+    def _drop_legacy_student_name_column(self):
+        """
+        Drops the obsolete `student_name` column from local_student_submissions:
+        the standard input only carries `MSSV,File`, so names are not persisted.
+        Safe for existing local_grading.db files created before this change.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(local_student_submissions)")
+            existing = {row[1] for row in cursor.fetchall()}
+            if "student_name" not in existing:
+                return
+            try:
+                cursor.execute("ALTER TABLE local_student_submissions DROP COLUMN student_name")
+                conn.commit()
+            except Exception:
+                # SQLite < 3.35 fallback. Old clients would need app schema upgrade via rescan.
+                pass
 
     def _ensure_web_submission_columns(self):
         """Lightweight migration for folder-import metadata on local_web_submissions."""
@@ -206,6 +226,8 @@ class DatabaseManager:
                 "source_folder_path": "TEXT",
                 "is_missing": "INTEGER DEFAULT 0",
                 "display_mssv": "TEXT",
+                "link_file_name": "TEXT",
+                "link_changed": "INTEGER DEFAULT 0",
             }
             for column, ddl in additions.items():
                 if column not in existing:
@@ -312,17 +334,17 @@ class DatabaseManager:
             """, (class_id,))
             conn.commit()
 
-    def bulk_insert_submissions(self, submissions: List[Tuple[int, str, Optional[str], str]]) -> int:
+    def bulk_insert_submissions(self, submissions: List[Tuple[int, str, str]]) -> int:
         """
         High-performance bulk insertion for student submissions list.
-        Tuple format: (class_id, student_mssv, student_name, source_file_path)
+        Tuple format: (class_id, student_mssv, source_file_path)
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.executemany("""
                 INSERT INTO local_student_submissions (
-                    class_id, student_mssv, student_name, source_file_path
-                ) VALUES (?, ?, ?, ?)
+                    class_id, student_mssv, source_file_path
+                ) VALUES (?, ?, ?)
             """, submissions)
             
             # Update class total submissions count
@@ -337,14 +359,10 @@ class DatabaseManager:
             conn.commit()
             return len(submissions)
 
-    def rescan_and_sync_submissions(
-        self,
-        class_id: int,
-        scanned_submissions: List[Tuple[str, Optional[str], str]]
-    ) -> Tuple[int, int]:
+    def rescan_and_sync_submissions(self, class_id: int, scanned_submissions: List[Dict[str, Any]]) -> Tuple[int, int]:
         """
         Đồng bộ lại danh sách bài nộp từ thư mục mà KHÔNG làm mất điểm của các bài đã chấm.
-        scanned_submissions format: List of (student_mssv, student_name, source_file_path)
+        scanned_submissions format: List of dicts with `student_mssv` and `source_file_path`.
         Returns:
             (added_count, existing_count)
         """
@@ -359,22 +377,24 @@ class DatabaseManager:
             added_count = 0
             existing_count = 0
 
-            for mssv, name, filepath in scanned_submissions:
+            for item in scanned_submissions:
+                mssv = str(item.get("student_mssv", "")).strip()
+                filepath = str(item.get("source_file_path", ""))
                 if mssv in existing_map:
                     # Đã tồn tại: giữ nguyên điểm số, chỉ cập nhật đường dẫn file nếu thay đổi
                     cursor.execute("""
                         UPDATE local_student_submissions
-                        SET source_file_path = ?, student_name = COALESCE(?, student_name)
+                        SET source_file_path = ?
                         WHERE id = ?
-                    """, (filepath, name, existing_map[mssv]))
+                    """, (filepath, existing_map[mssv]))
                     existing_count += 1
                 else:
                     # Bài nộp mới: thêm mới với trạng thái PENDING
                     cursor.execute("""
                         INSERT INTO local_student_submissions (
-                            class_id, student_mssv, student_name, source_file_path, status
-                        ) VALUES (?, ?, ?, ?, 'PENDING')
-                    """, (class_id, mssv, name, filepath))
+                            class_id, student_mssv, source_file_path, status
+                        ) VALUES (?, ?, ?, 'PENDING')
+                    """, (class_id, mssv, filepath))
                     added_count += 1
 
             # Cập nhật tổng số bài nộp trong local_classes
@@ -388,12 +408,11 @@ class DatabaseManager:
             return added_count, existing_count
 
     def get_submissions_by_class(self, class_id: int) -> List[Dict[str, Any]]:
-        """Retrieves all student submissions with their current grading verdict."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT 
-                    s.id, s.class_id, s.student_mssv, s.student_name, s.source_file_path, s.status,
+                    s.id, s.class_id, s.student_mssv, s.source_file_path, s.status,
                     r.calculated_score, r.final_verdict, r.execution_time_ms, r.memory_used_mb,
                     r.compile_log, r.ai_feedback, r.manual_override_score
                 FROM local_student_submissions s
@@ -402,6 +421,18 @@ class DatabaseManager:
                 ORDER BY s.student_mssv ASC
             """, (class_id,))
             return [dict(row) for row in cursor.fetchall()]
+
+    def get_submission_by_id(self, submission_id: int) -> Optional[Dict[str, Any]]:
+        """Fetches one active submission record (used by single-submission re-grade)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, class_id, student_mssv, source_file_path, status
+                FROM local_student_submissions
+                WHERE id = ? AND is_deleted = 0
+            """, (submission_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     # ==========================================================================
     # CRUD OPERATIONS FOR TESTCASES
@@ -693,7 +724,8 @@ class DatabaseManager:
         course_code: str = "WEB201c",
         class_name: str = "SE1806",
         source_folder_path: Optional[str] = None,
-        display_mssv: Optional[str] = None
+        display_mssv: Optional[str] = None,
+        link_file_name: Optional[str] = None
     ) -> int:
         """Adds a single web assignment submission."""
         with self.get_connection() as conn:
@@ -701,10 +733,10 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO local_web_submissions (
                     course_code, class_name, mssv, name, live_url, repo_url, mode,
-                    source_folder_path, display_mssv
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_folder_path, display_mssv, link_file_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (course_code, class_name, mssv.strip(), name.strip(), live_url.strip(),
-                  repo_url.strip(), mode.strip(), source_folder_path, display_mssv))
+                  repo_url.strip(), mode.strip(), source_folder_path, display_mssv, link_file_name))
             conn.commit()
             if cursor.lastrowid is None:
                 raise RuntimeError("Failed to retrieve row ID from local_web_submissions.")
@@ -780,9 +812,11 @@ class DatabaseManager:
         display_mssv: Optional[str] = None,
         name: Optional[str] = None,
         live_url: Optional[str] = None,
-        repo_url: Optional[str] = None
+        repo_url: Optional[str] = None,
+        link_file_name: Optional[str] = None,
+        link_changed: Optional[bool] = None
     ) -> bool:
-        """Refreshes folder-import metadata (path, display label, name/links) after a re-scan."""
+        """Refreshes folder-import metadata (path, link file, name/links) after a re-scan."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -792,9 +826,22 @@ class DatabaseManager:
                     name = COALESCE(?, name),
                     live_url = COALESCE(?, live_url),
                     repo_url = COALESCE(?, repo_url),
+                    link_file_name = COALESCE(?, link_file_name),
+                    link_changed = COALESCE(?, link_changed),
                     is_missing = 0
                 WHERE id = ? AND is_deleted = 0
-            """, (source_folder_path, display_mssv, name, live_url, repo_url, submission_id))
+            """, (source_folder_path, display_mssv, name, live_url, repo_url, link_file_name,
+                  None if link_changed is None else (1 if link_changed else 0), submission_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def set_web_submission_link_changed(self, submission_id: int, changed: bool) -> bool:
+        """Flags a folder-imported submission whose links changed on disk (recommend re-grading)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_web_submissions SET link_changed = ? WHERE id = ? AND is_deleted = 0
+            """, (1 if changed else 0, submission_id))
             conn.commit()
             return cursor.rowcount > 0
 

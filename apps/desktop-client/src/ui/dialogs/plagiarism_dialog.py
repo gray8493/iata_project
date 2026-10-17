@@ -645,7 +645,7 @@ class PlagiarismDialog(QDialog):
                     continue
                 scan_items.append({
                     "mssv": s["student_mssv"],
-                    "name": s.get("student_name", "Sinh viên"),
+                    "name": s["student_mssv"],
                     "path": str(p),
                     "content": content
                 })

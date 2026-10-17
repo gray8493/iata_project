@@ -29,7 +29,8 @@ class JavaRunner(BaseRunner):
         memory_limit_mb: int = 256
     ) -> SandboxResult:
         # executable_target format: "classpath:class_name"
-        classpath, class_name = executable_target.split(":", 1)
+        # rsplit để không cắt trúng dấu ':' của ổ đĩa Windows (ví dụ E:\AITA\...)
+        classpath, class_name = executable_target.rsplit(":", 1)
         cmd = ["java", "-cp", classpath, class_name]
 
         return SandboxRunner.run_process(

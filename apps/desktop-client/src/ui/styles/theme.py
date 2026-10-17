@@ -229,6 +229,40 @@ QPushButton#BatchGradeBtn:hover {{
     background-color: {COLOR_PRIMARY_HOVER};
 }}
 
+QPushButton#BatchGradeBtn:disabled {{
+    background-color: {COLOR_TEXT_DISABLED};
+    color: #FFFFFF;
+}}
+
+/* --- RADIO BUTTONS (ROUND INDICATOR: border-radius = half size for checked too) --- */
+QRadioButton {{
+    font-size: 13px;
+    spacing: 8px;
+    background: transparent;
+}}
+
+QRadioButton::indicator {{
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    border: 1.5px solid {COLOR_BORDER_DEFAULT};
+    background-color: {COLOR_SURFACE};
+}}
+
+QRadioButton::indicator:hover {{
+    border-color: {COLOR_PRIMARY};
+}}
+
+QRadioButton::indicator:checked {{
+    border: 5px solid {COLOR_PRIMARY};
+    border-radius: 9px;
+    background-color: {COLOR_SURFACE};
+}}
+
+QRadioButton::indicator:disabled {{
+    border-color: {COLOR_TEXT_DISABLED};
+}}
+
 /* --- FORM INPUTS & SELECTORS --- */
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
     background-color: {COLOR_SURFACE};

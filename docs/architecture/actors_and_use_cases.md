@@ -316,7 +316,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 1. Giảng viên nhấn nút **"Xuất Báo Cáo"** trên màn hình kết quả của Desktop App.
 2. Hệ thống hiển thị hộp thoại lựa chọn định dạng xuất:
-   - File kết quả chuẩn `results.csv` (gồm các cột: `MSSV`, `Score_Q1`, `Score_Q2`, ..., `Total_Score`, `Verdict`).
+   - File kết quả chuẩn `results.csv` (dung lượng 7 cột chuẩn: `MSSV`, `File`, `Điểm số`, `Số test đạt`, `Trạng thái`, `Thời gian chạy trung bình`, `Nhận xét AI/GV`).
    - File bảng điểm chi tiết Excel (`.xlsx`) có tô màu trực quan theo trạng thái AC/WA và kèm cột nhận xét của giảng viên/AI.
 3. Giảng viên chọn định dạng và nhấn **"Xác nhận xuất"**.
 4. Hộp thoại hệ điều hành (Native File Dialog) mở ra để Giảng viên chọn thư mục lưu và đặt tên file.

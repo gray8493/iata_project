@@ -71,7 +71,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 - **Giao diện Desktop (GUI Framework)**: **PyQt6 (>= 6.5.0)**
   - Thiết kế chuẩn Desktop Native, hỗ trợ kéo thả file, đa tiến trình qua `QThread` đảm bảo giao diện không bao giờ bị treo đơ trong lúc chấm bài số lượng lớn.
 - **Xử lý dữ liệu nạp & kết xuất**:
-  - Nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (tự động phân tích MSSV, họ tên sinh viên) hoặc nạp qua file danh sách `students.csv` (2 cột: `MSSV`, `File`).
+  - Nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (tự động phân tích MSSV làm định danh duy nhất — không lưu họ tên) hoặc nạp qua file danh sách `students.csv` (2 cột: `MSSV`, `File`).
   - Module chuẩn **`csv`**: Xử lý đọc danh sách bài nộp và xuất file kết quả `results.csv` (7 cột).
 - **Bộ máy thực thi & Sandbox bảo mật**:
   - **`subprocess`**: Khởi chạy tiến trình con cô lập để gọi trình biên dịch `gcc` (C), `javac/java` (Java), và `python` (Python).

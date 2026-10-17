@@ -594,10 +594,10 @@ class SessionDialog(QDialog):
                 )
                 self.created_class_id = new_id
 
-            # Nạp danh sách bài nộp hợp lệ vào SQLite
+            # Nạp danh sách bài nộp hợp lệ vào SQLite (chỉ MSSV + đường dẫn, không lưu tên)
             if self.created_class_id and valid_items:
                 subs_to_insert = [
-                    (self.created_class_id, item["mssv"], item.get("name") or None, item["filepath"])
+                    (self.created_class_id, item["mssv"], item["filepath"])
                     for item in valid_items
                 ]
                 db.bulk_insert_submissions(subs_to_insert)

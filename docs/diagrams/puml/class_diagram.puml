@@ -212,7 +212,6 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 
     class Submission {
         + student_id: str
-        + student_name: str
         + source_file_path: Path
         + programming_language: str
         + total_score: float

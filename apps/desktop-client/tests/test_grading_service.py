@@ -1,4 +1,4 @@
-"""GradingService (services.grading_service).
+﻿"""GradingService (services.grading_service).
 
 Covers the batch pipeline (IT08/IT10 analogues on Python to stay
 compiler-independent): compilation -> sandbox execution per testcase ->
@@ -103,13 +103,64 @@ def test_single_submission_unordered_tokens_strategy_applied(tmp_path):
 
 
 # ------------------------------------------------------------------------------
+# grade_single_submission — multi-question mode (source_file_path = student folder)
+# ------------------------------------------------------------------------------
+def _tc(q, inp, expected, weight=1.0):
+    return {"question_number": q, "input_data": inp, "expected_output": expected,
+            "score_weight": weight, "time_limit_ms": 1500, "memory_limit_mb": 128,
+            "matching_strategy": "EXACT_MATCH"}
+
+
+def test_multi_question_folder_grades_each_q_file(tmp_path):
+    student_dir = tmp_path / "SE180007"
+    student_dir.mkdir()
+    (student_dir / "Q1.py").write_text(PY_ECHO, encoding="utf-8")
+    (student_dir / "Q2.py").write_text(PY_FAIL, encoding="utf-8")
+    sub = {"id": 1, "student_mssv": "SE180007", "source_file_path": str(student_dir)}
+    testcases = [_tc("Q1", "5\n", "10"), _tc("Q2", "5\n", "10")]
+
+    res = grade_single_submission(sub, "PYTHON", testcases, total_weight=2.0)
+
+    assert res["verdict"] == "WA"
+    assert res["score"] == 5.0
+
+
+def test_multi_question_missing_q_file_is_ce_and_continues(tmp_path):
+    student_dir = tmp_path / "SE180008"
+    student_dir.mkdir()
+    (student_dir / "Q1.py").write_text(PY_ECHO, encoding="utf-8")
+    sub = {"id": 2, "student_mssv": "SE180008", "source_file_path": str(student_dir)}
+    testcases = [_tc("Q1", "5\n", "10"), _tc("Q2", "5\n", "10")]
+
+    res = grade_single_submission(sub, "PYTHON", testcases, total_weight=2.0)
+
+    assert res["verdict"] == "CE"
+    assert res["score"] == 5.0
+    assert "Q2" in (res["compile_log"] or "")
+
+
+def test_multi_question_syntax_error_only_affects_own_question(tmp_path):
+    student_dir = tmp_path / "SE180009"
+    student_dir.mkdir()
+    (student_dir / "Q1.py").write_text(PY_SYNTAX_ERROR, encoding="utf-8")
+    (student_dir / "Q2.py").write_text(PY_ECHO, encoding="utf-8")
+    sub = {"id": 3, "student_mssv": "SE180009", "source_file_path": str(student_dir)}
+    testcases = [_tc("Q1", "5\n", "10"), _tc("Q2", "5\n", "10"), _tc("Q2", "7\n", "14")]
+
+    res = grade_single_submission(sub, "PYTHON", testcases, total_weight=3.0)
+
+    assert res["verdict"] == "CE"
+    assert res["score"] == round((2 / 3) * 10.0, 1)
+
+
+# ------------------------------------------------------------------------------
 # grade_class_batch (parallel pool + SQLite persistence)
 # ------------------------------------------------------------------------------
 def test_batch_grades_and_persists_results(db, tmp_path):
     class_id = db.create_class_session("SE1801_PY_PE", "PHP", "PYTHON", str(tmp_path))
     subs = [
-        (class_id, "SE180001", None, str(tmp_path / "SE180001_Q1.py")),
-        (class_id, "SE180002", None, str(tmp_path / "SE180002_Q1.py")),
+        (class_id, "SE180001", str(tmp_path / "SE180001_Q1.py")),
+        (class_id, "SE180002", str(tmp_path / "SE180002_Q1.py")),
     ]
     (tmp_path / "SE180001_Q1.py").write_text(PY_ECHO, encoding="utf-8")
     (tmp_path / "SE180002_Q1.py").write_text(PY_FAIL, encoding="utf-8")
@@ -141,7 +192,7 @@ def test_batch_grades_and_persists_results(db, tmp_path):
 
 def test_batch_without_testcases_raises_business_error(db, tmp_path):
     class_id = db.create_class_session("SE1801_EMPTY", "PHP", "PYTHON", str(tmp_path))
-    db.bulk_insert_submissions([(class_id, "SE180001", None, str(tmp_path / "a.py"))])
+    db.bulk_insert_submissions([(class_id, "SE180001", str(tmp_path / "a.py"))])
     (tmp_path / "a.py").write_text(PY_ECHO, encoding="utf-8")
 
     with pytest.raises(ValueError, match="Cấu Hình Testcase"):
@@ -158,7 +209,7 @@ def test_worker_exception_is_reported_as_re_not_crashed(db, tmp_path, monkeypatc
     import services.grading_service as grading_service_module
 
     class_id = db.create_class_session("SE1801_CRASH", "PHP", "PYTHON", str(tmp_path))
-    db.bulk_insert_submissions([(class_id, "SE180001", None, str(tmp_path / "b.py"))])
+    db.bulk_insert_submissions([(class_id, "SE180001", str(tmp_path / "b.py"))])
     (tmp_path / "b.py").write_text(PY_ECHO, encoding="utf-8")
     db.add_testcase(class_id, "", "10", score_weight=1.0, time_limit_ms=1500)
 
@@ -172,3 +223,4 @@ def test_worker_exception_is_reported_as_re_not_crashed(db, tmp_path, monkeypatc
     assert results[0]["verdict"] == "RE" and results[0]["score"] == 0.0
     persisted = db.get_submissions_by_class(class_id)
     assert persisted[0]["final_verdict"] == "RE"
+

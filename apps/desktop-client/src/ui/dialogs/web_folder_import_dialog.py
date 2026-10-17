@@ -3,18 +3,28 @@ AITA Desktop Client - Web Submission Folder Import Dialog (PyQt6)
 UC-19 (Web Studio): recognize students when loading a submissions folder.
 
 Recognition rules (Web page only):
-  - Each immediate sub-folder name IS the MSSV (e.g. SE180001); no name parsing from folder name.
-  - MSSV is normalized (trim + UPPERCASE) for case-insensitive duplicate detection.
+  - Each immediate sub-folder name IS the MSSV (e.g. SE180001); normalized trim + UPPERCASE.
   - Folder names must match MSSV_PATTERN (configurable); non-matching folders are surfaced
     in the preview (red) with a choice to "Vẫn nạp" or "Bỏ qua".
-  - System/hidden folders and loose files directly in the root are skipped and reported.
+  - System/hidden folders (".*", __MACOSX, node_modules) and loose files directly in the
+    root are skipped and reported.
+  - Inside each student folder a single .txt file holds the links. When several exist we
+    prefer links.txt, link.txt, readme.txt in that order; otherwise the folder is flagged
+    as "Thiếu file link".
+  - The .txt is read as UTF-8 (with/without BOM) or UTF-16; label prefixes ("Live:",
+    "GitHub:", "Link 1:" ...) are ignored and every http(s) URL is captured (several
+    links per line allowed).
+  - The GitHub repo link is normalized to https://github.com/<user>/<repo>; every other
+    link is treated as the Live URL. Extra links beyond the first of each kind are kept
+    as warnings only.
 
 This module performs recognition and display only. It never changes grading logic.
 """
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -40,21 +50,90 @@ MSSV_PATTERN_LABEL = "2 chữ cái + 6 chữ số (ví dụ SE180001)"
 # Folders that are never treated as student submissions.
 SKIP_DIR_NAMES = {"__MACOSX", "node_modules"}
 
-# Candidate entry pages inside a student folder (first match wins).
-ENTRY_FILE_CANDIDATES = ("index.html", "Index.html", "index.htm", "index.HTML", "default.html")
-
-# Candidate metadata text files that may carry the student's name / links.
-INFO_FILE_CANDIDATES = (
-    "links.txt", "link.txt", "info.txt", "thongtin.txt", "thong-tin.txt",
-    "README.txt", "readme.txt", "submission.txt"
-)
+# Priority order used when a student folder contains several .txt files.
+LINK_FILE_PRIORITY = ("links.txt", "link.txt", "readme.txt")
 
 # "Họ tên: ...", "Họ và tên: ...", "Tên: ...", "Name: ..."
 NAME_LINE_PATTERN = re.compile(
     r"^\s*(?:h[oọ]\s*(?:v[àa]\s*)?t[êe]n|t[êe]n|name)\s*[:\-]\s*(.+?)\s*$",
     re.IGNORECASE
 )
-URL_PATTERN = re.compile(r"https?://[^\s,\)\]\"']+")
+# Every http/https URL (several per line allowed); trailing punctuation trimmed later.
+URL_PATTERN = re.compile(r"https?://[^\s,\)\]\"'<>]+", re.IGNORECASE)
+
+GITHUB_HOST = "github.com"
+
+
+# ------------------------------------------------------------------------------
+# Small pure helpers (recognition only)
+# ------------------------------------------------------------------------------
+def read_text_file(path: Path) -> str:
+    """Reads a .txt file as UTF-8 (with/without BOM) or UTF-16, tolerating bad bytes."""
+    try:
+        raw = path.read_bytes()
+    except Exception:
+        return ""
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        try:
+            return raw.decode("utf-16")
+        except Exception:
+            pass
+    if raw.startswith(b"\xef\xbb\xbf"):
+        try:
+            return raw.decode("utf-8-sig")
+        except Exception:
+            pass
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            return raw.decode("utf-16")
+        except Exception:
+            return raw.decode("utf-8", errors="replace")
+
+
+def select_link_file(folder: Path) -> Tuple[Optional[Path], str]:
+    """
+    Picks the .txt file that holds the links.
+    Returns (path, status) where status is "" on success, "no_txt" or "ambiguous".
+    """
+    try:
+        txt_files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".txt"]
+    except Exception:
+        return None, "no_txt"
+    if not txt_files:
+        return None, "no_txt"
+    if len(txt_files) == 1:
+        return txt_files[0], ""
+    by_name = {p.name.lower(): p for p in txt_files}
+    for candidate in LINK_FILE_PRIORITY:
+        if candidate in by_name:
+            return by_name[candidate], ""
+    return None, "ambiguous"
+
+
+def classify_url(raw_url: str) -> Tuple[Optional[str], str, str]:
+    """
+    Classifies a single link.
+    Returns (kind, normalized, error) where kind is "repo", "live" or None.
+    A github.com/<user>/<repo> link is normalized (drops /tree/..., .git and trailing "/").
+    """
+    url = raw_url.strip().rstrip(".,;:!?)\"]'")
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if host == GITHUB_HOST or host.endswith("." + GITHUB_HOST):
+        parts = [p for p in parsed.path.split("/") if p]
+        if len(parts) >= 2:
+            user, repo = parts[0], parts[1]
+            if repo.lower().endswith(".git"):
+                repo = repo[:-4]
+            return "repo", f"https://{GITHUB_HOST}/{user}/{repo}", ""
+        return None, url, "Link GitHub không đúng dạng github.com/<user>/<repo>"
+    if host:
+        return "live", url, ""
+    return None, url, "Link không đúng định dạng http:// hoặc https://"
 
 
 class WebFolderImportDialog(QDialog):
@@ -77,7 +156,7 @@ class WebFolderImportDialog(QDialog):
         self.skipped_files: List[str] = []
         self.import_items: List[Dict[str, Any]] = []
 
-        self.setWindowTitle("Nạp Danh Sách Bài Nộp Từ Thư Mục")
+        self.setWindowTitle("Chọn Thư Mục Bài Nộp")
         self.setMinimumSize(980, 640)
         self.resize(1040, 700)
         self.setStyleSheet(LIGHT_THEME_QSS)
@@ -112,64 +191,64 @@ class WebFolderImportDialog(QDialog):
 
             mssv = folder_name.strip().upper()
             is_valid = bool(re.match(MSSV_PATTERN, mssv))
-            info = self._read_info(entry)
+            info = self._read_links(entry)
 
             self.scanned.append({
                 "folder_name": folder_name,
                 "mssv": mssv,
                 "mssv_valid": is_valid,
                 "local_dir": str(entry),
-                "entry_file": self._find_entry_file(entry),
-                "name": info.get("name", ""),
-                "live_url": info.get("live_url", ""),
-                "repo_url": info.get("repo_url", ""),
+                "link_file": str(info["link_file"]) if info["link_file"] else "",
+                "link_file_name": Path(info["link_file"]).name if info["link_file"] else "",
+                "link_file_status": info["link_file_status"],
+                "name": info["name"],
+                "live_url": info["live_url"],
+                "repo_url": info["repo_url"],
+                "extras": info["extras"],
+                "errors": info["errors"],
             })
 
-    def _find_entry_file(self, folder: Path) -> str:
-        for candidate in ENTRY_FILE_CANDIDATES:
-            direct = folder / candidate
-            if direct.is_file():
-                return str(direct)
-        for candidate in ENTRY_FILE_CANDIDATES:
-            found = next(folder.rglob(candidate), None)
-            if found and found.is_file():
-                return str(found)
-        return ""
+    def _read_links(self, folder: Path) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "link_file": None,
+            "link_file_status": "",
+            "name": "",
+            "live_url": "",
+            "repo_url": "",
+            "extras": [],
+            "errors": [],
+        }
 
-    def _read_info(self, folder: Path) -> Dict[str, str]:
-        text = ""
-        for candidate in INFO_FILE_CANDIDATES:
-            f = folder / candidate
-            if f.is_file():
-                try:
-                    text = f.read_text(encoding="utf-8", errors="replace")
-                    break
-                except Exception:
-                    continue
+        link_file, file_status = select_link_file(folder)
+        if link_file is None:
+            result["link_file_status"] = file_status
+            return result
+
+        result["link_file"] = link_file
+        text = read_text_file(link_file)
         if not text:
-            txt_files = sorted(folder.glob("*.txt"))
-            if txt_files:
-                try:
-                    text = txt_files[0].read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    text = ""
+            return result
 
-        name = ""
-        live_url = ""
-        repo_url = ""
-        if text:
-            for line in text.splitlines():
-                m = NAME_LINE_PATTERN.match(line)
-                if m and not name:
-                    name = m.group(1).strip()
-                for url in URL_PATTERN.findall(line):
-                    url = url.rstrip(".,;")
-                    if "github.com" in url.lower():
-                        if not repo_url:
-                            repo_url = url
-                    elif not live_url:
-                        live_url = url
-        return {"name": name, "live_url": live_url, "repo_url": repo_url}
+        for line in text.splitlines():
+            m = NAME_LINE_PATTERN.match(line)
+            if m and not result["name"]:
+                result["name"] = m.group(1).strip()
+
+        live_candidates: List[str] = []
+        repo_candidates: List[str] = []
+        for raw_url in URL_PATTERN.findall(text):
+            kind, normalized, error = classify_url(raw_url)
+            if error:
+                result["errors"].append(f"{normalized}: {error}")
+            elif kind == "repo":
+                repo_candidates.append(normalized)
+            elif kind == "live":
+                live_candidates.append(normalized)
+
+        result["live_url"] = live_candidates[0] if live_candidates else ""
+        result["repo_url"] = repo_candidates[0] if repo_candidates else ""
+        result["extras"] = live_candidates[1:] + repo_candidates[1:]
+        return result
 
     # ------------------------------------------------------------------
     # UI
@@ -181,11 +260,12 @@ class WebFolderImportDialog(QDialog):
 
         lbl_rule = QLabel(
             "Quy ước nhận diện: tên mỗi thư mục con CHÍNH LÀ MSSV của sinh viên "
-            f"(mẫu hợp lệ: {MSSV_PATTERN_LABEL}). Họ tên chỉ đọc từ file .txt nếu có.",
+            f"(mẫu hợp lệ: {MSSV_PATTERN_LABEL}). Mỗi thư mục cần một file .txt chứa "
+            "link Live URL và link GitHub Repo.",
             self
         )
         lbl_rule.setWordWrap(True)
-        lbl_rule.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px;")
+        lbl_rule.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; line-height: 1.4;")
         layout.addWidget(lbl_rule)
 
         lbl_root = QLabel(f"Thư mục gốc: {self.root_dir}", self)
@@ -235,6 +315,7 @@ class WebFolderImportDialog(QDialog):
 
         # Footer
         footer = QHBoxLayout()
+        footer.setSpacing(12)
         footer.addStretch(1)
 
         btn_cancel = QPushButton("Hủy", self)
@@ -243,11 +324,17 @@ class WebFolderImportDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
         footer.addWidget(btn_cancel)
 
-        self.btn_import = QPushButton("Nạp Vào Danh Sách", self)
-        self.btn_import.setProperty("class", "PrimaryBtn")
-        self.btn_import.setFixedHeight(38)
-        self.btn_import.clicked.connect(self._on_accept)
-        footer.addWidget(self.btn_import)
+        self.btn_import_all = QPushButton("Nạp Tất Cả (kể cả bài thiếu link)", self)
+        self.btn_import_all.setProperty("class", "SecondaryBtn")
+        self.btn_import_all.setFixedHeight(38)
+        self.btn_import_all.clicked.connect(lambda: self._on_accept(load_all=True))
+        footer.addWidget(self.btn_import_all)
+
+        self.btn_import_valid = QPushButton("Nạp Các Bài Hợp Lệ", self)
+        self.btn_import_valid.setProperty("class", "PrimaryBtn")
+        self.btn_import_valid.setFixedHeight(38)
+        self.btn_import_valid.clicked.connect(lambda: self._on_accept(load_all=False))
+        footer.addWidget(self.btn_import_valid)
         layout.addLayout(footer)
 
     # ------------------------------------------------------------------
@@ -258,7 +345,6 @@ class WebFolderImportDialog(QDialog):
         load_invalid = self.cb_invalid.currentText() == self.INVALID_LOAD
         dup_policy = self.cb_duplicate.currentText()
 
-        # Group by normalized MSSV to detect duplicates
         groups: Dict[str, List[Dict[str, Any]]] = {}
         for item in self.scanned:
             groups.setdefault(item["mssv"], []).append(item)
@@ -275,7 +361,6 @@ class WebFolderImportDialog(QDialog):
                     continue
             selected.append(item)
 
-        # Assign display labels (suffix for duplicates when keeping all)
         counters: Dict[str, int] = {}
         for item in selected:
             counters[item["mssv"]] = counters.get(item["mssv"], 0) + 1
@@ -283,21 +368,36 @@ class WebFolderImportDialog(QDialog):
             item["display_mssv"] = item["mssv"] if nth == 1 else f"{item['mssv']} ({nth})"
         return selected
 
+    def _link_status(self, item: Dict[str, Any]) -> Tuple[str, str, bool]:
+        """Returns (text, color, is_complete) for the link part of a folder."""
+        if item["link_file_status"]:
+            return "Thiếu file link", COLOR_WARNING, False
+        if item["errors"]:
+            return "Cảnh báo", COLOR_WARNING, False
+        missing_live = not item["live_url"]
+        missing_repo = not item["repo_url"]
+        if missing_live and missing_repo:
+            return "Thiếu Live URL & GitHub", COLOR_ERROR, False
+        if missing_live:
+            return "Thiếu Live URL", COLOR_ERROR, False
+        if missing_repo:
+            return "Thiếu GitHub", COLOR_ERROR, False
+        if item["extras"]:
+            return "Đủ link (có link thừa)", COLOR_WARNING, True
+        return "Đủ link", COLOR_SUCCESS, True
+
+    def _is_valid(self, item: Dict[str, Any]) -> bool:
+        return (
+            not item["link_file_status"]
+            and not item["errors"]
+            and bool(item["live_url"])
+            and bool(item["repo_url"])
+        )
+
     def _refresh_preview(self):
         selected = self._compute_selection()
         selected_ids = {id(x) for x in selected}
-
-        # Reset imported items to the current selection
-        self.import_items = [{
-            "mssv": x["mssv"],
-            "display_mssv": x["display_mssv"],
-            "name": x["name"],
-            "live_url": x["live_url"],
-            "repo_url": x["repo_url"],
-            "local_dir": x["local_dir"],
-            "source_folder_path": x["local_dir"],
-            "folder_name": x["folder_name"],
-        } for x in selected]
+        self._selected = selected
 
         # Group sizes for duplicate status text
         group_sizes: Dict[str, int] = {}
@@ -306,11 +406,9 @@ class WebFolderImportDialog(QDialog):
 
         any_name = any(x["name"].strip() for x in self.scanned)
 
-        headers = ["MSSV", "File", "Live URL", "GitHub Repo", "Trạng Thái"]
-        name_col = None
+        headers = ["MSSV", "File link", "Live URL", "GitHub Repo", "Trạng Thái"]
         if any_name:
             headers.insert(1, "Họ và Tên")
-            name_col = 1
 
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
@@ -327,31 +425,40 @@ class WebFolderImportDialog(QDialog):
             self.table.setItem(r, col, item_mssv)
             col += 1
 
-            if name_col is not None:
+            if any_name:
                 item_name = QTableWidgetItem(item["name"] or "")
+                item_name.setToolTip(item["name"] or "")
                 self.table.setItem(r, col, item_name)
                 col += 1
 
-            entry = item["entry_file"]
-            item_file = QTableWidgetItem(Path(entry).name if entry else "—")
-            if entry:
-                item_file.setToolTip(entry)
+            item_file = QTableWidgetItem(item["link_file_name"] or "—")
+            if item["link_file"]:
+                item_file.setToolTip(item["link_file"])
+            elif item["link_file_status"] == "ambiguous":
+                item_file.setToolTip("Có nhiều file .txt nhưng không xác định được file link (ưu tiên links.txt, link.txt, readme.txt).")
+            else:
+                item_file.setToolTip("Không tìm thấy file .txt trong thư mục.")
             self.table.setItem(r, col, item_file)
             col += 1
 
             item_live = QTableWidgetItem(item["live_url"] or "—")
             item_live.setToolTip(item["live_url"] or "")
+            if item["errors"] or not item["live_url"]:
+                item_live.setForeground(QColor(COLOR_ERROR if not item["errors"] else COLOR_WARNING))
             self.table.setItem(r, col, item_live)
             col += 1
 
             item_repo = QTableWidgetItem(item["repo_url"] or "—")
             item_repo.setToolTip(item["repo_url"] or "")
+            if item["errors"] or not item["repo_url"]:
+                item_repo.setForeground(QColor(COLOR_ERROR if not item["errors"] else COLOR_WARNING))
             self.table.setItem(r, col, item_repo)
             col += 1
 
             status, color = self._row_status(item, group_sizes, selected_ids)
             item_status = QTableWidgetItem(status)
             item_status.setForeground(QColor(color))
+            item_status.setToolTip(self._status_tooltip(item))
             self.table.setItem(r, col, item_status)
 
         hdr = self.table.horizontalHeader()
@@ -364,9 +471,11 @@ class WebFolderImportDialog(QDialog):
         self.table.setColumnWidth(self.table.columnCount() - 1, 260)
 
         self._update_report(group_sizes, selected)
-        self.btn_import.setEnabled(len(self.import_items) > 0)
+        valid_count = sum(1 for x in selected if self._is_valid(x))
+        self.btn_import_valid.setEnabled(valid_count > 0)
+        self.btn_import_all.setEnabled(len(selected) > 0)
 
-    def _row_status(self, item: Dict[str, Any], group_sizes: Dict[str, int], selected_ids: set):
+    def _row_status(self, item: Dict[str, Any], group_sizes: Dict[str, int], selected_ids: set) -> Tuple[str, str]:
         if not item["mssv_valid"]:
             if id(item) in selected_ids:
                 return "Tên thư mục không phải MSSV hợp lệ — vẫn nạp", COLOR_WARNING
@@ -377,11 +486,25 @@ class WebFolderImportDialog(QDialog):
                 return f"Trùng MSSV — giữ bản này ({item.get('display_mssv', item['mssv'])})", COLOR_WARNING
             return f"Trùng MSSV {item['mssv']} — bỏ qua", COLOR_ERROR
 
-        return "Hợp lệ", COLOR_SUCCESS
+        text, color, _ = self._link_status(item)
+        return text, color
+
+    def _status_tooltip(self, item: Dict[str, Any]) -> str:
+        tips: List[str] = []
+        if item["link_file_status"] == "no_txt":
+            tips.append("Không có file .txt chứa link trong thư mục.")
+        elif item["link_file_status"] == "ambiguous":
+            tips.append("Có nhiều file .txt; hãy đặt tên links.txt, link.txt hoặc readme.txt.")
+        if item["errors"]:
+            tips.append("Link sai định dạng: " + "; ".join(item["errors"]))
+        if item["extras"]:
+            tips.append("Link thừa (chỉ dùng link đầu tiên mỗi loại): " + "; ".join(item["extras"]))
+        return "\n".join(tips)
 
     def _update_report(self, group_sizes: Dict[str, int], selected: List[Dict[str, Any]]):
         lines: List[str] = []
-        lines.append(f"Nhận diện {len(self.scanned)} thư mục; sẽ nạp {len(selected)} bài.")
+        valid_count = sum(1 for x in selected if self._is_valid(x))
+        lines.append(f"Nhận diện {len(self.scanned)} thư mục; sẽ nạp {valid_count} bài đủ link (hoặc tất cả nếu chọn 'Nạp Tất Cả').")
         lines.append(f"Bỏ qua {len(self.skipped_dirs)} thư mục hệ thống/ẩn"
                      + (f": {', '.join(self.skipped_dirs)}" if self.skipped_dirs else "."))
         lines.append(f"Bỏ qua {len(self.skipped_files)} file lẻ ở thư mục gốc"
@@ -391,9 +514,7 @@ class WebFolderImportDialog(QDialog):
             f"{x['folder_name']} (đọc là '{x['mssv'] or 'trống'}')"
             for x in self.scanned if not x["mssv_valid"]
         ]
-        lines.append(
-            "Thư mục không khớp mẫu MSSV: " + (", ".join(invalid) if invalid else "không có.")
-        )
+        lines.append("Thư mục không khớp mẫu MSSV: " + (", ".join(invalid) if invalid else "không có."))
 
         dup_groups = {m: c for m, c in group_sizes.items() if c > 1}
         if dup_groups:
@@ -402,13 +523,36 @@ class WebFolderImportDialog(QDialog):
         else:
             lines.append("MSSV trùng: không có.")
 
+        missing_link = [x["folder_name"] for x in self.scanned
+                        if x["link_file_status"] or not x["live_url"] or not x["repo_url"] or x["errors"]]
+        lines.append("Bài thiếu/cần lưu ý về link: "
+                     + (", ".join(missing_link) if missing_link else "không có."))
+
         self.txt_report.setPlainText("\n".join(lines))
 
     # ------------------------------------------------------------------
     # Accept
     # ------------------------------------------------------------------
-    def _on_accept(self):
-        if not self.import_items:
-            QMessageBox.warning(self, "Không Có Dữ Liệu", "Không có bài nộp nào hợp lệ để nạp.")
+    def _on_accept(self, load_all: bool):
+        selection = getattr(self, "_selected", [])
+        items = selection if load_all else [x for x in selection if self._is_valid(x)]
+        if not items:
+            QMessageBox.warning(
+                self, "Không Có Dữ Liệu",
+                "Không có bài nộp nào phù hợp để nạp với lựa chọn hiện tại."
+            )
             return
+
+        self.import_items = [{
+            "mssv": x["mssv"],
+            "display_mssv": x.get("display_mssv", x["mssv"]),
+            "name": x["name"],
+            "live_url": x["live_url"],
+            "repo_url": x["repo_url"],
+            "local_dir": x["local_dir"],
+            "source_folder_path": x["local_dir"],
+            "folder_name": x["folder_name"],
+            "link_file_name": x["link_file_name"],
+            "has_link": self._is_valid(x),
+        } for x in items]
         self.accept()

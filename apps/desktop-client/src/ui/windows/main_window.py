@@ -1298,7 +1298,6 @@ class AITAMainWindow(QMainWindow):
 
         for row_idx, sub in enumerate(submissions):
             mssv = str(sub.get("student_mssv", "")).strip()
-            raw_name = (sub.get("student_name") or "").strip()
             is_duplicate = (mssv_counts.get(mssv, 0) > 1)
             file_path = sub["source_file_path"]
             fname = Path(file_path).name
@@ -1329,7 +1328,8 @@ class AITAMainWindow(QMainWindow):
             item_stt.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 0, item_stt)
 
-            # 1: Sinh Viên (Left-aligned) - Yêu cầu 9: Hiển thị cảnh báo nhỏ 'MSSV trùng' nếu trùng; cột họ tên rỗng hiển thị '(chưa có tên)' màu xám
+            # 1: Sinh Viên (Left-aligned) - Yêu cầu 9: Hiển thị cảnh báo nhỏ 'MSSV trùng' nếu trùng.
+            # CSDL local chỉ lưu MSSV + đường dẫn theo chuẩn input 2 cột `MSSV,File`, không lưu họ tên.
             cell_student = QWidget(self.table)
             cell_student.setStyleSheet("background: transparent;")
             cs_layout = QHBoxLayout(cell_student)
@@ -1352,18 +1352,7 @@ class AITAMainWindow(QMainWindow):
                     padding: 1px 4px;
                 """)
                 cs_layout.addWidget(lbl_dup)
-                
-            lbl_sep = QLabel("—", cell_student)
-            lbl_sep.setStyleSheet("font-size: 12px; color: #94A3B8; background: transparent;")
-            cs_layout.addWidget(lbl_sep)
-            
-            if raw_name:
-                lbl_name = QLabel(raw_name, cell_student)
-                lbl_name.setStyleSheet("font-size: 13px; font-weight: 500; color: #334155; background: transparent;")
-            else:
-                lbl_name = QLabel("(chưa có tên)", cell_student)
-                lbl_name.setStyleSheet("font-size: 12px; font-style: italic; color: #94A3B8; background: transparent;")
-            cs_layout.addWidget(lbl_name)
+
             cs_layout.addStretch(1)
             
             self.table.setCellWidget(row_idx, 1, cell_student)
@@ -1630,7 +1619,6 @@ class AITAMainWindow(QMainWindow):
                         continue
 
                     mssv = match.group(1).upper()
-                    student_name = (match.group(2) or "").strip().replace("_", " ")
 
                     source_file = None
                     for ext in valid_exts:
@@ -1649,7 +1637,6 @@ class AITAMainWindow(QMainWindow):
 
                     valid.append({
                         "student_mssv": mssv,
-                        "student_name": student_name,
                         "source_file_path": str(source_file)
                     })
 
@@ -1666,7 +1653,6 @@ class AITAMainWindow(QMainWindow):
                         continue
 
                     mssv = match.group(1).upper()
-                    student_name = (match.group(2) or "").strip().replace("_", " ")
 
                     if mssv in seen_mssv:
                         duplicates.append(mssv)
@@ -1674,7 +1660,6 @@ class AITAMainWindow(QMainWindow):
 
                     valid.append({
                         "student_mssv": mssv,
-                        "student_name": student_name,
                         "source_file_path": str(entry)
                     })
         except Exception as ex:
