@@ -62,16 +62,16 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
   - **Giao tiếp API**: Sử dụng **Axios** hoặc **Fetch API** kết hợp Interceptor tự động gán Bearer Token.
 - **Chức năng trọng tâm của Web Admin Dashboard**:
   1. **Quản lý tài khoản Giảng viên & Phân quyền**: Tạo mới, chỉnh sửa thông tin, khóa tài khoản và gán Role (`admin`, `instructor`).
-  2. **Quản lý danh mục học thuật**: Quản lý danh mục 4 môn học lập trình cốt lõi (PRF, PRO, DSA, PHP).
-  3. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. Gemini API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
-  4. **Báo cáo & Thống kê toàn trường**: Xem tổng hợp số phiên chấm và biểu đồ điểm số các môn thi toàn trường.
+  2. **Giám sát hạn ngạch AI (Gemini Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. Gemini API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
+  3. **Báo cáo & Thống kê toàn trường**: Xem tổng hợp số lượng giảng viên, mức độ tiêu thụ Token AI và nhật ký kiểm toán hệ thống.
 
 ### 2.3. Desktop App Client (Ứng Dụng Chấm Bài Dành Cho Giảng Viên - Python / PyQt6)
 
-- **Giao diện Desktop (GUI Framework)**: **PyQt6 / PySide6 (>= 6.5.0)**
+- **Giao diện Desktop (GUI Framework)**: **PyQt6 (>= 6.5.0)**
   - Thiết kế chuẩn Desktop Native, hỗ trợ kéo thả file, đa tiến trình qua `QThread` đảm bảo giao diện không bao giờ bị treo đơ trong lúc chấm bài số lượng lớn.
 - **Xử lý dữ liệu nạp & kết xuất**:
-  - Module chuẩn **`csv`**: Đọc file đầu vào `students.csv` (2 cột: `MSSV`, `File`) và xuất file kết quả `results.csv` (7 cột).
+  - Nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (tự động phân tích MSSV làm định danh duy nhất — không lưu họ tên) hoặc nạp qua file danh sách `students.csv` (2 cột: `MSSV`, `File`).
+  - Module chuẩn **`csv`**: Xử lý đọc danh sách bài nộp và xuất file kết quả `results.csv` (7 cột).
 - **Bộ máy thực thi & Sandbox bảo mật**:
   - **`subprocess`**: Khởi chạy tiến trình con cô lập để gọi trình biên dịch `gcc` (C), `javac/java` (Java), và `python` (Python).
   - **`psutil` (>= 5.9.0)**: Giám sát tài nguyên RAM (bắt lỗi `MLE`), CPU và kill tiến trình khi bị vòng lặp vô hạn (bắt lỗi `TLE`).
@@ -111,7 +111,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 
 - **Cơ chế điều phối qua NestJS Backend**:
   - NestJS Server đóng vai trò Gateway quản lý hạn ngạch (Quota Guard), lưu trữ API Key bí mật trong `GEMINI_API_KEY`, không để lộ khóa API ra Desktop App. Model mặc định là `gemini-3.8-flash`, cấu hình bằng `GEMINI_MODEL`.
-- Rate limit: 80 request/phút/User cho API đã xác thực thông thường; 15 request/phút/User cho nhóm API tạo nội dung AI; login 10/phút/IP và refresh 30/phút/IP. Dùng Redis làm storage dùng chung khi triển khai production; local có thể fallback sang storage trong bộ nhớ.
+- Rate limit: 80 request/phút/User cho API đã xác thực thông thường; 15 request/phút/User cho nhóm API tạo nội dung AI; login 10/phút/IP và refresh 30/phút/IP. Dùng In-Memory Throttler mặc định trên Render.com Web Service; hỗ trợ mở rộng kết nối Redis khi cấu hình biến môi trường `REDIS_URL`.
 - **Chiến lược tối ưu hóa lượt gọi AI (Smart Resource Strategy)**:
   - *Sinh Testcase*: Gọi 1 lần duy nhất cho mỗi đề bài để sinh cả bộ 5-10 testcase `(Input, Output)` cho cả lớp.
   - *Phân tích lỗi (Code Review)*: Chế độ **On-Demand** (chỉ gọi khi giảng viên chủ động bấm nút phân tích cho bài nộp bị `WA`, bỏ qua `CE`).

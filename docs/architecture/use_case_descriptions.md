@@ -9,9 +9,9 @@
 
 ## 1. Giới Thiệu & Mục Đích Tài Liệu
 
-Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **18 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
+Tài liệu này cung cấp bản đặc tả chi tiết từng bước (**Use Case Descriptions / Specifications**) cho toàn bộ **19 Use Cases** thuộc 6 phân hệ chức năng của hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. 
 
-Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///d:/Java%20FPT/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///d:/Java%20FPT/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///d:/Java%20FPT/AITA/docs/architecture/tech-stack.md).
+Bản đặc tả được xây dựng bám sát theo chuẩn Kỹ nghệ Phần mềm Quốc tế (IEEE 830 / RUP Template), đồng bộ 100% với kiến trúc hệ thống tại [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md), danh mục tác nhân và sơ đồ tại [actors_and_use_cases.md](file:///e:/AITA/docs/architecture/actors_and_use_cases.md) và ngăn xếp công nghệ tại [tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md).
 
 Mỗi Use Case được đặc tả bao gồm:
 1. **Mã & Tên Use Case** (Song ngữ Việt - Anh).
@@ -25,13 +25,14 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-## 2. Ma Trận 18 Use Cases Theo 6 Phân Hệ Chức Năng
+## 2. Ma Trận 19 Use Cases Theo 6 Phân Hệ Chức Năng
 
 | Mã UC | Tên Use Case | Tác nhân chính | Giao diện thực hiện | Tác nhân ngoài hỗ trợ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** | | | | |
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
+| **UC-03** | Cấp mới Access Token bằng Refresh Token | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
 | **UC-05** | Xem Báo cáo tài khoản & Sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
@@ -419,11 +420,11 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Thiết lập Động cơ So khớp 7 Chế độ (Configure 7 Output Matching Strategies)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Không *(Xử lý trực tiếp bởi Tầng nghiệp vụ Strategy Pattern của Desktop App)*
-* **Mô tả tóm tắt**: Cung cấp cho Giảng viên quyền lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`MatchingStrategy`) được hiện thực hóa qua **mẫu thiết kế Strategy Pattern** để đảm bảo việc chấm điểm phù hợp chính xác với từng yêu cầu bài toán (bỏ qua dấu cách thừa, không phân biệt hoa thường, so sánh số thực sai số delta, so khớp không thứ tự, Regex, hoặc chấm đặc biệt qua script).
+* **Mô tả tóm tắt**: Cung cấp cho Giảng viên quyền lựa chọn 1 trong 7 chiến lược so khớp đầu ra (`IMatchingStrategy`) hoặc kết hợp đa cờ (`FlexibleMatchingStrategy`) được hiện thực hóa qua **mẫu thiết kế Strategy Pattern** để đảm bảo việc chấm điểm phù hợp chính xác với từng yêu cầu bài toán (bỏ qua dấu cách thừa, không phân biệt hoa thường, so sánh số thực sai số delta, so khớp không thứ tự, Regex, hoặc chấm đặc biệt qua script).
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đang trong giao diện chuẩn bị chấm điểm của một đợt chấm bài.
 * **Hậu điều kiện (Postconditions)**:
-  1. Chiến lược so khớp được chọn được gán vào đối tượng điều phối chấm bài (`GradingContext`), sẵn sàng áp dụng cho toàn bộ quá trình so sánh `OUTPUT thực tế` và `OUTPUT kỳ vọng` trong `UC-12`.
+  1. Chiến lược so khớp được chọn được gán vào đối tượng điều phối chấm bài (`MatchingContext`), sẵn sàng áp dụng cho toàn bộ quá trình so sánh `OUTPUT thực tế` và `OUTPUT kỳ vọng` trong `UC-12`.
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn chế độ trong danh sách thả xuống **"Chế độ so khớp" (Matching Strategy)**.
 
 ##### Luồng sự kiện chính (Main Flow):
@@ -438,7 +439,7 @@ Mỗi Use Case được đặc tả bao gồm:
    - `SpecialJudgeStrategy`: Cho phép chỉ định một file script Python kiểm thử riêng (`checker.py`) đối với các bài toán có nhiều đáp án đúng (Multiple Valid Solutions).
 3. Giảng viên lựa chọn chiến lược mong muốn (ví dụ: `IgnoreWhitespaceStrategy`).
 4. Nếu chọn các chế độ có tham số (như `FloatingPointToleranceStrategy` hoặc `SpecialJudgeStrategy`), hệ thống hiển thị ô nhập bổ sung (nhập sai số $\epsilon$ hoặc nút chọn file `checker.py`).
-5. Hệ thống ghi nhận lựa chọn vào cấu hình của đợt chấm. Khi bấm chấm (`UC-12`), `GradingContext` sẽ nạp lớp hiện thực chiến lược tương ứng để thực hiện so khớp. Use Case kết thúc.
+5. Hệ thống ghi nhận lựa chọn vào cấu hình của đợt chấm. Khi bấm chấm (`UC-12`), `MatchingContext` sẽ nạp lớp hiện thực chiến lược tương ứng để thực hiện so khớp. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Cấu hình chiến lược riêng cho từng câu hỏi**: Giảng viên có thể thiết lập mỗi câu hỏi một chiến lược khác nhau (ví dụ: Câu 1 kiểm tra chuỗi dùng `IgnoreWhitespace`, Câu 2 tính toán số học dùng `FloatingPointTolerance`).

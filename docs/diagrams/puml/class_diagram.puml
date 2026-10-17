@@ -55,20 +55,19 @@ package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5
         + execute_main(stdin_input: str): ExecutionResult
     }
 
-    class WebRunner {
-        - playwright_browser: Any
-        - rubric_weights: Dict[str, float]
-        + compile(): CompileResult
-        + execute_main(stdin_input: str): ExecutionResult
-        + evaluate_dom_structure(html_path: Path): float
-        + run_w3c_lint(html_path: Path): float
-        + run_playwright_e2e(test_script: str): float
-        + evaluate_ui_gemini_vision(screenshot_path: Path): float
-        + calculate_composite_score(): float
+    class WebRubricEngine {
+        - weights: Dict[str, float]
+        + score_submission(folder_path: Path): WebRubricResult
+        + score_dom(html: str): float
+        + score_css_standards(css: str): float
+        + score_interaction(metrics: Dict): float
+        + capture_screenshot(url: str): str
     }
 
     class RunnerFactory <<Creational - Factory Method>> {
-        + {static} create_runner(file_extension: str, source_path: Path): BaseRunner
+        - {static} _REGISTRY: Dict[str, Type[BaseRunner]]
+        + {static} register_runner(language_key: str, runner_cls: Type): void
+        + {static} get_runner(language: str): BaseRunner
     }
 
     interface CompilerAdapter <<Structural - Adapter>> {
@@ -116,13 +115,11 @@ package "Phân Hệ 1: Sandbox Execution & Compiler Engine (Local Engine)" #E8F5
     BaseRunner <|-- CRunner
     BaseRunner <|-- JavaRunner
     BaseRunner <|-- PythonRunner
-    BaseRunner <|-- WebRunner
 
     RunnerFactory ..> BaseRunner : <<creates>>
     RunnerFactory ..> CRunner : <<instantiates>>
     RunnerFactory ..> JavaRunner : <<instantiates>>
     RunnerFactory ..> PythonRunner : <<instantiates>>
-    RunnerFactory ..> WebRunner : <<instantiates>>
 
     CompilerAdapter <|.. GccAdapter
     CompilerAdapter <|.. JavacAdapter
@@ -203,7 +200,8 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 
     class BatchGradingManager {
         - worker_pool_size: int
-        - grading_context: GradingContext
+        - matching_context: MatchingContext
+        + load_submissions_directory(dir_path: Path): List[Submission]
         + load_students_csv(csv_path: Path): List[Submission]
         + execute_batch_grading(session_id: str): List[GradingResult]
         + export_results_csv(results: List[GradingResult], output_path: Path): void
@@ -211,7 +209,6 @@ package "Phân Hệ 2: Grading Core & Output Matching Subsystem" #EDE7F6 {
 
     class Submission {
         + student_id: str
-        + student_name: str
         + source_file_path: Path
         + programming_language: str
         + total_score: float
@@ -363,7 +360,7 @@ package "Phân Hệ 3: Central Backend & AI Gateway Subsystem (NestJS Service)" 
 BatchGradingManager --> BaseRunner : executes code
 
 ' Desktop App kết nối mạng với Backend API qua RESTful Calls (Chỉ cho Auth và AI Gateway)
-GradingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
+MatchingContext ..> AIGatewayController : HTTP POST /ai/generate-testcases & /ai/code-review
 
 ' Ghi chú làm nổi bật 3 Mẫu thiết kế bắt buộc theo Rubric SWD392
 note top of RunnerFactory
@@ -378,10 +375,10 @@ note top of CompilerAdapter
   mã lỗi stderr giữa GCC, Javac và Python.
 end note
 
-note top of MatchingStrategy
+note top of IMatchingStrategy
   <b>3. Behavioral Pattern: Strategy Pattern</b>
   Cung cấp 7 chiến lược so khớp đầu ra linh hoạt
-  cho phép thay đổi thuật toán lúc runtime.
+  kết hợp đa cờ qua FlexibleMatchingStrategy lúc runtime.
 end note
 
 @enduml

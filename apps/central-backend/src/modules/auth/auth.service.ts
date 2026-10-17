@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
@@ -11,6 +11,8 @@ import { toAppRole } from '../../common/decorators/roles.decorator';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -19,7 +21,10 @@ export class AuthService {
 
   async login(input: LoginDto) {
     const user = await this.prisma.user.findFirst({
-      where: { username: input.username, isDeleted: false },
+      where: {
+        OR: [{ username: input.username }, { email: input.username }],
+        isDeleted: false,
+      },
     });
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException({ error_code: 'AUTH_INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không chính xác.', details: null });
@@ -27,6 +32,7 @@ export class AuthService {
     if (!user.isActive) {
       throw new ForbiddenException({ error_code: 'AUTH_ACCOUNT_DISABLED', message: 'Tài khoản của bạn đã bị vô hiệu hóa.', details: null });
     }
+    this.logger.log(`[Đăng nhập thành công] Người dùng: [${user.username}] - Vai trò: [${user.role}]`);
     return { message: 'Đăng nhập thành công', data: await this.issueTokens(user) };
   }
 
@@ -79,7 +85,7 @@ export class AuthService {
         secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: accessExpiresIn,
       }),
       this.jwt.signAsync({ ...identity, token_type: 'refresh', jti: refreshId }, {
-        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn, jwtid: refreshId,
+        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn,
       }),
     ]);
     const decoded = this.jwt.decode(refreshToken) as { exp?: number } | null;

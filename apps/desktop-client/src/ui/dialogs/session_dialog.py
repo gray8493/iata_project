@@ -15,7 +15,7 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QFileDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFrame, QMessageBox
+    QHeaderView, QFrame, QMessageBox, QCheckBox
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -29,6 +29,22 @@ from ui.styles.theme import (
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG
 )
 from database.db_manager import DatabaseManager
+
+
+DUPLICATE_STUDENT_SUBMISSION = "DUPLICATE_STUDENT_SUBMISSION"
+
+
+class DuplicateStudentSubmissionError(Exception):
+    """Business exception raised when the scanned folder contains a duplicated MSSV (IT20)."""
+
+    code = DUPLICATE_STUDENT_SUBMISSION
+
+    def __init__(self, duplicated_codes):
+        self.duplicated_codes = list(duplicated_codes)
+        super().__init__(
+            f"{DUPLICATE_STUDENT_SUBMISSION}: trùng mã sinh viên "
+            f"{', '.join(self.duplicated_codes)}"
+        )
 
 
 class SessionDialog(QDialog):
@@ -163,6 +179,26 @@ class SessionDialog(QDialog):
         )
         lbl_folder_hint.setStyleSheet("color: #64748B; font-size: 12px; line-height: 1.4;")
         f_layout.addWidget(lbl_folder_hint)
+
+        # Pain #10: 'Tạo giống đợt có sẵn' — không nhập lại testcase mỗi buổi chấm.
+        # Tích chọn -> khi lưu đợt mới, toàn bộ testcase của đợt nguồn được sao chép nguyên trạng.
+        config_row = QHBoxLayout()
+        config_row.setSpacing(8)
+        self.chk_copy_config = QCheckBox("Sao Chép Bộ Testcase Từ Đợt Khác", form_card)
+        self.chk_copy_config.setToolTip(
+            "Khi tạo đợt mới: sao chép toàn bộ testcase (input, expected, trọng số, "
+            "thời gian, RAM, thuật toán so khớp) của đợt đã chọn."
+        )
+        config_row.addWidget(self.chk_copy_config)
+
+        self.cb_preset_source = QComboBox(form_card)
+        self.cb_preset_source.setFixedHeight(34)
+        self.cb_preset_source.setEnabled(False)
+        config_row.addWidget(self.cb_preset_source, stretch=1)
+        f_layout.addLayout(config_row)
+
+        self.chk_copy_config.toggled.connect(self._on_copy_config_toggled)
+        self._refresh_preset_sources()
 
         layout.addWidget(form_card)
 
@@ -483,6 +519,46 @@ class SessionDialog(QDialog):
             self.txt_folder_path.setText(folder)
             self._scan_and_refresh_preview()
 
+    def _refresh_preset_sources(self):
+        """Pain #10: liệt kê các đợt chấm đã có testcase để dùng làm 'mẫu cấu hình'."""
+        if getattr(self, "cb_preset_source", None) is None:
+            return
+        self.cb_preset_source.clear()
+        try:
+            db = DatabaseManager()
+            candidates = db.get_preset_source_candidates()
+        except Exception:
+            candidates = []
+        exclude_id = self.existing_class_id
+        usable = [c for c in candidates if c.get("id") != exclude_id]
+        for cand in usable:
+            lang_tag = (cand.get("programming_language") or "").strip()
+            label = (
+                f"{cand.get('class_name', '')} - {cand.get('course_code') or ''} "
+                f"({lang_tag}, {cand.get('testcase_count', 0)} TC)"
+            ).strip()
+            self.cb_preset_source.addItem(label, userData=cand.get("id"))
+        if not usable:
+            self.cb_preset_source.addItem("Chưa có đợt nào có testcase để sao chép", userData=None)
+
+    def _on_copy_config_toggled(self, checked: bool):
+        combo = getattr(self, "cb_preset_source", None)
+        if combo is None:
+            return
+        if checked and combo.count() == 1 and combo.currentData() is None:
+            # Không có mẫu khả dụng: sau tick lại lập tức bỏ tick và báo rõ
+            self.chk_copy_config.blockSignals(True)
+            self.chk_copy_config.setChecked(False)
+            self.chk_copy_config.blockSignals(False)
+            QMessageBox.information(
+                self,
+                "Không Có Đợt Mẫu",
+                "Chưa có đợt chấm nào hiện hữu với bộ testcase để sao chép. "
+                "Vui lòng cấu hình testcase thủ công cho lần chấm đầu tiên."
+            )
+            return
+        combo.setEnabled(checked)
+
     def _load_existing_session_data(self):
         """Pre-populates form with previously entered session info when going back from step 2."""
         try:
@@ -517,18 +593,33 @@ class SessionDialog(QDialog):
         valid_items = [it for it in all_items if it["is_valid"]]
         invalid_items = [it for it in all_items if not it["is_valid"]]
 
-        if invalid_items:
-            dup_items = [it for it in invalid_items if "Trùng lặp MSSV" in it["reason"]]
-            if dup_items:
-                dup_str = ", ".join(set(it["mssv"] for it in dup_items))
-                QMessageBox.critical(
-                    self,
-                    "Phát Hiện Trùng MSSV",
-                    f"Có các bài nộp bị trùng lặp MSSV trong thư mục:\n{dup_str}\n\n"
-                    "Hệ thống không ghi đè tự động. Vui lòng kiểm tra lại thư mục bài nộp trước khi tiếp tục."
-                )
-                return
+        # IT20: Trùng mã sinh viên => hủy toàn bộ giao dịch, không tạo đợt chấm dở dang.
+        dup_items = [it for it in all_items if it["reason"].startswith("Trùng lặp MSSV")]
+        if dup_items:
+            dup_str = ", ".join(sorted({it["mssv"] for it in dup_items if it["mssv"]}))
+            dup_error = DuplicateStudentSubmissionError(sorted({it["mssv"] for it in dup_items if it["mssv"]}))
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Critical)
+            box.setWindowTitle("Phát Hiện Trùng Mã Sinh Viên")
+            box.setText(
+                f"Phát hiện mã sinh viên {dup_str} bị lặp lại trong thư mục bài nộp. "
+                "Vui lòng kiểm tra lại cấu trúc thư mục!"
+            )
+            box.setDetailedText(f"Mã lỗi nội bộ: {dup_error.code}")
+            box.exec()
+            return
 
+        # AT01_TC002: Không có bài nộp hợp lệ => từ chối nạp đợt chấm.
+        if not valid_items:
+            QMessageBox.warning(
+                self,
+                "Không Có Bài Nộp Hợp Lệ",
+                "Không tìm thấy bài nộp hợp lệ nào trong thư mục đã chọn. "
+                "Vui lòng kiểm tra lại cấu trúc thư mục hoặc tên file bài làm"
+            )
+            return
+
+        if invalid_items:
             reply = QMessageBox.question(
                 self,
                 "Có Mục Không Hợp Lệ",
@@ -563,10 +654,16 @@ class SessionDialog(QDialog):
                 )
                 self.created_class_id = new_id
 
-            # Nạp danh sách bài nộp hợp lệ vào SQLite
+                # Pain #10: đã tick 'Sao Chép Bộ Testcase' -> clone toàn bộ cấu hình của đợt nguồn
+                if self.chk_copy_config.isChecked():
+                    source_id = self.cb_preset_source.currentData()
+                    if source_id is not None:
+                        db.copy_testcases_from_class(int(source_id), new_id)
+
+            # Nạp danh sách bài nộp hợp lệ vào SQLite (chỉ MSSV + đường dẫn, không lưu tên)
             if self.created_class_id and valid_items:
                 subs_to_insert = [
-                    (self.created_class_id, item["mssv"], item.get("name") or None, item["filepath"])
+                    (self.created_class_id, item["mssv"], item["filepath"])
                     for item in valid_items
                 ]
                 db.bulk_insert_submissions(subs_to_insert)

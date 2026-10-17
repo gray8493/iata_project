@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QProgressBar, QMessageBox, QFileDialog,
-    QDialog, QSplitter, QTextEdit, QRadioButton, QButtonGroup,
+    QDialog, QSplitter, QTextEdit,
     QLineEdit, QTabWidget, QScrollArea, QMenu
 )
 
@@ -29,14 +29,85 @@ if str(SRC_DIR) not in sys.path:
 
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.web_rubric_service import WebRubricEngine
+from ui.dialogs.web_folder_import_dialog import WebFolderImportDialog, MSSV_PATTERN
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_PRIMARY_BG, COLOR_PRIMARY_LIGHT, COLOR_BG, COLOR_SURFACE,
     COLOR_SURFACE_SECONDARY, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT,
+    COLOR_TEXT_MUTED, COLOR_TEXT_DISABLED, COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT,
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG,
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
+
+
+# ==============================================================================
+# SHARED UI HELPERS (rule 21: action column built by a shared helper)
+# ==============================================================================
+def make_action_cell(buttons: List[QPushButton], parent: QWidget) -> QWidget:
+    """Wraps row action buttons in a vertically-centered container with a uniform 8px gap."""
+    cell = QWidget(parent)
+    layout = QHBoxLayout(cell)
+    layout.setContentsMargins(4, 4, 4, 4)
+    layout.setSpacing(8)
+    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    for btn in buttons:
+        btn.setFixedHeight(30)
+        btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        layout.addWidget(btn)
+    return cell
+
+
+# ==============================================================================
+# 0. WORKER THẨM ĐỊNH WEB THẬT (PLAYWRIGHT + BEAUTIFULSOUP + TINYCSS2 + GEMINI VISION)
+# ==============================================================================
+class WebGradingWorker(QThread):
+    """Runs the real 4-criteria web rubric engine off the UI thread."""
+
+    progress = pyqtSignal(int, str)
+    graded_one = pyqtSignal(dict)
+    all_done = pyqtSignal(int)
+
+    def __init__(self, students: List[Dict[str, Any]], engine: WebRubricEngine, parent=None):
+        super().__init__(parent)
+        self._students = students
+        self._engine = engine
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        total = len(self._students)
+        for idx, st in enumerate(self._students):
+            if self._cancelled:
+                break
+            percent = int((idx / total) * 100) if total else 0
+            self.progress.emit(percent, f"Đang thẩm định: {st.get('mssv', '')} ({idx + 1}/{total} bài — {percent}%)")
+
+            local_dir = (
+                st.get("local_dir") or st.get("source_file_path")
+                or st.get("source_folder_path") or st.get("path")
+            )
+            result = self._engine.grade(
+                live_url=st.get("live_url"),
+                local_dir=local_dir,
+                repo_url=st.get("repo_url"),
+                mssv=st.get("mssv", "")
+            )
+
+            st["score_dom"] = result.score_dom
+            st["score_lint"] = result.score_lint
+            st["score_e2e"] = result.score_func
+            st["score_ui"] = result.score_ui
+            st["total_score"] = result.total_score
+            st["verdict"] = result.verdict
+            st["rubric_log"] = result.rubric_log
+            st["ai_feedback"] = result.ai_feedback
+            st["screenshot_path"] = result.screenshot_path
+            self.graded_one.emit(st)
+
+        self.all_done.emit(total)
 
 
 # ==============================================================================
@@ -729,7 +800,7 @@ class WebGradingMainWindow(QMainWindow):
         avail = screen.availableGeometry() if screen else None
         target_w = min(1380, (avail.width() - 30) if avail is not None else 1380)
         target_h = min(840, (avail.height() - 40) if avail is not None else 840)
-        self.setMinimumSize(1080, 680)
+        self.setMinimumSize(1100, 700)
         self.resize(target_w, target_h)
         if avail is not None:
             self.move(avail.x() + (avail.width() - target_w) // 2,
@@ -744,6 +815,7 @@ class WebGradingMainWindow(QMainWindow):
 
         self.db = DatabaseManager()
         self._web_students: List[Dict[str, Any]] = []
+        self._web_root_folder: Optional[str] = None
 
         self._init_ui()
         self._load_submissions_from_db()
@@ -880,7 +952,7 @@ class WebGradingMainWindow(QMainWindow):
             lbl_fptu.setStyleSheet("background: transparent; border: none;")
             pix = QPixmap(str(fptu_logo_file))
             if not pix.isNull():
-                lbl_fptu.setPixmap(pix.scaledToHeight(30, Qt.TransformationMode.SmoothTransformation))
+                lbl_fptu.setPixmap(pix.scaledToHeight(32, Qt.TransformationMode.SmoothTransformation))
             layout.addWidget(lbl_fptu)
             layout.addSpacing(16)
 
@@ -890,22 +962,25 @@ class WebGradingMainWindow(QMainWindow):
         btn_back_mode.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_back_mode.setStyleSheet(f"""
             QPushButton {{
-                background-color: #FFFFFF;
-                color: {COLOR_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_PRIMARY};
                 font-weight: 600;
                 font-size: 13px;
                 text-align: center;
-                border: 1.5px solid {COLOR_BORDER_DEFAULT};
-                border-radius: 8px;
+                border: 1.5px solid {COLOR_PRIMARY};
+                border-radius: {RADIUS_BUTTON};
                 padding: 0 12px;
             }}
             QPushButton:hover {{
                 background-color: {COLOR_PRIMARY_BG};
-                color: {COLOR_PRIMARY};
-                border-color: {COLOR_PRIMARY};
             }}
             QPushButton:focus {{
-                border-color: {COLOR_PRIMARY};
+                border-color: {COLOR_PRIMARY_ACTIVE};
+            }}
+            QPushButton:disabled {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_DISABLED};
+                border-color: {COLOR_BORDER_DEFAULT};
             }}
         """)
         btn_back_mode.clicked.connect(self._back_to_mode_selection)
@@ -932,28 +1007,13 @@ class WebGradingMainWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        # Status Badge (Gemini AI: Chỉ 1 lớp viền bo góc, cao 32px, không lồng 2 viền, không icon)
-        badge_bg = COLOR_PRIMARY_BG
-        badge_color = COLOR_PRIMARY
-        badge_border = COLOR_PRIMARY_LIGHT
-        badge_text = "Gemini AI: Sẵn Sàng"
-
-        lbl_status = QLabel(badge_text, header)
-        lbl_status.setFixedHeight(32)
-        lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_ai_quota = lbl_status
-        lbl_status.setStyleSheet(f"""
-            QLabel {{
-                background-color: {badge_bg};
-                color: {badge_color};
-                border: 1px solid {badge_border};
-                border-radius: 16px;
-                padding: 0 14px;
-                font-size: 12px;
-                font-weight: 600;
-            }}
-        """)
-        layout.addWidget(lbl_status)
+        # Status Badge Gemini AI (mục 7: 1 lớp viền bo góc, cao 32px, số liệu thật, không icon)
+        self._ai_quota_exhausted = False
+        self.lbl_ai_quota = QLabel("Gemini AI: Đang tải...", header)
+        self.lbl_ai_quota.setFixedHeight(32)
+        self.lbl_ai_quota.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.lbl_ai_quota)
+        self._style_ai_pill()
 
         # User Avatar & Name (Avatar chỉ 1 lớp viền, không lồng 2 viền)
         user_frame = QFrame(header)
@@ -985,98 +1045,56 @@ class WebGradingMainWindow(QMainWindow):
         layout.addWidget(user_frame)
         return header
 
+    def _style_ai_pill(self):
+        """Applies the normal (blue) or warning (orange, hết token) style to the Gemini pill."""
+        if self._ai_quota_exhausted:
+            bg, color = COLOR_WARNING_BG, COLOR_WARNING
+        else:
+            bg, color = COLOR_PRIMARY_BG, COLOR_PRIMARY
+        self.lbl_ai_quota.setStyleSheet(f"""
+            QLabel {{
+                background-color: {bg};
+                color: {color};
+                border: 1px solid {color};
+                border-radius: 16px;
+                padding: 0 14px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+        """)
+
     # --------------------------------------------------------------------------
-    # C & D. Thanh công cụ: Nút Bắt Đầu Thẩm Định, Thêm Bài Nộp, Chế Độ Chấm, Xuất
+    # C & D. Thanh công cụ: Chọn Thư Mục Bài Nộp, Quét Lại, Bắt Đầu Thẩm Định, Xuất
     # --------------------------------------------------------------------------
     def _build_toolbar(self) -> QFrame:
         card = QFrame(self)
         card.setProperty("class", "Card")
         layout = QHBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
-        # 1. Nút chính: Bắt Đầu Thẩm Định Web (Nền xanh đặc #2F80ED, không icon, disable khi trống)
-        self.btn_start = QPushButton("Bắt Đầu Thẩm Định Web", card)
-        self.btn_start.setObjectName("BatchGradeBtn")
-        self.btn_start.setFixedHeight(38)
-        self.btn_start.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_start.setEnabled(False)
-        self.btn_start.clicked.connect(self._start_batch_web_grading)
-        layout.addWidget(self.btn_start)
+        # 1. Cách nạp duy nhất: Chọn Thư Mục Bài Nộp (mục 8, 10)
+        self.btn_import_folder = QPushButton("Chọn Thư Mục Bài Nộp", card)
+        self.btn_import_folder.setFixedHeight(38)
+        self.btn_import_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_import_folder.clicked.connect(self._import_web_folder)
+        layout.addWidget(self.btn_import_folder)
 
-        # 2. Nút Thêm Bài Nộp (Mở dialog, không icon)
-        self.btn_add_sub = QPushButton("Thêm Bài Nộp", card)
-        self.btn_add_sub.setProperty("class", "ToolbarActionBtn")
-        self.btn_add_sub.setFixedHeight(38)
-        self.btn_add_sub.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_add_sub.clicked.connect(self._open_add_submission_dialog)
-        layout.addWidget(self.btn_add_sub)
-
-        # 3. Nhóm Chế Độ Chấm (Bỏ số 1. 2. 3., hiển thị đủ "Chế Độ Chấm:", "Live URL", "GitHub", "Hybrid")
-        mode_box = QFrame(card)
-        mode_box.setStyleSheet(f"""
-            QFrame {{
-                background: {COLOR_SURFACE_SECONDARY};
-                border: 1px solid {COLOR_BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 2px 8px;
-            }}
-        """)
-        mode_layout = QHBoxLayout(mode_box)
-        mode_layout.setContentsMargins(8, 2, 8, 2)
-        mode_layout.setSpacing(14)
-
-        lbl_m = QLabel("Chế Độ Chấm:", mode_box)
-        lbl_m.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY}; background: transparent; border: none;")
-        mode_layout.addWidget(lbl_m)
-
-        rb_style = f"""
-            QRadioButton {{
-                font-size: 13px;
-                font-weight: 500;
-                color: {COLOR_TEXT_PRIMARY};
-                background: transparent;
-                border: none;
-                spacing: 6px;
-            }}
-            QRadioButton::indicator {{
-                width: 17px;
-                height: 17px;
-                border-radius: 9px;
-                border: 1.5px solid {COLOR_BORDER_DEFAULT};
-                background-color: #FFFFFF;
-            }}
-            QRadioButton::indicator:hover {{
-                border-color: {COLOR_PRIMARY};
-            }}
-            QRadioButton::indicator:checked {{
-                border: 5px solid {COLOR_PRIMARY};
-                background-color: #FFFFFF;
-            }}
-        """
-
-        self.btn_group_mode = QButtonGroup(self)
-        self.rb_live = QRadioButton("Live URL", mode_box)
-        self.rb_repo = QRadioButton("GitHub", mode_box)
-        self.rb_hybrid = QRadioButton("Hybrid", mode_box)
-        self.rb_hybrid.setChecked(True)
-
-        for rb in [self.rb_live, self.rb_repo, self.rb_hybrid]:
-            rb.setStyleSheet(rb_style)
-            rb.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-
-        self.btn_group_mode.addButton(self.rb_live, 1)
-        self.btn_group_mode.addButton(self.rb_repo, 2)
-        self.btn_group_mode.addButton(self.rb_hybrid, 3)
-
-        mode_layout.addWidget(self.rb_live)
-        mode_layout.addWidget(self.rb_repo)
-        mode_layout.addWidget(self.rb_hybrid)
-        layout.addWidget(mode_box)
+        # 2. Quét Lại Thư Mục (chỉ hiện sau khi đã nạp một thư mục gốc)
+        self.btn_rescan_folder = QPushButton("Quét Lại Thư Mục", card)
+        self.btn_rescan_folder.setProperty("class", "ToolbarActionBtn")
+        self.btn_rescan_folder.setFixedHeight(38)
+        self.btn_rescan_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_rescan_folder.setToolTip(
+            "Nhận diện lại thư mục đã nạp: thêm MSSV mới, đánh dấu thư mục mất và link đã thay đổi (không xóa điểm)."
+        )
+        self.btn_rescan_folder.clicked.connect(self._rescan_web_folder)
+        self.btn_rescan_folder.setVisible(False)
+        layout.addWidget(self.btn_rescan_folder)
 
         layout.addStretch(1)
 
-        # 4. Nút Xuất Bảng Điểm (Bỏ (results_web.csv), chỉ ghi "Xuất Bảng Điểm", chọn Excel hoặc PDF)
+        # 3. Xuất Bảng Điểm (disable khi chưa có điểm — mục 25, 26)
         self.btn_export = QPushButton("Xuất Bảng Điểm", card)
         self.btn_export.setProperty("class", "ToolbarActionBtn")
         self.btn_export.setFixedHeight(38)
@@ -1084,16 +1102,40 @@ class WebGradingMainWindow(QMainWindow):
         self.btn_export.clicked.connect(self._show_export_menu)
         layout.addWidget(self.btn_export)
 
+        # 4. Nút chính: Bắt Đầu Thẩm Định Web (disable khi chưa có bài nộp — mục 25)
+        self.btn_start = QPushButton("Bắt Đầu Thẩm Định Web", card)
+        self.btn_start.setObjectName("BatchGradeBtn")
+        self.btn_start.setFixedHeight(38)
+        self.btn_start.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_start.clicked.connect(self._start_batch_web_grading)
+        layout.addWidget(self.btn_start)
+
         return card
 
-    def _get_current_grading_mode_code(self) -> str:
-        """Returns 'LIVE_ONLY', 'REPO_ONLY', or 'HYBRID' based on radio selection."""
-        checked_id = self.btn_group_mode.checkedId()
-        if checked_id == 1:
-            return "LIVE_ONLY"
-        elif checked_id == 2:
-            return "REPO_ONLY"
-        return "HYBRID"
+    def _set_button_class(self, btn: QPushButton, cls: str):
+        """Switches a button's style class and re-polishes it so QSS takes effect immediately."""
+        if btn.property("class") != cls:
+            btn.setProperty("class", cls)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            btn.update()
+
+    def _apply_action_states(self):
+        """Mục 25: disable + tooltip + single-primary-highlight rule for toolbar buttons."""
+        has_data = bool(self._web_students)
+        has_scores = any(s.get("total_score") is not None for s in self._web_students)
+
+        self.btn_start.setEnabled(has_data)
+        self.btn_start.setToolTip("" if has_data else "Cần có ít nhất một bài nộp để bắt đầu thẩm định.")
+
+        self.btn_export.setEnabled(has_scores)
+        self.btn_export.setToolTip(
+            "" if has_scores else "Chưa có điểm. Hãy thẩm định bài trước khi xuất bảng điểm."
+        )
+
+        # Toolbar "Chọn Thư Mục Bài Nộp" stays an outlined action; only one solid primary
+        # exists on screen at a time (empty-state button when empty, "Bắt Đầu Thẩm Định" otherwise).
+        self._set_button_class(self.btn_import_folder, "SecondaryBtn")
 
     # --------------------------------------------------------------------------
     # E. Khu tiến độ: Dày 10-12px, cách tiêu đề 8px, trạng thái rõ ràng
@@ -1106,18 +1148,15 @@ class WebGradingMainWindow(QMainWindow):
         layout.setSpacing(8)
 
         top_l = QHBoxLayout()
-        lbl_t = QLabel("TIẾN ĐỘ THẨM ĐỊNH PLAYWRIGHT & DOM PARSER", card)
-        lbl_t.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
+        lbl_t = QLabel("Tiến độ chấm", card)
+        lbl_t.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         top_l.addWidget(lbl_t)
         top_l.addStretch(1)
 
-        self.lbl_progress_percent = QLabel("0%", card)
-        self.lbl_progress_percent.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLOR_PRIMARY};")
-        top_l.addWidget(self.lbl_progress_percent)
-
-        self.lbl_progress_detail = QLabel("Chưa có bài nộp. Bấm 'Thêm Bài Nộp' hoặc dán danh sách link để bắt đầu.", card)
-        self.lbl_progress_detail.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; font-weight: 500;")
-        top_l.addWidget(self.lbl_progress_detail)
+        # Bên phải: "0/0 bài" hoặc "Đã chấm N/M bài" (mục 24), không lặp câu hướng dẫn
+        self.lbl_progress_status = QLabel("0/0 bài", card)
+        self.lbl_progress_status.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLOR_TEXT_SECONDARY};")
+        top_l.addWidget(self.lbl_progress_status)
         layout.addLayout(top_l)
 
         # Thanh tiến độ dày 11px
@@ -1142,7 +1181,7 @@ class WebGradingMainWindow(QMainWindow):
         return card
 
     # --------------------------------------------------------------------------
-    # F. Bảng điểm & Empty State Overlay
+    # F. Bảng điểm & Empty State (mục 20-23)
     # --------------------------------------------------------------------------
     def _build_table_card(self) -> QFrame:
         self.table_card = QFrame(self)
@@ -1158,90 +1197,84 @@ class WebGradingMainWindow(QMainWindow):
         self.table_header_row.addWidget(lbl_title)
         self.table_header_row.addStretch(1)
 
-        # Gợi ý: Bỏ icon bóng đèn, chỉ hiện khi đã có dữ liệu
+        # Gợi ý (mục 22): chỉ hiện khi có dữ liệu, 13px, màu #475569
         self.lbl_hint = QLabel("Bấm 'Xem Chi Tiết' để xem ảnh chụp màn hình Responsive và nhật ký Playwright", self.table_card)
-        self.lbl_hint.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; font-style: italic;")
+        self.lbl_hint.setStyleSheet("font-size: 13px; color: #475569;")
         self.lbl_hint.setVisible(False)
         self.table_header_row.addWidget(self.lbl_hint)
         layout.addLayout(self.table_header_row)
 
-        # 1. Empty State Frame (Hiện khi chưa có dữ liệu)
+        # 1. Empty State (mục 23): một khối căn giữa, viền liền rất nhạt (bỏ viền đứt nét lớn)
         self.empty_state_frame = QFrame(self.table_card)
         self.empty_state_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: #FFFFFF;
-                border: 1.5px dashed {COLOR_BORDER_DEFAULT};
+                border: 1px solid {COLOR_BORDER_LIGHT};
                 border-radius: 12px;
-                padding: 40px 20px;
             }}
         """)
         es_layout = QVBoxLayout(self.empty_state_frame)
+        es_layout.setContentsMargins(32, 40, 32, 40)
+        es_layout.setSpacing(14)
         es_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        es_layout.setSpacing(12)
 
         lbl_es_title = QLabel("Chưa có bài nộp", self.empty_state_frame)
         lbl_es_title.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {COLOR_TEXT_PRIMARY}; background: transparent; border: none;")
         lbl_es_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         es_layout.addWidget(lbl_es_title)
 
-        lbl_es_sub = QLabel("Bấm 'Thêm Bài Nộp' hoặc dán danh sách link để bắt đầu.", self.empty_state_frame)
+        lbl_es_sub = QLabel(
+            "Bấm 'Chọn Thư Mục Bài Nộp' để chọn thư mục chứa bài làm "
+            "(mỗi thư mục đặt tên là MSSV, bên trong có file .txt chứa link Live URL và GitHub).",
+            self.empty_state_frame
+        )
+        lbl_es_sub.setWordWrap(True)
         lbl_es_sub.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4; background: transparent; border: none;")
         lbl_es_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         es_layout.addWidget(lbl_es_sub)
 
-        es_btn_row = QHBoxLayout()
-        es_btn_row.setSpacing(12)
-        es_btn_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        btn_es_import = QPushButton("Chọn Thư Mục Bài Nộp", self.empty_state_frame)
+        btn_es_import.setProperty("class", "PrimaryBtn")
+        btn_es_import.setFixedHeight(38)
+        btn_es_import.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_es_import.clicked.connect(self._import_web_folder)
+        es_layout.addWidget(btn_es_import, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        btn_es_add = QPushButton("Thêm Bài Nộp", self.empty_state_frame)
-        btn_es_add.setProperty("class", "PrimaryBtn")
-        btn_es_add.setFixedHeight(38)
-        btn_es_add.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_es_add.clicked.connect(self._open_add_submission_dialog)
-        es_btn_row.addWidget(btn_es_add)
-
-        btn_es_bulk = QPushButton("Dán Nhiều Link", self.empty_state_frame)
-        btn_es_bulk.setProperty("class", "SecondaryBtn")
-        btn_es_bulk.setFixedHeight(38)
-        btn_es_bulk.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_es_bulk.clicked.connect(self._open_bulk_submission_dialog)
-        es_btn_row.addWidget(btn_es_bulk)
-
-        es_layout.addLayout(es_btn_row)
         layout.addWidget(self.empty_state_frame, stretch=1)
 
-        # 2. Table Widget
+        # 2. Table Widget (mục 20: bỏ cột "Chế Độ")
         self.table = QTableWidget(self.table_card)
-        self.table.setColumnCount(11)
+        self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels([
-            "MSSV", "Họ và Tên", "Live URL", "GitHub Repo", "Chế Độ",
+            "MSSV", "Họ và Tên", "Live URL", "GitHub Repo",
             "DOM", "Lint", "Function", "UI/UX", "Tổng Điểm", "Thao Tác"
         ])
+        self.table.setColumnHidden(1, True)  # Họ và Tên chỉ hiện khi có bài có tên
 
-        # Tooltips giải thích cho các cột viết tắt
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
+        for col, width in {0: 110, 1: 160, 4: 70, 5: 70, 6: 80, 7: 70, 8: 95, 9: 210}.items():
+            self.table.setColumnWidth(col, width)
 
-        self.table.setColumnWidth(0, 100)
-        self.table.setColumnWidth(1, 150)
-        self.table.setColumnWidth(4, 85)
-        self.table.setColumnWidth(5, 75)
-        self.table.setColumnWidth(6, 75)
-        self.table.setColumnWidth(7, 85)
-        self.table.setColumnWidth(8, 75)
-        self.table.setColumnWidth(9, 95)
-        self.table.setColumnWidth(10, 180)
+        # Tiêu đề căn cùng nội dung (mục 20): chữ căn trái, điểm căn giữa
+        for col in (0, 1, 2, 3):
+            it = self.table.horizontalHeaderItem(col)
+            if it:
+                it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        for col in (4, 5, 6, 7, 8, 9):
+            it = self.table.horizontalHeaderItem(col)
+            if it:
+                it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter)
 
-        # Gán tooltip giải thích tiêu đề cột
+        # Tooltips giải thích cho các cột viết tắt
         tooltip_map = {
-            5: "Cấu trúc HTML5 ngữ nghĩa, thẻ SEO, alt ảnh, heading hierarchy",
-            6: "Chuẩn hóa W3C CSS3 & HTML Linting, Responsive media query",
-            7: "Kiểm thử tương tác E2E với Playwright Chromium (Form, Click, Modal...)",
-            8: "Thẩm định bố cục giao diện đa kích thước màn hình (Desktop, Tablet, Mobile)"
+            4: "Cấu trúc HTML5 ngữ nghĩa, thẻ SEO, alt ảnh, heading hierarchy",
+            5: "Chuẩn hóa W3C CSS3 & HTML Linting, Responsive media query",
+            6: "Kiểm thử tương tác E2E với Playwright Chromium (Form, Click, Modal...)",
+            7: "Thẩm định bố cục giao diện đa kích thước màn hình (Desktop, Tablet, Mobile)"
         }
         for col, tip in tooltip_map.items():
             item = self.table.horizontalHeaderItem(col)
@@ -1277,26 +1310,48 @@ class WebGradingMainWindow(QMainWindow):
         self.empty_state_frame.setVisible(not has_data)
         self.table.setVisible(has_data)
         self.lbl_hint.setVisible(has_data)
-        self.btn_start.setEnabled(has_data)
+        self._apply_action_states()
 
         if not has_data:
-            self.lbl_progress_percent.setText("0%")
-            self.lbl_progress_detail.setText("Chưa có bài nộp. Bấm 'Thêm Bài Nộp' hoặc dán danh sách link để bắt đầu.")
+            self.lbl_progress_status.setText("0/0 bài")
             self.progress_bar.setValue(0)
             return
 
-        self.lbl_progress_detail.setText(f"Đã có {total} bài nộp.")
+        graded = sum(1 for s in self._web_students if s.get("total_score") is not None)
+        self.lbl_progress_status.setText(f"Đã chấm {graded}/{total} bài")
         self.table.setRowCount(total)
+
+        has_any_name = any((s.get("name") or "").strip() for s in self._web_students)
+        self.table.setColumnHidden(1, not has_any_name)
 
         for r, item in enumerate(self._web_students):
             self.table.setRowHeight(r, 48)
 
-            # Cột chữ căn trái
-            item_mssv = QTableWidgetItem(item.get("mssv", ""))
+            # Cột MSSV: dùng nhãn hiển thị (có hậu tố khi trùng), đánh dấu thư mục mất / link đổi
+            display_mssv = item.get("display_mssv") or item.get("mssv", "")
+            is_missing = bool(item.get("is_missing"))
+            link_changed = bool(item.get("link_changed"))
+            if is_missing:
+                mssv_text = f"{display_mssv} — Không còn trên đĩa"
+            elif link_changed:
+                mssv_text = f"{display_mssv} — Link đã thay đổi"
+            else:
+                mssv_text = display_mssv
+            item_mssv = QTableWidgetItem(mssv_text)
             item_mssv.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            if is_missing:
+                item_mssv.setForeground(QColor(COLOR_ERROR))
+                item_mssv.setToolTip("Thư mục gốc không còn trên đĩa. Điểm số hiện có được giữ nguyên.")
+            elif link_changed:
+                item_mssv.setForeground(QColor(COLOR_WARNING))
+                item_mssv.setToolTip("Link đã thay đổi so với lần nạp trước, nên chấm lại. Điểm cũ được giữ nguyên.")
+            else:
+                src = item.get("source_folder_path")
+                if src:
+                    item_mssv.setToolTip(f"Tên thư mục gốc: {Path(src).name}")
             self.table.setItem(r, 0, item_mssv)
 
-            item_name = QTableWidgetItem(item.get("name", ""))
+            item_name = QTableWidgetItem(item.get("name") or "")
             item_name.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             item_name.setFont(QFont("Inter", 10, QFont.Weight.Medium))
             self.table.setItem(r, 1, item_name)
@@ -1314,13 +1369,8 @@ class WebGradingMainWindow(QMainWindow):
             item_repo.setToolTip(repo_str)
             self.table.setItem(r, 3, item_repo)
 
-            # Cột số / điểm căn giữa
-            mode_str = item.get("mode", "HYBRID")
-            item_mode = QTableWidgetItem(mode_str)
-            item_mode.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(r, 4, item_mode)
-
-            for col_idx, key in enumerate(["score_dom", "score_lint", "score_e2e", "score_ui"], start=5):
+            # Cột điểm căn giữa (đã bỏ cột "Chế Độ")
+            for col_idx, key in enumerate(["score_dom", "score_lint", "score_e2e", "score_ui"], start=4):
                 val = item.get(key)
                 val_str = f"{val:.1f}" if val is not None else "—"
                 score_item = QTableWidgetItem(val_str)
@@ -1339,27 +1389,19 @@ class WebGradingMainWindow(QMainWindow):
                     tot_item.setForeground(QColor(COLOR_WARNING))
                 else:
                     tot_item.setForeground(QColor(COLOR_ERROR))
-            self.table.setItem(r, 9, tot_item)
+            self.table.setItem(r, 8, tot_item)
 
-            # Cột Thao Tác: 3 nút chữ thuần túy ("Chi Tiết", "Sửa", "Xóa")
-            action_widget = QWidget(self.table)
-            act_layout = QHBoxLayout(action_widget)
-            act_layout.setContentsMargins(4, 2, 4, 2)
-            act_layout.setSpacing(6)
-            act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            btn_view = QPushButton("Chi Tiết", action_widget)
-            btn_view.setFixedHeight(28)
-            btn_view.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            # Cột Thao Tác (mục 21): "Xem Chi Tiết" + "Xóa" qua make_action_cell dùng chung
+            btn_view = QPushButton("Xem Chi Tiết")
             btn_view.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {COLOR_PRIMARY_BG};
                     color: {COLOR_PRIMARY};
                     border: 1px solid {COLOR_PRIMARY_LIGHT};
                     border-radius: 6px;
-                    font-size: 11px;
+                    font-size: 12px;
                     font-weight: 600;
-                    padding: 0 6px;
+                    padding: 0 10px;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_PRIMARY};
@@ -1367,42 +1409,17 @@ class WebGradingMainWindow(QMainWindow):
                 }}
             """)
             btn_view.clicked.connect(lambda _, st=item: self._view_student_detail(st))
-            act_layout.addWidget(btn_view)
 
-            btn_edit = QPushButton("Sửa", action_widget)
-            btn_edit.setFixedHeight(28)
-            btn_edit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            btn_edit.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FFFFFF;
-                    color: {COLOR_TEXT_PRIMARY};
-                    border: 1px solid {COLOR_BORDER_DEFAULT};
-                    border-radius: 6px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    padding: 0 6px;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_SURFACE_SECONDARY};
-                    border-color: {COLOR_PRIMARY};
-                    color: {COLOR_PRIMARY};
-                }}
-            """)
-            btn_edit.clicked.connect(lambda _, st=item: self._edit_student_submission(st))
-            act_layout.addWidget(btn_edit)
-
-            btn_del = QPushButton("Xóa", action_widget)
-            btn_del.setFixedHeight(28)
-            btn_del.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn_del = QPushButton("Xóa")
             btn_del.setStyleSheet(f"""
                 QPushButton {{
                     background-color: #FFFFFF;
                     color: {COLOR_ERROR};
                     border: 1px solid {COLOR_ERROR}55;
                     border-radius: 6px;
-                    font-size: 11px;
+                    font-size: 12px;
                     font-weight: 600;
-                    padding: 0 6px;
+                    padding: 0 10px;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_ERROR_BG};
@@ -1410,9 +1427,8 @@ class WebGradingMainWindow(QMainWindow):
                 }}
             """)
             btn_del.clicked.connect(lambda _, st=item: self._delete_student_submission(st))
-            act_layout.addWidget(btn_del)
 
-            self.table.setCellWidget(r, 10, action_widget)
+            self.table.setCellWidget(r, 9, make_action_cell([btn_view, btn_del], self.table))
 
     # --------------------------------------------------------------------------
     # Thao tác Thêm / Sửa / Xóa bài nộp
@@ -1422,7 +1438,7 @@ class WebGradingMainWindow(QMainWindow):
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
         dlg = WebSubmissionDialog(
             parent=self,
-            current_mode=self._get_current_grading_mode_code(),
+            current_mode="HYBRID",
             existing_mssvs=existing_mssvs,
             open_bulk_tab=False
         )
@@ -1443,12 +1459,139 @@ class WebGradingMainWindow(QMainWindow):
                     pass
             self._load_submissions_from_db()
 
+    def _import_web_folder(self):
+        """Recognizes submissions from a root folder (folder name = MSSV) and imports the chosen items."""
+        root = QFileDialog.getExistingDirectory(
+            self, "Chọn Thư Mục Chứa Bài Nộp", str(Path.home())
+        )
+        if not root:
+            return
+
+        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
+        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        added = 0
+        for item in dlg.import_items:
+            try:
+                self.db.add_web_submission(
+                    mssv=item["mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"],
+                    mode="HYBRID",
+                    course_code=self.current_course_code,
+                    class_name=self.current_class_name,
+                    source_folder_path=item["source_folder_path"],
+                    display_mssv=item["display_mssv"],
+                    link_file_name=item.get("link_file_name")
+                )
+                added += 1
+            except Exception:
+                pass
+
+        self._web_root_folder = root
+        self.btn_rescan_folder.setVisible(True)
+        self._load_submissions_from_db()
+
+        skipped_note = ""
+        if dlg.skipped_dirs or dlg.skipped_files:
+            skipped_note = (
+                f"\n- Đã bỏ qua {len(dlg.skipped_dirs)} thư mục hệ thống/ẩn "
+                f"và {len(dlg.skipped_files)} file lẻ ở thư mục gốc."
+            )
+        QMessageBox.information(
+            self,
+            "Nạp Thư Mục Hoàn Tất",
+            f"Đã nạp {added} bài nộp từ thư mục:\n{root}{skipped_note}\n\n"
+            "Quy ước: tên thư mục con chính là MSSV của sinh viên."
+        )
+
+    def _rescan_web_folder(self):
+        """Re-recognizes the root folder; adds new MSSVs, marks vanished folders and
+        changed links. Never deletes existing grades (mục 18)."""
+        if not self._web_root_folder:
+            QMessageBox.warning(
+                self, "Chưa Có Thư Mục",
+                "Vui lòng bấm 'Chọn Thư Mục Bài Nộp' trước khi quét lại!"
+            )
+            return
+
+        root = self._web_root_folder
+        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
+        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        recognized_dirs = {item["source_folder_path"] for item in dlg.import_items}
+        folder_rows = {
+            s.get("source_folder_path"): s
+            for s in self._web_students if s.get("source_folder_path")
+        }
+
+        added = 0
+        refreshed = 0
+        changed = 0
+        for item in dlg.import_items:
+            path = item["source_folder_path"]
+            existing = folder_rows.get(path)
+            if existing:
+                link_changed = (
+                    (existing.get("live_url") or "") != (item.get("live_url") or "")
+                    or (existing.get("repo_url") or "") != (item.get("repo_url") or "")
+                )
+                self.db.update_web_submission_source(
+                    submission_id=existing["id"],
+                    source_folder_path=path,
+                    display_mssv=item["display_mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"],
+                    link_file_name=item.get("link_file_name"),
+                    link_changed=link_changed
+                )
+                refreshed += 1
+                if link_changed:
+                    changed += 1
+            else:
+                self.db.add_web_submission(
+                    mssv=item["mssv"],
+                    name=item["name"],
+                    live_url=item["live_url"],
+                    repo_url=item["repo_url"],
+                    mode="HYBRID",
+                    course_code=self.current_course_code,
+                    class_name=self.current_class_name,
+                    source_folder_path=path,
+                    display_mssv=item["display_mssv"],
+                    link_file_name=item.get("link_file_name")
+                )
+                added += 1
+
+        missing = 0
+        for path, row in folder_rows.items():
+            if path not in recognized_dirs:
+                self.db.set_web_submission_missing(row["id"], True)
+                missing += 1
+
+        self._load_submissions_from_db()
+
+        message = (
+            f"Quét lại hoàn tất cho thư mục:\n{root}\n\n"
+            f"- Thêm mới: {added} bài\n"
+            f"- Cập nhật: {refreshed} bài\n"
+            f"- Link đã thay đổi (nên chấm lại): {changed} bài\n"
+            f"- Không còn trên đĩa: {missing} bài (điểm số được giữ nguyên)"
+        )
+        QMessageBox.information(self, "Quét Lại Thư Mục", message)
+
     def _open_bulk_submission_dialog(self):
         """Opens dialog focusing directly on the bulk paste tab."""
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
         dlg = WebSubmissionDialog(
             parent=self,
-            current_mode=self._get_current_grading_mode_code(),
+            current_mode="HYBRID",
             existing_mssvs=existing_mssvs,
             open_bulk_tab=True
         )
@@ -1474,7 +1617,7 @@ class WebGradingMainWindow(QMainWindow):
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
         dlg = WebSubmissionDialog(
             parent=self,
-            current_mode=student_info.get("mode", self._get_current_grading_mode_code()),
+            current_mode=student_info.get("mode", "HYBRID"),
             existing_item=student_info,
             existing_mssvs=existing_mssvs
         )
@@ -1502,7 +1645,8 @@ class WebGradingMainWindow(QMainWindow):
         ret = QMessageBox.question(
             self,
             "Xác Nhận Xóa Bài Nộp",
-            f"Bạn có chắc chắn muốn xóa bài nộp của sinh viên:\n{mssv} — {name}?",
+            f"Bạn có chắc chắn muốn gỡ bài nộp khỏi danh sách:\n{mssv} — {name}?\n\n"
+            "Lưu ý: thao tác này chỉ gỡ khỏi danh sách chấm, KHÔNG xóa thư mục bài nộp trên đĩa.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -1526,51 +1670,51 @@ class WebGradingMainWindow(QMainWindow):
         if not self._web_students:
             return
 
+        self.btn_start.setEnabled(False)
         self.progress_bar.setValue(0)
-        self.lbl_progress_percent.setText("0%")
-        self.lbl_progress_detail.setText("Đang khởi tạo Playwright Chromium & BeautifulSoup...")
+        self.lbl_progress_status.setText("Đang khởi tạo Playwright Chromium & BeautifulSoup...")
 
-        total = len(self._web_students)
-        for idx, st in enumerate(self._web_students):
-            percent = int(((idx + 1) / total) * 100)
-            self.progress_bar.setValue(percent)
-            self.lbl_progress_percent.setText(f"{percent}%")
-            self.lbl_progress_detail.setText(f"Đang kiểm tra: {st['mssv']} ({idx + 1}/{total} bài — {percent}%)")
-            QApplication.processEvents()
+        self._web_engine = WebRubricEngine(ai_service=AiService())
+        self._web_worker = WebGradingWorker(self._web_students, self._web_engine, parent=self)
+        self._web_worker.progress.connect(self._on_web_grading_progress)
+        self._web_worker.graded_one.connect(self._on_web_submission_graded)
+        self._web_worker.all_done.connect(self._on_web_grading_done)
+        self._web_worker.start()
 
-            # Giữ nguyên mô phỏng rubric điểm theo logic hiện có
-            st["score_dom"] = 8.5
-            st["score_lint"] = 9.0
-            st["score_e2e"] = 8.0
-            st["score_ui"] = 8.5
-            st["total_score"] = 8.5
-            st["verdict"] = "PASSED"
+    def _on_web_grading_progress(self, percent: int, detail: str):
+        self.progress_bar.setValue(percent)
+        self.lbl_progress_status.setText(detail)
 
-            sub_id = st.get("id")
-            if sub_id:
-                try:
-                    self.db.update_web_submission_scores(
-                        submission_id=sub_id,
-                        score_dom=st["score_dom"],
-                        score_lint=st["score_lint"],
-                        score_e2e=st["score_e2e"],
-                        score_ui=st["score_ui"],
-                        total_score=st["total_score"],
-                        verdict=st["verdict"]
-                    )
-                except Exception:
-                    pass
+    def _on_web_submission_graded(self, st: Dict[str, Any]):
+        """Persists one freshly graded submission and refreshes the row."""
+        sub_id = st.get("id")
+        if sub_id:
+            try:
+                self.db.update_web_submission_scores(
+                    submission_id=sub_id,
+                    score_dom=st["score_dom"],
+                    score_lint=st["score_lint"],
+                    score_e2e=st["score_e2e"],
+                    score_ui=st["score_ui"],
+                    total_score=st["total_score"],
+                    verdict=st["verdict"]
+                )
+                self.db.set_web_submission_link_changed(sub_id, False)
+                st["link_changed"] = 0
+            except Exception:
+                pass
 
+    def _on_web_grading_done(self, total: int):
         self._populate_table()
         self.progress_bar.setValue(100)
-        self.lbl_progress_percent.setText("100%")
-        self.lbl_progress_detail.setText(f"Hoàn tất: Đã kiểm tra xong toàn bộ {total} bài tập Web!")
+        self.lbl_progress_status.setText(f"Đã chấm {total}/{total} bài")
+        self.btn_start.setEnabled(True)
 
         QMessageBox.information(
             self,
             "Chấm Điểm Hoàn Tất",
             f"Đã thẩm định thành công toàn bộ {total} bài tập Web!\n"
-            "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán.\n"
+            "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán thực tế.\n"
             "• Dữ liệu đã được lưu an toàn vào CSDL SQLite.\n"
             "• Bạn có thể bấm 'Xuất Bảng Điểm' để lưu file Excel (.xlsx) hoặc PDF."
         )
@@ -1580,8 +1724,11 @@ class WebGradingMainWindow(QMainWindow):
     # --------------------------------------------------------------------------
     def _show_export_menu(self):
         """Displays menu to choose between Excel (.xlsx) and PDF export."""
-        if not self._web_students:
-            QMessageBox.warning(self, "Chưa Có Dữ Liệu", "Chưa có dữ liệu bài nộp để xuất bảng điểm!")
+        if not any(s.get("total_score") is not None for s in self._web_students):
+            QMessageBox.warning(
+                self, "Chưa Có Điểm",
+                "Chưa có điểm. Hãy thẩm định bài trước khi xuất bảng điểm!"
+            )
             return
 
         menu = QMenu(self)
@@ -1630,19 +1777,25 @@ class WebGradingMainWindow(QMainWindow):
             ws = wb.active
             ws.title = "Bảng Điểm Đồ Án Web"
 
+            # Cột Họ và Tên chỉ xuất khi có ít nhất một bài có tên (nguồn: file .txt của thư mục)
+            include_name = any((st.get("name") or "").strip() for st in self._web_students)
+
             # Tiêu đề bảng
-            ws.merge_cells("A1:K1")
+            headers = ["MSSV"]
+            if include_name:
+                headers.append("Họ và Tên")
+            headers += [
+                "Live Website URL", "GitHub Repo URL",
+                "DOM (10)", "Lint (10)", "Function (10)", "UI/UX (10)", "Tổng Điểm (10)", "Trạng Thái"
+            ]
+            last_col_letter = get_column_letter(len(headers))
+            ws.merge_cells(f"A1:{last_col_letter}1")
             title_cell = ws["A1"]
             title_cell.value = f"BẢNG ĐIỂM THẨM ĐỊNH ĐỒ ÁN WEB — LỚP {self.current_class_name} ({self.current_course_code})"
             title_cell.font = Font(name="Arial", size=14, bold=True, color="1E3A8A")
             title_cell.alignment = Alignment(horizontal="center", vertical="center")
             ws.row_dimensions[1].height = 36
 
-            # Header columns
-            headers = [
-                "MSSV", "Họ và Tên", "Live Website URL", "GitHub Repo URL",
-                "Chế Độ", "DOM (10)", "Lint (10)", "Function (10)", "UI/UX (10)", "Tổng Điểm (10)", "Trạng Thái"
-            ]
             ws.append([])  # Dòng trống A2
             ws.append(headers)  # Dòng header A3
 
@@ -1664,13 +1817,14 @@ class WebGradingMainWindow(QMainWindow):
             ws.row_dimensions[3].height = 28
 
             # Dữ liệu
+            left_align_cols = {1, 2, 3, 4} if include_name else {1, 2, 3}
             for st in self._web_students:
-                row_data = [
-                    st.get("mssv", ""),
-                    st.get("name", ""),
+                row_data = [st.get("display_mssv") or st.get("mssv", "")]
+                if include_name:
+                    row_data.append(st.get("name", ""))
+                row_data += [
                     st.get("live_url", ""),
                     st.get("repo_url", ""),
-                    st.get("mode", "HYBRID"),
                     st.get("score_dom") or "",
                     st.get("score_lint") or "",
                     st.get("score_e2e") or "",
@@ -1686,13 +1840,16 @@ class WebGradingMainWindow(QMainWindow):
                     c = ws.cell(row=curr_row, column=col_num)
                     c.font = Font(name="Arial", size=10)
                     c.border = thin_border
-                    if col_num in [1, 2, 3, 4]:
+                    if col_num in left_align_cols:
                         c.alignment = Alignment(horizontal="left", vertical="center")
                     else:
                         c.alignment = Alignment(horizontal="center", vertical="center")
 
             # Tự động điều chỉnh độ rộng cột
-            col_widths = [14, 24, 34, 34, 12, 12, 12, 14, 12, 14, 16]
+            col_widths = [14]
+            if include_name:
+                col_widths.append(24)
+            col_widths += [34, 34, 12, 12, 14, 12, 14, 16]
             for idx, width in enumerate(col_widths, start=1):
                 col_letter = get_column_letter(idx)
                 ws.column_dimensions[col_letter].width = width
@@ -1722,18 +1879,25 @@ class WebGradingMainWindow(QMainWindow):
             pdf_writer.setPageOrientation(QPageLayout.Orientation.Landscape)
 
             # Tạo HTML hiển thị tài liệu chuẩn
+            include_name = any((st.get("name") or "").strip() for st in self._web_students)
+            name_th = '<th width="16%">Họ và Tên</th>' if include_name else ""
+
             html_rows = ""
             for idx, st in enumerate(self._web_students, start=1):
                 tot = st.get("total_score")
                 tot_str = f"{tot:.1f}" if tot is not None else "—"
+                mssv_display = st.get("display_mssv") or st.get("mssv", "")
+                name_td = (
+                    f'<td style="padding: 6px; border: 1px solid #CBD5E1;">{st.get("name", "")}</td>'
+                    if include_name else ""
+                )
                 html_rows += f"""
                 <tr style="background-color: {'#F8FAFC' if idx % 2 == 0 else '#FFFFFF'};">
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{idx}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1;"><b>{st.get('mssv', '')}</b></td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('name', '')}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('live_url', '—')}</td>
-                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('repo_url', '—')}</td>
-                    <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('mode', 'HYBRID')}</td>
+                    <td style="padding: 6px; border: 1px solid #CBD5E1;"><b>{mssv_display}</b></td>
+                    {name_td}
+                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('live_url') or '—'}</td>
+                    <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{st.get('repo_url') or '—'}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('score_dom', '—')}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('score_lint', '—')}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{st.get('score_e2e', '—')}</td>
@@ -1762,10 +1926,9 @@ class WebGradingMainWindow(QMainWindow):
                         <tr>
                             <th width="3%">STT</th>
                             <th width="8%">MSSV</th>
-                            <th width="16%">Họ và Tên</th>
-                            <th width="20%">Live Website</th>
-                            <th width="20%">GitHub Repo</th>
-                            <th width="6%">Chế Độ</th>
+                            {name_th}
+                            <th width="23%">Live Website</th>
+                            <th width="23%">GitHub Repo</th>
                             <th width="5%">DOM</th>
                             <th width="5%">Lint</th>
                             <th width="5%">Function</th>
@@ -1816,19 +1979,36 @@ class WebGradingMainWindow(QMainWindow):
         self.quota_worker.start()
 
     def _on_quota_received(self, res: Dict[str, Any]):
-        if hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota:
-            if res.get("success"):
-                rem = res.get("remaining_tokens", 50000)
-                limit = res.get("daily_limit_tokens", 50000)
-                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
-                self.lbl_ai_quota.setToolTip(
-                    f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
-                    f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
-                    f"• Hạn mức ngày: {limit:,} tokens\n"
-                    f"• Còn lại: {rem:,} tokens"
-                )
-            else:
-                self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
+        """Applies live AI quota to the Gemini pill (mục 7: never display '0 / 0')."""
+        if not (hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota):
+            return
+        if not res.get("success"):
+            self.lbl_ai_quota.setText("Gemini AI: Chưa có dữ liệu")
+            self.lbl_ai_quota.setToolTip(
+                "Chưa đọc được hạn ngạch AI từ máy chủ. Chức năng chấm vẫn hoạt động bình thường."
+            )
+            return
+
+        rem = int(res.get("remaining_tokens", 0) or 0)
+        limit = int(res.get("daily_limit_tokens", 0) or 0)
+        used = int(res.get("used_tokens_today", 0) or 0)
+
+        if rem <= 0:
+            self._ai_quota_exhausted = True
+            self.lbl_ai_quota.setText("Gemini AI: Hết token")
+            self.lbl_ai_quota.setToolTip(
+                "Đã dùng hết token AI. Các chức năng chấm không dùng AI vẫn hoạt động."
+            )
+        else:
+            self._ai_quota_exhausted = False
+            self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+            self.lbl_ai_quota.setToolTip(
+                f"Hạn ngạch AI từ máy chủ:\n"
+                f"• Đã dùng hôm nay: {used:,} tokens\n"
+                f"• Hạn mức ngày: {limit:,} tokens\n"
+                f"• Còn lại: {rem:,} tokens"
+            )
+        self._style_ai_pill()
 
 
 if __name__ == "__main__":

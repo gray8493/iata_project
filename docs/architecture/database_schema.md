@@ -98,8 +98,7 @@ erDiagram
         integer id PK "Tự tăng"
         integer class_id FK "Thuộc đợt chấm nào"
         varchar student_mssv "Mã số sinh viên (MSSV)"
-        varchar student_name "Họ và tên sinh viên (nếu có)"
-        varchar source_file_path "Đường dẫn tuyệt đối file bài nộp trên đĩa"
+        varchar source_file_path "Đường dẫn tuyệt đối: file (1 câu) hoặc thư mục SV (nhiều câu)"
         varchar status "Trạng thái: PENDING | GRADED | ERROR"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
@@ -279,15 +278,17 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 
 ### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ `students.csv`)
 
-* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File` hoặc nạp folder bài thi).
+* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File`) hoặc quét thư mục bài thi (mỗi sinh viên một thư mục con, mỗi câu một file `Q1`, `Q2`...).
+* **Chế độ chấm (theo `source_file_path`)**:
+    * Trỏ vào **FILE mã nguồn** → chấm chuyên sâu (làm refactoring-bounded) một câu.
+    * Trỏ vào **THƯ MỤC của sinh viên** → chấm nhiều câu (multi-question): mỗi testcase tự ánh xạ file mã nguồn `Q<nn>.<ext>` trong thư mục sinh viên theo trường `question_number` của nó.
 
 | Tên Cột            | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                   |
 | :------------------- | :-------------- | :----------------------------------------------------- | :------------------------------------------------------ |
 | `id`               | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                        |
 | `class_id`         | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                |
-| `student_mssv`     | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên (MSSV).                              |
-| `student_name`     | `TEXT`        |                                                        | Họ và tên sinh viên (nếu có trong danh sách).     |
-| `source_file_path` | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối của file trên đĩa cứng. |
+| `student_mssv`     | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên (MSSV) — định danh duy nhất của bài nộp (bảng không lưu họ tên; tên chỉ dùng bộ nhớ phần UI). |
+| `source_file_path` | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối: file mã nguồn (chấm 1 câu) hoặc thư mục bài làm của sinh viên (chấm nhiều câu). |
 | `status`           | `TEXT`        | **NOT NULL DEFAULT 'PENDING'**                   | Trạng thái bài nộp (`PENDING`, `GRADED`, `ERROR`). |
 | `is_deleted`       | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).          |
 | `deleted_at`       | `DATETIME`    |                                                        | Thời điểm xóa mềm bài nộp.                       |
@@ -320,7 +321,7 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `submission_id`          | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Console tương ứng.                                |
 | `matching_strategy`      | `TEXT`        | **NOT NULL**                                                 | Tổ hợp các cờ tiêu chí so khớp đầu ra đã áp dụng. |
 | `calculated_score`       | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm số tính toán được (0.0 - 10.0).                   |
-| `final_verdict`          | `TEXT`        | **NOT NULL**                                                 | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`.  |
+| `final_verdict`          | `TEXT`        | **NOT NULL**                                                 | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`. Với bài nộp nhiều câu, phán quyết tổng là **trọng tài phổ quát nghiêm ngặt nhất** đã gặp (thứ tự nghiêm ngặt `CE > TLE/MLE > RE > WA > AC`) — ví dụ câu 1 `WA` + câu 4 `CE` cho ra `CE`. |
 | `execution_time_ms`      | `REAL`        | **DEFAULT 0.0**                                              | Thời gian thực thi trung bình của các testcase (ms).        |
 | `memory_used_mb`         | `REAL`        | **DEFAULT 0.0**                                              | Dung lượng bộ nhớ RAM tối đa tiến trình tiêu thụ (MB).      |
 | `compile_log`            | `TEXT`        |                                                                    | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`.          |

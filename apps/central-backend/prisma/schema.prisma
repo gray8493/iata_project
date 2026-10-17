@@ -1,11 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_URL_UNPOOLED")
+  extensions = [pg_trgm]
 }
 
 model User {
@@ -25,6 +27,10 @@ model User {
   refreshTokens RefreshToken[]
 
   @@index([role], map: "idx_users_role")
+  @@index([role, createdAt(sort: Desc), id], map: "idx_users_role_created")
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_full_name_trgm")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_email_trgm")
+  @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_username_trgm")
   @@map("users")
 }
 

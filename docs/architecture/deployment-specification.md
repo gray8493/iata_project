@@ -66,7 +66,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - **Trình thông dịch Python**: Python 3.10+ Standard Runtime (`python.exe`).
   - **Công cụ bảo vệ HĐH (Sandbox Guard)**: Thư viện `psutil` tích hợp sẵn trong client để giám sát mức chiếm dụng RAM, CPU và tự động cưỡng chế diệt các tiến trình lặp vô hạn.
 - **Lưu trữ cục bộ**: 
-  - Cơ sở dữ liệu SQLite 3 (`local_cache.db`): Lưu tạm cấu hình bài thi và kết quả chấm offline.
+  - Cơ sở dữ liệu SQLite 3 (`apps/desktop-client/data/local_grading.db`, chế độ WAL): Lưu cấu hình đợt chấm, testcase và kết quả chấm offline.
   - Tập tin CSV: `students.csv` (đầu vào: 2 cột `MSSV`, `File`) và `results.csv` (đầu ra: 7 cột hoàn chỉnh).
 
 ---
@@ -100,7 +100,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 ### 2.4. Node 4: Dịch Vụ Cơ Sở Dữ Liệu Đám Mây (Neon Serverless PostgreSQL Cloud)
 
-- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản người dùng, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Toàn bộ phiên chấm, bài nộp sinh viên và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First (SQLite `local_cache.db` và `results.csv`).
+- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản người dùng, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Toàn bộ phiên chấm, bài nộp sinh viên và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First (SQLite `apps/desktop-client/data/local_grading.db` và `results.csv`).
 - **Nền tảng**: **Neon Serverless Postgres** (Database-as-a-Service xây dựng trên kiến trúc Lakebase Postgres hiện đại).
 - **Hệ quản trị CSDL**: **PostgreSQL 16 Engine**.
 - **Tính năng nổi bật & Bảo đảm**:
@@ -124,7 +124,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | Artifact Name | Định dạng đóng gói | Nơi triển khai (Deployed Node) | Công nghệ nền tảng | Mục đích sử dụng |
 | :--- | :--- | :--- | :--- | :--- |
 | **`AITA.exe`** | Standalone Executable | Node 1 (Instructor PC) | PyInstaller, Python 3.11, PyQt6 | Ứng dụng Desktop bản địa dành cho Giảng viên |
-| **`local_cache.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine | Lưu tạm testcases, cache phiên chấm offline |
+| **`local_grading.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine (WAL) | Lưu testcases, bài nộp và kết quả chấm offline |
 | **`Web Admin UI`** | SPA Static Bundle | Node 2 (Admin Browser) | Next.js 14, React, TailwindCSS | Giao diện điều hành hệ thống của Admin |
 | **`central-backend`** | Web Service Artifact | Node 3 (Render.com PaaS) | NestJS 10, Node.js 20, TypeScript | REST API Gateway, Auth RBAC, AI Quota Guard |
 | **`aita_central_db`**| Cloud Relational DB | Node 4 (Neon Cloud) | Neon Serverless PostgreSQL 16 | Cơ sở dữ liệu tập trung lưu Users, Quota Configs/Logs, Refresh Tokens |

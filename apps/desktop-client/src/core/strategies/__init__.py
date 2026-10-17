@@ -6,9 +6,11 @@ from .builtins import (
     FloatingPointToleranceStrategy,
     UnorderedTokensStrategy,
     RegexPatternStrategy,
-    SpecialJudgeStrategy
+    SpecialJudgeStrategy,
+    FlexibleMatchingStrategy
 )
 from .context import MatchingContext
+from .matching_strategy import MatchingStrategy
 
 __all__ = [
     "IMatchingStrategy",
@@ -20,5 +22,7 @@ __all__ = [
     "UnorderedTokensStrategy",
     "RegexPatternStrategy",
     "SpecialJudgeStrategy",
-    "MatchingContext"
+    "FlexibleMatchingStrategy",
+    "MatchingContext",
+    "MatchingStrategy"
 ]

@@ -22,7 +22,7 @@ export class CreateUserDto {
   @IsIn(['ADMIN', 'INSTRUCTOR'])
   role!: 'ADMIN' | 'INSTRUCTOR';
 
-  @ApiProperty({ required: false, minimum: 1000, maximum: 1000000, default: 50000 })
-  @IsOptional() @IsInt() @Min(1000) @Max(1000000)
+  @ApiProperty({ required: false, default: 50000 })
+  @IsOptional() @IsInt() @Min(0)
   daily_token_quota?: number;
 }

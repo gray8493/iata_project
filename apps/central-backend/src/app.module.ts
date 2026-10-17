@@ -7,6 +7,7 @@ import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { HealthModule } from './modules/health/health.module';
 import { RateLimitModule } from './common/rate-limit.module';
+import { RedisModule } from './common/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -29,6 +30,7 @@ import { PrismaModule } from './prisma/prisma.module';
       }),
     }),
     PrismaModule,
+    RedisModule,
     AuthModule,
     UsersModule,
     AiGatewayModule,

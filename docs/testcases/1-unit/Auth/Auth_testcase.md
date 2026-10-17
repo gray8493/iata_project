@@ -7,887 +7,34 @@
   - `POST /api/v1/auth/refresh` (UC-03: Cấp mới Access Token bằng Refresh Token)
 - **Người thực hiện (Tester/Dev)**: Kim Chi Ha
 - **Ngày tạo**: 05/10/2026
-- **Cập nhật lần cuối**: 05/10/2026 - 07:30
+- **Cập nhật lần cuối**: 17/10/2026 - 09:00
 - **Tài liệu liên quan**:
-  - [Đặc tả API Phân hệ Xác thực (Markdown)](file:///c:/AITA/iata_project/docs/apis/auth/auth-api.md)
-  - [Đặc tả OpenAPI Phân hệ Xác thực (YAML)](file:///c:/AITA/iata_project/docs/apis/auth/auth.yaml)
-  - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
-  - [Bảng Danh mục Mã lỗi Phản hồi Hệ thống](file:///c:/AITA/iata_project/docs/architecture/api-response-codes.md)
-  - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 41 Testcases (Phân loại: 06 Normal, 28 Abnormal, 07 Binary; 100% có bước truyền Token/xử lý Token xác thực; Không có role học sinh)
-  - `POST /api/v1/auth/login`: 18 Testcases (02 Normal, 11 Abnormal, 05 Binary)
-  - `GET /api/v1/auth/me`: 11 Testcases (02 Normal, 09 Abnormal, 00 Binary)
-  - `POST /api/v1/auth/refresh`: 12 Testcases (02 Normal, 08 Abnormal, 02 Binary)
+  - [Đặc tả API Phân hệ Xác thực (Markdown)](file:///e:/AITA/docs/apis/auth/auth-api.md)
+  - [Đặc tả OpenAPI Phân hệ Xác thực (YAML)](file:///e:/AITA/docs/apis/auth/auth.yaml)
+  - [Bảng Danh mục Mã lỗi Phản hồi Hệ thống](file:///e:/AITA/docs/architecture/api-response-codes.md)
+  - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
+- **Tổng số Testcase**: 42 Testcases (Phân loại: 06 Normal, 10 Boundary, 26 Exception)
+  - `POST /api/v1/auth/login`: 20 Testcases (02 Normal, 08 Boundary, 10 Exception)
+  - `GET /api/v1/auth/me`: 10 Testcases (02 Normal, 01 Boundary, 07 Exception)
+  - `POST /api/v1/auth/refresh`: 12 Testcases (02 Normal, 01 Boundary, 09 Exception)
+
+> **Ghi chú thiết kế (khớp mã nguồn `AuthService`, `LoginDto`, `RefreshTokenDto`)**:
+> - `LoginDto`: `username` là chuỗi, độ dài `3..50`; `password` là chuỗi, độ dài `6..100`. Mọi thông điệp validation là **mặc định của class-validator (tiếng Anh)**.
+> - `RefreshTokenDto`: chỉ có `refresh_token` với ràng buộc `@IsJWT()`.
+> - Thứ tự kiểm tra trong `login`: tìm user → `bcrypt.compare` → nếu sai ném `AUTH_INVALID_CREDENTIALS` (401) → nếu đúng nhưng `is_active = false` ném `AUTH_ACCOUNT_DISABLED` (403).
+> - `AUTH_ACCESS_EXPIRES_IN` mặc định `15m` ⇒ `expires_in = 900`.
+> - `refresh` dùng chung một mã lỗi `AUTH_INVALID_REFRESH_TOKEN` (401) cho mọi trường hợp thất bại (token sai, hết hạn, đã thu hồi, tài khoản bị xóa/khóa).
+> - Guard lỗi xác thực: thiếu/sai token ⇒ `AUTH_INVALID_TOKEN`; hết hạn ⇒ `AUTH_TOKEN_EXPIRED`; tài khoản không hoạt động ⇒ `AUTH_ACCOUNT_DISABLED`.
 
 ---
 
 # ==============================================================================
 
-# PHẦN 1: API POST /api/v1/auth/login (UC-01: ĐĂNG NHẬP HỆ THỐNG VÀ CẤP PHÁT JWT TOKENS)
+# PHẦN 1: API POST /api/v1/auth/login (UC-01: ĐĂNG NHẬP HỆ THỐNG)
 
 # ==============================================================================
 
-# UT01_AuthLogin_TC001: Gửi Request Body không đúng định dạng cú pháp JSON
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend (Auth Module) đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```text
-  {"username": "teacher_hung", "password": "Password123@"
-  ```
-
-  *(Chuỗi JSON bị thiếu dấu ngoặc nhọn kết thúc `}` gây lỗi phân tích cú pháp)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Headers `Content-Type: application/json` và `Accept: application/json`.
-3. Gửi payload Body chứa chuỗi JSON bị lỗi cú pháp lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `400 Bad Request`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 400,
-    "error_code": "BAD_REQUEST",
-    "message": "Dữ liệu yêu cầu gửi lên không đúng định dạng JSON hợp lệ.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC002: Request Body rỗng thiếu cả hai trường username và password
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {}
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Body là một đối tượng JSON rỗng `{}`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "username",
-        "issue": "Tên đăng nhập (username) là trường bắt buộc."
-      },
-      {
-        "field": "password",
-        "issue": "Mật khẩu (password) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC003: Thiếu trường bắt buộc username trong Request Body
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "password": "Password123@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Body chỉ có trường `password`, khuyết hoàn toàn trường `username`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "username",
-        "issue": "Tên đăng nhập (username) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC004: Thiếu trường bắt buộc password trong Request Body
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Body chỉ có trường `username`, khuyết hoàn toàn trường `password`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "password",
-        "issue": "Mật khẩu (password) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC005: Trường username có độ dài dưới 3 ký tự (Vi phạm biên minLength)
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "th",
-    "password": "Password123@"
-  }
-  ```
-
-  *(Chuỗi `"th"` có đúng 2 ký tự, vi phạm quy định `minLength: 3`)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với `username` có độ dài 2 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "username",
-        "issue": "Tên đăng nhập phải có ít nhất 3 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC006: Trường username có độ dài vượt quá 50 ký tự (Vi phạm biên maxLength)
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung_extra_long_username_over_limit_fpt_edu_51",
-    "password": "Password123@"
-  }
-  ```
-
-  *(Chuỗi `"teacher_hung_extra_long_username_over_limit_fpt_edu_51"` có đúng 51 ký tự, vi phạm quy định `maxLength: 50`)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với `username` có độ dài 51 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "username",
-        "issue": "Tên đăng nhập không được vượt quá 50 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC007: Trường password có độ dài dưới 6 ký tự (Vi phạm biên minLength)
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": "12345"
-  }
-  ```
-
-  *(Chuỗi mật khẩu `"12345"` có đúng 5 ký tự, vi phạm quy định `minLength: 6`)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với `password` có độ dài 5 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "password",
-        "issue": "Mật khẩu phải có ít nhất 6 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC008: Trường password có độ dài vượt quá 100 ký tự (Vi phạm biên maxLength)
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": "P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword1231"
-  }
-  ```
-
-  *(Chuỗi mật khẩu có đúng 101 ký tự, vi phạm quy định `maxLength: 100`)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với `password` dài 101 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "password",
-        "issue": "Mật khẩu không được vượt quá 100 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC009: Trường username sai kiểu dữ liệu (Gửi kiểu số thay vì chuỗi)
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": 123456,
-    "password": "Password123@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với trường `username` là số nguyên `123456`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "username",
-        "issue": "Tên đăng nhập phải là một chuỗi ký tự (string)."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC010: Trường password sai kiểu dữ liệu (Gửi mảng thay vì chuỗi)
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": ["Pass123", "Secret"]
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Request Body với trường `password` là mảng dữ liệu.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "password",
-        "issue": "Mật khẩu phải là một chuỗi ký tự (string)."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC011: Đăng nhập thất bại do tên đăng nhập không tồn tại trong hệ thống
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Tên người dùng `nonexistent_user` không tồn tại trong bảng `users` của CSDL.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "nonexistent_user",
-    "password": "Password123@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm thông tin tài khoản không tồn tại `nonexistent_user`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_CREDENTIALS",
-    "message": "Tên đăng nhập hoặc mật khẩu không chính xác.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC012: Đăng nhập thất bại do tên đăng nhập đúng nhưng sai mật khẩu
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Tài khoản `teacher_hung` tồn tại trong hệ thống, đang hoạt động (`is_active = true`).
-- Mật khẩu thực tế đã hash trong CSDL khác với mật khẩu nhập vào.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": "WrongPassword999@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm `username: "teacher_hung"` và mật khẩu sai `WrongPassword999@`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_CREDENTIALS",
-    "message": "Tên đăng nhập hoặc mật khẩu không chính xác.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC013: Đăng nhập thất bại do tài khoản đã bị khóa bởi Quản trị viên
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Tài khoản Giảng viên `teacher_locked` tồn tại trong hệ thống.
-- Cột trạng thái tài khoản trong CSDL có giá trị `is_active = false`.
-- Mật khẩu nhập vào hoàn toàn chính xác với hash CSDL.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_locked",
-    "password": "CorrectPassword123@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm thông tin đăng nhập của tài khoản đã bị vô hiệu hóa `teacher_locked`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_ACCOUNT_DISABLED",
-    "message": "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC014: Lỗi máy chủ cơ sở dữ liệu nội bộ khi thực hiện truy vấn đăng nhập
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Dịch vụ cơ sở dữ liệu PostgreSQL/MySQL quản lý tài khoản bị ngắt kết nối giả lập (Mock DB Connection Error).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": "Password123@"
-  }
-  ```
-- **Mock State**: `DatabaseConnectionPool.status = 'DISCONNECTED'`.
-
-#### Các bước thực hiện (Test Steps)
-
-1. Kích hoạt trạng thái lỗi ngắt kết nối database trên Mock Backend Server.
-2. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-3. Đính kèm Body chứa dữ liệu đăng nhập chuẩn.
-4. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `500 Internal Server Error`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 500,
-    "error_code": "INTERNAL_SERVER_ERROR",
-    "message": "Đã xảy ra lỗi máy chủ nội bộ. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC015: Đăng nhập thành công với username và password ở độ dài biên nhỏ nhất
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Tài khoản có `username = "adm"` (3 ký tự - minLength biên dưới), mật khẩu `"Adm12@"` (6 ký tự - minLength biên dưới).
-- Tài khoản đang hoạt động (`is_active = true`).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "adm",
-    "password": "Adm12@"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm body chứa `username` 3 ký tự và `password` 6 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Đăng nhập thành công",
-    "data": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiJhZG0iLCJyb2xlIjoiQURNSU4iLCJleHAiOjE3OTk5OTk5OTl9.MOCK_VALID_SIGNATURE",
-      "refresh_token": "def502005a76c8e3boundarytokenminlength",
-      "token_type": "Bearer",
-      "expires_in": 86400,
-      "user": {
-        "id": 3,
-        "username": "adm",
-        "full_name": "Quản Trị Biên Nhỏ",
-        "email": "adm@fe.edu.vn",
-        "role": "ADMIN",
-        "is_active": true
-      }
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC016: Đăng nhập thành công với username và password ở độ dài biên tối đa
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Tài khoản có `username` đúng 50 ký tự (`"teacher_hung_exact_fifty_characters_username_aita"`) và `password` đúng 100 ký tự (`"P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword12"`).
-- Tài khoản đang hoạt động (`is_active = true`).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung_exact_fifty_characters_username_aita",
-    "password": "P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword123P@ssword12"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm body chứa `username` 50 ký tự và `password` 100 ký tự.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa `success = true`, mã `status_code = 200`, cấp `access_token` và `refresh_token` hợp lệ cùng thông tin tài khoản.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthLogin_TC017: Đăng nhập thành công với tài khoản Giảng viên (INSTRUCTOR)
+# UT01_AuthLogin_TC001: Đăng nhập thành công với tài khoản Quản trị viên (ADMIN)
 
 #### Loại test
 
@@ -895,51 +42,23 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Tài khoản Giảng viên `teacher_hung` tồn tại trong hệ thống, `is_active = true`, `role = "INSTRUCTOR"`.
+- Tài khoản `admin` tồn tại, `is_active = true`, `is_deleted = false`, `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "teacher_hung",
-    "password": "Password123@"
-  }
-  ```
+- Body: `{ "username": "admin", "password": "AdminPassword2026@" }`
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Body chứa thông tin tài khoản Giảng viên `teacher_hung`.
-3. Gửi Request lên hệ thống để xác thực và nhận cặp Access Token / Refresh Token.
+1. Thiết lập `prisma.user.findFirst` trả user ADMIN; `bcrypt.compare` trả `true`.
+2. Gọi hàm `AuthService.login(dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Đăng nhập thành công",
-    "data": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJ0ZWFjaGVyX2h1bmciLCJyb2xlIjoiSU5TVFJVQ1RPUiIsImV4cCI6MTc5OTk5OTk5OX0.MOCK_INSTRUCTOR_SIGNATURE",
-      "refresh_token": "def502005a76c8e3teacherhungrefreshtoken",
-      "token_type": "Bearer",
-      "expires_in": 86400,
-      "user": {
-        "id": 1,
-        "username": "teacher_hung",
-        "full_name": "Nguyễn Văn Hùng",
-        "email": "hungnv@fe.edu.vn",
-        "role": "INSTRUCTOR",
-        "is_active": true
-      }
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`, `message = "Đăng nhập thành công"`.
+- `data.access_token`, `data.refresh_token` được cấp; `data.token_type = "Bearer"`; `data.expires_in = 900` (mặc định `15m`).
+- `data.user.role = "ADMIN"`, `data.user.is_active = true`.
+- Một bản ghi `refreshToken` được tạo trong CSDL.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -949,7 +68,7 @@ Normal
 
 ---
 
-# UT01_AuthLogin_TC018: Đăng nhập thành công với tài khoản Quản trị viên (ADMIN)
+# UT01_AuthLogin_TC002: Đăng nhập thành công với tài khoản Giảng viên (INSTRUCTOR)
 
 #### Loại test
 
@@ -957,51 +76,571 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Tài khoản Quản trị viên `admin` tồn tại trong hệ thống, `is_active = true`, `role = "ADMIN"`.
+- Tài khoản `teacher_hung` tồn tại, `is_active = true`, `role = "INSTRUCTOR"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/auth/login`
-- **Body Input**:
-  ```json
-  {
-    "username": "admin",
-    "password": "AdminPassword2026@"
-  }
-  ```
+- Body: `{ "username": "teacher_hung", "password": "Password123@" }`
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/login` (API Public, không yêu cầu truyền Header Authorization Token).
-2. Đính kèm Body chứa thông tin tài khoản Quản trị viên `admin`.
-3. Gửi Request lên hệ thống để xác thực và nhận cặp Access Token / Refresh Token.
+1. Thiết lập `prisma.user.findFirst` trả user INSTRUCTOR; `bcrypt.compare` trả `true`.
+2. Gọi hàm `AuthService.login(dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Đăng nhập thành công",
-    "data": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc5OTk5OTk5OX0.MOCK_ADMIN_SIGNATURE",
-      "refresh_token": "def502005a76c8e3adminrefreshtokenstring",
-      "token_type": "Bearer",
-      "expires_in": 86400,
-      "user": {
-        "id": 2,
-        "username": "admin",
-        "full_name": "Quản Trị Viên Hệ Thống",
-        "email": "admin@fe.edu.vn",
-        "role": "ADMIN",
-        "is_active": true
-      }
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`; `data.user.role = "INSTRUCTOR"`; cấp đủ cặp token.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC003: Đăng nhập thất bại do sai mật khẩu
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `teacher_hung` tồn tại, đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung", "password": "WrongPassword999@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` trả user; `bcrypt.compare` trả `false`.
+2. Gọi hàm `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401 Unauthorized`.
+- `error_code = "AUTH_INVALID_CREDENTIALS"`, `message = "Tên đăng nhập hoặc mật khẩu không chính xác."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC004: Đăng nhập thất bại do tên đăng nhập không tồn tại
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tên `nonexistent_user` không tồn tại trong bảng `users`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "nonexistent_user", "password": "Password123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` trả `null`.
+2. Gọi hàm `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401 Unauthorized`, `error_code = "AUTH_INVALID_CREDENTIALS"`, `message = "Tên đăng nhập hoặc mật khẩu không chính xác."`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC005: Đăng nhập thất bại do tài khoản đã bị khóa (mật khẩu đúng)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `teacher_locked` tồn tại, `is_active = false`; mật khẩu khớp hash.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_locked", "password": "CorrectPassword123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` trả user `is_active = false`; `bcrypt.compare` trả `true`.
+2. Gọi hàm `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `403 Forbidden`, `error_code = "AUTH_ACCOUNT_DISABLED"`, `message = "Tài khoản của bạn đã bị vô hiệu hóa."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC006: Tài khoản bị khóa nhưng mật khẩu sai (ưu tiên sai thông tin đăng nhập)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `teacher_locked` tồn tại, `is_active = false`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_locked", "password": "WrongPassword999@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` trả user `is_active = false`; `bcrypt.compare` trả `false`.
+2. Gọi hàm `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401 Unauthorized`, `error_code = "AUTH_INVALID_CREDENTIALS"` (do mật khẩu được kiểm tra TRƯỚC trạng thái khóa).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC007: Lỗi máy chủ nội bộ khi truy vấn CSDL đăng nhập
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Dịch vụ CSDL bị ngắt kết nối giả lập.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung", "password": "Password123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` ném `Error('Connection refused')`.
+2. Gọi hàm `AuthService.login(dto)`; cho `ApiExceptionFilter` bắt ngoại lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `500 Internal Server Error`, `error_code = "INTERNAL_SERVER_ERROR"`, `message = "Đã xảy ra lỗi hệ thống."`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC008: Request Body rỗng thiếu cả username và password
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{}`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({}, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422 Unprocessable Entity`, `error_code = "VALIDATION_FAILED"`.
+- `details` chứa `field = "username"` và `field = "password"` với `issues` là thông điệp mặc định (`"username must be a string"`, `"password must be a string"`).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC009: Thiếu trường bắt buộc username
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "password": "Password123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ password: 'Password123@' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details = [{ field: "username", issues: ["username must be a string"] }]`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC010: Thiếu trường bắt buộc password
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'teacher_hung' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details = [{ field: "password", issues: ["password must be a string"] }]`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC011: Trường username sai kiểu dữ liệu (gửi số)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": 123456, "password": "Password123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 123456, password: 'Password123@' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "username", issues: ["username must be a string"] }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC012: Trường password sai kiểu dữ liệu (gửi mảng)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung", "password": ["Pass123", "Secret"] }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'teacher_hung', password: ['Pass123', 'Secret'] }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "password", issues: ["password must be a string"] }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC013: username dài 2 ký tự (vi phạm biên dưới minLength = 3)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "th", "password": "Password123@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'th', password: 'Password123@' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "username", issues: ["username must be longer than or equal to 3 characters"] }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC014: username dài đúng 3 ký tự (biên dưới hợp lệ)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `adm` tồn tại, `is_active = true`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "adm", "password": "Adm12@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. `prisma.user.findFirst` trả user; `bcrypt.compare` trả `true`; gọi `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Validation hợp lệ, HTTP `200 OK`, cấp token và `data.user.username = "adm"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC015: username dài đúng 50 ký tự (biên trên hợp lệ)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản với username 50 ký tự tồn tại, `is_active = true`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung_exact_fifty_characters_username_aita", "password": "Password123@" }` (username đúng 50 ký tự)
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. `prisma.user.findFirst` trả user; `bcrypt.compare` trả `true`; gọi `AuthService.login(dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Validation hợp lệ, HTTP `200 OK`, cấp token thành công.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC016: username dài 51 ký tự (vi phạm biên trên maxLength = 50)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: username 51 ký tự, password `"Password123@"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'a'.repeat(51), password: 'Password123@' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "username", issues: ["username must be shorter than or equal to 50 characters"] }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC017: password dài 5 ký tự (vi phạm biên dưới minLength = 6)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "teacher_hung", "password": "12345" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'teacher_hung', password: '12345' }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "password", issues: ["password must be longer than or equal to 6 characters"] }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC018: password dài đúng 6 ký tự (biên dưới hợp lệ)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `adm` tồn tại, `is_active = true`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "username": "adm", "password": "Adm12@" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AuthService.login(dto)` với user/bcrypt mock hợp lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Validation hợp lệ, HTTP `200 OK`, cấp token thành công.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC019: password dài đúng 100 ký tự (biên trên hợp lệ)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tài khoản `teacher_hung` tồn tại, `is_active = true`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: password gồm 100 ký tự, username `"teacher_hung"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'teacher_hung', password: 'P'.repeat(100) }, { type: 'body', metatype: LoginDto })` — không ném lỗi.
+2. Gọi `AuthService.login(dto)` với mock hợp lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Validation hợp lệ, HTTP `200 OK`, cấp token thành công.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthLogin_TC020: password dài 101 ký tự (vi phạm biên trên maxLength = 100)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: password gồm 101 ký tự, username `"teacher_hung"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ username: 'teacher_hung', password: 'P'.repeat(101) }, { type: 'body', metatype: LoginDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details` chứa `{ field: "password", issues: ["password must be shorter than or equal to 100 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1017,42 +656,27 @@ Normal
 
 # ==============================================================================
 
-# UT01_AuthMe_TC001: Không gửi Header Authorization trong yêu cầu lấy thông tin hồ sơ
+# UT01_AuthMe_TC001: Không gửi Header Authorization
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server Backend đang hoạt động bình thường.
 - Client gửi request không đính kèm Header `Authorization`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có (None).
+- Không có Body.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Không đính kèm Header `Authorization`.
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401 Unauthorized`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`, `details = null`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1062,41 +686,27 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC002: Header Authorization có giá trị rỗng hoặc chỉ chứa tiền tố Bearer
+# UT01_AuthMe_TC002: Access Token đã hết hạn (Expired Token)
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server Backend đang hoạt động bình thường.
+- Passport trả `info.name = "TokenExpiredError"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <EXPIRED_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Header `Authorization: Bearer ` (không có token đằng sau).
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, { name: 'TokenExpiredError' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Vui lòng đăng nhập để thực hiện thao tác này.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_TOKEN_EXPIRED"`, `message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1106,41 +716,27 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC003: Header Authorization sai định dạng Scheme (Không có tiền tố Bearer)
+# UT01_AuthMe_TC003: Token có chữ ký sai hoặc bị can thiệp
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server Backend đang hoạt động bình thường.
+- Token giả mạo có chữ ký không khớp khóa bí mật.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <INVALID_SIGNATURE_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Header `Authorization` với tiền tố `Basic ...`.
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, { name: 'JsonWebTokenError' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_INVALID",
-    "message": "Định dạng xác thực không hợp lệ. Vui lòng sử dụng phương thức Bearer Token.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1150,41 +746,27 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC004: Token JWT sai cấu trúc không đủ 3 thành phần tiêu chuẩn
+# UT01_AuthMe_TC004: Header Authorization sai định dạng Scheme (Basic thay vì Bearer)
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server Backend đang hoạt động bình thường.
+- Header không có tiền tố `Bearer`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Basic YWRtaW46UGFzc3dvcmRAMTIz`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Bearer Token bị khuyết thành phần Signature.
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)` (Passport không trích xuất được token → user false).
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_INVALID",
-    "message": "Token xác thực không hợp lệ hoặc đã bị chỉnh sửa.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1194,41 +776,27 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC005: Token JWT có chữ ký sai hoặc bị can thiệp thay đổi Payload
+# UT01_AuthMe_TC005: Dùng Refresh Token làm Access Token (token_type = "refresh")
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server Backend đang hoạt động bình thường với Secret Key bảo mật.
+- Payload token có `token_type = "refresh"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <REFRESH_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Token có chữ ký bị giả mạo / không khớp với khóa bí mật HMAC SHA-256 của máy chủ.
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtStrategy.validate({ id: 'u1', username: 'admin', role: 'ADMIN', token_type: 'refresh' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_INVALID",
-    "message": "Mã truy cập không hợp lệ hoặc chữ ký sai.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1238,41 +806,28 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC006: Bearer Access Token gửi lên đã hết hạn hiệu lực (Expired Token)
+# UT01_AuthMe_TC006: Token hợp lệ nhưng tài khoản đã bị xóa hoặc bị vô hiệu hóa
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Token đã được cấp hợp lệ trước đó nhưng timestamp `exp` trong Payload đã nhỏ hơn thời điểm hiện tại (`exp = 1577836800` - năm 2020).
+- Token hợp lệ mang `id` của tài khoản không còn hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <VALID_BUT_DISABLED_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Token đã hết hạn trong Header `Authorization`.
-3. Gửi Request lên hệ thống.
+1. Thiết lập `prisma.user.findFirst` trả `null`.
+2. Gọi `JwtStrategy.validate({ id: 'gone', username: 'x', role: 'ADMIN', token_type: 'access' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_EXPIRED",
-    "message": "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_ACCOUNT_DISABLED"`, `message = "Tài khoản không còn hoạt động."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1282,42 +837,28 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC007: Token hợp lệ nhưng tài khoản người dùng trong Token đã bị xóa khỏi CSDL
+# UT01_AuthMe_TC007: Lỗi máy chủ nội bộ khi truy vấn hồ sơ
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Token có chữ ký hợp lệ và còn hạn, chứa `id: 999`.
-- Người dùng có `id: 999` đã bị xóa hoàn toàn khỏi cơ sở dữ liệu (`User.findById(999) == null`).
+- CSDL bị mất kết nối giả lập.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <VALID_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Token của người dùng không còn tồn tại trong hệ thống.
-3. Gửi Request lên hệ thống.
+1. Thiết lập `prisma.user.findFirst` ném `Error('Connection refused')`.
+2. Gọi `AuthService.me('u1')`; cho `ApiExceptionFilter` bắt ngoại lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_INVALID",
-    "message": "Tài khoản liên kết với phiên làm việc không tồn tại trong hệ thống.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `500`, `error_code = "INTERNAL_SERVER_ERROR"`, `message = "Đã xảy ra lỗi hệ thống."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1327,96 +868,7 @@ Abnormal
 
 ---
 
-# UT01_AuthMe_TC008: Tài khoản người dùng trong Bearer Token đã bị vô hiệu hóa bởi Quản trị viên
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Người dùng `teacher_disabled` sở hữu token hợp lệ, còn hạn.
-- Quản trị viên vừa thay đổi cờ trạng thái tài khoản thành `is_active = false`.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Token của tài khoản vừa bị khóa.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_ACCOUNT_DISABLED",
-    "message": "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthMe_TC009: Lỗi máy chủ cơ sở dữ liệu nội bộ khi truy vấn hồ sơ tài khoản
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Token hợp lệ nhưng dịch vụ cơ sở dữ liệu bị mất kết nối giả lập trong quá trình xử lý truy vấn thông tin người dùng.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có (None).
-- **Mock State**: `DatabaseConnectionPool.status = 'DISCONNECTED'`.
-
-#### Các bước thực hiện (Test Steps)
-
-1. Thiết lập trạng thái gián đoạn kết nối CSDL trên Mock Server.
-2. Gửi Request `GET /api/v1/auth/me` với Token hợp lệ.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `500 Internal Server Error`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 500,
-    "error_code": "INTERNAL_SERVER_ERROR",
-    "message": "Đã xảy ra lỗi máy chủ nội bộ. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthMe_TC010: Lấy thông tin tài khoản thành công với Token Giảng viên (INSTRUCTOR)
+# UT01_AuthMe_TC008: Lấy thông tin tài khoản thành công với Giảng viên (INSTRUCTOR)
 
 #### Loại test
 
@@ -1424,40 +876,21 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_hung` đang hoạt động (`is_active = true`), sở hữu Access Token hợp lệ còn thời hạn.
+- Giảng viên `teacher_hung` đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <VALID_INSTRUCTOR_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Header `Authorization: Bearer <VALID_INSTRUCTOR_TOKEN>`.
-3. Gửi Request lên hệ thống.
+1. Thiết lập `prisma.user.findFirst` trả user INSTRUCTOR đang hoạt động.
+2. Gọi `AuthService.me(userId)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Lấy thông tin tài khoản thành công",
-    "data": {
-      "id": 1,
-      "username": "teacher_hung",
-      "full_name": "Nguyễn Văn Hùng",
-      "email": "hungnv@fe.edu.vn",
-      "role": "INSTRUCTOR",
-      "is_active": true,
-      "created_at": "2026-09-01T08:00:00.000Z"
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`, `message = "Lấy thông tin tài khoản thành công"`.
+- `data` gồm `id, username, full_name, email, role, is_active, created_at` (ISO-8601), `role = "INSTRUCTOR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1467,7 +900,7 @@ Normal
 
 ---
 
-# UT01_AuthMe_TC011: Lấy thông tin tài khoản thành công với Token Quản trị viên (ADMIN)
+# UT01_AuthMe_TC009: Lấy thông tin tài khoản thành công với Quản trị viên (ADMIN)
 
 #### Loại test
 
@@ -1475,40 +908,51 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Quản trị viên `admin` đang hoạt động (`is_active = true`), sở hữu Access Token hợp lệ còn thời hạn.
+- Quản trị viên `admin` đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/auth/me`
-- **Body Input**: Không có.
+- Header: `Authorization: Bearer <VALID_ADMIN_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/auth/me`.
-2. Đính kèm Header `Authorization: Bearer <VALID_ADMIN_TOKEN>`.
-3. Gửi Request lên hệ thống.
+1. Thiết lập `prisma.user.findFirst` trả user ADMIN đang hoạt động.
+2. Gọi `AuthService.me(userId)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Lấy thông tin tài khoản thành công",
-    "data": {
-      "id": 2,
-      "username": "admin",
-      "full_name": "Quản Trị Viên Hệ Thống",
-      "email": "admin@fe.edu.vn",
-      "role": "ADMIN",
-      "is_active": true,
-      "created_at": "2026-09-01T00:00:00.000Z"
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`, `data.role = "ADMIN"`, `data.username = "admin"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthMe_TC010: Bản ghi CSDL chứa vai trò không được hỗ trợ (role = "SUPERADMIN")
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bản ghi người dùng có `role` ngoài tập `{ ADMIN, INSTRUCTOR }`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Bản ghi `role = "SUPERADMIN"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `prisma.user.findFirst` trả user với `role = "SUPERADMIN"`.
+2. Gọi `AuthService.me(userId)`; cho `ApiExceptionFilter` bắt ngoại lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `toAppRole` ném `Error('Database contains an unsupported user role.')` ⇒ HTTP `500`, `error_code = "INTERNAL_SERVER_ERROR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1520,514 +964,11 @@ Normal
 
 # ==============================================================================
 
-# PHẦN 3: API POST /api/v1/auth/refresh (UC-03: GIA HẠN ACCESS TOKEN BẰNG REFRESH TOKEN)
+# PHẦN 3: API POST /api/v1/auth/refresh (UC-03: GIA HẠN ACCESS TOKEN)
 
 # ==============================================================================
 
-# UT01_AuthRefresh_TC001: Gửi Request Body không đúng định dạng cú pháp JSON
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```text
-  {"refresh_token": "def502005a76c8e3...
-  ```
-
-  *(Chuỗi JSON bị thiếu dấu đóng ngoặc kép và dấu đóng ngoặc nhọn)*
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Truyền payload chứa chuỗi refresh_token bị lỗi cú pháp JSON trong Request Body.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `400 Bad Request`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 400,
-    "error_code": "BAD_REQUEST",
-    "message": "Dữ liệu yêu cầu gửi lên không đúng định dạng JSON hợp lệ.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC002: Request Body rỗng thiếu trường bắt buộc refresh_token
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {}
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Không truyền token gia hạn (đính kèm Request Body rỗng `{}` thiếu `refresh_token`).
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "refresh_token",
-        "issue": "Mã gia hạn (refresh_token) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC003: Trường refresh_token gửi lên là chuỗi rỗng hoặc chỉ có khoảng trắng
-
-#### Loại test
-
-Binary
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "   "
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm Body chứa `refresh_token` là chuỗi 3 dấu khoảng trắng.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "refresh_token",
-        "issue": "Mã gia hạn không được để trống."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC004: Trường refresh_token sai kiểu dữ liệu (Gửi kiểu số thay vì chuỗi)
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Hệ thống Web Server Backend đang hoạt động bình thường.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": 987654321
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm `refresh_token` là số nguyên `987654321`.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "refresh_token",
-        "issue": "Mã gia hạn (refresh_token) phải là một chuỗi ký tự (string)."
-      }
-    ],
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC005: Chuỗi refresh_token không tồn tại trong hệ thống hoặc giả mạo
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Chuỗi refresh token ngẫu nhiên không có trong bảng phiên làm việc (Redis Session Store / CSDL).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "random_fake_token_not_exists_in_database_store_12345"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm chuỗi `refresh_token` không có trong hệ thống.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_REFRESH_TOKEN",
-    "message": "Mã refresh token không hợp lệ hoặc không tồn tại.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC006: Mã refresh_token đã hết hạn sử dụng
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Token đã từng được cấp hợp lệ nhưng thời hạn lưu trữ phiên (TTL 7 ngày hoặc 30 ngày) đã hết hạn trong kho lưu trữ phiên làm việc.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_expired_after_thirty_days_store"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm `refresh_token` đã hết hạn.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_REFRESH_TOKEN",
-    "message": "Mã refresh token không hợp lệ hoặc đã hết hạn.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC007: Mã refresh_token đã bị thu hồi do đăng xuất hoặc cơ chế Token Rotation
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Refresh token đã được sử dụng một lần trước đó (đã bị vô hiệu hóa bởi cơ chế Refresh Token Rotation) hoặc người dùng đã bấm Đăng xuất (`revoked = true`).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_previously_used_rotated_token"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Gửi chuỗi Refresh Token đã bị thu hồi lên máy chủ.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_REFRESH_TOKEN",
-    "message": "Mã gia hạn không hợp lệ hoặc đã bị thu hồi.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC008: Refresh Token hợp lệ nhưng tài khoản người dùng tương ứng đã bị xóa khỏi CSDL
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Refresh token tồn tại trong bảng phiên nhưng `user_id` gắn với token không còn tồn tại trong bảng `users` (`User.findById(userId) == null`).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_associated_with_deleted_user"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm Refresh Token liên kết với người dùng đã bị xóa.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_INVALID_REFRESH_TOKEN",
-    "message": "Tài khoản liên kết với mã gia hạn không còn tồn tại trong hệ thống.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC009: Refresh Token hợp lệ nhưng tài khoản người dùng đã bị khóa bởi Quản trị viên
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Refresh token hợp lệ, chưa hết hạn.
-- Tài khoản người dùng tương ứng vừa bị chuyển cờ trạng thái `is_active = false`.
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_associated_with_locked_account"
-  }
-  ```
-
-#### Các bước thực hiện (Test Steps)
-
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm Refresh Token của tài khoản bị khóa.
-3. Gửi Request lên hệ thống.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_ACCOUNT_DISABLED",
-    "message": "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC010: Lỗi máy chủ cơ sở dữ liệu / Redis Session Store khi xử lý gia hạn token
-
-#### Loại test
-
-Abnormal
-
-#### Tiền điều kiện (Pre-condition)
-
-- Dịch vụ Redis Cache lưu trữ phiên làm việc / CSDL backend bị mất kết nối giả lập (Mock Session Store Timeout).
-
-#### Dữ liệu kiểm thử (Test Data)
-
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_valid_refresh_token_string"
-  }
-  ```
-- **Mock State**: `SessionRedisStore.status = 'DISCONNECTED'`.
-
-#### Các bước thực hiện (Test Steps)
-
-1. Thiết lập trạng thái gián đoạn kết nối Redis Session Store trên mock backend.
-2. Gửi Request `POST /api/v1/auth/refresh` với Refresh Token hợp lệ.
-
-#### Kết quả kỳ vọng (Expected Result)
-
-- HTTP Status Code: `500 Internal Server Error`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 500,
-    "error_code": "INTERNAL_SERVER_ERROR",
-    "message": "Đã xảy ra lỗi máy chủ nội bộ. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
-
-#### Bảng kết quả kiểm thử (Execution Result)
-
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
-
----
-
-# UT01_AuthRefresh_TC011: Gia hạn Access Token thành công với Refresh Token của Giảng viên (INSTRUCTOR)
+# UT01_AuthRefresh_TC001: Gia hạn thành công với Refresh Token của Giảng viên
 
 #### Loại test
 
@@ -2035,42 +976,23 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Refresh token hợp lệ, còn hạn của Giảng viên `teacher_hung` (`is_active = true`).
+- Refresh token hợp lệ, còn hạn của `teacher_hung` (`is_active = true`).
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_valid_instructor_refresh_token"
-  }
-  ```
+- Body: `{ "refresh_token": "<VALID_INSTRUCTOR_REFRESH_JWT>" }`
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm `refresh_token` hợp lệ của tài khoản Giảng viên.
-3. Gửi Request lên hệ thống.
+1. `jwt.verifyAsync` trả payload `{ id, username, role: 'INSTRUCTOR', token_type: 'refresh', jti }`.
+2. `tx.refreshToken.findFirst` trả bản ghi còn hạn kèm user đang hoạt động; `updateMany` trả `{ count: 1 }`.
+3. Gọi `AuthService.refresh(rawToken)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Gia hạn mã truy cập thành công",
-    "data": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJ0ZWFjaGVyX2h1bmciLCJyb2xlIjoiSU5TVFJVQ1RPUiIsImV4cCI6MTgwMDAwMDAwMH0.MOCK_NEW_INSTRUCTOR_SIGNATURE",
-      "refresh_token": "def502005a76c8e4_new_rotated_instructor_refresh_token",
-      "token_type": "Bearer",
-      "expires_in": 86400
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`, `message = "Gia hạn mã truy cập thành công"`.
+- Cấp `access_token` và `refresh_token` mới (rotate); `data.token_type = "Bearer"`.
+- `updateMany` đánh dấu `revokedAt` cho token cũ (count = 1).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2080,7 +1002,7 @@ Normal
 
 ---
 
-# UT01_AuthRefresh_TC012: Gia hạn Access Token thành công với Refresh Token của Quản trị viên (ADMIN)
+# UT01_AuthRefresh_TC002: Gia hạn thành công với Refresh Token của Quản trị viên
 
 #### Loại test
 
@@ -2088,42 +1010,326 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Refresh token hợp lệ, còn hạn của Quản trị viên `admin` (`is_active = true`).
+- Refresh token hợp lệ, còn hạn của `admin`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/auth/refresh`
-- **Body Input**:
-  ```json
-  {
-    "refresh_token": "def502005a76c8e3_valid_admin_refresh_token"
-  }
-  ```
+- Body: `{ "refresh_token": "<VALID_ADMIN_REFRESH_JWT>" }`
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/auth/refresh`.
-2. Đính kèm `refresh_token` hợp lệ của tài khoản Quản trị viên.
-3. Gửi Request lên hệ thống.
+1. `jwt.verifyAsync` trả payload ADMIN; `tx.refreshToken.findFirst` trả bản ghi còn hạn; `updateMany` trả `{ count: 1 }`.
+2. Gọi `AuthService.refresh(rawToken)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Gia hạn mã truy cập thành công",
-    "data": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTgwMDAwMDAwMH0.MOCK_NEW_ADMIN_SIGNATURE",
-      "refresh_token": "def502005a76c8e4_new_rotated_admin_refresh_token",
-      "token_type": "Bearer",
-      "expires_in": 86400
-    },
-    "timestamp": "2026-10-05T07:30:00.000Z"
-  }
-  ```
+- HTTP `200 OK`; cấp cặp token mới cho tài khoản ADMIN.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC003: Refresh Token sai chữ ký hoặc hết hạn
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `jwt.verifyAsync` ném lỗi.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<INVALID_SIGNATURE_JWT>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Thiết lập `jwt.verifyAsync` `mockRejectedValue(new Error('invalid signature'))`.
+2. Gọi `AuthService.refresh(rawToken)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_REFRESH_TOKEN"`, `message = "Mã refresh token không hợp lệ hoặc đã hết hạn."`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC004: Token hợp lệ nhưng không phải Refresh Token (token_type = "access")
+
+#### Loại test
+
+Exception
+
+#### Tiền đều kiện (Pre-condition)
+
+- Payload token có `token_type = "access"`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<ACCESS_TOKEN>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. `jwt.verifyAsync` trả payload `{ id, token_type: 'access', jti }`.
+2. Gọi `AuthService.refresh(rawToken)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_REFRESH_TOKEN"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC005: Token không tồn tại trong kho phiên (hoặc đã hết hạn lưu trữ)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `tx.refreshToken.findFirst` trả `null`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<UNKNOWN_REFRESH_JWT>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. `jwt.verifyAsync` trả payload hợp lệ; `tx.refreshToken.findFirst` trả `null`.
+2. Gọi `AuthService.refresh(rawToken)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_REFRESH_TOKEN"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC006: Token đã bị thu hồi do xoay vòng (updateMany count = 0)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Token đã bị vô hiệu hóa bởi cơ chế rotation trước đó.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<PREVIOUSLY_ROTATED_JWT>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. `findFirst` trả bản ghi nhưng `updateMany` trả `{ count: 0 }`.
+2. Gọi `AuthService.refresh(rawToken)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_REFRESH_TOKEN"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC007: Tài khoản gắn với Refresh Token đã bị xóa hoặc vô hiệu hóa
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bản ghi token còn hạn nhưng `user.isActive = false` hoặc `user.isDeleted = true`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<TOKEN_OF_DISABLED_USER>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. `findFirst` trả bản ghi kèm `user` bị khóa/xóa.
+2. Gọi `AuthService.refresh(rawToken)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_REFRESH_TOKEN"`, `message = "Mã refresh token không hợp lệ hoặc đã hết hạn."` (KHÔNG trả `AUTH_ACCOUNT_DISABLED`).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC008: Lỗi máy chủ khi xử lý giao dịch gia hạn
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- CSDL bị mất kết nối giả lập trong transaction.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "<VALID_REFRESH_JWT>" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. `jwt.verifyAsync` trả payload hợp lệ; `prisma.$transaction` ném `Error('Connection refused')`.
+2. Gọi `AuthService.refresh(rawToken)`; cho `ApiExceptionFilter` bắt ngoại lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `500`, `error_code = "INTERNAL_SERVER_ERROR"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC009: Request Body thiếu trường refresh_token
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{}`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({}, { type: 'body', metatype: RefreshTokenDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details = [{ field: "refresh_token", issues: ["refresh_token must be a jwt string"] }]`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC010: refresh_token là chuỗi chỉ chứa khoảng trắng
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "   " }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ refresh_token: '   ' }, { type: 'body', metatype: RefreshTokenDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details = [{ field: "refresh_token", issues: ["refresh_token must be a jwt string"] }]`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC011: refresh_token sai kiểu dữ liệu (gửi số)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": 987654321 }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ refresh_token: 987654321 }, { type: 'body', metatype: RefreshTokenDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details = [{ field: "refresh_token", issues: ["refresh_token must be a jwt string"] }]`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT01_AuthRefresh_TC012: refresh_token là chuỗi ngẫu nhiên không đúng định dạng JWT
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `ValidationPipe` toàn cục đang hoạt động.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `{ "refresh_token": "random_fake_token_not_jwt" }`
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ValidationPipe.transform({ refresh_token: 'random_fake_token_not_jwt' }, { type: 'body', metatype: RefreshTokenDto })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `details = [{ field: "refresh_token", issues: ["refresh_token must be a jwt string"] }]`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 

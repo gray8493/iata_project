@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { AuditLogsService } from './audit-logs.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { AuditLogsService } from '../modules/audit-logs/audit-logs.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('AuditLogsService (Web Admin Reports Unit Tests)', () => {
   let service: AuditLogsService;

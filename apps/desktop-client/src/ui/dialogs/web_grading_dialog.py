@@ -53,14 +53,6 @@ class WebGradingDialog(QDialog):
         
         t_layout.addStretch(1)
         
-        lbl_mode = QLabel("Chế Độ Chấm:", top_card)
-        lbl_mode.setStyleSheet("font-weight: 700; font-size: 11px;")
-        t_layout.addWidget(lbl_mode)
-        
-        btn_hybrid = QPushButton("Chế Độ Kết Hợp (HYBRID)", top_card)
-        btn_hybrid.setStyleSheet("background-color: #2563eb; color: #ffffff; font-weight: 700; border-radius: 8px; padding: 6px 14px;")
-        t_layout.addWidget(btn_hybrid)
-        
         layout.addWidget(top_card)
         
         # 2. Main Horizontal Splitter

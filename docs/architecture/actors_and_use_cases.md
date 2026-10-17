@@ -12,7 +12,7 @@
 
 Tài liệu này xác định và đặc tả toàn bộ các **Tác nhân (Actors)** cùng **Trường hợp sử dụng (Use Cases)** cho hệ sinh thái **AITA (AI-Assisted Automated Grading & Assessment Tool)**. Đây là tài liệu cốt lõi thuộc phân kỳ **Đánh giá 1 (Evaluation 1: Requirement Analysis & Modeling)** của môn học SWD392, làm tiền đề trực tiếp để xây dựng 4 sơ đồ UML (Use Case Diagram, Activity Diagram, Sequence Diagram, Communication Diagram) và thiết kế kiến trúc chi tiết ở các giai đoạn tiếp theo.
 
-Tài liệu này được đồng bộ nhất quán 100% với các quyết định thiết kế kiến trúc và quy trình vận hành cốt lõi đã được định nghĩa trong [system-overview.md](file:///c:/AITA/iata_project/docs/architecture/system-overview.md) và [tech-stack.md](file:///c:/AITA/iata_project/docs/architecture/tech-stack.md).
+Tài liệu này được đồng bộ nhất quán 100% với các quyết định thiết kế kiến trúc và quy trình vận hành cốt lõi đã được định nghĩa trong [system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md) và [tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md).
 
 ### 1.2. Phạm vi hệ thống & Ranh giới 3 phân hệ tích hợp (System Boundary)
 
@@ -37,7 +37,7 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 +---------------------------------------------------------------------------------+
 ```
 
-1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quản lý danh mục môn học, quota và giám sát tiêu thụ Token AI; Gemini API key do vận hành cấu hình trong môi trường máy chủ.
+1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quota và giám sát tiêu thụ Token AI; Gemini API key do vận hành cấu hình trong môi trường máy chủ.
 2. **Phân hệ Desktop App Client (PyQt6 / Python)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
 3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của Google Gemini và lưu trữ cơ sở dữ liệu học thuật tập trung.
 4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV (`students.csv`) mà Giảng viên thực hiện chấm điểm.
@@ -76,7 +76,7 @@ classDiagram
 
 | Tác nhân | Giao diện sử dụng | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA |
 | :--- | :--- | :--- |
-| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; quản lý danh mục môn học; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. Gemini API key được vận hành cấu hình trong biến môi trường máy chủ `GEMINI_API_KEY`, không nhập qua Web Admin. |
+| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. Gemini API key được vận hành cấu hình trong biến môi trường máy chủ `GEMINI_API_KEY`, không nhập qua Web Admin. |
 | **Giảng viên (Instructor / Lecturer)** | **Desktop App Client (PyQt6)** | Đăng nhập; cấu hình compiler và sandbox; quản lý đợt chấm, sinh viên, testcase; gọi các tính năng AI qua backend; chấm bài và xuất kết quả cục bộ ra CSV/Excel. |
 
 ### 2.2. Tác nhân Hệ thống & Dịch vụ Ngoài (External Supporting Actors)
@@ -85,19 +85,20 @@ classDiagram
 | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **AI Service Provider (Google Gemini API Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép. |
 | **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error).                                                        |
-| **Web Server Backend (NestJS Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (Passport-JWT, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục môn học, tài khoản người dùng và hạn ngạch AI.<br />- Cung cấp API AI Gateway (sinh testcase, code review bài WA, phát hiện đạo văn vòng 2).<br />- Đảm bảo nguyên tắc bảo mật Local-First: Không lưu trữ hay đồng bộ bài thi của sinh viên lên máy chủ. |
+| **Web Server Backend (NestJS Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (Passport-JWT, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục người dùng và hạn ngạch AI.<br />- Cung cấp API AI Gateway (sinh testcase, code review bài WA, phát hiện đạo văn vòng 2).<br />- Đảm bảo nguyên tắc bảo mật Local-First: Không lưu trữ hay đồng bộ bài thi của sinh viên lên máy chủ. |
 
 ---
 
 ## 3. Ma Trận Danh Mục Use Case (Use Case Matrix)
 
-Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức năng (Subsystems)** với tổng cộng **18 Use Cases**, bao quát trọn vẹn cả 2 giao diện người dùng (Web Admin Dashboard và Desktop App Client):
+Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức năng (Subsystems)** với tổng cộng **19 Use Cases**, bao quát trọn vẹn cả 2 giao diện người dùng (Web Admin Dashboard và Desktop App Client):
 
 | Mã UC                                                                                                       | Tên Use Case (Vietnamese)                                | Tên tiếng Anh                                        | Tác nhân chính (Primary Actor) | Nơi thực hiện        | Tác nhân hỗ trợ ngoài (External Actor) |
 | :----------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------- | :----------------------------------------------------- | :-------------------------------- | :---------------------- | :------------------------------------------ |
 | **Phân hệ 1: Quản trị Hệ thống & Quản lý Xác thực (System Administration & Authentication)** |                                                           |                                                        |                                   |                         |                                             |
 | **UC-01**                                                                                              | Đăng nhập & Xác thực Hệ thống                      | Login & System Authentication                          | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
 | **UC-02**                                                                                              | Quản lý Tài khoản & Phân quyền Giảng viên         | Manage Instructor Accounts & RBAC                      | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
+| **UC-03**                                                                                              | Cấp mới Access Token bằng Refresh Token            | Refresh Access Token & Session Rotation               | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
 | **UC-04**                                                                                              | Quản lý hạn ngạch & Giám sát sử dụng AI            | Manage AI Quotas & Usage Monitoring          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
 | **UC-05**                                                                                              | Xem Báo cáo tài khoản & Sử dụng AI | View Account & AI Usage Reports                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
@@ -316,7 +317,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 1. Giảng viên nhấn nút **"Xuất Báo Cáo"** trên màn hình kết quả của Desktop App.
 2. Hệ thống hiển thị hộp thoại lựa chọn định dạng xuất:
-   - File kết quả chuẩn `results.csv` (gồm các cột: `MSSV`, `Score_Q1`, `Score_Q2`, ..., `Total_Score`, `Verdict`).
+   - File kết quả chuẩn `results.csv` (dung lượng 7 cột chuẩn: `MSSV`, `File`, `Điểm số`, `Số test đạt`, `Trạng thái`, `Thời gian chạy trung bình`, `Nhận xét AI/GV`).
    - File bảng điểm chi tiết Excel (`.xlsx`) có tô màu trực quan theo trạng thái AC/WA và kèm cột nhận xét của giảng viên/AI.
 3. Giảng viên chọn định dạng và nhấn **"Xác nhận xuất"**.
 4. Hộp thoại hệ điều hành (Native File Dialog) mở ra để Giảng viên chọn thư mục lưu và đặt tên file.

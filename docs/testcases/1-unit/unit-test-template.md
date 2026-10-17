@@ -1,9 +1,11 @@
-# Thông Tin Chung Kiểm Thử Unit Test
+# Mẫu Đặc Tả Kiểm Thử Unit Test Chuẩn (Unit Test Specification Template)
 
-- **API / Module kiểm thử**: `MatchingStrategy`
+> Tài liệu này vừa là **biểu mẫu chuẩn (Template)** cho Unit Test toàn dự án, vừa là **kịch bản kiểm thử mẫu** áp dụng cho module `MatchingStrategy` (Desktop Client Python).
+
+- **API / Module kiểm thử**: `MatchingStrategy` (`apps/desktop-client/src/core/strategies/matching_strategy.py`)
 - **Người thực hiện (Tester/Dev)**: Nguyễn Văn A
 - **Ngày tạo**: 10/09/2026
-- **Cập nhật lần cuối**: 10/09/2026 - 23:59
+- **Cập nhật lần cuối**: 17/10/2026 - 23:59
 - **Tài liệu liên quan**:
   - [Tổng quan hệ thống AITA](file:///e:/AITA/docs/architecture/system-overview.md)
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
@@ -20,19 +22,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Khởi tạo instance của `MatchingStrategy`.
+- Khởi tạo instance `strategy = MatchingStrategy()`.
 - Hai chuỗi đầu ra không bị null hoặc undefined.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo `actualOutput = "Hello World"`.
-2. Khởi tạo `expectedOutput = "Hello World"`.
-3. Thiết lập options: `{ trimWhitespace: false }`.
-4. Gọi hàm `MatchingStrategy.compare(actualOutput, expectedOutput, options)`.
+1. Khởi tạo `actual_output = "Hello World"`.
+2. Khởi tạo `expected_output = "Hello World"`.
+3. Thiết lập options: `options = {"trimWhitespace": False}`.
+4. Gọi hàm `strategy.compare(actual_output, expected_output, options)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-Hàm trả về `true` (Accepted - AC).
+Hàm trả về `True` (Accepted - AC).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 

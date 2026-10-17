@@ -86,16 +86,65 @@ class ApiClient:
                 "data": resp.json() if resp.status_code == 200 else None
             }
 
+    def refresh_access_token(self) -> bool:
+        """
+        Rotates the token pair via POST /auth/refresh using the stored refresh token.
+        Returns True when a new access token was issued (IT22).
+        """
+        if not self.refresh_token:
+            return False
+        url = f"{self.base_url}/auth/refresh"
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(
+                    url,
+                    json={"refresh_token": self.refresh_token},
+                    headers=self.get_headers()
+                )
+            if resp.status_code in (200, 201):
+                data = resp.json() if resp.content else {}
+                payload = data.get("data", data)
+                access_token = payload.get("access_token")
+                new_refresh = payload.get("refresh_token")
+                if access_token:
+                    self.set_tokens(access_token=access_token, refresh_token=new_refresh or self.refresh_token)
+                    return True
+            self.clear_tokens()
+        except Exception:
+            pass
+        return False
+
+    def _handle_auth_failure(self, resp: httpx.Response):
+        """Clears the local session when the backend reports a disabled/revoked account."""
+        if resp.status_code != 403:
+            return
+        try:
+            error_code = (resp.json() or {}).get("error_code")
+        except Exception:
+            return
+        if error_code in ("AUTH_ACCOUNT_DISABLED", "AUTH_INVALID_REFRESH_TOKEN", "AUTH_TOKEN_EXPIRED"):
+            self.clear_tokens()
+
     def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None) -> httpx.Response:
-        """Sends a POST request to the specified endpoint."""
+        """Sends a POST request, transparently refreshing an expired token once on HTTP 401."""
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
         with httpx.Client(timeout=self.timeout) as client:
-            return client.post(url, json=data or {}, headers=self.get_headers())
+            resp = client.post(url, json=data or {}, headers=self.get_headers())
+            if resp.status_code == 401 and self.refresh_token and endpoint != "auth/refresh":
+                if self.refresh_access_token():
+                    resp = client.post(url, json=data or {}, headers=self.get_headers())
+            self._handle_auth_failure(resp)
+            return resp
 
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> httpx.Response:
-        """Sends a GET request to the specified endpoint."""
+        """Sends a GET request, transparently refreshing an expired token once on HTTP 401."""
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
         with httpx.Client(timeout=self.timeout) as client:
-            return client.get(url, params=params, headers=self.get_headers())
+            resp = client.get(url, params=params, headers=self.get_headers())
+            if resp.status_code == 401 and self.refresh_token and endpoint != "auth/refresh":
+                if self.refresh_access_token():
+                    resp = client.get(url, params=params, headers=self.get_headers())
+            self._handle_auth_failure(resp)
+            return resp

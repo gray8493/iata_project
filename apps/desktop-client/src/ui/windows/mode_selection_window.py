@@ -393,10 +393,10 @@ class ModeSelectionWindow(QMainWindow):
         self.card_web = ModeCard(
             title="Chấm Bài Tập & Đồ Án Web (Web Assignment)",
             badge_text="FRONTEND & BACKEND WEB",
-            description="Phân hệ chuyên trách các bài tập giao diện và ứng dụng web. Thẩm định đa nguồn linh hoạt từ domain website đã deploy hoặc repository GitHub.",
+            description="Phân hệ chuyên trách chấm bài tập giao diện và ứng dụng web từ thư mục bài nộp; mỗi bài gồm link Live URL và link GitHub Repo.",
             features=[
-                "Công nghệ: HTML5, CSS3, JavaScript, PHP (WEB201c, PRF)",
-                "3 chế độ: Live Website Only, GitHub Repo Only, hoặc Hybrid",
+                "Nạp bài nộp từ thư mục: mỗi thư mục đặt tên là MSSV, chứa file .txt có Live URL và GitHub",
+                "Chấm đồng thời cả Live Website và GitHub Repo cho mọi bài",
                 "Playwright Headless Browser kiểm thử tương tác E2E và Responsive",
                 "Thẩm định cây DOM ngữ nghĩa và quét W3C CSS/HTML Linting",
                 "AI Gemini thẩm định bố cục thẩm mỹ và đối soát gian lận chéo"

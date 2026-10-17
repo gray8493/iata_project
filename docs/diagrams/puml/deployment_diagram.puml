@@ -84,7 +84,7 @@ node "Instructor Workstation\n<<Client Machine>>\n[HĐH: Windows 10 / 11 64-bit]
     }
 
     node "Local File Storage\n<<Execution Environment / Local NTFS>>" as LocalStorage #ECEFF1 {
-        database "local_cache.db\n<<SQLite 3 Database>>\n(Offline Testcases & Temp Results)" as LocalDB
+        database "local_grading.db\n<<SQLite 3 Database>>\n(Offline Testcases & Grading Results)" as LocalDB
         artifact "Input Submissions\n[students.csv, *.c, *.java, *.py]" as StudentFiles
         artifact "Output Grade Sheet\n[results.csv (7 columns)]" as ResultCSV
     }

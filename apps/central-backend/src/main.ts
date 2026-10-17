@@ -1,15 +1,17 @@
 import 'reflect-metadata';
 import { json } from 'express';
-import { UnprocessableEntityException, ValidationPipe } from '@nestjs/common';
+import compression = require('compression');
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
+import { createValidationPipe } from './common/validation/validation-pipe.factory';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
+  app.use(compression({ threshold: 1024 }));
   app.use(json({ limit: '7mb' }));
   app.setGlobalPrefix('api/v1');
   const config = app.get(ConfigService);
@@ -19,16 +21,7 @@ async function bootstrap(): Promise<void> {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-    exceptionFactory: (errors) => new UnprocessableEntityException({
-      error_code: 'VALIDATION_FAILED',
-      message: 'Dữ liệu gửi lên không đúng định dạng.',
-      details: errors.map((error) => ({ field: error.property, issues: Object.values(error.constraints ?? {}) })),
-    }),
-  }));
+  app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalInterceptors(new ResponseEnvelopeInterceptor());
 
