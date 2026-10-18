@@ -29,11 +29,11 @@ box "Phân Hệ Máy Chủ Trung Tâm (NestJS Backend & AI Hub)" #E8F5E9
 boundary "Web API Gateway\n(NestJS Server)" as Backend
 control "Auth & Quota\nService (JWT)" as AuthService
 database "CSDL Trung Tâm\n(Central Database)" as CentralDB
-control "Gemini AI\nGateway Hub" as AIHub
+control "AI Hub" as AIHub
 end box
 
 box "Dịch Vụ AI Đám Mây (Cloud AI)" #FFF3E0
-boundary "Google Gemini\n1.5 Flash API" as Gemini
+boundary "AI Model API" as AiModel
 end box
 
 ' ==============================================================================
@@ -112,10 +112,10 @@ deactivate AuthService
 
 Backend -> AIHub : 34. Chuyển tiếp prompt nghiệp vụ đề bài
 activate AIHub
-AIHub -> Gemini : 35. generateContent(prompt sinh các cặp [INPUT, OUTPUT biên])
-activate Gemini
-Gemini --> AIHub : 36. Trả về JSON danh sách testcase biên
-deactivate Gemini
+AIHub -> AiModel : 35. generateContent(prompt sinh các cặp [INPUT, OUTPUT biên])
+activate AiModel
+AiModel --> AIHub : 36. Trả về JSON danh sách testcase biên
+deactivate AiModel
 AIHub -> AuthService : 37. Ghi nhận số Token đã tiêu thụ vào nhật ký
 activate AuthService
 AuthService --> AIHub : 38. Đã ghi nhận token usage
@@ -197,10 +197,10 @@ opt Giảng viên cần phân tích lỗi cho sinh viên bị sai (WA)
     activate Backend
     Backend -> AIHub : 64. Chuyển tiếp yêu cầu phân tích sư phạm
     activate AIHub
-    AIHub -> Gemini : 65. generateContent(đọc code, giải thích logic dòng sai)
-    activate Gemini
-    Gemini --> AIHub : 66. Nhận xét sư phạm ngắn gọn
-    deactivate Gemini
+    AIHub -> AiModel : 65. generateContent(đọc code, giải thích logic dòng sai)
+    activate AiModel
+    AiModel --> AIHub : 66. Nhận xét sư phạm ngắn gọn
+    deactivate AiModel
     AIHub --> Backend : 67. Nội dung nhận xét
     deactivate AIHub
     Backend --> DeskCore : 68. HTTP 200 OK (Nhận xét từ AI)
@@ -218,10 +218,10 @@ opt Giảng viên kiểm tra đạo văn lớp học (Hai vòng lọc)
     DeskUI -> DeskCore : 74. triggerAIVerifyPlagiarism(suspiciousPairs)
     DeskCore -> Backend : 75. Vòng 2: HTTP POST /api/v1/ai/verify-plagiarism (Gửi cặp nghi vấn > 80%)
     activate Backend
-    Backend -> Gemini : 76. Phân tích đối chiếu cấu trúc biến/hàm
-    activate Gemini
-    Gemini --> Backend : 77. Trích xuất bằng chứng sao chép
-    deactivate Gemini
+    Backend -> AiModel : 76. Phân tích đối chiếu cấu trúc biến/hàm
+    activate AiModel
+    AiModel --> Backend : 77. Trích xuất bằng chứng sao chép
+    deactivate AiModel
     Backend --> DeskCore : 78. Trả về kết quả xác thực & bằng chứng
     deactivate Backend
     DeskCore --> DeskUI : 79. Hiển thị bảng đối sánh Side-by-Side kèm bằng chứng
@@ -243,7 +243,7 @@ Admin -> WebUI : 86. Mở Web Admin Dashboard xem báo cáo sử dụng AI & aud
 activate WebUI
 WebUI -> Backend : 87. HTTP GET /api/v1/admin/reports & /api-quota-logs
 activate Backend
-Backend -> CentralDB : 88. Truy vấn nhật ký tiêu thụ Token Gemini & danh sách Giảng viên
+Backend -> CentralDB : 88. Truy vấn nhật ký tiêu thụ Token AI Hub & danh sách Giảng viên
 activate CentralDB
 CentralDB --> Backend : 89. Dữ liệu báo cáo & nhật ký kiểm toán
 deactivate CentralDB

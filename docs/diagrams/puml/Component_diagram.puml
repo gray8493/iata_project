@@ -76,11 +76,11 @@ IPrismaORM -- CentralTables
 ' 3. DỊCH VỤ ĐÁM MÂY (Cloud AI Services)
 ' ==============================================================================
 cloud "Dịch Vụ AI Đám Mây (Cloud AI)" #FFF3E0 {
-    [Google Gemini 3.8 Flash API] as GeminiAPI
+    [AI Model API] as AiApi
 }
-interface "Gemini REST / SDK" as IGeminiAPI
-GeminiAPI - IGeminiAPI
-AIHubGateway ..> IGeminiAPI : On-Demand / Prompt
+interface "AI Gateway REST / SDK" as IAiApi
+AiApi - IAiApi
+AIHubGateway ..> IAiApi : On-Demand / Prompt
 
 ' ==============================================================================
 ' 4. PHÂN HỆ MÁY TRẠM GIẢNG VIÊN (Desktop App Client - PyQt6 / Python)

@@ -84,7 +84,7 @@ node "Instructor Workstation\n<<Client Machine>>\n[HĐH: Windows 10 / 11 64-bit]
     }
 
     node "Local File Storage\n<<Execution Environment / Local NTFS>>" as LocalStorage #ECEFF1 {
-        database "local_cache.db\n<<SQLite 3 Database>>\n(Offline Testcases & Temp Results)" as LocalDB
+        database "local_grading.db\n<<SQLite 3 Database>>\n(Offline Testcases & Grading Results)" as LocalDB
         artifact "Input Submissions\n[students.csv, *.c, *.java, *.py]" as StudentFiles
         artifact "Output Grade Sheet\n[results.csv (7 columns)]" as ResultCSV
     }
@@ -116,12 +116,12 @@ node "Administrator Workstation\n<<Client Machine>>\n[HĐH: Windows / macOS / Li
 ' ==============================================================================
 ' 3. APPLICATION SERVER TIER (DỊCH VỤ ĐÁM MÂY - RENDER.COM CLOUD PAAS)
 ' ==============================================================================
-node "Render.com Cloud Platform\n<<Managed Cloud Web Service>>\n[Linux Containerized Runtime - Node.js 20 LTS]\nEndpoint: https://iata-project.onrender.com" as ServerNode #E8F5E9 {
+node "Render.com Cloud Platform\n<<Managed Cloud Web Service>>\n[Linux Containerized Runtime - Node.js 20 LTS]\nEndpoint: https://iata-project-o4z6.onrender.com" as ServerNode #E8F5E9 {
 
     artifact "central-backend\n<<Backend Web Service Artifact>>\n[NestJS 10 / Node.js 20 LTS]" as BackendArtifact {
         component "API Gateway & Router\n(Swagger / OpenAPI Endpoint: /api/v1)" as ApiRouter
         component "Auth & RBAC Guard\n(Passport-JWT, Bcrypt Validator)" as AuthGuard
-        component "AI Gateway & Quota Guard\n(Gemini Token Counter & Limiter)" as AIGateway
+        component "AI Gateway & Quota Guard\n(AI Token Counter & Limiter)" as AIGateway
         component "In-Memory Rate Limiter\n(Sliding Window Throttler Storage)" as ThrottlerEngine
         component "Audit Logs Service\n(Token Usage & Audit Trail)" as AuditService
         component "ORM Engine\n(Prisma 5 Client)" as OrmEngine
@@ -142,8 +142,8 @@ node "Neon Serverless Postgres\n<<Managed Cloud Database Service>>\n[Lakebase Po
 ' 5. EXTERNAL CLOUD AI SERVICE TIER (DỊCH VỤ TRÍ TUỆ NHÂN TẠO ĐÁM MÂY)
 ' ==============================================================================
 node "Google Cloud Platform (GCP)\n<<Public Cloud Infrastructure>>\nRegion: us-central1 / asia-southeast1" as CloudAINode #FFFDE7 {
-    node "Google AI Foundation Services\n<<Managed Cloud PaaS>>" as GeminiEnv #FFFFFF {
-        component "Google Gemini 3.8 Flash API\n<<LLM Inference Endpoint>>\n[generativelanguage.googleapis.com]" as GeminiAPI
+    node "Google AI Foundation Services\n<<Managed Cloud PaaS>>" as AiEnv #FFFFFF {
+        component "AI Model API\n<<LLM Inference Endpoint>>\n[generativelanguage.googleapis.com]" as AiApi
     }
 }
 
@@ -160,8 +160,8 @@ SyncClient -- ApiRouter : **HTTPS / TLS 1.3**\n[TCP Port 443]\n(JSON REST API, B
 ' Backend kết nối CSDL Neon PostgreSQL qua SSL connection pool
 OrmEngine -- PostgresDB : **PostgreSQL Native Protocol over TLS**\n[Port 5432 / Prisma Pooled & Direct URL]
 
-' Backend gọi Google Gemini AI Cloud
-AIGateway -- GeminiAPI : **HTTPS / REST & gRPC**\n[TCP Port 443 / TLS 1.3]\n(Gemini SDK, Secure API Key Header)
+' Backend gọi AI Cloud
+AIGateway -- AiApi : **HTTPS / REST & gRPC**\n[TCP Port 443 / TLS 1.3]\n(AI SDK, Secure API Key Header)
 
 ' ==============================================================================
 ' GHI CHÚ KIẾN TRÚC & MẪU THIẾT KẾ (DESIGN PATTERNS SPECIFICATION NOTES)

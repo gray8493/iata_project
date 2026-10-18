@@ -1,7 +1,7 @@
 """
 AITA Desktop Client - Testcase Manager & AI Generator Dialog (PyQt6)
 UC-09: Manage Black-box Testcases Manually (Add / Edit / Delete Input/Output)
-UC-10: Auto-Generate Boundary Testcases with Gemini AI
+UC-10: Auto-Generate Boundary Testcases with AI Hub
 UC-11: Configure 7 Output Matching Strategies
 """
 
@@ -15,7 +15,7 @@ from PyQt6.QtGui import QCursor, QGuiApplication, QFont
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox
+    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox, QFileDialog
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -29,12 +29,15 @@ from ui.styles.theme import (
 )
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.document_reader import (
+    MAX_PROBLEM_CHARS, DocumentReadError, read_document_text
+)
 
 logger = logging.getLogger("AITA.TestcaseDialog")
 
 
 # ==============================================================================
-# WORKER LUỒNG PHỤ GỌI GEMINI AI QUA CENTRAL BACKEND
+# WORKER LUỒNG PHỤ GỌI AI HUB (OPENROUTER ĐA TÀI KHOẢN) QUA CENTRAL BACKEND
 # ==============================================================================
 class AiTestcaseWorker(QThread):
     finished = pyqtSignal(dict)
@@ -222,18 +225,43 @@ class TestcaseEditDialog(QDialog):
         layout.addLayout(footer)
 
     def _validate_and_save(self):
+        # IT06: validate the manual black-box testcase before persisting to LOCAL_TESTCASES
+        question_number = self.cb_q.currentText().strip() or "Q1"
+        input_data = self.txt_input.toPlainText()
         output = self.txt_output.toPlainText()
+        score_weight = float(self.sp_weight.value())
+        time_limit_ms = int(self.sp_time.value())
+        memory_limit_mb = int(self.sp_mem.value())
+
+        errors = []
         if not output.strip():
-            QMessageBox.warning(self, "Thiếu Dữ Liệu", "Kết quả mong đợi (stdout) không được để trống.")
+            errors.append("Kết quả mong đợi (stdout) không được để trống.")
+        if score_weight <= 0:
+            errors.append("Trọng số điểm phải lớn hơn 0.")
+        if time_limit_ms <= 0:
+            errors.append("Giới hạn thời gian phải lớn hơn 0 ms.")
+        if memory_limit_mb <= 0:
+            errors.append("Giới hạn bộ nhớ phải lớn hơn 0 MB.")
+        if len(input_data.encode("utf-8")) > 256 * 1024:
+            errors.append("Dữ liệu đầu vào (stdin) vượt quá giới hạn 256 KB.")
+        if len(output.encode("utf-8")) > 256 * 1024:
+            errors.append("Kết quả mong đợi (stdout) vượt quá giới hạn 256 KB.")
+
+        if errors:
+            QMessageBox.warning(
+                self,
+                "Dữ Liệu Không Hợp Lệ",
+                "Vui lòng kiểm tra lại cấu hình testcase:\n\n• " + "\n• ".join(errors)
+            )
             return
 
         self.testcase_data = {
-            "question_number": self.cb_q.currentText().strip() or "Q1",
-            "input_data": self.txt_input.toPlainText(),
-            "expected_output": self.txt_output.toPlainText(),
-            "score_weight": self.sp_weight.value(),
-            "time_limit_ms": self.sp_time.value(),
-            "memory_limit_mb": self.sp_mem.value()
+            "question_number": question_number,
+            "input_data": input_data,
+            "expected_output": output,
+            "score_weight": score_weight,
+            "time_limit_ms": time_limit_ms,
+            "memory_limit_mb": memory_limit_mb
         }
         self.accept()
 
@@ -294,9 +322,27 @@ class AiTestcaseDialog(QDialog):
         v_prompt = QVBoxLayout()
         v_prompt.setSpacing(8)
 
+        prompt_head = QHBoxLayout()
+        prompt_head.setSpacing(8)
+
         lbl_prompt = QLabel("Đề bài:", self)
         lbl_prompt.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_prompt.addWidget(lbl_prompt)
+        prompt_head.addWidget(lbl_prompt)
+        prompt_head.addStretch(1)
+
+        # Nút nhập đề bài từ file Word / PDF / văn bản để AI sinh testcase
+        self.btn_import_doc = QPushButton("Nhập Từ File Đề Bài", self)
+        self.btn_import_doc.setProperty("class", "SecondaryBtn")
+        self.btn_import_doc.setFixedHeight(32)
+        self.btn_import_doc.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_import_doc.setToolTip(
+            "Nhập đề bài từ file Word (.docx), PDF (.pdf) hoặc văn bản (.txt, .md) "
+            "để AI sinh testcase."
+        )
+        self.btn_import_doc.clicked.connect(self._import_problem_document)
+        prompt_head.addWidget(self.btn_import_doc)
+
+        v_prompt.addLayout(prompt_head)
 
         self.txt_prompt = QTextEdit(self)
         self.txt_prompt.setFixedHeight(85)
@@ -310,6 +356,13 @@ class AiTestcaseDialog(QDialog):
             }
         """)
         v_prompt.addWidget(self.txt_prompt)
+
+        self.lbl_doc_name = QLabel("", self)
+        self.lbl_doc_name.setStyleSheet(f"font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
+        self.lbl_doc_name.setWordWrap(True)
+        self.lbl_doc_name.setVisible(False)
+        v_prompt.addWidget(self.lbl_doc_name)
+
         layout.addLayout(v_prompt)
 
         # 2. Hàng điều khiển: Số lượng testcase + Tùy chọn thu gọn + Nút Sinh / Hủy
@@ -465,6 +518,69 @@ class AiTestcaseDialog(QDialog):
 
     def _toggle_options(self, checked: bool):
         self.frame_options.setVisible(checked)
+
+    def _import_problem_document(self):
+        """Loads a problem statement from a Word/PDF/text file into the prompt box."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Chọn File Đề Bài",
+            str(Path.home()),
+            "Đề bài (*.docx *.pdf *.txt *.md *.csv *.log);;"
+            "Word (*.docx);;PDF (*.pdf);;Văn bản (*.txt *.md *.csv *.log);;Tất cả (*.*)"
+        )
+        if not file_path:
+            return
+
+        try:
+            text = read_document_text(file_path)
+        except DocumentReadError as ex:
+            QMessageBox.warning(self, "Không Đọc Được File", str(ex))
+            return
+        except Exception as ex:
+            QMessageBox.warning(self, "Lỗi Đọc File", f"Không thể đọc file đề bài:\n{ex}")
+            return
+
+        if not text.strip():
+            QMessageBox.warning(
+                self, "File Rỗng",
+                "Không tìm thấy nội dung văn bản trong file đã chọn."
+            )
+            return
+
+        existing = self.txt_prompt.toPlainText().strip()
+        if existing:
+            choice = QMessageBox.question(
+                self,
+                "Ô Đề Bài Đã Có Nội Dung",
+                "Ô đề bài hiện đang có nội dung.\n\n"
+                "Chọn 'Yes' để THAY THẾ bằng nội dung file vừa chọn.\n"
+                "Chọn 'No' để NỐI THÊM vào cuối nội dung hiện tại.",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes
+            )
+            if choice == QMessageBox.StandardButton.Cancel:
+                return
+            if choice == QMessageBox.StandardButton.No:
+                text = f"{existing}\n\n{text}"
+
+        note = ""
+        if len(text) > MAX_PROBLEM_CHARS:
+            text = text[:MAX_PROBLEM_CHARS]
+            note = f" — chỉ dùng {MAX_PROBLEM_CHARS:,} ký tự đầu (giới hạn máy chủ AI)"
+            QMessageBox.information(
+                self,
+                "Đề Bài Quá Dài",
+                f"Nội dung file vượt quá {MAX_PROBLEM_CHARS:,} ký tự.\n"
+                "Chỉ phần đầu được đưa vào để sinh testcase."
+            )
+
+        self.txt_prompt.setPlainText(text)
+        self.lbl_doc_name.setText(
+            f"Đã nhập đề bài từ: {Path(file_path).name} ({len(text):,} ký tự){note}"
+        )
+        self.lbl_doc_name.setVisible(True)
 
     def _start_generation(self):
         prompt = self.txt_prompt.toPlainText().strip()
@@ -751,6 +867,14 @@ class TestcaseDialog(QDialog):
         tool_row.addWidget(self.btn_add_tc)
 
         tl_layout.addLayout(tool_row)
+
+        # UX tổng trọng số: GV thấy ngay bảng quy đổi về thang 10 mà không phải chấm thử
+        total_row = QHBoxLayout()
+        total_row.addStretch(1)
+        self.lbl_tc_total = QLabel("", tab_tc)
+        self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+        total_row.addWidget(self.lbl_tc_total)
+        tl_layout.addLayout(total_row)
 
         # Bảng danh sách Testcase
         self.table_tc = QTableWidget(tab_tc)
@@ -1047,7 +1171,22 @@ class TestcaseDialog(QDialog):
             filtered = [tc for tc in self._all_testcases if tc.get("question_number", "").upper() == q_filter.upper()]
             self._render_testcases_table(filtered)
 
+    def _update_tc_total_label(self):
+        """Hiển thị tổng trọng số testcases của đợt để hiểu quy đổi thang điểm 10."""
+        cases = getattr(self, "_all_testcases", []) or []
+        total_weight = sum(float(tc.get("score_weight", 1.0) or 0.0) for tc in cases)
+        if total_weight <= 0:
+            self.lbl_tc_total.setText("Chưa có testcase nào — hãy thêm testcase trước khi bắt đầu chấm.")
+            self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: #DC2626; line-height: 1.4;")
+            return
+        per_unit = 10.0 / total_weight
+        self.lbl_tc_total.setText(
+            f"Tổng trọng số: {total_weight:.1f} — đạt đủ mới được 10/10; mỗi 1 trọng số tương đương {per_unit:.1f} điểm."
+        )
+        self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+
     def _render_testcases_table(self, testcases: List[Dict[str, Any]]):
+        self._update_tc_total_label()
         self.table_tc.setRowCount(len(testcases))
         for r, tc in enumerate(testcases):
             self.table_tc.setRowHeight(r, 52)

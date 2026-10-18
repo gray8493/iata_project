@@ -17,7 +17,7 @@ skinparam note {
     FontSize 10
 }
 
-title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, NestJS Backend & Gemini AI)
+title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity Diagram - End-to-End Grading & AI Pipeline)\nHệ Sinh Thái AITA (Desktop App, Sandbox Runner, NestJS Backend & AI Hub)
 
 ' ==============================================================================
 ' ĐỊNH NGHĨA CÁC VÙNG PHÂN QUYỀN (SWIMLANES)
@@ -27,7 +27,7 @@ title Sơ Đồ Hoạt Động Quy Trình Chấm Bài & Tích Hợp AI (Activity
 |#EDE7F6|Desktop App UI (PyQt6 Client)|
 |#E8F5E9|Desktop Core & Sandbox Runner (Local Engine)|
 |#FFF3E0|Web Server Backend (NestJS Central API)|
-|#FCE4EC|Google Gemini AI Hub (Cloud AI)|
+|#FCE4EC|AI Hub (Cloud AI)|
 
 ' ==============================================================================
 ' 1. GIAI ĐOẠN KHỞI ĐỘNG & THIẾT LẬP ĐỢT CHẤM (SETUP & CONFIGURATION)
@@ -77,13 +77,13 @@ if (Loại bài thi cần chấm?) then ([Bài tập Console (C/Java/Python)])
             :Nhập thủ công testcase;
         else ([Còn Quota])
             :Trừ lượt hạn ngạch;
-            :Chuyển tiếp prompt chuẩn hóa sang Google Gemini;
+            :Chuyển tiếp prompt chuẩn hóa sang AI Hub;
 
-            |Google Gemini AI Hub (Cloud AI)|
+            |AI Hub (Cloud AI)|
             :Phân tích đề bài & Sinh các cặp [INPUT, OUTPUT biên];
 
             |Web Server Backend (NestJS Central API)|
-            :Nhận kết quả JSON testcase từ Gemini;
+            :Nhận kết quả JSON testcase từ AI Hub;
             :Trả về HTTP 200 OK cho Desktop App;
 
             |Desktop App UI (PyQt6 Client)|
@@ -184,7 +184,7 @@ while (Còn bài nộp sinh viên trong hàng đợi?) is ([Có])
         end note
         :Playwright chụp ảnh màn hình giao diện (full-page screenshot);
         if (Bật tiêu chí đánh giá giao diện AI & Có mạng?) then ([Có])
-            :Gửi ảnh chụp màn hình lên Gemini AI Hub chấm điểm thẩm mỹ (SUI);
+            :Gửi ảnh chụp màn hình lên AI Hub chấm điểm thẩm mỹ (SUI);
         else ([Chấm Offline])
             :Tự động phân bổ lại trọng số cho 3 tiêu chí Offline;
         endif
@@ -228,9 +228,9 @@ fork
         
         |Web Server Backend (NestJS Central API)|
         :Kiểm tra token & Trừ quota AI;
-        :Gửi prompt sư phạm sang Google Gemini;
+        :Gửi prompt sư phạm sang AI Hub;
         
-        |Google Gemini AI Hub (Cloud AI)|
+        |AI Hub (Cloud AI)|
         :Phân tích nguyên nhân lỗi logic;
         :Sinh nhận xét sư phạm ngắn (3-5 câu gợi ý tư duy, không giải sẵn);
         
@@ -266,9 +266,9 @@ fork again
             :Bấm nút **[✨ AI Phân tích bằng chứng]** (Vòng 2 - AI Semantic);
             
             |Web Server Backend (NestJS Central API)|
-            :Chuyển tiếp cấu trúc code 2 bài nghi vấn sang Gemini AI;
+            :Chuyển tiếp cấu trúc code 2 bài nghi vấn sang AI Hub;
             
-            |Google Gemini AI Hub (Cloud AI)|
+            |AI Hub (Cloud AI)|
             :Phân tích thủ thuật đảo hàm, đổi tên biến, code rác;
             :Trích xuất biên bản bằng chứng sao chép;
             

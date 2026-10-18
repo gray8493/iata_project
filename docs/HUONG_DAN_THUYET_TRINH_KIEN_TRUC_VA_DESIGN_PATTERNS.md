@@ -45,8 +45,8 @@ Hệ thống AITA không sử dụng mô hình cơ sở dữ liệu tập trung 
      - *Tốc độ siêu nhanh*: Chấm hàng trăm bài nộp tức thì không có độ trễ mạng (Network Latency = 0ms).
      - *Chế độ WAL (Write-Ahead Logging)*: Đảm bảo khả năng ghi đồng thời và chống hỏng cơ sở dữ liệu khi máy tính đột ngột mất điện.
 2. **Central PostgreSQL trên Neon Cloud**:
-   - **Mục đích**: Quản lý tài khoản Giảng viên, phân quyền Quản trị viên (RBAC) và kiểm soát hạn mức Token sử dụng mô hình AI Gemini (AI Quota Management).
-   - **Ưu điểm**: Đồng bộ quota đa thiết bị, bảo vệ khóa API Google Gemini không bị lộ ra phía Client.
+   - **Mục đích**: Quản lý tài khoản Giảng viên, phân quyền Quản trị viên (RBAC) và kiểm soát hạn mức Token sử dụng mô hình AI Hub (AI Quota Management).
+   - **Ưu điểm**: Đồng bộ quota đa thiết bị, bảo vệ khóa API AI Hub không bị lộ ra phía Client.
 
 ---
 
@@ -155,7 +155,7 @@ erDiagram
 > 
 > *Thứ nhất là **Bảo mật và Tốc độ**: Toàn bộ bài nộp của sinh viên, danh sách mã sinh viên và kết quả chấm thi được lưu trữ trực tiếp vào cơ sở dữ liệu **SQLite cục bộ** trên máy Giảng viên. Chúng em kích hoạt chế độ **WAL (Write-Ahead Logging)** và bật chế độ **Foreign Key Constraints** chặt chẽ trong file `db_manager.py`. Nhờ vậy, quá trình chấm bài diễn ra tức thì với độ trễ bằng 0ms, không phụ thuộc vào internet và bài thi tuyệt đối an toàn trên máy trạm.*
 > 
-> *Thứ hai là **Quản lý Hạn ngạch AI**: Cơ sở dữ liệu **PostgreSQL trung tâm** đặt trên nền tảng Neon Cloud chỉ lưu trữ danh tính Giảng viên và nhật ký sử dụng Token của mô hình Google Gemini. Mô hình này giúp Nhà trường kiểm soát chi phí gọi AI tập trung và cấp phát hạn ngạch theo từng ngày cho mỗi Giảng viên."*
+> *Thứ hai là **Quản lý Hạn ngạch AI**: Cơ sở dữ liệu **PostgreSQL trung tâm** đặt trên nền tảng Neon Cloud chỉ lưu trữ danh tính Giảng viên và nhật ký sử dụng Token của mô hình AI Hub. Mô hình này giúp Nhà trường kiểm soát chi phí gọi AI tập trung và cấp phát hạn ngạch theo từng ngày cho mỗi Giảng viên."*
 
 ---
 

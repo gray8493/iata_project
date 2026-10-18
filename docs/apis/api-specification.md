@@ -22,7 +22,7 @@ Authorization: Bearer <access_token>
 
 ### 1.2.1. Giới hạn tần suất yêu cầu
 - API đã xác thực thông thường: tối đa 80 request/phút/User.
-- Bốn API tạo nội dung Gemini: tối đa 15 request/phút/User, áp dụng chung cho nhóm endpoint AI.
+- Bốn API tạo nội dung AI Hub: tối đa 15 request/phút/User, áp dụng chung cho nhóm endpoint AI.
 - Đăng nhập: 10 request/phút/IP; refresh token: 30 request/phút/IP.
 - Khi vượt giới hạn, backend trả HTTP 429 với `error_code: RATE_LIMIT_EXCEEDED`. Giới hạn này tách biệt với quota token AI theo ngày.
 
@@ -462,7 +462,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 ---
 
 #### 3.4.2. `POST /api/v1/ai/generate-testcases` (UC-10)
-* **Mô tả**: Gọi Google Gemini AI Hub để tự động sinh testcase biên (Boundary Testcases) dựa trên đề bài.
+* **Mô tả**: Gọi AI Hub để tự động sinh testcase biên (Boundary Testcases) dựa trên đề bài.
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
   - `problem_description`: Kiểu chuỗi, độ dài từ 20 đến 5000 ký tự, bắt buộc (`required`).
@@ -609,7 +609,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 ---
 
 #### 3.4.5. `POST /api/v1/ai/evaluate-web-ui` (UC-19 Web Multimodal)
-* **Mô tả**: Đánh giá thẩm mỹ và độ tương thích giao diện trang web bài thi qua ảnh chụp màn hình bằng Gemini Vision.
+* **Mô tả**: Đánh giá thẩm mỹ và độ tương thích giao diện trang web bài thi qua ảnh chụp màn hình bằng AI Vision (Central AI Gateway gọi OpenRouter).
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
   - `screenshot_base64`: Chuỗi base64 ảnh chụp màn hình (PNG/JPEG, tối đa 5MB), bắt buộc (`required`).

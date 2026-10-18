@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - develop
   pull_request:
     branches:
       - master
+      - develop
   workflow_dispatch:
 
 concurrency:
@@ -189,9 +191,12 @@ jobs:
           gcc --version
           g++ --version
 
-      - name: Run Pytest Test Suite
+      - name: Run Pytest Test Suite (Desktop + Monorepo)
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-          python -m pytest tests/ apps/desktop-client/tests/ -v --continue-on-collection-errors || echo "No tests to run or tests collected."
+          python -m pytest tests/ apps/desktop-client/tests/ -v --continue-on-collection-errors
+          if ($LASTEXITCODE -ne 0) { throw "Pytest suite failed (exit $LASTEXITCODE)" }
 
   # ============================================================================
   # 5. MONOREPO STRUCTURE & INTEGRATION VERIFICATION

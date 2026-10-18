@@ -6,6 +6,7 @@ from .testcase_dialog import TestcaseDialog
 from .settings_dialog import SettingsDialog
 from .submission_detail_dialog import SubmissionDetailDialog
 from .plagiarism_dialog import PlagiarismDialog
+from .web_session_manager_dialog import WebSessionManagerDialog
 
 __all__ = [
     "SessionDialog",
@@ -15,4 +16,5 @@ __all__ = [
     "SettingsDialog",
     "SubmissionDetailDialog",
     "PlagiarismDialog",
+    "WebSessionManagerDialog",
 ]

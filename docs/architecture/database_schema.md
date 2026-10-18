@@ -6,7 +6,7 @@
 
 Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở dữ liệu (Database Schema) cho toàn bộ hệ sinh thái **AITA**, bao gồm:
 
-1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng Gemini AI.
+1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng AI Hub.
 2. **Cơ sở dữ liệu Cục bộ (Local Database - SQLite3 Client)**: Nằm trực tiếp trên máy trạm của Giảng viên phục vụ Desktop App (PyQt6) vận hành chấm điểm Offline-first tốc độ cao, lưu trữ toàn bộ dữ liệu lớp học, bài nộp, testcase và kết quả điểm thi **hoàn toàn cục bộ, không tải lên Cloud**.
 
 ---
@@ -78,7 +78,6 @@ erDiagram
     LOCAL_CLASSES ||--o{ LOCAL_STUDENT_SUBMISSIONS : "manages"
     LOCAL_CLASSES ||--o{ LOCAL_TEST_CASES : "contains"
     LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_GRADING_RESULTS : "evaluated_by"
-    LOCAL_STUDENT_SUBMISSIONS ||--o{ LOCAL_WEB_GRADING_RESULTS : "web_evaluated_by"
     LOCAL_CLASSES ||--o{ LOCAL_PLAGIARISM_REPORTS : "checks"
 
     LOCAL_CLASSES {
@@ -98,8 +97,7 @@ erDiagram
         integer id PK "Tự tăng"
         integer class_id FK "Thuộc đợt chấm nào"
         varchar student_mssv "Mã số sinh viên (MSSV)"
-        varchar student_name "Họ và tên sinh viên (nếu có)"
-        varchar source_file_path "Đường dẫn tuyệt đối file bài nộp trên đĩa"
+        varchar source_file_path "Đường dẫn tuyệt đối: file (1 câu) hoặc thư mục SV (nhiều câu)"
         varchar status "Trạng thái: PENDING | GRADED | ERROR"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
@@ -131,7 +129,7 @@ erDiagram
         numeric memory_used_mb "Dung lượng RAM tiêu thụ tối đa (MB)"
         text compile_log "Thông báo lỗi biên dịch (nếu có CE)"
         text diff_details "Chi tiết khác biệt stdout và expected output"
-        text ai_feedback "Gợi ý sửa lỗi từ Gemini AI (On-Demand)"
+        text ai_feedback "Gợi ý sửa lỗi từ AI Hub (On-Demand)"
         numeric manual_override_score "Điểm số giảng viên ghi đè thủ công"
         text manual_override_reason "Lý do ghi đè điểm"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
@@ -139,25 +137,31 @@ erDiagram
         datetime graded_at "Thời điểm chấm xong"
     }
 
-    LOCAL_WEB_GRADING_RESULTS {
+    LOCAL_WEB_SUBMISSIONS {
         integer id PK "Tự tăng"
-        integer submission_id FK "Bài nộp Web tương ứng"
-        varchar website_url "Domain Web đã deploy (nếu có)"
-        varchar github_url "Link Repo GitHub (nếu có)"
-        varchar grading_mode "LIVE_ONLY | REPO_ONLY | HYBRID"
-        varchar entrypoint_file "index.html | index.php"
+        varchar course_code "Mã môn học (WEB201c)"
+        varchar class_name "Lớp học (SE1806)"
+        varchar mssv "Mã số sinh viên"
+        varchar name "Họ tên sinh viên"
+        varchar live_url "Domain Web đã deploy (nếu có)"
+        varchar repo_url "Link Repo GitHub (nếu có)"
+        varchar mode "LIVE_ONLY | REPO_ONLY | HYBRID"
         numeric score_dom "Điểm DOM & thẻ ngữ nghĩa (0.0 - 10.0)"
-        numeric score_lint "Điểm W3C & CSS Linting (0.0 - 10.0)"
-        numeric score_func "Điểm Playwright E2E test (0.0 - 10.0)"
-        numeric score_ui "Điểm giao diện Gemini Vision (0.0 - 10.0)"
-        numeric final_score "Điểm tổng hợp theo Rubric (0.0 - 10.0)"
-        varchar final_verdict "PASSED | PARTIAL | FAILED | TLE"
-        text screenshot_path "Đường dẫn file ảnh chụp toàn màn hình .png"
-        text rubric_log "Chi tiết JSON kết quả từng tiêu chí kiểm thử"
-        text ai_feedback "Gợi ý sư phạm về giao diện từ Gemini AI"
+        numeric score_lint "Điểm CSS Linting qua TinyCSS2 (0.0 - 10.0)"
+        numeric score_e2e "Điểm kiểm thử tương tác/JS (0.0 - 10.0)"
+        numeric score_ui "Điểm giao diện AI Vision (0.0 - 10.0)"
+        numeric total_score "Điểm tổng hợp theo Rubric (0.0 - 10.0)"
+        varchar verdict "PENDING | PASSED | PARTIAL | FAILED | MISMATCH"
+        text rubric_log "Nhật ký thẩm định theo từng tiêu chí"
+        text screenshot_path "Đường dẫn ảnh chụp toàn trang"
+        text ai_feedback "Nhận xét giao diện từ AI Vision"
+        text source_folder_path "Thư mục bài nộp cục bộ"
+        varchar display_mssv "MSSV hiển thị"
+        varchar link_file_name "Tên file .txt chứa link"
+        boolean link_changed "Cờ link .txt đã đổi"
+        boolean is_missing "Cờ thiếu/không truy cập được"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
-        datetime deleted_at "Thời điểm xóa mềm"
-        datetime graded_at "Thời điểm chấm xong"
+        datetime created_at "Thời điểm thêm bài nộp"
     }
 
     LOCAL_PLAGIARISM_REPORTS {
@@ -203,7 +207,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
+### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch AI Hub)
 
 * **Mục đích**: Quản trị viên (Admin) cấu hình trần số Token gọi AI tối đa trong ngày cho từng Giảng viên nhằm kiểm soát chi phí.
 
@@ -222,7 +226,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ### 2.4. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
 
-* **Mục đích**: Ghi vết minh bạch từng lượt gọi Gemini (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
+* **Mục đích**: Ghi vết minh bạch từng lượt gọi AI Hub (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
 
 | Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                     | Giá Trị Mặc Định  | Ý Nghĩa Nghiệp Vụ                                 |
 | :-------------------- | :-------------- | :------------------------------ | :--------------------- | :---------------------------------------------------- |
@@ -231,7 +235,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`. |
 | `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
 | `prompt_tokens`     | `INTEGER`     | **NOT NULL**              | `0`                  | Số token của prompt gửi đi.                       |
-| `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ Gemini.            |
+| `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ AI Hub.            |
 | `total_tokens`      | `INTEGER`     | **NOT NULL**              | `0`                  | Tổng token = prompt + completion.                    |
 | `is_deleted`        | `BOOLEAN`     | **NOT NULL**              | `FALSE`              | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa). |
 | `deleted_at`        | `TIMESTAMPTZ` |                                 | `NULL`               | Thời điểm xóa mềm nhật ký.                     |
@@ -279,15 +283,17 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 
 ### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ `students.csv`)
 
-* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File` hoặc nạp folder bài thi).
+* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File`) hoặc quét thư mục bài thi (mỗi sinh viên một thư mục con, mỗi câu một file `Q1`, `Q2`...).
+* **Chế độ chấm (theo `source_file_path`)**:
+    * Trỏ vào **FILE mã nguồn** → chấm chuyên sâu (làm refactoring-bounded) một câu.
+    * Trỏ vào **THƯ MỤC của sinh viên** → chấm nhiều câu (multi-question): mỗi testcase tự ánh xạ file mã nguồn `Q<nn>.<ext>` trong thư mục sinh viên theo trường `question_number` của nó.
 
 | Tên Cột            | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                   |
 | :------------------- | :-------------- | :----------------------------------------------------- | :------------------------------------------------------ |
 | `id`               | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                    | Khóa tự tăng.                                        |
 | `class_id`         | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                |
-| `student_mssv`     | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên (MSSV).                              |
-| `student_name`     | `TEXT`        |                                                        | Họ và tên sinh viên (nếu có trong danh sách).     |
-| `source_file_path` | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối của file trên đĩa cứng. |
+| `student_mssv`     | `TEXT`        | **NOT NULL**                                     | Mã số sinh viên (MSSV) — định danh duy nhất của bài nộp (bảng không lưu họ tên; tên chỉ dùng bộ nhớ phần UI). |
+| `source_file_path` | `TEXT`        | **NOT NULL**                                     | Đường dẫn tuyệt đối: file mã nguồn (chấm 1 câu) hoặc thư mục bài làm của sinh viên (chấm nhiều câu). |
 | `status`           | `TEXT`        | **NOT NULL DEFAULT 'PENDING'**                   | Trạng thái bài nộp (`PENDING`, `GRADED`, `ERROR`). |
 | `is_deleted`       | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).          |
 | `deleted_at`       | `DATETIME`    |                                                        | Thời điểm xóa mềm bài nộp.                       |
@@ -320,42 +326,50 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `submission_id`          | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Console tương ứng.                                |
 | `matching_strategy`      | `TEXT`        | **NOT NULL**                                                 | Tổ hợp các cờ tiêu chí so khớp đầu ra đã áp dụng. |
 | `calculated_score`       | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm số tính toán được (0.0 - 10.0).                   |
-| `final_verdict`          | `TEXT`        | **NOT NULL**                                                 | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`.  |
+| `final_verdict`          | `TEXT`        | **NOT NULL**                                                 | Phán quyết: `AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`. Với bài nộp nhiều câu, phán quyết tổng là **trọng tài phổ quát nghiêm ngặt nhất** đã gặp (thứ tự nghiêm ngặt `CE > TLE/MLE > RE > WA > AC`) — ví dụ câu 1 `WA` + câu 4 `CE` cho ra `CE`. |
 | `execution_time_ms`      | `REAL`        | **DEFAULT 0.0**                                              | Thời gian thực thi trung bình của các testcase (ms).        |
 | `memory_used_mb`         | `REAL`        | **DEFAULT 0.0**                                              | Dung lượng bộ nhớ RAM tối đa tiến trình tiêu thụ (MB).      |
 | `compile_log`            | `TEXT`        |                                                                    | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`.          |
 | `diff_details`           | `TEXT`        |                                                                    | Chi tiết so sánh sai lệch giữa stdout và expected output.   |
-| `ai_feedback`            | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi Gemini AI (On-Demand).    |
+| `ai_feedback`            | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi AI Hub (On-Demand).       |
 | `manual_override_score`  | `REAL`        |                                                                    | Điểm số do giảng viên điều chỉnh/ghi đè thủ công.          |
 | `manual_override_reason` | `TEXT`        |                                                                    | Lý do giảng viên ghi đè điểm số.                            |
 | `is_deleted`             | `INTEGER`     | **DEFAULT 0**                                                | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                 |
 | `deleted_at`             | `DATETIME`    |                                                                    | Thời điểm xóa mềm kết quả.                              |
 | `graded_at`              | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                                | Thời điểm chấm xong.                                       |
 
-### 3.5. Bảng `local_web_grading_results` (Kết quả chấm bài tập Web HTML/CSS/JS/PHP - UC-19)
+### 3.5. Bảng `local_web_submissions` (Danh sách & kết quả chấm bài tập Web - UC-19)
 
-* **Mục đích**: Lưu trữ độc lập và chuyên biệt kết quả thẩm định bài tập Web tự động theo Rubric 4 thành phần trên Desktop App, hỗ trợ 3 chế độ chấm: Chỉ chấm Live Website, Chỉ chấm GitHub Repo, hoặc Chấm kết hợp.
+* **Mục đích**: Lưu danh sách bài nộp đồ án Web (nhập từ thư mục cục bộ) cùng kết quả thẩm định tự động theo Rubric 4 thành phần, phục vụ phân hệ "Chấm Bài Tập & Đồ Án Web" trên Desktop App. Mỗi bài nộp tương ứng một mã số sinh viên (MSSV) và một thư mục bài nộp.
 
-| Tên Cột           | Kiểu Dữ Liệu | Ràng Buộc                                                        | Ý Nghĩa Nghiệp Vụ                                                                                               |
-| :------------------ | :-------------- | :----------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ |
-| `id`              | `INTEGER`     | **PRIMARY KEY AUTOINCREMENT**                                | Khóa tự tăng.                                                                                                    |
-| `submission_id`   | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_student_submissions(id)` | Bài nộp Web tương ứng.                                                                                         |
-| `website_url`     | `TEXT`        |                                                                    | URL domain website đã deploy (Vercel, Netlify,...) dùng cho chế độ`LIVE_ONLY` hoặc `HYBRID`.             |
-| `github_url`      | `TEXT`        |                                                                    | URL kho mã nguồn GitHub của sinh viên dùng cho chế độ`REPO_ONLY` hoặc `HYBRID`.                        |
-| `grading_mode`    | `TEXT`        | **NOT NULL DEFAULT 'HYBRID'**                                | Chế độ chấm:`LIVE_ONLY` (Chỉ chấm domain), `REPO_ONLY` (Chỉ chấm GitHub), `HYBRID` (Chấm kết hợp). |
-| `entrypoint_file` | `TEXT`        | **NOT NULL DEFAULT 'index.html'**                            | Tệp khởi nhập (`index.html` hoặc `index.php`).                                                              |
-| `score_dom`       | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm tiêu chí 1: Cấu trúc DOM & thẻ ngữ nghĩa HTML (0.0 - 10.0).                                           |
-| `score_lint`      | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm tiêu chí 2: Chuẩn cú pháp W3C & CSS Linting (0.0 - 10.0).                                               |
-| `score_func`      | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm tiêu chí 3: Kịch bản kiểm thử hành vi Playwright E2E (0.0 - 10.0).                                    |
-| `score_ui`        | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm tiêu chí 4: Đánh giá thẩm mỹ từ Gemini Vision (0.0 - 10.0).                                          |
-| `final_score`     | `REAL`        | **NOT NULL DEFAULT 0.0**                                     | Điểm tổng hợp theo trọng số Rubric (0.0 - 10.0).                                                              |
-| `final_verdict`   | `TEXT`        | **NOT NULL**                                                 | Phán quyết:`PASSED`, `PARTIAL`, `FAILED`, `TLE`.                                                          |
-| `screenshot_path` | `TEXT`        |                                                                    | Đường dẫn file ảnh`.png` chụp toàn trang màn hình trên ổ đĩa.                                        |
-| `rubric_log`      | `TEXT`        |                                                                    | Chuỗi JSON chi tiết danh sách checklist đạt/lỗi từng tiêu chí.                                             |
-| `ai_feedback`     | `TEXT`        |                                                                    | Lời góp ý sư phạm về giao diện từ Gemini AI.                                                                |
-| `is_deleted`      | `INTEGER`     | **DEFAULT 0**                                                | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                                                                      |
-| `deleted_at`      | `DATETIME`    |                                                                    | Thời điểm xóa mềm kết quả.                                                                                   |
-| `graded_at`       | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                                | Thời điểm hoàn thành chấm bài Web.                                                                           |
+| Tên Cột              | Kiểu Dữ Liệu | Ràng Buộc                        | Ý Nghĩa Nghiệp Vụ                                                                                     |
+| :------------------- | :----------- | :------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `id`                 | `INTEGER`    | **PRIMARY KEY AUTOINCREMENT**    | Khóa tự tăng.                                                                                         |
+| `course_code`        | `TEXT`       | **NOT NULL DEFAULT 'WEB201c'**   | Mã môn học của đợt chấm Web.                                                                          |
+| `class_name`         | `TEXT`       | **NOT NULL DEFAULT 'SE1806'**    | Lớp học của đợt chấm Web.                                                                             |
+| `mssv`               | `TEXT`       | **NOT NULL**                     | Mã số sinh viên (định danh bài nộp).                                                                  |
+| `name`               | `TEXT`       | **NOT NULL**                     | Họ tên sinh viên (suy ra từ MSSV khi nhập thư mục).                                                   |
+| `live_url`           | `TEXT`       |                                  | URL website đã deploy của sinh viên (dùng để render khi chấm).                                        |
+| `repo_url`           | `TEXT`       |                                  | URL kho mã nguồn GitHub của sinh viên (lưu để tham chiếu; engine hiện chấm qua Live URL/thư mục).     |
+| `mode`               | `TEXT`       | **NOT NULL DEFAULT 'HYBRID'**    | Chế độ chấm: `LIVE_ONLY`, `REPO_ONLY`, `HYBRID`.                                                      |
+| `score_dom`          | `REAL`       |                                  | Điểm tiêu chí 1: Cấu trúc DOM & thẻ ngữ nghĩa HTML (0.0 - 10.0).                                      |
+| `score_lint`         | `REAL`       |                                  | Điểm tiêu chí 2: Chuẩn cú pháp CSS/HTML qua TinyCSS2 (0.0 - 10.0).                                    |
+| `score_e2e`          | `REAL`       |                                  | Điểm tiêu chí 3: Kiểm thử tương tác/JS (0.0 - 10.0).                                                  |
+| `score_ui`           | `REAL`       |                                  | Điểm tiêu chí 4: Thẩm định giao diện UI/UX bằng AI Vision (0.0 - 10.0).                               |
+| `total_score`        | `REAL`       |                                  | Điểm tổng theo trọng số Rubric DOM 20% / Lint 20% / E2E 30% / UI 30% (0.0 - 10.0).                    |
+| `verdict`            | `TEXT`       | **DEFAULT 'PENDING'**            | Phán quyết: `PENDING`, `PASSED`, `PARTIAL`, `FAILED`, `MISMATCH`.                                     |
+| `rubric_log`         | `TEXT`       |                                  | Nhật ký thẩm định chi tiết theo từng tiêu chí (sinh bởi `WebRubricEngine`).                           |
+| `screenshot_path`    | `TEXT`       |                                  | Đường dẫn ảnh chụp toàn trang trong `data/web_screenshots/`.                                          |
+| `ai_feedback`        | `TEXT`       |                                  | Nhận xét sư phạm về giao diện từ AI Vision.                                                           |
+| `source_folder_path` | `TEXT`       |                                  | Đường dẫn thư mục bài nộp cục bộ (mỗi thư mục là một MSSV).                                           |
+| `display_mssv`       | `TEXT`       |                                  | MSSV hiển thị (có thể khác `mssv` khi tên thư mục chứa hậu tố).                                       |
+| `link_file_name`     | `TEXT`       |                                  | Tên file `.txt` chứa link bài nộp trong thư mục sinh viên.                                            |
+| `link_changed`       | `INTEGER`    | **DEFAULT 0**                    | Cờ báo link trong file `.txt` đã thay đổi so với lần nhập trước.                                      |
+| `is_missing`         | `INTEGER`    | **DEFAULT 0**                    | Cờ báo thư mục/link bài nộp thiếu hoặc không truy cập được.                                           |
+| `is_deleted`         | `INTEGER`    | **DEFAULT 0**                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                                                                 |
+| `created_at`         | `DATETIME`   | **DEFAULT CURRENT_TIMESTAMP**    | Thời điểm thêm bài nộp vào danh sách (chỉ lưu khi chấm, ngày chấm không tách riêng).                  |
+
+> **Ghi chú:** Kết quả từng bài được cập nhật trực tiếp vào các cột `score_dom`, `score_lint`, `score_e2e`, `score_ui`, `total_score`, `verdict` cùng bằng chứng thẩm định (`rubric_log`, `screenshot_path`, `ai_feedback`) qua `DatabaseManager.update_web_submission_scores()`. Ảnh chụp màn hình được lưu trên đĩa tại `data/web_screenshots/` và hiển thị lại ở hộp thoại chi tiết.
 
 ### 3.6. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
 

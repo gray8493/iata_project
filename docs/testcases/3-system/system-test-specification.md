@@ -1,268 +1,326 @@
-# Thông Tin Chung Kiểm Thử Hệ Thống (System Test Specification)
+# Đặc tả Kiểm thử Hệ thống (System Test Specification)
 
-- **Cấp độ kiểm thử**: System Test (Kiểm thử toàn bộ hệ thống AITA End-to-End)
+- **Cấp độ kiểm thử**: System Test
 - **Người thực hiện (Tester/Dev)**: Đinh Thành Nam
-- **Ngày tạo**: 01/10/2026
-- **Cập nhật lần cuối**: 01/10/2026 - 15:30
-- **Tài liệu liên quan**:
-  - [Tổng quan hệ thống AITA](file:///d:/SWD_Project/docs/architecture/system-overview.md)
-  - [Đặc tả chi tiết Use Cases](file:///d:/SWD_Project/docs/architecture/use_case_descriptions.md)
-  - [Quy tắc kiểm thử Testcase](file:///d:/SWD_Project/rules/testcase-rules.md)
-  - [Quy tắc Git & Workflow](file:///d:/SWD_Project/rules/git-rules.md)
-- **Tổng số Testcase**: 10 Testcases (06 Normal, 02 Boundary, 02 Exception)
+- **Cập nhật lần cuối**: 18/10/2026
+- **Tài liệu liên quan**: `rules/testcase-rules.md`, `docs/architecture/`
+- **Tổng số Testcase**: 13 Testcases (06 Normal, 04 Boundary, 03 Exception)
+  - Phân hệ Desktop Client (ST01, ST04): 09 Testcases (03 Normal, 03 Boundary, 03 Exception)
+  - Phân hệ Central Backend (ST02 - ST03): 04 Testcases (02 Normal, 01 Boundary, 01 Exception)
 
 ---
 
-# ST01_BatchGradingPipeline_TC001: Chấm bài thi C hàng loạt 45 sinh viên thành công dưới 30 giây
+# ST01_TestcaseImport_TC001: Nạp nội dung đề bài từ file .docx vào ô Prompt AI thành công
 
 #### Loại test
 Normal
 
 #### Tiền điều kiện (Pre-condition)
-- Desktop App đã nạp danh sách 45 sinh viên từ file `students.csv`.
-- Đợt chấm đã được cấu hình bộ 5 testcase chuẩn và chọn chiến lược `IgnoreWhitespaceStrategy`.
-- Trình biên dịch GCC/MinGW đã được cấu hình sẵn sàng trên máy trạm.
+- Ứng dụng Desktop Client đang mở màn hình `AiTestcaseDialog`.
+- File đề bài Word `.docx` tồn tại và hợp lệ.
 
 #### Các bước thực hiện (Test Steps)
-1. Trên màn hình điều khiển đợt chấm, kiểm tra danh sách 45 bài nộp ở trạng thái `Pending`.
-2. Giảng viên bấm nút **"Bắt đầu chấm bài"** (`UC-12`).
-3. Quan sát thanh tiến độ thời gian thực (Progress Bar) và bảng nhật ký log mini.
-4. Đợi quá trình chấm hoàn tất và ghi nhận thời gian thực thi tổng thể.
+1. Giảng viên bấm nút "Nhập Từ File Đề Bài".
+2. Chọn file `de_bai.docx` chứa các đoạn văn đề bài.
 
 #### Kết quả kỳ vọng (Expected Result)
-- Luồng xử lý nền đa tiến trình (`ProcessPoolExecutor` 4-8 workers) kích hoạt mượt mà, không làm đơ giao diện UI.
-- Toàn bộ 45 bài nộp được xử lý tuần tự qua hàm `main()`, tính đúng điểm và gán trạng thái `AC` hoặc `WA`.
-- Thanh tiến độ đạt 100%, hiển thị hộp thoại thông báo hoàn tất: "Chấm xong 45 bài trong 18.2 giây".
-- Toàn bộ kết quả điểm số được lưu vào SQLite cục bộ và hiển thị đầy đủ trên bảng điểm.
+- Nội dung văn bản trong file Word được đổ chính xác vào ô `txt_prompt`.
+- Tên tệp hiển thị đầy đủ trên nhãn `lbl_doc_name`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Chấm hoàn tất 45 bài nộp, bảng điểm cập nhật đúng 100% | 18.2 s | ✅ PASSED | Đạt mục tiêu hiệu năng offline |
+| Lần 1 | 17/10/2026 | Pytest Runner | Đổ nội dung Word vào ô prompt chuẩn xác | 15 ms | ✅ PASSED | PyQt6 Offscreen |
 
 ---
 
-# ST01_BatchGradingPipeline_TC002: Bắt lỗi vòng lặp vô hạn và cưỡng chế kill tiến trình quá 1000ms
-
-#### Loại test
-Exception
-
-#### Tiền điều kiện (Pre-condition)
-- Có bài nộp của sinh viên chứa lỗi vòng lặp vô hạn `while(1) { }` trong file `Q1.c`.
-- Cấu hình thời gian chạy tối đa `Time Limit = 1000 ms`.
-
-#### Các bước thực hiện (Test Steps)
-1. Giảng viên nạp bài nộp chứa lỗi vô hạn vào hàng đợi chấm.
-2. Bấm nút **"Bắt đầu chấm bài"**.
-3. Sandbox khởi chạy subprocess thực thi binary và thư viện `psutil` theo dõi thời gian thực.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Sau đúng 1000 ms, hệ thống tự động cưỡng chế kill tiến trình con đang chạy vòng lặp vô hạn.
-- Gán phán quyết **TLE (Time Limit Exceeded)** cho câu hỏi đó, điểm câu hỏi = 0.0.
-- Không gây treo hệ thống hay chiếm dụng 100% CPU của máy trạm. Quá trình chấm tự động chuyển sang bài tiếp theo.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Tiến trình bị kill chính xác ở mốc 1005 ms, gán verdict TLE | 1005 ms | ✅ PASSED | Sandbox bảo vệ tài nguyên an toàn |
-
----
-
-# ST01_BatchGradingPipeline_TC003: Bắt lỗi đệ quy vô hạn hoặc tràn bộ nhớ RAM vượt 256MB
+# ST01_TestcaseImport_TC002: Nối thêm nội dung khi ô Prompt đã có dữ liệu
 
 #### Loại test
 Boundary
 
 #### Tiền điều kiện (Pre-condition)
-- Bài nộp của sinh viên chứa hàm đệ quy không có điểm dừng hoặc khai báo mảng tĩnh cực lớn vượt mức cấp phát bộ nhớ.
-- Cấu hình giới hạn bộ nhớ `Memory Limit = 256 MB`.
+- Ô `txt_prompt` đang chứa sẵn một phần nội dung đề bài cũ.
 
 #### Các bước thực hiện (Test Steps)
-1. Giảng viên bấm chấm bài nộp có nguy cơ tràn bộ nhớ.
-2. `psutil` theo dõi liên tục mức tiêu thụ RAM của tiến trình con.
+1. Bấm nút nhập file và chọn file `de_bai.txt`.
+2. Khi hộp thoại hỏi "Ghi đè hay Nối thêm", chọn "No" (Nối thêm).
 
 #### Kết quả kỳ vọng (Expected Result)
-- Khi mức tiêu thụ RAM chạm ngưỡng 256 MB, hệ thống ngắt ngay tiến trình để bảo vệ hệ điều hành.
-- Gán trạng thái **MLE (Memory Limit Exceeded)**, điểm số = 0.0 kèm thông báo rõ ràng trong log chi tiết.
+- Nội dung mới được nối tiếp vào cuối nội dung cũ mà không làm mất dữ liệu đang soạn.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Bắt chính xác lỗi tràn RAM tại ngưỡng 256.2 MB, gán MLE | 310 ms | ✅ PASSED | Bắt lỗi bộ nhớ chính xác |
+| Lần 1 | 17/10/2026 | Pytest Runner | Nối thêm chuỗi chính xác | 8 ms | ✅ PASSED | PyQt6 Offscreen |
 
 ---
 
-# ST01_BatchGradingPipeline_TC004: Xử lý lỗi biên dịch cú pháp và bỏ qua không gọi AI để tiết kiệm Token
-
-#### Loại test
-Exception
-
-#### Tiền điều kiện (Pre-condition)
-- Bài nộp sinh viên bị thiếu dấu chấm phẩy `;` hoặc sai cú pháp ngôn ngữ C khiến trình biên dịch không thể build ra file thực thi.
-
-#### Các bước thực hiện (Test Steps)
-1. Giảng viên bấm chấm bài nộp bị lỗi cú pháp.
-2. Trình biên dịch GCC thực hiện build mã nguồn và trả về mã lỗi khác 0 kèm log `stderr`.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Hệ thống nhận diện lỗi biên dịch, gán ngay trạng thái **CE (Compile Error)**, cho điểm = 0.0.
-- Lưu lại toàn bộ đoạn log lỗi từ `stderr` của compiler để giảng viên xem lại.
-- **Quy tắc vàng**: Hệ thống không gửi yêu cầu phân tích lỗi lên Gemini AI để tránh lãng phí token vô ích.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Gán verdict CE ngay lập tức, lưu stderr, không kích hoạt AI | 85 ms | ✅ PASSED | Tiết kiệm token đúng thiết kế |
-
----
-
-# ST02_AITestcaseGen_TC001: Tự động sinh 5 đến 10 cặp testcase biên bằng Gemini AI
-
-#### Loại test
-Normal
-
-#### Tiền điều kiện (Pre-condition)
-- Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App (có mã JWT Token).
-- Tài khoản giảng viên còn hạn ngạch gọi AI trên Web Server Backend.
-
-#### Các bước thực hiện (Test Steps)
-1. Mở màn hình Quản lý Testcase, chọn đợt chấm môn `PRF192`.
-2. Dán nội dung đề bài: "Viết chương trình nhập số nguyên N, kiểm tra số nguyên tố và in ra YES hoặc NO".
-3. Nhấn nút **"Sinh Testcase bằng AI"** (`UC-10`).
-4. Quan sát bảng duyệt trước (Preview Table) do hệ thống hiển thị.
-5. Giảng viên tick chọn các testcase đạt yêu cầu và nhấn nút **"Lưu bộ Testcase"**.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Backend kiểm tra hạn ngạch hợp lệ, chuyển tiếp prompt sang Google Gemini API.
-- Gemini trả về danh sách từ 5 đến 10 testcase dạng JSON gồm đầy đủ các trường hợp biên: số âm (-5), số 0, số 1, số nguyên tố chẵn (2), giá trị cực đại (1000000).
-- Sau khi giảng viên bấm lưu, toàn bộ testcase được nạp thành công vào SQLite cục bộ và sẵn sàng cho đợt chấm.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Sinh thành công 8 cặp testcase biên bao phủ mọi trường hợp | 2.1 s | ✅ PASSED | Testcase AI sinh ra rất chuẩn xác |
-
----
-
-# ST02_AITestcaseGen_TC002: Bắt lỗi khi hết hạn ngạch AI và thông báo chuyển sang nhập thủ công
-
-#### Loại test
-Exception
-
-#### Tiền điều kiện (Pre-condition)
-- Hạn ngạch gọi AI hàng ngày của tài khoản Giảng viên đã chạm trần (0 tokens remaining).
-
-#### Các bước thực hiện (Test Steps)
-1. Giảng viên nhập đề bài và bấm nút **"Sinh Testcase bằng AI"**.
-2. Desktop App gửi request `POST /api/v1/ai/generate-testcases` lên Backend.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Backend kiểm tra hạn ngạch và phản hồi mã lỗi `HTTP 429 Too Many Requests`.
-- Desktop App bắt mã lỗi và hiển thị hộp thoại thông báo màu vàng: "Hạn ngạch AI của bạn hôm nay đã hết. Vui lòng liên hệ Admin hoặc sử dụng tính năng nạp testcase thủ công".
-- Ứng dụng không bị crash, mở sẵn form nhập testcase thủ công (`UC-09`).
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Bắt lỗi 429 mượt mà, hiển thị cảnh báo thân thiện | 150 ms | ✅ PASSED | Cơ chế bảo vệ quota an toàn |
-
----
-
-# ST03_PlagiarismDetection_TC001: Quét đạo văn Vòng 1 bằng cây cú pháp AST 100% offline dưới 1 giây
-
-#### Loại test
-Normal
-
-#### Tiền điều kiện (Pre-condition)
-- Đợt chấm có 40 bài nộp của cùng một câu hỏi lập trình.
-- Mã nguồn các bài thi đã được tải về máy trạm.
-
-#### Các bước thực hiện (Test Steps)
-1. Trên thanh công cụ, Giảng viên nhấn nút **"Quét Đạo Văn"** (`UC-17`).
-2. Thiết lập ngưỡng cảnh báo tương đồng mặc định từ 80% trở lên.
-3. Nhấn nút **"Bắt đầu phân tích"**.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Thuật toán bóc tách cây cú pháp trừu tượng (AST) và so khớp Winnowing chạy 100% offline trên máy tính giảng viên.
-- Quét đối chiếu toàn bộ các cặp bài thi trong lớp (gần 800 cặp bài) chỉ trong thời gian dưới 1 giây mà không gọi mạng hay tiêu tốn token AI.
-- Hiển thị ma trận tương đồng (Similarity Matrix) sắp xếp theo thứ tự phần trăm giảm dần.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Hoàn thành quét 780 cặp bài trong 0.48 giây, không tốn token | 0.48 s | ✅ PASSED | Tốc độ quét AST cực kỳ ấn tượng |
-
----
-
-# ST03_PlagiarismDetection_TC002: Vòng 2 kích hoạt Gemini AI phân tích ngữ nghĩa cặp bài nghi vấn vượt 80%
+# ST01_TestcaseImport_TC003: Cắt ngắn đề bài vượt quá giới hạn 5000 ký tự của Backend
 
 #### Loại test
 Boundary
 
 #### Tiền điều kiện (Pre-condition)
-- Kết quả quét Vòng 1 phát hiện 1 cặp bài nộp (`SE180001` và `SE180015`) có độ tương đồng 86%.
+- File đề bài chứa chuỗi văn bản dài trên 5000 ký tự (ví dụ: 6000 ký tự).
 
 #### Các bước thực hiện (Test Steps)
-1. Giảng viên bấm vào cặp bài nghi vấn vượt ngưỡng 80% có gắn cờ đỏ cảnh báo.
-2. Giảng viên nhấn nút **"AI Phân tích bằng chứng"** (Vòng 2).
-3. Backend chuyển tiếp cấu trúc mã nguồn 2 bài thi sang Google Gemini AI.
+1. Nhập file văn bản dung lượng lớn vào dialog.
 
 #### Kết quả kỳ vọng (Expected Result)
-- Gemini AI phân tích ngữ nghĩa, vạch trần các thủ thuật: đổi tên biến, đảo vị trí hàm và chèn code rác.
-- Trả về biên bản tóm tắt bằng chứng sao chép chi tiết.
-- Desktop App mở màn hình đối chiếu song song hai bên (Side-by-side Diff Viewer) có tô sáng màu đỏ các đoạn code trùng khớp phục vụ lập biên bản thi cử.
+- Hệ thống hiển thị hộp thoại cảnh báo "Đề Bài Quá Dài".
+- Nội dung trong ô `txt_prompt` tự động cắt đúng 5000 ký tự đầu tiên để đảm bảo hợp lệ khi gửi API.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | AI chỉ rõ 3 đoạn code đảo hàm và đổi tên biến, Diff Viewer tô màu rõ ràng | 2.4 s | ✅ PASSED | Bằng chứng đối chiếu rất thuyết phục |
+| Lần 1 | 17/10/2026 | Pytest Runner | Cắt đúng 5000 ký tự, bật thông báo | 10 ms | ✅ PASSED | PyQt6 Offscreen |
 
 ---
 
-# ST04_CloudSync_TC001: Đồng bộ kết quả đợt chấm từ Desktop App lên Central Backend qua REST API
-
-#### Loại test
-Normal
-
-#### Tiền điều kiện (Pre-condition)
-- Đợt chấm đã hoàn tất điểm số cho toàn bộ sinh viên trên máy trạm.
-- Máy tính có kết nối Internet và phiên đăng nhập hợp lệ với JWT Token.
-
-#### Các bước thực hiện (Test Steps)
-1. Giảng viên nhấn nút **"Đồng bộ lên Cloud"** trên thanh công cụ (`UC-19`).
-2. Quan sát quá trình gửi request và phản hồi từ máy chủ trung tâm.
-
-#### Kết quả kỳ vọng (Expected Result)
-- Desktop App đóng gói toàn bộ bảng điểm, mã lỗi verdict và nhật ký thành payload JSON gửi `POST /api/v1/sync/grading-session`.
-- Backend tiếp nhận, xác thực token và lưu đợt chấm vào CSDL trung tâm qua SQLAlchemy ORM.
-- Backend phản hồi `HTTP 200 OK` kèm `sync_id`.
-- Desktop App đổi trạng thái sang biểu tượng đám mây màu xanh kèm mốc thời gian đồng bộ thành công.
-
-#### Bảng kết quả kiểm thử (Execution Result)
-| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
-| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Đồng bộ thành công 45 bài nộp lên CSDL trung tâm | 420 ms | ✅ PASSED | Dữ liệu toàn vẹn trên máy chủ |
-
----
-
-# ST04_CloudSync_TC002: Xử lý ngoại lệ mất kết nối mạng khi đồng bộ và bảo vệ an toàn dữ liệu cục bộ
+# ST01_TestcaseImport_TC004: Cảnh báo khi nạp định dạng file không hỗ trợ (.doc)
 
 #### Loại test
 Exception
 
 #### Tiền điều kiện (Pre-condition)
-- Máy tính của Giảng viên bị ngắt kết nối Internet (mất mạng LAN / Wifi).
+- Người dùng chọn file Word nhị phân cũ `.doc`.
 
 #### Các bước thực hiện (Test Steps)
-1. Giảng viên bấm nút **"Đồng bộ lên Cloud"**.
-2. Hệ thống kiểm tra kết nối mạng và cố gắng kết nối tới Backend Gateway.
+1. Bấm nút chọn file `de_bai.doc`.
 
 #### Kết quả kỳ vọng (Expected Result)
-- Hệ thống bắt ngoại lệ mạng `ConnectionError`, không gây treo hay crash ứng dụng.
-- Hiển thị hộp thoại cảnh báo: "Không thể kết nối đến máy chủ trung tâm. Dữ liệu của bạn vẫn được lưu an toàn trên máy cục bộ. Vui lòng thử đồng bộ lại khi có mạng".
-- Toàn bộ điểm số trong SQLite cục bộ được giữ nguyên vẹn 100%.
+- Hiển thị hộp thoại cảnh báo định dạng không hỗ trợ.
+- Ô `txt_prompt` giữ nguyên trạng thái cũ, không nạp rác nhị phân.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 01/10/2026 | Đinh Thành Nam | Bắt lỗi mất mạng chuẩn xác, dữ liệu SQLite hoàn toàn an toàn | 200 ms | ✅ PASSED | Ứng phó mất mạng rất tốt |
+| Lần 1 | 17/10/2026 | Pytest Runner | Bật cảnh báo, bảo toàn ô prompt | 6 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST01_TestcaseImport_TC005: Người dùng hủy hộp thoại chọn file
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Dialog chọn file xuất hiện.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm nút "Cancel" hoặc đóng hộp thoại chọn tệp.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Không có lỗi ngoại lệ (No-op), trạng thái giao diện được giữ nguyên vẹn.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Pytest Runner | Xử lý no-op an toàn | 5 ms | ✅ PASSED | PyQt6 Offscreen |
+
+---
+
+# ST02_AITestcaseGen_TC001: Sinh bộ testcase bằng AI OpenRouter thành công
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Giảng viên có JWT Token hợp lệ và còn hạn ngạch AI.
+- `OPENROUTER_API_KEYS` đã được cấu hình; nhà cung cấp AI phản hồi JSON hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+1. Giảng viên gửi `POST /api/v1/ai/generate-testcases` với `count = 3`.
+2. `OpenRouterService` giữ chỗ hạn ngạch, gọi nhà cung cấp và nhận JSON.
+3. `AiGatewayService.generateTestcases` kiểm tra số lượng và định dạng từng testcase.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Trả về `message = "Sinh testcase tự động bằng AI thành công"`.
+- `data.testcases` có đúng `count` phần tử, mỗi phần tử đủ `input`, `expected_output`, `explanation`, `is_boundary`.
+- `data.tokens_consumed` bằng tổng token do nhà cung cấp trả về.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Đinh Thành Nam | Sinh đúng 3 testcase, kiểm tra định dạng đạt | 12 ms | ✅ PASSED | Service-level, provider được mock |
+
+---
+
+# ST02_AITestcaseGen_TC002: Chặn khi hết hạn ngạch AI trong ngày
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Hạn ngạch AI hàng ngày của giảng viên đã chạm trần.
+
+#### Các bước thực hiện (Test Steps)
+1. Giảng viên gửi `POST /api/v1/ai/generate-testcases`.
+2. `AiQuotaService.reserve` phát hiện `usedTokensToday + amount > dailyTokenLimit`.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Backend phản hồi `HTTP 429` với `error_code = "AI_QUOTA_EXCEEDED"`.
+- Yêu cầu **không** được chuyển tiếp tới nhà cung cấp AI (không tiêu tốn token).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Đinh Thành Nam | Ném 429 AI_QUOTA_EXCEEDED, không gọi provider | 8 ms | ✅ PASSED | Bảo vệ quota hiệu quả |
+
+---
+
+# ST03_PlagiarismVong2_TC001: AI phân tích ngữ nghĩa cặp bài nghi vấn (Vòng 2)
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Vòng 1 (Desktop, offline AST) đã phát hiện cặp bài vượt ngưỡng.
+- Giảng viên còn hạn ngạch AI.
+
+#### Các bước thực hiện (Test Steps)
+1. Giảng viên gửi `POST /api/v1/ai/verify-plagiarism` với mã nguồn 2 bài.
+2. `OpenRouterService` giữ chỗ hạn ngạch và gọi provider.
+3. `AiGatewayService.verifyPlagiarism` kiểm tra cấu trúc JSON trả về.
+
+#### Kết quả kỳ vọng (Expected Result)
+- Trả về `message = "Phân tích bằng chứng đạo văn thành công"`.
+- `data` gồm `is_plagiarized`, `confidence_percentage` trong [0,100], `evidence_summary`, và `cloned_segments` đúng cấu trúc.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Đinh Thành Nam | Trả về bằng chứng 2 đoạn sao chép, confidence 86% | 10 ms | ✅ PASSED | Provider được mock |
+
+---
+
+# ST03_PlagiarismVong2_TC002: Giá trị biên ngưỡng tương đồng AST
+
+#### Loại test
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+- DTO `VerifyPlagiarismDto` yêu cầu `ast_similarity_percentage` trong khoảng [80, 100].
+
+#### Các bước thực hiện (Test Steps)
+1. Gửi payload với `ast_similarity_percentage = 80` (biên dưới hợp lệ).
+2. Gửi payload với `ast_similarity_percentage = 100` (biên trên hợp lệ).
+3. Gửi payload với `ast_similarity_percentage = 79` (dưới biên).
+
+#### Kết quả kỳ vọng (Expected Result)
+- 80 và 100 hợp lệ (đi qua ValidationPipe).
+- 79 bị từ chối `HTTP 422` với `error_code = "VALIDATION_FAILED"`, `details[].field = "ast_similarity_percentage"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 17/10/2026 | Đinh Thành Nam | 80/100 hợp lệ, 79 trả 422 VALIDATION_FAILED | 6 ms | ✅ PASSED | Kiểm tra biên DTO |
+
+---
+
+# ST04_WebGrading_TC001: Nhập thư mục bài nộp Web và nhận diện đúng MSSV + link
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Ứng dụng Desktop Client đang mở màn hình `WebGradingMainWindow` (Web Studio).
+- Thư mục gốc `WebSub/` chứa 2 thư mục con `SE180001/`, `SE180002/`, mỗi thư mục có `links.txt` ghi Live URL và GitHub Repo.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm "Chọn Thư Mục Bài Nộp" và chọn thư mục gốc `WebSub/`.
+2. Quan sát bảng xem trước trong `WebFolderImportDialog` (MSSV, File link, Live URL, GitHub Repo, Trạng Thái).
+3. Bấm "Nạp Các Bài Hợp Lệ".
+
+#### Kết quả kỳ vọng (Expected Result)
+- Mỗi thư mục con được nhận diện đúng MSSV; trạng thái "Đủ link".
+- Sau khi nạp, bảng điểm chính hiển thị đúng 2 bài với Live URL và GitHub Repo tương ứng.
+- Bản ghi được lưu vào bảng `local_web_submissions` với `course_code`/`class_name` đang chọn.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Nhận diện + nạp đúng 2 bài, lưu đủ URL | 22 ms | ✅ PASSED | `test_web_rubric_service.py` |
+
+---
+
+# ST04_WebGrading_TC002: Thư mục sai mẫu MSSV và thiếu file link (Biên)
+
+#### Loại test
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+- Thư mục gốc chứa: `SE18001/` (thiếu 1 chữ số), `NguyenVanA/` (không phải MSSV), `SE180003/` (không có file `.txt`), và `SE180004/links.txt` hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+1. Chọn thư mục gốc; để tùy chọn "Thư mục sai mẫu MSSV: Bỏ qua".
+2. Quan sát cột Trạng Thái và khung "Báo cáo nhận diện".
+3. Bấm "Nạp Các Bài Hợp Lệ"; sau đó mở lại và bấm "Nạp Tất Cả (kể cả bài thiếu link)".
+
+#### Kết quả kỳ vọng (Expected Result)
+- `SE18001`, `NguyenVanA` báo "không phải MSSV hợp lệ"; `SE180003` báo "Thiếu file link".
+- "Nạp Các Bài Hợp Lệ" chỉ nạp `SE180004`; "Nạp Tất Cả" nạp thêm cả các bài thiếu link (Live/Repo = rỗng).
+- Báo cáo liệt kê đúng danh sách thư mục bị bỏ qua và MSSV trùng (nếu có).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Phân loại đúng 3 bài lỗi, chỉ nạp bài hợp lệ | 18 ms | ✅ PASSED | `MSSV_PATTERN`, `select_link_file` |
+
+---
+
+# ST04_WebGrading_TC003: Chấm bài không có HTML → FAILED, không crash (Ngoại lệ)
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Một bài nộp không có Live URL và thư mục cục bộ không chứa `index.html`.
+
+#### Các bước thực hiện (Test Steps)
+1. Thêm bài nộp thủ công không có Live URL và không có thư mục nguồn.
+2. Bấm "Bắt Đầu Thẩm Định Web".
+3. Mở "Xem Chi Tiết" của bài đó.
+
+#### Kết quả kỳ vọng (Expected Result)
+- `WebRubricEngine.grade()` trả `verdict = "FAILED"`, `error = "NO_HTML"`.
+- Nhật ký thẩm định ghi `[RESULT]: Không tìm thấy mã nguồn HTML để thẩm định.`
+- Không có ngoại lệ văng ra UI; các bài khác vẫn được chấm bình thường.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Trả FAILED/NO_HTML, không crash | 4 ms | ✅ PASSED | `test_grade_without_html_returns_failed` |
+
+---
+
+# ST04_WebGrading_TC004: Xuất bảng điểm Web giữ đúng điểm 0.0 (Normal)
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Bảng điểm đã có ít nhất một bài đã chấm với một tiêu chí bằng 0.0 (ví dụ `Lint = 0.0`).
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm "Xuất Bảng Điểm" → "Xuất File Excel (.xlsx)".
+2. Mở file, kiểm tra cột "Lint (10)" của bài có điểm 0.
+3. Lặp lại với "Xuất File Báo Cáo PDF (.pdf)".
+
+#### Kết quả kỳ vọng (Expected Result)
+- Ô điểm `0.0` hiển thị đúng là `0` (không bị bỏ trống); các tiêu chí chưa chấm hiển thị trống/`—` tương ứng.
+- Cả Excel và PDF nhất quán về giá trị điểm.
+- Tên/MSSV chứa ký tự `&`, `<` không làm vỡ bố cục PDF (đã escape HTML).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Điểm 0.0 hiển thị đúng, PDF không vỡ | 90 ms | ✅ PASSED | Kiểm thử hồi quy |
+
+---
+
+## Ngoài phạm vi (Desktop/pytest) — chưa tự động hóa ở tầng backend
+- `ST01_BatchGradingPipeline_*`: chấm bài hàng loạt, TLE (`psutil`, kill 1000ms), MLE (256MB), CE và quy tắc bỏ qua AI khi lỗi biên dịch.
+- `ST03_PlagiarismDetection_TC001` Vòng 1: quét AST + Winnowing 100% offline dưới 1 giây.
+- Đồng bộ kết quả lên máy chủ trung tâm (`sync/grading-session`) — **tính năng đồng bộ cloud đã được gỡ bỏ**, không còn trong phạm vi hệ thống.
