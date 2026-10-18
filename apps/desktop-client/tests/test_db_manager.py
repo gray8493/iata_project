@@ -158,75 +158,84 @@ def test_web_submission_columns_exist_after_migration(db):
     assert {"source_folder_path", "is_missing", "display_mssv", "rubric_log", "screenshot_path", "ai_feedback", "graded_at"} <= cols
 
 
-def test_add_web_submission_with_folder_metadata(db):
-    id_ = db.add_web_submission(
-        mssv="SE180001", name="Nguyen Van A", live_url="http://site.dev",
-        course_code="WEB201c", class_name="SE1806",
-        source_folder_path="D:/WebSub/SE180001", display_mssv="SE180001",
-    )
-    rows = db.get_all_web_submissions()
-    assert len(rows) == 1
-    assert rows[0]["source_folder_path"] == "D:/WebSub/SE180001"
-    assert rows[0]["display_mssv"] == "SE180001"
+    def _create_web_session(db):
+        return db.create_web_session("Test Session", "WEB201c", "SE1806")
 
+    def test_add_web_submission_with_folder_metadata(db):
+        session_id = _create_web_session(db)
+        id_ = db.add_web_submission(
+            mssv="SE180001", name="Nguyen Van A", live_url="http://site.dev",
+            course_code="WEB201c", class_name="SE1806",
+            source_folder_path="D:/WebSub/SE180001", display_mssv="SE180001",
+            session_id=session_id
+        )
+        rows = db.get_all_web_submissions(session_id)
+        assert len(rows) == 1
+        assert rows[0]["source_folder_path"] == "D:/WebSub/SE180001"
+        assert rows[0]["display_mssv"] == "SE180001"
 
-def test_set_web_submission_missing_flags_without_scores(db):
-    id_ = db.add_web_submission(
-        mssv="SE180001", name="NV A", live_url="http://site.dev",
-        course_code="WEB201c", class_name="SE1806",
-        source_folder_path="D:/WebSub/SE180001",
-    )
-    assert db.set_web_submission_missing(id_, True) is True
-    assert db.get_all_web_submissions()[0]["is_missing"] == 1
-    assert db.set_web_submission_missing(id_, False) is True
-    assert db.get_all_web_submissions()[0]["is_missing"] == 0
+    def test_set_web_submission_missing_flags_without_scores(db):
+        session_id = _create_web_session(db)
+        id_ = db.add_web_submission(
+            mssv="SE180001", name="NV A", live_url="http://site.dev",
+            course_code="WEB201c", class_name="SE1806",
+            source_folder_path="D:/WebSub/SE180001",
+            session_id=session_id
+        )
+        assert db.set_web_submission_missing(id_, True) is True
+        assert db.get_all_web_submissions(session_id)[0]["is_missing"] == 1
+        assert db.set_web_submission_missing(id_, False) is True
+        assert db.get_all_web_submissions(session_id)[0]["is_missing"] == 0
 
+    def test_update_web_submission_source_refreshes_metadata(db):
+        session_id = _create_web_session(db)
+        id_ = db.add_web_submission(
+            mssv="SE180001", name="NV A", live_url="", repo_url="",
+            course_code="WEB201c", class_name="SE1806",
+            source_folder_path="D:/old/SE180001", display_mssv="SE180001",
+            session_id=session_id
+        )
+        db.set_web_submission_missing(id_, True)
 
-def test_update_web_submission_source_refreshes_metadata(db):
-    id_ = db.add_web_submission(
-        mssv="SE180001", name="NV A", live_url="", repo_url="",
-        course_code="WEB201c", class_name="SE1806",
-        source_folder_path="D:/old/SE180001", display_mssv="SE180001",
-    )
-    db.set_web_submission_missing(id_, True)
+        assert db.update_web_submission_source(
+            id_, source_folder_path="D:/new/SE180001", display_mssv="SE180001",
+            name="Nguyen Van A", live_url="http://live.dev", repo_url="http://repo.dev",
+        ) is True
 
-    assert db.update_web_submission_source(
-        id_, source_folder_path="D:/new/SE180001", display_mssv="SE180001",
-        name="Nguyen Van A", live_url="http://live.dev", repo_url="http://repo.dev",
-    ) is True
+        row = db.get_all_web_submissions(session_id)[0]
+        assert row["source_folder_path"] == "D:/new/SE180001"
+        assert row["name"] == "Nguyen Van A"
+        assert row["is_missing"] == 0
 
-    row = db.get_all_web_submissions()[0]
-    assert row["source_folder_path"] == "D:/new/SE180001"
-    assert row["name"] == "Nguyen Van A"
-    assert row["is_missing"] == 0
+    def test_update_web_submission_source_keeps_fields_when_none_given(db):
+        session_id = _create_web_session(db)
+        id_ = db.add_web_submission(
+            mssv="SE180001", name="NV A", live_url="http://old.dev",
+            course_code="WEB201c", class_name="SE1806",
+            session_id=session_id
+        )
+        db.update_web_submission_source(id_, source_folder_path=None)
+        row = db.get_all_web_submissions(session_id)[0]
+        assert row["live_url"] == "http://old.dev" and row["is_missing"] == 0
 
+    def test_update_web_submission_scores_persists_evidence(db):
+        session_id = _create_web_session(db)
+        id_ = db.add_web_submission(
+            mssv="SE180002", name="NV B", live_url="http://site.dev",
+            course_code="WEB201c", class_name="SE1806",
+            session_id=session_id
+        )
+        assert db.update_web_submission_scores(
+            submission_id=id_, score_dom=8.0, score_lint=7.5, score_e2e=6.0,
+            score_ui=9.0, total_score=7.7, verdict="PASSED",
+            rubric_log="[DOM]: 8/8 thẻ -> 8.0/10", screenshot_path="D:/shots/SE180002.png",
+            ai_feedback="Bố cục cân đối",
+        ) is True
 
-def test_update_web_submission_source_keeps_fields_when_none_given(db):
-    id_ = db.add_web_submission(
-        mssv="SE180001", name="NV A", live_url="http://old.dev",
-        course_code="WEB201c", class_name="SE1806",
-    )
-    db.update_web_submission_source(id_, source_folder_path=None)
-    row = db.get_all_web_submissions()[0]
-    assert row["live_url"] == "http://old.dev" and row["is_missing"] == 0
-
-
-def test_update_web_submission_scores_persists_evidence(db):
-    id_ = db.add_web_submission(
-        mssv="SE180002", name="NV B", live_url="http://site.dev",
-        course_code="WEB201c", class_name="SE1806",
-    )
-    assert db.update_web_submission_scores(
-        submission_id=id_, score_dom=8.0, score_lint=7.5, score_e2e=6.0,
-        score_ui=9.0, total_score=7.7, verdict="PASSED",
-        rubric_log="[DOM]: 8/8 thẻ -> 8.0/10", screenshot_path="D:/shots/SE180002.png",
-        ai_feedback="Bố cục cân đối",
-    ) is True
-
-    row = db.get_all_web_submissions()[0]
-    assert row["total_score"] == 7.7 and row["verdict"] == "PASSED"
-    assert row["rubric_log"] == "[DOM]: 8/8 thẻ -> 8.0/10"
-    assert row["screenshot_path"] == "D:/shots/SE180002.png"
-    assert row["ai_feedback"] == "Bố cục cân đối"
-    assert row["graded_at"] is not None
+        row = db.get_all_web_submissions(session_id)[0]
+        assert row["total_score"] == 7.7 and row["verdict"] == "PASSED"
+        assert row["rubric_log"] == "[DOM]: 8/8 thẻ -> 8.0/10"
+        assert row["screenshot_path"] == "D:/shots/SE180002.png"
+        assert row["ai_feedback"] == "Bố cục cân đối"
+        assert row["graded_at"] is not None
 

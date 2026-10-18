@@ -183,7 +183,7 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_results_sub_id ON local_grading_results(submission_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_mssv ON local_web_submissions(mssv);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tc_class_id ON local_test_cases(class_id);")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_session ON local_web_submissions(session_id);")
+            # Removed the direct create index call for idx_web_subs_session because it's now handled in _ensure_web_submission_columns()
 
             conn.commit()
 
@@ -284,6 +284,10 @@ class DatabaseManager:
             for column, ddl in additions.items():
                 if column not in existing:
                     cursor.execute(f"ALTER TABLE local_web_submissions ADD COLUMN {column} {ddl}")
+            conn.commit()
+
+            # Ensure the index is created AFTER the column exists
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_session ON local_web_submissions(session_id);")
             conn.commit()
 
 
