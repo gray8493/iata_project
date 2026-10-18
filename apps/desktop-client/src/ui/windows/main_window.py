@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QProgressBar, QTableWidget,
     QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QDialog,
-    QSizePolicy, QStackedWidget, QFileDialog, QMenu, QScrollArea
+    QSizePolicy, QStackedWidget, QFileDialog, QMenu, QScrollArea, QLineEdit
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -1162,11 +1162,35 @@ class AITAMainWindow(QMainWindow):
         
         # Table Header Row
         header_row = QHBoxLayout()
+        header_row.setSpacing(12)
         lbl_title = QLabel("Danh Sách Bài Nộp & Bảng Điểm Thời Gian Thực", card)
         lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         header_row.addWidget(lbl_title)
         
         header_row.addStretch(1)
+
+        # Thanh tìm kiếm theo MSSV
+        self.txt_search = QLineEdit(card)
+        self.txt_search.setPlaceholderText("Tìm kiếm theo MSSV...")
+        self.txt_search.setFixedHeight(34)
+        self.txt_search.setFixedWidth(240)
+        self.txt_search.setClearButtonEnabled(True)
+        self.txt_search.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: #FFFFFF;
+                border: 1px solid {COLOR_BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 0 10px;
+                font-size: 13px;
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QLineEdit:focus {{
+                border: 1.5px solid {COLOR_PRIMARY};
+            }}
+        """)
+        self.txt_search.textChanged.connect(self._on_search_query_changed)
+        self.txt_search.setVisible(False)
+        header_row.addWidget(self.txt_search)
         
         # Yêu cầu 14: Dòng gợi ý chữ 13px, #475569, line-height 1.4
         self.lbl_hint = QLabel("Bấm 'Chi Tiết' để xem mã nguồn, log thực thi hoặc kích hoạt AI Code Review", card)
@@ -1336,6 +1360,8 @@ class AITAMainWindow(QMainWindow):
             self.class_selector.setEnabled(False)  # Yêu cầu 5: disable khi không có đợt nào trong lịch sử
             self.current_class_id = None
             self.table.setRowCount(0)
+            if hasattr(self, "txt_search"):
+                self.txt_search.setVisible(False)
             self.mc_total.set_value("0")
             self.mc_ac.set_value("0")
             self.mc_err.set_value("0")
@@ -1364,6 +1390,8 @@ class AITAMainWindow(QMainWindow):
             self._on_class_selected()
         else:
             self.current_class_id = None
+            if hasattr(self, "txt_search"):
+                self.txt_search.setVisible(False)
             self.content_stack.setCurrentIndex(0)
             self._update_step_buttons(0, 0, 0)
 
@@ -1373,12 +1401,24 @@ class AITAMainWindow(QMainWindow):
         class_id = self.class_selector.currentData()
         if class_id is None:
             self.current_class_id = None
+            if hasattr(self, "txt_search"):
+                self.txt_search.setVisible(False)
             self.content_stack.setCurrentIndex(0)
             self._update_step_buttons(0, 0, 0)
         else:
             self.current_class_id = class_id
             self.content_stack.setCurrentIndex(1)
             self._load_submissions_table(class_id)
+
+    def _on_search_query_changed(self, text: str):
+        """Filters table rows in real-time by student MSSV."""
+        query = text.strip().lower()
+        total_rows = self.table.rowCount()
+        for r in range(total_rows):
+            sub = self._row_submissions.get(r, {})
+            mssv = str(sub.get("student_mssv", "")).strip().lower()
+            match = (query in mssv) if query else True
+            self.table.setRowHidden(r, not match)
 
     def _load_submissions_table(self, class_id: int):
         """Loads and renders student submissions for the specified class from SQLite."""
@@ -1402,6 +1442,11 @@ class AITAMainWindow(QMainWindow):
         if not submissions:
             self.table_stack.setCurrentIndex(1)
             self.lbl_hint.setVisible(False)
+            if hasattr(self, "txt_search"):
+                self.txt_search.setVisible(False)
+                self.txt_search.blockSignals(True)
+                self.txt_search.clear()
+                self.txt_search.blockSignals(False)
             self.table.setRowCount(0)
             self.lbl_progress_status.setText("Chưa có bài nộp")
             self.lbl_progress_detail.setText("0/0 bài")
@@ -1418,6 +1463,11 @@ class AITAMainWindow(QMainWindow):
 
         self.table_stack.setCurrentIndex(0)
         self.lbl_hint.setVisible(True)
+        if hasattr(self, "txt_search"):
+            self.txt_search.setVisible(True)
+            self.txt_search.blockSignals(True)
+            self.txt_search.clear()
+            self.txt_search.blockSignals(False)
         self.table.setRowCount(len(submissions))
 
         # Yêu cầu 9: Đếm tần suất MSSV để phát hiện trùng

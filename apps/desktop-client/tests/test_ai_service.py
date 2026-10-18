@@ -92,12 +92,12 @@ def test_generate_testcases_normalizes_language_and_clamps_count():
     })
     service, api = _service(response)
 
-    result = service.generate_testcases("  Đề bài  ", language="cobol", count=99, include_boundary=True)
+    result = service.generate_testcases("  Đề bài kiểm tra thuật toán  ", language="cobol", count=99, include_boundary=True)
 
     _, _, payload = api.calls[0]
     assert payload["language"] == "C"
     assert payload["count"] == 10
-    assert payload["problem_description"] == "Đề bài"
+    assert payload["problem_description"] == "Đề bài kiểm tra thuật toán"
     assert result["success"] is True
     assert result["tokens_consumed"] == 42
 
