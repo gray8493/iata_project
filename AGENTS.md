@@ -41,4 +41,4 @@ AITA — desktop tool for instructors to auto-grade C/Java/Python (and web) stud
 - Verdicts: `AC, WA, TLE, MLE, CE, RE`.
 - Grading is black-box: run the student's `main()` with stdin and diff stdout. Do not wrap or rewrite student code.
 - Local SQLite DB at `apps/desktop-client/data/local_grading.db` (created by `database/db_manager.py`, WAL mode).
-- The AI API key stays server-side only. Desktop client resolves backend via `AITA_BACKEND_URL`, else probes localhost:3000, else `https://iata-project.onrender.com/api/v1`. Backend CORS origins are configured via `CORS_ORIGINS` env var (comma-separated, default `http://localhost:3001`).
+- The AI API key stays server-side only. Desktop client resolves backend via `AITA_BACKEND_URL`, else probes localhost:3000, else `https://iata-project-o4z6.onrender.com/api/v1`. Backend CORS origins are configured via `CORS_ORIGINS` env var (comma-separated, default `http://localhost:3001`).

@@ -116,7 +116,7 @@ node "Administrator Workstation\n<<Client Machine>>\n[HĐH: Windows / macOS / Li
 ' ==============================================================================
 ' 3. APPLICATION SERVER TIER (DỊCH VỤ ĐÁM MÂY - RENDER.COM CLOUD PAAS)
 ' ==============================================================================
-node "Render.com Cloud Platform\n<<Managed Cloud Web Service>>\n[Linux Containerized Runtime - Node.js 20 LTS]\nEndpoint: https://iata-project.onrender.com" as ServerNode #E8F5E9 {
+node "Render.com Cloud Platform\n<<Managed Cloud Web Service>>\n[Linux Containerized Runtime - Node.js 20 LTS]\nEndpoint: https://iata-project-o4z6.onrender.com" as ServerNode #E8F5E9 {
 
     artifact "central-backend\n<<Backend Web Service Artifact>>\n[NestJS 10 / Node.js 20 LTS]" as BackendArtifact {
         component "API Gateway & Router\n(Swagger / OpenAPI Endpoint: /api/v1)" as ApiRouter

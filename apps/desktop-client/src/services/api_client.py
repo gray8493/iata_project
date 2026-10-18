@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 import httpx
 
 # Default Backend URL on Render
-DEFAULT_BACKEND_URL = "https://iata-project.onrender.com/api/v1"
+DEFAULT_BACKEND_URL = "https://iata-project-o4z6.onrender.com/api/v1"
 
 
 def parse_json(resp: httpx.Response) -> Optional[Dict[str, Any]]:

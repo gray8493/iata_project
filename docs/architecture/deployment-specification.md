@@ -84,7 +84,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 - **Vai trò**: Đóng vai trò Backend API tập trung, cung cấp endpoint xác thực JWT, quản lý tài khoản giảng viên, kiểm soát hạn ngạch và đóng vai trò AI Gateway Hub bảo mật trung gian khi gọi AI Hub.
 - **Nền tảng triển khai**: **Render.com Cloud Platform (Managed Web Service)**.
-  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project.onrender.com/api/v1`.
+  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project-o4z6.onrender.com/api/v1`.
   - *Môi trường Local Development*: Khởi chạy trực tiếp bằng Node.js 20 LTS qua lệnh `npm run start:dev` (lắng nghe tại `http://localhost:3000/api/v1`).
 - **Cấu hình & Quản lý lưu lượng**:
   - **Tự động quản lý SSL/TLS 1.3**: Nền tảng Render tự động cung cấp chứng chỉ SSL/TLS 1.3 Let's Encrypt, hỗ trợ HTTP/2 và cơ chế phòng chống DDoS tầng mạng.
