@@ -43,7 +43,7 @@ interface GenerateJsonArgs {
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_MODEL = 'openrouter/free';
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_KEY_COOLDOWN_MS = 60_000;
 const TRANSIENT_COOLDOWN_MS = 5_000;
 const EXHAUSTED_KEY_COOLDOWN_MS = 30 * 60_000;

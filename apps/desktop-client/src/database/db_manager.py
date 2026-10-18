@@ -64,6 +64,18 @@ class DatabaseManager:
             );
             """)
 
+            # 1.1 Bảng local_web_sessions (Quản lý phiên chấm Web)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS local_web_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_name TEXT NOT NULL,
+                course_code TEXT NOT NULL,
+                class_name TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER DEFAULT 0
+            );
+            """)
+
             # 2. Bảng local_student_submissions (Danh sách sinh viên nộp bài,
             #    chỉ lưu MSSV theo chuẩn input 2 cột `MSSV,File`)
             cursor.execute("""
@@ -141,6 +153,7 @@ class DatabaseManager:
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS local_web_submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
                 course_code TEXT NOT NULL DEFAULT 'WEB201c',
                 class_name TEXT NOT NULL DEFAULT 'SE1806',
                 mssv TEXT NOT NULL,
@@ -159,7 +172,8 @@ class DatabaseManager:
                 ai_feedback TEXT,
                 graded_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_deleted INTEGER DEFAULT 0
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (session_id) REFERENCES local_web_sessions(id) ON DELETE CASCADE
             );
             """)
 
@@ -169,7 +183,8 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_results_sub_id ON local_grading_results(submission_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_mssv ON local_web_submissions(mssv);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tc_class_id ON local_test_cases(class_id);")
-            
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_session ON local_web_submissions(session_id);")
+
             conn.commit()
 
         self._ensure_web_submission_columns()
@@ -264,11 +279,13 @@ class DatabaseManager:
                 "screenshot_path": "TEXT",
                 "ai_feedback": "TEXT",
                 "graded_at": "DATETIME",
+                "session_id": "INTEGER",
             }
             for column, ddl in additions.items():
                 if column not in existing:
                     cursor.execute(f"ALTER TABLE local_web_submissions ADD COLUMN {column} {ddl}")
             conn.commit()
+
 
     # ==========================================================================
     # CRUD OPERATIONS FOR SESSIONS & SUBMISSIONS
@@ -769,17 +786,46 @@ class DatabaseManager:
             return [dict(row) for row in cursor.fetchall()]
 
     # ==========================================================================
-    # CRUD OPERATIONS FOR WEB SUBMISSIONS (WEB STUDIO)
+    # CRUD OPERATIONS FOR WEB SESSIONS (NEW)
     # ==========================================================================
-    def get_all_web_submissions(self, course_code: str = "WEB201c", class_name: str = "SE1806") -> List[Dict[str, Any]]:
-        """Fetches all active web submissions for the specified course and class."""
+    def create_web_session(self, name: str, course_code: str, class_name: str) -> int:
+        """Creates a new web grading session."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM local_web_submissions 
-                WHERE course_code = ? AND class_name = ? AND is_deleted = 0
+                INSERT INTO local_web_sessions (session_name, course_code, class_name)
+                VALUES (?, ?, ?)
+            """, (name.strip(), course_code.strip(), class_name.strip()))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_all_web_sessions(self) -> List[Dict[str, Any]]:
+        """Fetches all active web grading sessions."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM local_web_sessions WHERE is_deleted = 0 ORDER BY created_at DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def delete_web_session(self, session_id: int):
+        """Soft-deletes a web session and cascades to its submissions."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE local_web_sessions SET is_deleted = 1 WHERE id = ?", (session_id,))
+            cursor.execute("UPDATE local_web_submissions SET is_deleted = 1 WHERE session_id = ?", (session_id,))
+            conn.commit()
+
+    # ==========================================================================
+    # CRUD OPERATIONS FOR WEB SUBMISSIONS (WEB STUDIO)
+    # ==========================================================================
+    def get_all_web_submissions(self, session_id: int) -> List[Dict[str, Any]]:
+        """Fetches all active web submissions for the specified session."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM local_web_submissions
+                WHERE session_id = ? AND is_deleted = 0
                 ORDER BY id ASC
-            """, (course_code, class_name))
+            """, (session_id,))
             return [dict(row) for row in cursor.fetchall()]
 
     def add_web_submission(
@@ -791,6 +837,7 @@ class DatabaseManager:
         mode: str = "HYBRID",
         course_code: str = "WEB201c",
         class_name: str = "SE1806",
+        session_id: Optional[int] = None,
         source_folder_path: Optional[str] = None,
         display_mssv: Optional[str] = None,
         link_file_name: Optional[str] = None
@@ -801,10 +848,10 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO local_web_submissions (
                     course_code, class_name, mssv, name, live_url, repo_url, mode,
-                    source_folder_path, display_mssv, link_file_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (course_code, class_name, mssv.strip(), name.strip(), live_url.strip(),
-                  repo_url.strip(), mode.strip(), source_folder_path, display_mssv, link_file_name))
+                    source_folder_path, display_mssv, link_file_name, session_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (course_code.strip(), class_name.strip(), mssv.strip(), name.strip(), live_url.strip(),
+                  repo_url.strip(), mode.strip(), source_folder_path, display_mssv, link_file_name, session_id))
             conn.commit()
             if cursor.lastrowid is None:
                 raise RuntimeError("Failed to retrieve row ID from local_web_submissions.")

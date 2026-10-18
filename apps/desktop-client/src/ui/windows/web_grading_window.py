@@ -441,23 +441,7 @@ class WebDetailDialog(QDialog):
 
         return super().eventFilter(obj, event)
 
-    def _highlight_evidence(self, criterion_name: str):
-        """Maps a criterion name to its AI bounding box and triggers the viewer."""
-        if not hasattr(self, "shot_viewer"):
-            return
-
-        # AI evaluation details is a list of {criterion, score, verdict, comment, bounding_box}
-        details = self.st.get("evaluation_details", [])
-        if not details:
-            return
-
-        for item in details:
-            if item.get("criterion") == criterion_name:
-                box = item.get("bounding_box")
-                if box:
-                    self.shot_viewer.highlight_box(box)
-                break
-
+    def _request_override(self):
         dlg = WebScoreOverrideDialog(self.st, self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.scores:
             self.score_override = dlg.scores
@@ -1873,11 +1857,25 @@ class WebGradingMainWindow(QMainWindow):
     def _load_submissions_from_db(self):
         """Fetches stored web submissions from SQLite and updates UI state."""
         try:
-            records = self.db.get_all_web_submissions(self.current_course_code, self.current_class_name)
-            self._web_students = records
+            # Now filtering by session_id if we have one, otherwise fallback to old behavior
+            if hasattr(self, "current_session_id") and self.current_session_id:
+                records = self.db.get_all_web_submissions(self.current_session_id)
+            else:
+                # Fallback to course/class if session_id is not yet established
+                records = []
+                # In a real transition, we'd fetch the latest session for the class
+                sessions = self.db.get_all_web_sessions()
+                for s in sessions:
+                    if s['course_code'] == self.current_course_code and s['class_name'] == self.current_class_name:
+                        records = self.db.get_all_web_submissions(s['id'])
+                        self.current_session_id = s['id']
+                        break
         except Exception as ex:
             self._web_students = []
+            print(f"Error loading submissions: {ex}")
+            return
 
+        self._web_students = records
         self._populate_table()
 
     def _populate_table(self):
