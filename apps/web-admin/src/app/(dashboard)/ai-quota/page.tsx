@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher, apiGet } from "@/lib/api";
+import { swrFetcher, apiGet, API_URL } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 interface OverviewData {
@@ -138,8 +138,7 @@ export default function AiQuotaPage() {
 
   const getApiConfig = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
-    return { token, apiUrl };
+    return { token, apiUrl: API_URL };
   };
 
   const fetchData = useCallback(async (logPage = logsPagination.page) => {

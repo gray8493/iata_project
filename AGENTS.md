@@ -5,7 +5,7 @@ AITA — desktop tool for instructors to auto-grade C/Java/Python (and web) stud
 ## Monorepo layout
 - `apps/desktop-client` — PyQt6/Python grader. Implemented. Entry `main.py`; all code under `src/`.
 - `apps/central-backend` — NestJS 10 + Prisma 5 + PostgreSQL REST API. Implemented.
-- `apps/web-admin` — Next.js 14 admin SPA (Tailwind, port 3001). Implemented.
+- `apps/web-admin` — Next.js 14 admin SPA (Tailwind, port 3001). Implemented. Backend base URL comes from `NEXT_PUBLIC_API_URL` (inlined at build; see `apps/web-admin/.env.example`, fallback `http://localhost:3000/api/v1` only in dev).
 - `docs/` — architecture, OpenAPI specs (`docs/apis/*.yaml`), testcases, PlantUML diagrams.
 - `rules/` — mandatory Git branch rules and testcase ID/format rules (authoritative).
 - `tests/` and `apps/desktop-client/tests/` — pytest roots; currently only `.gitkeep` (no real tests).

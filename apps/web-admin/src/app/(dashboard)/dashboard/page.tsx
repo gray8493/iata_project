@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { swrFetcher, API_URL } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 interface OverviewData {
@@ -74,7 +74,6 @@ export default function DashboardOverviewPage() {
   const fetchDashboardData = useCallback(async (pageNumber = 1) => {
     setErrorMessage("");
     const token = localStorage.getItem("aita_access_token");
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
 
     if (!token) {
       setErrorMessage("Chưa tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.");
@@ -89,7 +88,7 @@ export default function DashboardOverviewPage() {
       };
 
       const resUsage = await fetch(
-        `${apiUrl}/admin/reports/ai-usage?page=${pageNumber}&page_size=10`,
+        `${API_URL}/admin/reports/ai-usage?page=${pageNumber}&page_size=10`,
         { method: "GET", headers }
       );
 

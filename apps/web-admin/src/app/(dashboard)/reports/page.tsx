@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { swrFetcher, API_URL } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 // ==========================================
@@ -108,8 +108,7 @@ export default function ReportsPage() {
   // Helper lấy cấu hình API
   const getApiConfig = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
-    return { token, apiUrl };
+    return { token, apiUrl: API_URL };
   };
 
   // Tự tắt thông báo sau vài giây

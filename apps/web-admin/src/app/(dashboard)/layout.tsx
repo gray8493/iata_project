@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 interface UserProfile {
   id?: string | number;
@@ -51,8 +52,7 @@ export default function DashboardLayout({
 
     const token = localStorage.getItem("aita_access_token");
     if (token) {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
-      fetch(`${apiUrl}/auth/me`, {
+      fetch(`${API_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

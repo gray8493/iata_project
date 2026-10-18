@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 interface UserItem {
   id: string;
@@ -117,8 +118,7 @@ export default function UsersManagementPage() {
 
   const getApiConfig = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
-    return { token, apiUrl };
+    return { token, apiUrl: API_URL };
   };
 
   // Lấy danh sách từ API Backend

@@ -1,5 +1,9 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+const DEFAULT_DEV_API_URL = "http://localhost:3000/api/v1";
+
+export const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "development" ? DEFAULT_DEV_API_URL : "")
+).replace(/\/+$/, "");
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -32,6 +36,13 @@ interface Envelope<T> {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!API_URL) {
+    throw new ApiError(
+      0,
+      "Chưa cấu hình địa chỉ máy chủ (NEXT_PUBLIC_API_URL). Vui lòng liên hệ quản trị viên.",
+      null
+    );
+  }
   const token = getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
