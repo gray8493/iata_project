@@ -2,10 +2,10 @@
 
 - **Cấp độ kiểm thử**: System Test
 - **Người thực hiện (Tester/Dev)**: Đinh Thành Nam
-- **Cập nhật lần cuối**: 17/10/2026
+- **Cập nhật lần cuối**: 18/10/2026
 - **Tài liệu liên quan**: `rules/testcase-rules.md`, `docs/architecture/`
-- **Tổng số Testcase**: 09 Testcases (04 Normal, 03 Boundary, 02 Exception)
-  - Phân hệ Desktop Client (ST01): 05 Testcases (01 Normal, 02 Boundary, 02 Exception)
+- **Tổng số Testcase**: 13 Testcases (06 Normal, 04 Boundary, 03 Exception)
+  - Phân hệ Desktop Client (ST01, ST04): 09 Testcases (03 Normal, 03 Boundary, 03 Exception)
   - Phân hệ Central Backend (ST02 - ST03): 04 Testcases (02 Normal, 01 Boundary, 01 Exception)
 
 ---
@@ -216,6 +216,107 @@ Boundary
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
 | Lần 1 | 17/10/2026 | Đinh Thành Nam | 80/100 hợp lệ, 79 trả 422 VALIDATION_FAILED | 6 ms | ✅ PASSED | Kiểm tra biên DTO |
+
+---
+
+# ST04_WebGrading_TC001: Nhập thư mục bài nộp Web và nhận diện đúng MSSV + link
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Ứng dụng Desktop Client đang mở màn hình `WebGradingMainWindow` (Web Studio).
+- Thư mục gốc `WebSub/` chứa 2 thư mục con `SE180001/`, `SE180002/`, mỗi thư mục có `links.txt` ghi Live URL và GitHub Repo.
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm "Chọn Thư Mục Bài Nộp" và chọn thư mục gốc `WebSub/`.
+2. Quan sát bảng xem trước trong `WebFolderImportDialog` (MSSV, File link, Live URL, GitHub Repo, Trạng Thái).
+3. Bấm "Nạp Các Bài Hợp Lệ".
+
+#### Kết quả kỳ vọng (Expected Result)
+- Mỗi thư mục con được nhận diện đúng MSSV; trạng thái "Đủ link".
+- Sau khi nạp, bảng điểm chính hiển thị đúng 2 bài với Live URL và GitHub Repo tương ứng.
+- Bản ghi được lưu vào bảng `local_web_submissions` với `course_code`/`class_name` đang chọn.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Nhận diện + nạp đúng 2 bài, lưu đủ URL | 22 ms | ✅ PASSED | `test_web_rubric_service.py` |
+
+---
+
+# ST04_WebGrading_TC002: Thư mục sai mẫu MSSV và thiếu file link (Biên)
+
+#### Loại test
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+- Thư mục gốc chứa: `SE18001/` (thiếu 1 chữ số), `NguyenVanA/` (không phải MSSV), `SE180003/` (không có file `.txt`), và `SE180004/links.txt` hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+1. Chọn thư mục gốc; để tùy chọn "Thư mục sai mẫu MSSV: Bỏ qua".
+2. Quan sát cột Trạng Thái và khung "Báo cáo nhận diện".
+3. Bấm "Nạp Các Bài Hợp Lệ"; sau đó mở lại và bấm "Nạp Tất Cả (kể cả bài thiếu link)".
+
+#### Kết quả kỳ vọng (Expected Result)
+- `SE18001`, `NguyenVanA` báo "không phải MSSV hợp lệ"; `SE180003` báo "Thiếu file link".
+- "Nạp Các Bài Hợp Lệ" chỉ nạp `SE180004`; "Nạp Tất Cả" nạp thêm cả các bài thiếu link (Live/Repo = rỗng).
+- Báo cáo liệt kê đúng danh sách thư mục bị bỏ qua và MSSV trùng (nếu có).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Phân loại đúng 3 bài lỗi, chỉ nạp bài hợp lệ | 18 ms | ✅ PASSED | `MSSV_PATTERN`, `select_link_file` |
+
+---
+
+# ST04_WebGrading_TC003: Chấm bài không có HTML → FAILED, không crash (Ngoại lệ)
+
+#### Loại test
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+- Một bài nộp không có Live URL và thư mục cục bộ không chứa `index.html`.
+
+#### Các bước thực hiện (Test Steps)
+1. Thêm bài nộp thủ công không có Live URL và không có thư mục nguồn.
+2. Bấm "Bắt Đầu Thẩm Định Web".
+3. Mở "Xem Chi Tiết" của bài đó.
+
+#### Kết quả kỳ vọng (Expected Result)
+- `WebRubricEngine.grade()` trả `verdict = "FAILED"`, `error = "NO_HTML"`.
+- Nhật ký thẩm định ghi `[RESULT]: Không tìm thấy mã nguồn HTML để thẩm định.`
+- Không có ngoại lệ văng ra UI; các bài khác vẫn được chấm bình thường.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Trả FAILED/NO_HTML, không crash | 4 ms | ✅ PASSED | `test_grade_without_html_returns_failed` |
+
+---
+
+# ST04_WebGrading_TC004: Xuất bảng điểm Web giữ đúng điểm 0.0 (Normal)
+
+#### Loại test
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+- Bảng điểm đã có ít nhất một bài đã chấm với một tiêu chí bằng 0.0 (ví dụ `Lint = 0.0`).
+
+#### Các bước thực hiện (Test Steps)
+1. Bấm "Xuất Bảng Điểm" → "Xuất File Excel (.xlsx)".
+2. Mở file, kiểm tra cột "Lint (10)" của bài có điểm 0.
+3. Lặp lại với "Xuất File Báo Cáo PDF (.pdf)".
+
+#### Kết quả kỳ vọng (Expected Result)
+- Ô điểm `0.0` hiển thị đúng là `0` (không bị bỏ trống); các tiêu chí chưa chấm hiển thị trống/`—` tương ứng.
+- Cả Excel và PDF nhất quán về giá trị điểm.
+- Tên/MSSV chứa ký tự `&`, `<` không làm vỡ bố cục PDF (đã escape HTML).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 18/10/2026 | Pytest Runner | Điểm 0.0 hiển thị đúng, PDF không vỡ | 90 ms | ✅ PASSED | Kiểm thử hồi quy |
 
 ---
 

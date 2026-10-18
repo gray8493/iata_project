@@ -39,6 +39,10 @@ npm test -- integration.docs.spec.ts
 | IT22_RefreshRotation_TC002 | RefreshRotation | Exception | `POST /api/v1/auth/refresh` |
 | IT23_SoftDeleteExclusion_TC001 | SoftDeleteExclusion | Normal | `DELETE /api/v1/admin/users/:id` |
 | IT23_SoftDeleteExclusion_TC002 | SoftDeleteExclusion | Exception | `DELETE /api/v1/admin/users/:id` |
+| IT19_WebRubricGrading_TC001 | WebRubricGrading | Normal | `WebRubricEngine._score_*` + `_weighted_total` (Desktop) |
+| IT19_WebRubricGrading_TC002 | WebRubricGrading | Boundary | `WebRubricEngine._weighted_total` / `_verdict` (Desktop) |
+| IT19_WebRubricGrading_TC003 | WebRubricGrading | Exception | `WebRubricEngine.grade` (Desktop) |
+| IT19_FolderRecognition_TC001 | FolderRecognition | Boundary | `WebFolderImportDialog` helpers (Desktop) |
 
 ---
 
@@ -195,3 +199,38 @@ Các kịch bản tích hợp thuộc phân hệ Desktop Client được tự đ
 - `IT09_JavaFloatingPoint`: Tích hợp máy ảo Java và so khớp sai số thực epsilon $\le 10^{-5}$ (`test_matching_strategies.py`).
 - `IT10_PythonUnorderedTokens`: Tích hợp trình thông dịch Python và so khớp token không phụ thuộc thứ tự (`test_matching_strategies.py`).
 - `IT14_GradebookExport`: Tích hợp dữ liệu chấm điểm và xuất file `results.csv` 7 cột UTF-8 BOM (`test_export_service.py`).
+
+---
+
+## 7. Phân hệ Web Studio (Desktop Client — WebRubricEngine + Folder Recognition)
+
+> Các kịch bản dưới đây kiểm thử tích hợp nội bộ của phân hệ chấm đồ án Web (UC-19). Không cần Playwright/network: engine được kiểm ở tầng scorer và nhận diện thư mục.
+> **Cách chạy:** `pytest apps/desktop-client/tests/test_web_rubric_service.py -v`
+
+### IT19_WebRubricGrading_TC001 — Tổng hợp điểm 4 tiêu chí và tổng có trọng số
+- **Loại test:** Normal
+- **Pre-condition:** `WebRubricEngine` khởi tạo không cần AI service.
+- **Test Data:** HTML ngữ nghĩa (header/nav/main/section/footer, `h1`/`h2`, `<img alt>`, `<form>`+`<label>`); CSS hợp lệ; nhiều `<script>` + `addEventListener` + `<button>`.
+- **Test Steps:** Gọi lần lượt `_score_dom`, `_score_css`, `_score_func` rồi `_weighted_total({dom, lint, func})`.
+- **Expected Result:** DOM ≥ 8.0; CSS = 10.0 với stylesheet hợp lệ; JS > 0; `WEIGHTS = {dom:0.2, lint:0.2, func:0.3, ui:0.3}` và tổng có trọng số khớp công thức.
+
+### IT19_WebRubricGrading_TC002 — Phân bổ lại trọng số khi thiếu UI và ngưỡng verdict (Biên)
+- **Loại test:** Boundary
+- **Pre-condition:** UI Vision không khả dụng (`screenshot_bytes = None`).
+- **Test Data:** `{dom:10, lint:0, func:0}`; các mốc tổng `10.0, 7.0, 6.99, 5.0, 4.99, 0.0`.
+- **Test Steps:** Gọi `_weighted_total` và `_verdict`.
+- **Expected Result:** Tổng = `(10.0 * 0.2) / 0.7`; ngưỡng: ≥7.0 → PASSED, ≥5.0 → PARTIAL, <5.0 → FAILED.
+
+### IT19_WebRubricGrading_TC003 — Không có HTML thì trả FAILED/NO_HTML (Ngoại lệ)
+- **Loại test:** Exception
+- **Pre-condition:** Không có `live_url` và không có thư mục nguồn.
+- **Test Steps:** Gọi `WebRubricEngine.grade(live_url=None, local_dir=None)`.
+- **Expected Result:** `verdict = "FAILED"`, `error = "NO_HTML"`; nhật ký ghi "[RESULT]: Không tìm thấy mã nguồn HTML để thẩm định."; không ném ngoại lệ.
+
+### IT19_FolderRecognition_TC001 — Chuẩn hóa link và chọn file link (Biên)
+- **Loại test:** Boundary
+- **Pre-condition:** Thư mục sinh viên có nhiều file `.txt` hoặc không có file `.txt`.
+- **Test Data:** `https://github.com/user/repo.git/tree/main`; `links.txt`+`random.txt`; thư mục không có `.txt`.
+- **Test Steps:** Gọi `classify_url` và `select_link_file`.
+- **Expected Result:** GitHub được chuẩn hóa về `https://github.com/user/repo`; `links.txt` được ưu tiên; không có `.txt` → status `no_txt`; nhiều `.txt` không xác định → `ambiguous`.
+
