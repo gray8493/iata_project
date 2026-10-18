@@ -1,7 +1,7 @@
 """
 AITA Desktop Client - Testcase Manager & AI Generator Dialog (PyQt6)
 UC-09: Manage Black-box Testcases Manually (Add / Edit / Delete Input/Output)
-UC-10: Auto-Generate Boundary Testcases with Gemini AI
+UC-10: Auto-Generate Boundary Testcases with AI Hub
 UC-11: Configure 7 Output Matching Strategies
 """
 

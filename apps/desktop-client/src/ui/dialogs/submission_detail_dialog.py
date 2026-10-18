@@ -474,7 +474,7 @@ class SubmissionDetailDialog(QDialog):
         ta_layout.addWidget(self.btn_run_ai_review)
         
         self.txt_ai_feedback = QTextEdit(tab_ai)
-        self.txt_ai_feedback.setPlaceholderText("Bấm nút trên để Gemini AI phân tích vị trí dòng lỗi thuật toán và đưa ra nhận xét sư phạm...")
+        self.txt_ai_feedback.setPlaceholderText("Bấm nút trên để AI Hub phân tích vị trí dòng lỗi thuật toán và đưa ra nhận xét sư phạm...")
         self.txt_ai_feedback.setReadOnly(True)
         self.txt_ai_feedback.setStyleSheet("""
             QTextEdit {
@@ -998,8 +998,8 @@ class SubmissionDetailDialog(QDialog):
 
         self.btn_run_ai_review.setEnabled(False)
         self.btn_run_ai_review.setText("Đang kết nối AI Gateway phân tích mã nguồn...")
-        self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & Gemini AI Gateway để nhận xét sư phạm...")
-        start_spinner(self, "Gemini AI đang phân tích mã nguồn và soạn nhận xét...")
+        self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & AI Gateway để nhận xét sư phạm...")
+        start_spinner(self, "AI Hub đang phân tích mã nguồn và soạn nhận xét...")
 
         self.ai_review_worker = AiReviewWorker(code, lang, problem, failed_tc)
         self.ai_review_worker.finished.connect(self._on_ai_review_finished)
@@ -1040,7 +1040,7 @@ class SubmissionDetailDialog(QDialog):
             QMessageBox.information(
                 self,
                 "AI Hoàn Tất",
-                f"Gemini AI đã phân tích xong mã nguồn bài nộp của sinh viên {self.mssv}!\n"
+                f"AI Hub đã phân tích xong mã nguồn bài nộp của sinh viên {self.mssv}!\n"
                 f"(Tiêu thụ: {tokens} tokens trên CSDL Neon)"
             )
         else:

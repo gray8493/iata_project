@@ -33,7 +33,7 @@ Mỗi Use Case được đặc tả bao gồm:
 | **UC-01** | Đăng nhập & Xác thực Hệ thống | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
 | **UC-02** | Quản lý Tài khoản & Phân quyền Giảng viên | Admin | Web Admin Dashboard | Web Server Backend |
 | **UC-03** | Cấp mới Access Token bằng Refresh Token | Admin, Giảng viên | Web Admin / Desktop App | Web Server Backend |
-| **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, Gemini AI Hub |
+| **UC-04** | Quản lý hạn ngạch & giám sát sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend, AI Hub        |
 | **UC-05** | Xem Báo cáo tài khoản & Sử dụng AI | Admin | Web Admin Dashboard | Web Server Backend |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
 | **UC-06** | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ | Giảng viên | Desktop App Client | Sandbox Execution Runner |
@@ -41,7 +41,7 @@ Mỗi Use Case được đặc tả bao gồm:
 | **UC-08** | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV | Giảng viên | Desktop App Client | *(Tương tác File System)* |
 | **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)** | | | | |
 | **UC-09** | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **UC-10** | Tự động Sinh Testcase Biên bằng AI | Giảng viên | Desktop App Client | Gemini AI Hub |
+| **UC-10** | Tự động Sinh Testcase Biên bằng AI | Giảng viên | Desktop App Client | AI Hub        |
 | **UC-11** | Thiết lập Động cơ So khớp 7 Chế độ | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
 | **Phân hệ 4: Tự động Thực thi & Chấm điểm (Execution & Automated Grading Pipeline)** | | | | |
 | **UC-12** | Thực thi Chấm điểm Tự động Hàng loạt | Giảng viên | Desktop App Client | Sandbox Execution Runner |
@@ -50,8 +50,8 @@ Mỗi Use Case được đặc tả bao gồm:
 | **UC-15** | Chấm lại & Điều chỉnh Điểm thủ công | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-19** | Chấm Điểm Bài Tập Web Tự Động | Giảng viên | Desktop App Client | Headless Browser, DOM/CSS Parser, AI Gateway |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)** | | | | |
-| **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Giảng viên | Desktop App Client | Gemini AI Hub |
-| **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Giảng viên | Desktop App Client | Gemini AI Hub |
+| **UC-16** | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand | Giảng viên | Desktop App Client | AI Hub        |
+| **UC-17** | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng | Giảng viên | Desktop App Client | AI Hub        |
 | **Phân hệ 6: Báo cáo, Đánh giá Cục Bộ (Reporting & Local Export)** | | | | |
 | **UC-18** | Xuất Báo cáo Kết quả Điểm | Giảng viên | Desktop App Client | *(Tương tác File System)* |
 
@@ -141,11 +141,11 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-04`
 * **Tên Use Case**: Quản lý hạn ngạch và giám sát sử dụng AI
 * **Tác nhân chính**: Quản trị viên (Admin)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend, Google Gemini AI Hub
-* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. Google Gemini API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `GEMINI_API_KEY` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend, AI Hub
+* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. AI Gateway API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `AI_API_KEY` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập tài khoản quyền Admin trên Web Admin.
-  2. Backend đã được cấu hình `GEMINI_API_KEY` trong môi trường máy chủ.
+  2. Backend đã được cấu hình `AI_API_KEY` trong môi trường máy chủ.
 * **Hậu điều kiện (Postconditions)**:
   1. Quota ngày của giảng viên được lưu và áp dụng tại backend.
   2. Nhật ký và báo cáo sử dụng AI có thể được tra cứu từ Web Admin.
@@ -155,12 +155,12 @@ Mỗi Use Case được đặc tả bao gồm:
 1. Quản trị viên mở phân hệ **"Quản lý AI & Giám sát Hạn ngạch"**.
 2. Web Admin tải số liệu tổng hợp bằng `GET /api/v1/admin/reports/overview` và nhật ký đã lọc bằng `GET /api/v1/admin/reports/ai-usage`.
 3. Khi thay đổi quota, Admin cập nhật `daily_token_quota` qua `PUT /api/v1/admin/users/{id}`; backend lưu cấu hình và áp dụng quota ngày UTC cho các yêu cầu AI tiếp theo.
-4. Gemini API key được vận hành viên thay đổi trong cấu hình môi trường máy chủ, không qua API hoặc giao diện Admin. Backend không trả giá trị key cho client.
+4. AI API key được vận hành viên thay đổi trong cấu hình môi trường máy chủ, không qua API hoặc giao diện Admin. Backend không trả giá trị key cho client.
 5. Web Admin hiển thị báo cáo/quota đã cập nhật. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Điều chỉnh quota**: Admin thay đổi quota qua cập nhật User; quota mới có hiệu lực ngay cho lần kiểm tra quota kế tiếp.
-* **E1 - Gemini chưa được cấu hình hoặc key không hợp lệ**: Backend trả lỗi đã lọc thông tin nhạy cảm (`AI_NOT_CONFIGURED` hoặc `AI_PROVIDER_ERROR`); vận hành viên cập nhật biến môi trường máy chủ.
+* **E1 - AI Hub chưa được cấu hình hoặc key không hợp lệ**: Backend trả lỗi đã lọc thông tin nhạy cảm (`AI_NOT_CONFIGURED` hoặc `AI_PROVIDER_ERROR`); vận hành viên cập nhật biến môi trường máy chủ.
 
 ---
 
@@ -170,7 +170,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Xem Báo cáo tài khoản & Sử dụng AI (View Account & AI Usage Reports)
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend (Reporting Engine, Prisma ORM)
-* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên báo cáo số tài khoản giảng viên và hoạt động sử dụng AI, gồm tổng token Gemini đã tiêu thụ, tính năng được dùng và nhật ký từng lượt gọi AI. Backend không lưu phiên chấm hoặc bảng điểm; các dữ liệu đó được quản lý cục bộ trên Desktop App.
+* **Mô tả tóm tắt**: Cung cấp cho Quản trị viên báo cáo số tài khoản giảng viên và hoạt động sử dụng AI, gồm tổng token AI Hub đã tiêu thụ, tính năng được dùng và nhật ký từng lượt gọi AI. Backend không lưu phiên chấm hoặc bảng điểm; các dữ liệu đó được quản lý cục bộ trên Desktop App.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập vào Web Admin Dashboard với quyền Admin.
 * **Hậu điều kiện (Postconditions)**:
@@ -328,13 +328,13 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-#### 3.3.2. UC-10: Tự Động Sinh Testcase Biên Bằng AI (Auto-Generate Boundary Testcases with Gemini AI)
+#### 3.3.2. UC-10: Tự Động Sinh Testcase Biên Bằng AI (Auto-Generate Boundary Testcases with AI Hub)
 
 * **Mã Use Case**: `UC-10`
 * **Tên Use Case**: Tự động Sinh Testcase Biên bằng AI (AI Black-box Testcase Generator)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
-* **Mô tả tóm tắt**: Giảng viên dán nội dung tóm tắt đề bài và số lượng testcase cần sinh. Google Gemini AI tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên: số âm, chuỗi rỗng, giá trị cực đại, mảng rỗng...). Kết quả hiển thị dưới dạng bảng chọn lọc, cho phép nạp trực tiếp vào SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết code giải mẫu**.
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), AI Gateway API
+* **Mô tả tóm tắt**: Giảng viên dán nội dung tóm tắt đề bài và số lượng testcase cần sinh. AI Hub tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên: số âm, chuỗi rỗng, giá trị cực đại, mảng rỗng...). Kết quả hiển thị dưới dạng bảng chọn lọc, cho phép nạp trực tiếp vào SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết code giải mẫu**.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App.
   2. Hạn ngạch (Quota) gọi AI của Giảng viên trên Web Server Backend còn khả dụng.
@@ -351,7 +351,7 @@ Mỗi Use Case được đặc tả bao gồm:
    - Nút chính **"Sinh Testcase"** (nền xanh đặc) và nút viền **"Hủy"**.
 3. Giảng viên dán đề bài và bấm **"Sinh Testcase"**.
 4. Desktop App gửi request bất đồng bộ `POST /api/v1/ai/generate-testcases` tới Web Server Backend.
-5. Web Server Backend kiểm tra hạn ngạch Token, gọi Google Gemini API để phân tích đề bài và sinh các testcase biên.
+5. Web Server Backend kiểm tra hạn ngạch Token, gọi AI Gateway API để phân tích đề bài và sinh các testcase biên.
 6. Backend trả về kết quả; Desktop App hiển thị bảng danh sách các testcase được đề xuất gồm: Checkbox chọn dòng, cột Input (stdin) và cột Expected Output (stdout) (tuyệt đối không hiển thị mã JSON thô). Nút "Thêm Các Testcase Đã Chọn" được kích hoạt.
 7. Giảng viên đánh dấu tick các testcase phù hợp (hỗ trợ nút "Chọn Tất Cả", "Bỏ Chọn Tất Cả") và bấm **"Thêm Các Testcase Đã Chọn"**.
 8. Hệ thống lưu các testcase đã chọn vào bảng `local_test_cases` trong SQLite cục bộ và làm mới bảng testcase. Hộp thoại đóng lại, Use Case kết thúc.
@@ -396,8 +396,8 @@ Mỗi Use Case được đặc tả bao gồm:
 2. Hệ thống hiển thị hộp thoại nhập thông tin bài toán: Tên câu hỏi (ví dụ: `Q1 - Kiểm tra số nguyên tố`), mô tả đề bài (Problem Statement), định dạng luồng nhập/xuất và các ràng buộc dữ liệu ($N \le 10^6$).
 3. Giảng viên nhập nội dung hoặc nạp file đề bài dạng Markdown/Text và nhấn **"Bắt đầu sinh Testcase"**.
 4. Hệ thống Desktop App đóng gói prompt gửi yêu cầu `POST /api/v1/ai/generate-testcases` kèm Bearer JWT Token lên Web Server Backend.
-5. Web Server Backend thẩm định token, kiểm tra hạn ngạch token còn lại của Giảng viên và chuyển tiếp prompt đã chuẩn hóa cấu trúc JSON tới Google Gemini API qua SDK chính thức.
-6. Gemini AI xử lý và phản hồi danh sách 5-10 testcase dạng JSON gồm:
+5. Web Server Backend thẩm định token, kiểm tra hạn ngạch token còn lại của Giảng viên và chuyển tiếp prompt đã chuẩn hóa cấu trúc JSON tới AI Gateway API qua SDK chính thức.
+6. AI Hub xử lý và phản hồi danh sách 5-10 testcase dạng JSON gồm:
    - Mục đích kiểm thử (ví dụ: "Số âm", "Mảng rỗng", "Giá trị cực đại $10^6$", "Số 0 và 1").
    - Dữ liệu đầu vào (`INPUT` - stdin).
    - Dữ liệu đầu ra kỳ vọng (`OUTPUT kỳ vọng` - stdout).
@@ -638,8 +638,8 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-16`
 * **Tên Use Case**: Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand bằng AI (Generate On-Demand AI Code Review)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), Google Gemini API
-* **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API (Rate Limit 429), tính năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). Gemini AI phân tích mã nguồn đối chiếu với testcase sai và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
+* **Tác nhân hỗ trợ ngoài**: Web Server Backend (NestJS AI Hub), AI Gateway API
+* **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API (Rate Limit 429), tính năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). AI Hub phân tích mã nguồn đối chiếu với testcase sai và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
 * **Tiền điều kiện (Preconditions)**:
   1. Bài nộp của sinh viên đã được chấm và có kết quả `WA`.
   2. Phiên làm việc của Giảng viên còn hạn ngạch gọi AI trên Web Backend.
@@ -652,8 +652,8 @@ Mỗi Use Case được đặc tả bao gồm:
 2. Giảng viên bấm nút **`[✨ AI Phân tích lỗi]`**.
 3. Hệ thống Desktop App đóng gói ngữ cảnh gồm: mã nguồn câu hỏi bị sai, ngôn ngữ lập trình, dữ liệu testcase bị sai (`INPUT`, `Expected Output`, `Actual Output`).
 4. Hệ thống gửi yêu cầu bất đồng bộ `POST /api/v1/ai/code-review` kèm JWT token đến Web Server Backend.
-5. Web Server Backend thẩm định token, trừ hạn ngạch sử dụng và chuyển tiếp prompt chuẩn hóa tới Gemini AI với chỉ thị sư phạm: "Chỉ ra dòng code lỗi, giải thích bản chất lỗi thuật toán và đưa ra gợi ý tư duy cho sinh viên tự sửa, tuyệt đối không đưa ra toàn bộ code giải sẵn".
-6. Gemini AI xử lý và trả về đoạn nhận xét sư phạm ngắn gọn (3-5 câu).
+5. Web Server Backend thẩm định token, trừ hạn ngạch sử dụng và chuyển tiếp prompt chuẩn hóa tới AI Hub với chỉ thị sư phạm: "Chỉ ra dòng code lỗi, giải thích bản chất lỗi thuật toán và đưa ra gợi ý tư duy cho sinh viên tự sửa, tuyệt đối không đưa ra toàn bộ code giải sẵn".
+6. AI Hub xử lý và trả về đoạn nhận xét sư phạm ngắn gọn (3-5 câu).
 7. Hệ thống Desktop App hiển thị bản nháp nhận xét lên khung văn bản trên giao diện Desktop.
 8. Giảng viên xem lại, có thể chỉnh sửa bổ sung nội dung bằng tay nếu muốn.
 9. Giảng viên bấm **"Xác nhận & Lưu nhận xét"**.
@@ -670,8 +670,8 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mã Use Case**: `UC-17`
 * **Tên Use Case**: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (Two-Stage Plagiarism Detection)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Google Gemini AI Hub (cho Vòng 2), AST Parsing Engine cục bộ
-* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp trừu tượng AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên Gemini AI để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép phục vụ lập biên bản.
+* **Tác nhân hỗ trợ ngoài**: AI Hub (cho Vòng 2), AST Parsing Engine cục bộ
+* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp trừu tượng AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên AI Hub để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép phục vụ lập biên bản.
 * **Tiền điều kiện (Preconditions)**:
   1. Đợt chấm có từ hai bài nộp trở lên của cùng một câu hỏi.
 * **Hậu điều kiện (Postconditions)**:
@@ -688,8 +688,8 @@ Mỗi Use Case được đặc tả bao gồm:
 3. Nếu không có cặp bài nào vượt ngưỡng $\ge 80\%$, hệ thống thông báo "Không phát hiện nghi vấn sao chép mã nguồn bất thường". Use Case kết thúc.
 4. **Vòng 2 - Xác thực chuyên sâu bằng AI (AI Semantic Verification)**:
    - Với các cặp bài có độ tương đồng vượt ngưỡng $\ge 80\%$ (thường chỉ 1-3 cặp), hệ thống hiển thị cờ cảnh báo đỏ và cho phép Giảng viên bấm **`[✨ AI Phân tích bằng chứng]`**.
-   - Desktop App gửi cấu trúc mã nguồn tóm tắt của 2 bài nghi vấn lên Gemini AI Hub thông qua Web Backend.
-   - Gemini AI phân tích các thủ thuật gian lận tinh vi: đổi tên biến, đảo hàm, hoán đổi cấu trúc vòng lặp `for`/`while`, chèn code rác và trả về biên bản tóm tắt bằng chứng sao chép.
+   - Desktop App gửi cấu trúc mã nguồn tóm tắt của 2 bài nghi vấn lên AI Hub thông qua Web Backend.
+   - AI Hub phân tích các thủ thuật gian lận tinh vi: đổi tên biến, đảo hàm, hoán đổi cấu trúc vòng lặp `for`/`while`, chèn code rác và trả về biên bản tóm tắt bằng chứng sao chép.
 5. Giảng viên bấm vào cặp bài nghi vấn: Desktop App mở giao diện so sánh trực quan song song hai bên (Side-by-side Diff Viewer) với các đoạn code nghi vấn được tô sáng màu đỏ kèm nhận xét bằng chứng từ AI.
 6. Giảng viên xác nhận đánh dấu vi phạm kỷ luật học thuật cho cặp bài nộp. Use Case kết thúc.
 
@@ -725,7 +725,7 @@ Mỗi Use Case được đặc tả bao gồm:
      - Cột 4: `Số testcase đạt` (ví dụ: `9/10`)
      - Cột 5: `Trạng thái` (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`)
      - Cột 6: `Thời gian chạy trung bình (ms)`
-     - Cột 7: `Nhận xét từ AI Gemini / Giảng viên`
+     - Cột 7: `Nhận xét từ AI / Giảng viên`
    - **File bảng điểm Excel (`.xlsx`)**: Bảng điểm trình bày đẹp mắt, tự động định dạng điều kiện tô màu xanh cho bài đạt, màu đỏ cho bài lỗi, có kèm biểu đồ thống kê tỷ lệ điểm số của cả lớp.
 3. Giảng viên chọn định dạng mong muốn và nhấn **"Xác nhận xuất"**.
 4. Hộp thoại hệ điều hành (Native File Dialog) mở ra để Giảng viên chọn thư mục lưu và đặt tên file.

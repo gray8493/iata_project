@@ -6,7 +6,7 @@
 
 Tài liệu này đặc tả chi tiết kiến trúc và lược đồ cơ sở dữ liệu (Database Schema) cho toàn bộ hệ sinh thái **AITA**, bao gồm:
 
-1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng Gemini AI.
+1. **Cơ sở dữ liệu Trung tâm (Central Database - PostgreSQL trên Neon Serverless Cloud)**: Phục vụ Web Server Backend (NestJS) và Web Admin Dashboard (Next.js) để quản lý tài khoản, quota và nhật ký sử dụng AI Hub.
 2. **Cơ sở dữ liệu Cục bộ (Local Database - SQLite3 Client)**: Nằm trực tiếp trên máy trạm của Giảng viên phục vụ Desktop App (PyQt6) vận hành chấm điểm Offline-first tốc độ cao, lưu trữ toàn bộ dữ liệu lớp học, bài nộp, testcase và kết quả điểm thi **hoàn toàn cục bộ, không tải lên Cloud**.
 
 ---
@@ -129,7 +129,7 @@ erDiagram
         numeric memory_used_mb "Dung lượng RAM tiêu thụ tối đa (MB)"
         text compile_log "Thông báo lỗi biên dịch (nếu có CE)"
         text diff_details "Chi tiết khác biệt stdout và expected output"
-        text ai_feedback "Gợi ý sửa lỗi từ Gemini AI (On-Demand)"
+        text ai_feedback "Gợi ý sửa lỗi từ AI Hub (On-Demand)"
         numeric manual_override_score "Điểm số giảng viên ghi đè thủ công"
         text manual_override_reason "Lý do ghi đè điểm"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
@@ -207,7 +207,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch Gemini AI)
+### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch AI Hub)
 
 * **Mục đích**: Quản trị viên (Admin) cấu hình trần số Token gọi AI tối đa trong ngày cho từng Giảng viên nhằm kiểm soát chi phí.
 
@@ -226,7 +226,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ### 2.4. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
 
-* **Mục đích**: Ghi vết minh bạch từng lượt gọi Gemini (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
+* **Mục đích**: Ghi vết minh bạch từng lượt gọi AI Hub (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
 
 | Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                     | Giá Trị Mặc Định  | Ý Nghĩa Nghiệp Vụ                                 |
 | :-------------------- | :-------------- | :------------------------------ | :--------------------- | :---------------------------------------------------- |
@@ -235,7 +235,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`. |
 | `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
 | `prompt_tokens`     | `INTEGER`     | **NOT NULL**              | `0`                  | Số token của prompt gửi đi.                       |
-| `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ Gemini.            |
+| `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ AI Hub.            |
 | `total_tokens`      | `INTEGER`     | **NOT NULL**              | `0`                  | Tổng token = prompt + completion.                    |
 | `is_deleted`        | `BOOLEAN`     | **NOT NULL**              | `FALSE`              | Cờ xóa mềm (FALSE: Hoạt động, TRUE: Đã xóa). |
 | `deleted_at`        | `TIMESTAMPTZ` |                                 | `NULL`               | Thời điểm xóa mềm nhật ký.                     |
@@ -331,7 +331,7 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `memory_used_mb`         | `REAL`        | **DEFAULT 0.0**                                              | Dung lượng bộ nhớ RAM tối đa tiến trình tiêu thụ (MB).      |
 | `compile_log`            | `TEXT`        |                                                                    | Bắt nội dung `stderr` khi dính lỗi biên dịch `CE`.          |
 | `diff_details`           | `TEXT`        |                                                                    | Chi tiết so sánh sai lệch giữa stdout và expected output.   |
-| `ai_feedback`            | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi Gemini AI (On-Demand).    |
+| `ai_feedback`            | `TEXT`        |                                                                    | Nhận xét sư phạm ngắn sinh bởi AI Hub (On-Demand).       |
 | `manual_override_score`  | `REAL`        |                                                                    | Điểm số do giảng viên điều chỉnh/ghi đè thủ công.          |
 | `manual_override_reason` | `TEXT`        |                                                                    | Lý do giảng viên ghi đè điểm số.                            |
 | `is_deleted`             | `INTEGER`     | **DEFAULT 0**                                                | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                 |

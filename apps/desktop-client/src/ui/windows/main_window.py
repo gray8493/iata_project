@@ -634,7 +634,7 @@ class AITAMainWindow(QMainWindow):
         badge_bg = "#EFF6FF"
         badge_color = COLOR_PRIMARY
         badge_border = "#BFDBFE"
-        badge_text = "Gemini AI: Sẵn Sàng"
+        badge_text = "AI Hub: Sẵn Sàng"
         
         status_pill = QFrame(header)
         status_pill.setFixedHeight(32)
@@ -2355,7 +2355,7 @@ class AITAMainWindow(QMainWindow):
 
     def _on_quota_received(self, res: Dict[str, Any]):
         """
-        Pain #6: pill Gemini phản ánh rõ 3 trạng thái hạn mức, không để giảng viên
+        Pain #6: pill AI Hub phản ánh rõ 3 trạng thái hạn mức, không để giảng viên
         bấm AI Review xong mới phát hiện hết/ít token:
         - Binh thường: xanh dương, hiện số dư.
         - Sắp hết (ratio < 20%): cam cảnh báo + số dư.
@@ -2369,31 +2369,31 @@ class AITAMainWindow(QMainWindow):
             limit = int(res.get("daily_limit_tokens", 0) or 0)
             ratio = (rem / limit) if limit > 0 else 1.0
             tip = (
-                f"Quota Gemini AI:\n"
+                f"Quota AI Hub:\n"
                 f"- Hạn mức: {limit:,} tokens\n"
                 f"- Còn lại: {rem:,} tokens\n"
                 f"- Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens"
             )
             if rem <= 0:
-                text = "Gemini AI: Hết Token Hôm Nay"
+                text = "AI Hub: Hết Token Hôm Nay"
                 self.lbl_ai_quota.setText(text)
                 self._style_ai_pill("out")
             elif ratio < 0.2:
-                text = f"Gemini AI: Sắp Hết ({rem:,} tokens)"
+                text = f"AI Hub: Sắp Hết ({rem:,} tokens)"
                 self.lbl_ai_quota.setText(text)
                 self._style_ai_pill("low")
             else:
-                self.lbl_ai_quota.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_quota.setText(f"AI Hub: Còn {rem:,} / {limit:,} Tokens")
                 self._style_ai_pill("normal")
         else:
-            self.lbl_ai_quota.setText("Gemini AI: Sẵn Sàng")
+            self.lbl_ai_quota.setText("AI Hub: Sẵn Sàng")
             self._style_ai_pill("normal")
         self.lbl_ai_quota.setToolTip(tip)
         if getattr(self, "pill_ai_container", None):
             self.pill_ai_container.setToolTip(tip)
 
     def _style_ai_pill(self, state: str = "normal") -> None:
-        """Tô lại pill Gemini AI theo trạng thái hạn mức (normal / low / out)."""
+        """Tô lại pill AI Hub theo trạng thái hạn mức (normal / low / out)."""
         container = getattr(self, "pill_ai_container", None)
         label = getattr(self, "lbl_ai_quota", None)
         if not (container and label):

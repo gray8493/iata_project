@@ -6,7 +6,7 @@ grading data and renders them to a CSV file (`results.csv`), an Excel workbook
 
 CSV gradebook columns (IT14, UTF-8 BOM):
 `MSSV`, `File`, `Điểm số`, `Số testcase đạt`, `Trạng thái`,
-`Thời gian chạy (ms)`, `Nhận xét từ AI Gemini`.
+`Thời gian chạy (ms)`, `Nhận xét từ AI`.
 """
 
 import csv
@@ -30,7 +30,7 @@ CSV_COLUMNS = (
     "Số testcase đạt",
     "Trạng thái",
     "Thời gian chạy (ms)",
-    "Nhận xét từ AI Gemini"
+    "Nhận xét từ AI"
 )
 
 FAILED_VERDICTS = ("WA", "TLE", "MLE", "CE", "RE")

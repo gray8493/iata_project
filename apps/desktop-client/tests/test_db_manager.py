@@ -123,7 +123,7 @@ def test_get_plagiarism_reports_orders_by_similarity_desc(db, class_id):
 def test_update_plagiarism_report_evidence_matches_pair_in_any_order(db, class_id):
     db.save_plagiarism_report(class_id, "SE180001", "SE180002", 88.0)
     updated = db.update_plagiarism_report_evidence(
-        class_id, "SE180002", "SE180001", "Vong 2: Gemini xac minh renamed bi-ops."
+        class_id, "SE180002", "SE180001", "Vong 2: AI Hub xac minh renamed bi-ops."
     )
     assert updated is True
     assert db.get_plagiarism_reports(class_id)[0]["ai_evidence_details"].startswith("Vong 2")

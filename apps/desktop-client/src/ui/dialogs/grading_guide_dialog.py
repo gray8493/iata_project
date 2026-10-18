@@ -126,7 +126,7 @@ class GradingGuideDialog(QDialog):
              "Hệ thống tự động cảnh báo nếu phát hiện trùng lặp MSSV và không nạp các mục không hợp lệ."),
             ("Bước 2: Cấu hình testcase và tiêu chí so khớp",
              "Nhấn [2. Cấu Hình Testcase & So Khớp] để thiết lập các bộ dữ liệu vào (stdin) và kết quả kỳ vọng (stdout) cho từng câu hỏi. "
-             "Bạn có thể nhập thủ công hoặc kích hoạt Gemini AI để tự động suy luận sinh 5 đến 10 testcase biên "
+             "Bạn có thể nhập thủ công hoặc kích hoạt AI Hub để tự động suy luận sinh 5 đến 10 testcase biên "
              "mà không cần viết mã giải mẫu. Sau đó tick chọn các tiêu chí so khớp phù hợp và nhấn [Lưu Testcase]."),
             ("Bước 3: Bắt đầu chấm hàng loạt",
              "Nhấn nút [3. Bắt Đầu Chấm Hàng Loạt]. Động cơ Sandbox Runner sẽ tự động biên dịch và thực thi an toàn từng bài làm "

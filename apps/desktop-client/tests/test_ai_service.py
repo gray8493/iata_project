@@ -1,6 +1,6 @@
 """AiService (services.ai_service) - request shaping and envelope unwrapping.
 
-The desktop client never talks to Gemini directly; it calls the Central Backend
+The desktop client never talks to AI Hub directly; it calls the Central Backend
 AI gateway through ApiClient. These tests pin the client-side contract:
 payload normalization/clamping and the success/error envelopes the UI relies on.
 No network: a fake ApiClient records the calls.

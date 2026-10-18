@@ -529,7 +529,7 @@ export default function ReportsPage() {
 
           <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-[13px] text-slate-600">
             <span>
-              Mọi yêu cầu gọi mô hình Gemini đều được kiểm tra hạn ngạch tự động và lưu trữ nhật ký đối soát.
+              Mọi yêu cầu gọi mô hình AI Hub đều được kiểm tra hạn ngạch tự động và lưu trữ nhật ký đối soát.
             </span>
           </div>
         </div>

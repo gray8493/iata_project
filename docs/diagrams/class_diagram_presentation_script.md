@@ -18,7 +18,7 @@
 | **1** | **Lời Mở Đầu & Tổng Quan Hệ Thống** | 0:00 – 0:45 (45s) | Toàn cảnh 3 khối màu: Xanh lá (Local), Tím (Desktop), Xanh dương (Backend) | Kiến trúc phân tầng, nguyên tắc Loose Coupling & High Cohesion |
 | **2** | **Phân Hệ 1: Sandbox & Compiler Engine** | 0:45 – 2:00 (75s) | Khối màu xanh lá: `RunnerFactory`, `BaseRunner`, `CompilerAdapter`, `ResourceMonitor` | **Factory Method** (Creational) & **Adapter Pattern** (Structural) |
 | **3** | **Phân Hệ 2: Grading Core & Output Matching** | 2:00 – 3:15 (75s) | Khối màu tím: `GradingContext`, `MatchingStrategy` và cây 7 chiến lược dẫn xuất | **Strategy Pattern** (Behavioral) & Quản lý Batch Grading |
-| **4** | **Phân Hệ 3: Central Backend & AI Gateway** | 3:15 – 4:15 (60s) | Khối màu xanh dương: `AuthController`, `AIGatewayController`, `QuotaManager`, `GeminiGatewayService` | Service Layer / Facade, Quota Management & RBAC |
+| **4** | **Phân Hệ 3: Central Backend & AI Gateway** | 3:15 – 4:15 (60s) | Khối màu xanh dương: `AuthController`, `AIGatewayController`, `QuotaManager`, `AiGatewayService` | Service Layer / Facade, Quota Management & RBAC     |
 | **5** | **Giao Tiếp Đa Phân Hệ & Kết Luận** | 4:15 – 4:45 (30s) | 2 mũi tên liên kết xuyên phân hệ (dòng 333 & 336 trong file puml) | Tách biệt Local Execution (Offline) và Cloud AI (Online) |
 | **6** | **Hỏi & Đáp (Q&A Phản Biện)** | 4:45 – 8:00+ | Sẵn sàng zoom vào từng method và quan hệ class cụ thể | Trả lời trực diện các bẫy phản biện của Giảng viên |
 
@@ -38,7 +38,7 @@
 >
 > 1. **Phân hệ 1 (Khối màu xanh lá):** *Sandbox Execution & Compiler Engine* — Động cơ biên dịch và thực thi mã nguồn an toàn trên máy cục bộ.
 > 2. **Phân hệ 2 (Khối màu tím):** *Grading Core & Output Matching Subsystem* — Lõi nghiệp vụ chấm điểm hàng loạt và so khớp kết quả linh hoạt.
-> 3. **Phân hệ 3 (Khối màu xanh dương):** *Central Backend & AI Gateway Subsystem* — Dịch vụ đám mây quản lý người dùng và điều tiết hạn ngạch gọi Google Gemini LLM.
+> 3. **Phân hệ 3 (Khối màu xanh dương):** *Central Backend & AI Gateway Subsystem* — Dịch vụ đám mây quản lý người dùng và điều tiết hạn ngạch gọi AI LLM.
 >
 > Đặc biệt, để đảm bảo tính mở rộng cao và tuân thủ các nguyên lý SOLID, nhóm đã áp dụng chuẩn mực **3 mẫu thiết kế Gang of Four (GoF)** gồm: *Factory Method*, *Adapter Pattern* và *Strategy Pattern*."*
 
@@ -94,7 +94,7 @@
 
 ### PHẦN 4: PHÂN HỆ 3 — CENTRAL BACKEND & AI GATEWAY SUBSYSTEM
 * **Thời lượng:** ~1 phút  
-* **Thao tác trình chiếu:** Chuyển con trỏ sang **Khối màu xanh dương**, chỉ vào `QuotaManager` đứng trước `GeminiGatewayService`.
+* **Thao tác trình chiếu:** Chuyển con trỏ sang **Khối màu xanh dương**, chỉ vào `QuotaManager` đứng trước `AiGatewayService`.
 
 > 🗣️ **Lời thoại thuyết trình:**
 >
@@ -102,9 +102,9 @@
 >
 > * `AuthController` kết hợp cùng `AuthService`: Chịu trách nhiệm xác thực người dùng bằng OAuth2 Password Flow và cấp phát/kiểm tra JWT Token an toàn.
 > * `AIGatewayController` đóng vai trò là một **Facade Pattern** duy nhất đón nhận mọi yêu cầu liên quan đến AI từ Desktop: sinh TestCase biên (`generate_testcases`), giải thích lỗi sư phạm cho sinh viên (`review_code_error`), và kiểm tra đạo văn ngữ nghĩa (`check_plagiarism_semantic`).
-> * **Điểm nhấn tối ưu chi phí & Quota:** API Google Gemini có giới hạn gọi và phát sinh chi phí. Vì vậy, nhóm thiết kế lớp `QuotaManager` chặn trước `GeminiGatewayService`. 
+> * **Điểm nhấn tối ưu chi phí & Quota:** API AI Hub có giới hạn gọi và phát sinh chi phí. Vì vậy, nhóm thiết kế lớp `QuotaManager` chặn trước `AiGatewayService`. 
 >   * Mỗi khi có request, `QuotaManager` sẽ kiểm tra hạn ngạch của giảng viên trong bảng `User` (`check_quota_available`).
->   * Chỉ khi còn hạn mức, hệ thống mới gọi ra ngoài Google Gemini. Sau khi xử lý xong, số token thực tế sẽ được ghi vết vào thực thể `AIQuotaLog` thông qua phương thức `consume_quota()`. Điều này giúp quản trị viên kiểm soát chi phí minh bạch và ngăn chặn tình trạng spam API."*
+>   * Chỉ khi còn hạn mức, hệ thống mới gọi ra ngoài AI Hub. Sau khi xử lý xong, số token thực tế sẽ được ghi vết vào thực thể `AIQuotaLog` thông qua phương thức `consume_quota()`. Điều này giúp quản trị viên kiểm soát chi phí minh bạch và ngăn chặn tình trạng spam API."*
 
 ---
 
@@ -160,7 +160,7 @@
   > *"Dạ thưa Thầy/Cô, đây là quyết định kiến trúc mang tính chiến lược của nhóm dựa trên 3 yếu tố:
   > 1. **Chi phí hạ tầng:** Chấm hàng trăm bài nộp C/Java/Python đòi hỏi máy chủ Cloud cấu hình CPU/RAM cực lớn và container cô lập phức tạp, dẫn đến chi phí duy trì rất cao.
   > 2. **Tính sẵn sàng & Tốc độ:** Giảng viên thường chấm bài tại phòng thi hoặc phòng lab trường học. Chạy cục bộ giúp tận dụng tối đa CPU của máy giảng viên, tốc độ phản hồi tức thì và không bị nghẽn mạng do upload hàng loạt file zip nặng.
-  > 3. **Ranh giới trách nhiệm rõ ràng:** Cloud Backend chỉ tập trung vào việc quản lý tài khoản và làm cổng trung gian điều tiết AI Gemini có tính phí, giữ cho backend luôn nhẹ, an toàn và dễ bảo trì."*
+  > 3. **Ranh giới trách nhiệm rõ ràng:** Cloud Backend chỉ tập trung vào việc quản lý tài khoản và làm cổng trung gian điều tiết AI Hub có tính phí, giữ cho backend luôn nhẹ, an toàn và dễ bảo trì."*
 
 ---
 

@@ -19,7 +19,7 @@ Trong công tác giảng dạy các môn lập trình nền tảng tại trườ
 - Nạp bộ testcase linh hoạt bằng tay trên giao diện hoặc qua file cấu hình JSON.
 - Tự động thực thi bài nộp với bộ testcase chuẩn và so khớp kết quả đầu ra theo 7 chiến lược (Strategy Pattern).
 - Trả về bảng điểm chi tiết ngay lập tức (Pass/Fail từng testcase, thời gian chạy, mã lỗi biên dịch/thực thi).
-- Tận dụng sức mạnh của **Google Gemini AI** để sinh testcase biên, phân tích lỗi code và viết nhận xét tự động điền thẳng vào file CSV kết quả.
+- Tận dụng sức mạnh của **AI Hub** để sinh testcase biên, phân tích lỗi code và viết nhận xét tự động điền thẳng vào file CSV kết quả.
 
 ---
 
@@ -52,7 +52,7 @@ Bước 5: Bấm "BẮT ĐẦU CHẤM" (Chấm song song 4-8 sinh viên cùng l�
 
 [GIAI ĐOẠN 3: XEM KẾT QUẢ & SOI LỖI]
 Bước 6: Xem bảng điểm trực quan & biểu đồ thống kê cả lớp
-Bước 7: Bấm vào sinh viên bị lỗi để soi code & Xem nhận xét từ AI Gemini
+Bước 7: Bấm vào sinh viên bị lỗi để soi code & Xem nhận xét từ AI Hub
 
 [GIAI ĐOẠN 4: KẾT XUẤT]
 Bước 8: Bấm "XUẤT BẢNG ĐIỂM CSV" hoàn chỉnh để nộp phòng đào tạo
@@ -67,7 +67,7 @@ Bước 8: Bấm "XUẤT BẢNG ĐIỂM CSV" hoàn chỉnh để nộp phòng đ
   - Cột 4: `Số testcase đạt` (ví dụ: `9/10`).
   - Cột 5: `Trạng thái` (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`).
   - Cột 6: `Thời gian chạy (ms)` trung bình.
-  - Cột 7: `Nhận xét từ AI Gemini`: Gợi ý sư phạm chỉ rõ dòng code gây lỗi.
+  - Cột 7: `Nhận xét từ AI`: Gợi ý sư phạm chỉ rõ dòng code gây lỗi.
 
 ### 3.2. Cơ chế nạp Testcase đa dạng:
 - **Nhập bằng tay trên GUI**: Giảng viên bấm nút "Thêm Testcase (+)", gõ trực tiếp Input, Expected Output, Time Limit (ms), Memory Limit (MB) và Điểm số.
@@ -107,16 +107,16 @@ Hệ thống vận hành theo nguyên lý kiểm thử hộp đen (Black-box Tes
 ---
 
 ### 4.2. Các năng lực AI hỗ trợ tăng cường & Cơ chế gọi thông minh (Smart AI Integration)
-Tuân thủ đúng định hướng môn học **SWD392 (AI-Assisted System Design)**, AITA tích hợp Google Gemini AI theo cơ chế tối ưu hóa tài nguyên (Smart Resource Management) nhằm ngăn chặn triệt để tình trạng nghẽn mạng (Rate Limit 429), tiết kiệm hơn 95% chi phí token và đảm bảo tốc độ chấm bài siêu tốc:
+Tuân thủ đúng định hướng môn học **SWD392 (AI-Assisted System Design)**, AITA tích hợp AI Hub theo cơ chế tối ưu hóa tài nguyên (Smart Resource Management) nhằm ngăn chặn triệt để tình trạng nghẽn mạng (Rate Limit 429), tiết kiệm hơn 95% chi phí token và đảm bảo tốc độ chấm bài siêu tốc:
 
 1. **AI Auto-Generate Testcases (Tự động sinh bộ kiểm thử biên Input & Output)**:
    - Giảng viên chỉ cần dán nội dung đề bài (hoặc yêu cầu bài toán) vào ô nhập liệu trên Desktop App.
-   - Gemini AI tự động phân tích nghiệp vụ đề bài để sinh ra danh sách 5-10 cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các testcase biên: số âm, mảng rỗng, giá trị cực đại, chuỗi đặc biệt).
+   - AI Hub tự động phân tích nghiệp vụ đề bài để sinh ra danh sách 5-10 cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các testcase biên: số âm, mảng rỗng, giá trị cực đại, chuỗi đặc biệt).
    - Dữ liệu sinh ra tự động nạp thẳng vào bảng Testcase trên giao diện để giảng viên xem lại, tinh chỉnh hoặc sử dụng ngay mà **không cần viết code giải mẫu**.
 
 2. **AI Code Review & Feedback Generator (Phân tích lỗi theo yêu cầu - On-Demand Lazy Loading)**:
    - **Không gọi tự động khi đang chấm hàng loạt**: Lúc chấm cả lớp, hệ thống tập trung toàn bộ CPU để chạy code sinh viên với tốc độ tối đa (10-15 giây xong 40 bài) và xuất ngay bảng điểm.
-   - **Cơ chế kích hoạt theo yêu cầu (On-Demand)**: Khi giảng viên muốn soi bài của sinh viên bị sai (`WA`), chỉ cần bấm vào sinh viên đó rồi chọn **`[✨ AI Phân tích lỗi]`**. Lúc này hệ thống mới gửi duy nhất bài đó lên Gemini.
+   - **Cơ chế kích hoạt theo yêu cầu (On-Demand)**: Khi giảng viên muốn soi bài của sinh viên bị sai (`WA`), chỉ cần bấm vào sinh viên đó rồi chọn **`[✨ AI Phân tích lỗi]`**. Lúc này hệ thống mới gửi duy nhất bài đó lên AI Hub.
    - **Bỏ qua lỗi biên dịch (`CE`)**: Lỗi cú pháp đã có log chi tiết của trình biên dịch (`gcc`, `javac`), hệ thống không gửi lên AI để tránh lãng phí token vô ích.
    - Kết quả: Giảm số lượng request từ hàng trăm lượt xuống còn vài lượt theo đúng nhu cầu thực tế của giảng viên.
 
@@ -126,7 +126,7 @@ Tuân thủ đúng định hướng môn học **SWD392 (AI-Assisted System Desi
      - Thuật toán chuẩn hóa code (loại bỏ tên biến, khoảng trắng, thứ tự khai báo) và tính toán phần trăm tương đồng giữa toàn bộ các cặp bài nộp trong lớp chỉ trong 0.5 giây.
    - **Vòng 2 - Chỉ gửi các cặp nghi vấn cao cho AI (Threshold > 80%)**:
      - Thay vì gửi toàn bộ hàng nghìn cặp bài lên AI (ví dụ lớp 40 sinh viên có 2.340 cặp/3 câu), hệ thống chỉ chọn lọc **1-3 cặp có độ tương đồng bất thường vượt ngưỡng (> 80%)**.
-     - Gemini AI đóng vai trò chuyên gia phân tích chuyên sâu: Chỉ ra các vị trí đổi tên biến, đảo hàm, viết lại cấu trúc nhằm qua mặt giảng viên và đưa ra bằng chứng rõ ràng để lập biên bản.
+     - AI Hub đóng vai trò chuyên gia phân tích chuyên sâu: Chỉ ra các vị trí đổi tên biến, đảo hàm, viết lại cấu trúc nhằm qua mặt giảng viên và đưa ra bằng chứng rõ ràng để lập biên bản.
    - Kết quả: Tiết kiệm 99.8% số lượt gọi AI, loại bỏ hoàn toàn nguy cơ sập quota API.
 
 ---
@@ -140,7 +140,7 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 |  WEB ADMIN DASHBOARD (Next.js FE)  |       |   DESKTOP APP CLIENT (PyQt6/Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
 |  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài CSV hàng loạt tốc độ cao|
-|  - Giám sát hạn ngạch Gemini AI    |       |  - Chạy Sandbox Runner C/Java/Py   |
+|  - Giám sát hạn ngạch AI Hub    |       |  - Chạy Sandbox Runner C/Java/Py      |
 +------------------------------------+       +------------------------------------+
                   │                                             │
                   │ (HTTPS / RESTful API)                       │ (HTTPS / REST API & Sync)
@@ -150,7 +150,7 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 |  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
 |  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, Guards (@Roles)           |
 |  - Quản lý nghiệp vụ: Quản lý Tài khoản Giảng viên, Danh mục Môn học, Hạn ngạch AI |
-|  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi Google Gemini API           |
+|  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi AI Gateway API              |
 |  - Cơ sở dữ liệu trung tâm: PostgreSQL trên Neon Serverless Cloud qua Prisma   |
 +---------------------------------------------------------------------------------+
 ```
@@ -164,7 +164,7 @@ Web Admin Dashboard là hệ thống quản trị nội bộ **dành riêng cho 
 | **Đăng nhập hệ thống (Auth JWT)** | ✅ Đăng nhập Web Admin | ✅ Đăng nhập Desktop App | Web Backend API |
 | **Quản lý tài khoản Giảng viên (Thêm/Sửa/Khóa)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Phân quyền hệ thống (Gán Role Admin/Instructor)** | ✅ | ❌ | Web Admin Dashboard |
-| **Quản lý quota Gemini AI** | ✅ Qua API quản trị | ❌ | Web Admin Dashboard; Gemini API key do vận hành cấu hình bằng biến môi trường máy chủ |
+| **Quản lý quota AI Hub** | ✅ Qua API quản trị | ❌ | Web Admin Dashboard; AI API key do vận hành cấu hình bằng biến môi trường máy chủ        |
 | **Giám sát nhật ký sử dụng Token AI toàn trường** | ✅ Xem toàn bộ logs | ❌ | Web Admin Dashboard |
 | **Nạp Testcase & Cấu hình bài tập** | ❌ | ✅ Toàn quyền trên lớp | Desktop App Client |
 | **Chấm bài tự động từ file CSV (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
@@ -182,7 +182,7 @@ Khi Giảng viên sử dụng Desktop App, ứng dụng vận hành theo mô hì
 - **Tầng Thực thi an toàn & Trình duyệt (Sandbox & Web Runner Engine)**:
   - Subprocess cô lập gọi `gcc`, `java`, `python` kết hợp thư viện `psutil` để kiểm soát RAM (bắt `MLE`) và cưỡng chế kill khi quá giờ (bắt `TLE`).
   - Tích hợp `playwright` (Chromium Headless), `beautifulsoup4` (DOM parser) và `tinycss2` (W3C linter) để chấm điểm tự động bài tập Web (HTML/CSS/JS/PHP).
-- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi dịch vụ Gemini AI (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2, đánh giá chất lượng giao diện Web).
+- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi dịch vụ AI Hub (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2, đánh giá chất lượng giao diện Web).
 
 ---
 
@@ -194,7 +194,7 @@ Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điề
    - Mã hóa mật khẩu một chiều chuẩn công nghiệp bằng **Bcrypt**.
    - Kiểm soát quyền truy cập tài nguyên thông qua NestJS Guards & Decorators (`@UseGuards(JwtAuthGuard, RolesGuard)`, `@Roles('admin')`).
 3. **AI Hub & Hạn ngạch (Quota Management)**:
-   - Lưu trữ bí mật Google Gemini API Key tại máy chủ, ngăn chặn lộ key ra phía client.
+   - Lưu trữ bí mật AI Gateway API Key tại máy chủ, ngăn chặn lộ key ra phía client.
    - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
 4. **Bảo Mật Tập Trung & Nguyên Tắc Local-First (Neon PostgreSQL)**:
    - Lưu trữ an toàn danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký kiểm toán AI.
@@ -205,12 +205,12 @@ Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điề
 ### 5.4. Các Phân Hệ Trên Trang Web Admin Quản Lý (Web Admin Management Dashboard)
 Giao diện Web Admin chuyên dụng dành riêng cho Quản trị viên (Admin) với các phân hệ chức năng:
 1. **Phân hệ Tổng quan (Executive Overview Dashboard)**:
-   - Thống kê thời gian thực: Tổng số tài khoản, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ Token Gemini AI toàn trường.
+   - Thống kê thời gian thực: Tổng số tài khoản, số lượt gọi AI đang hoạt động, biểu đồ tiêu thụ Token AI Hub toàn trường.
 2. **Phân hệ Quản trị Tài khoản & Phân quyền (User & Role Management)**:
    - Tạo mới, chỉnh sửa thông tin, đặt lại mật khẩu hoặc vô hiệu hóa tài khoản Giảng viên.
    - Gán quyền hệ thống (`Admin`, `Instructor`).
 3. **Phân hệ Giám sát Hạn ngạch AI (AI Quota & Usage Monitor)**:
-   - Xem chi tiết bảng tiêu thụ Token Gemini theo từng Giảng viên.
+   - Xem chi tiết bảng tiêu thụ Token AI Hub theo từng Giảng viên.
    - Cấu hình trần hạn ngạch (Quota limit) để tối ưu chi phí và tránh nghẽn API.
 4. **Phân hệ Báo cáo & Kiểm Toán (Reports & Audit Logs)**:
    - Xem lịch sử kiểm toán các yêu cầu AI và xuất báo cáo tổng hợp.

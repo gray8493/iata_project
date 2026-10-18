@@ -33,13 +33,13 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 |  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
 |  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, RBAC Guards (@Roles)      |
 |  - Quản trị CSDL Trung tâm: Prisma ORM (PostgreSQL)                              |
-|  - Điều phối AI: Gemini AI Hub (Bảo mật API Key, kiểm soát Token Quota)         |
+|  - Điều phối AI: AI Hub (Bảo mật API Key, kiểm soát Token Quota)                |
 +---------------------------------------------------------------------------------+
 ```
 
-1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quota và giám sát tiêu thụ Token AI; Gemini API key do vận hành cấu hình trong môi trường máy chủ.
+1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quota và giám sát tiêu thụ Token AI; AI API key do vận hành cấu hình trong môi trường máy chủ.
 2. **Phân hệ Desktop App Client (PyQt6 / Python)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
-3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của Google Gemini và lưu trữ cơ sở dữ liệu học thuật tập trung.
+3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của nhà cung cấp AI và lưu trữ cơ sở dữ liệu học thuật tập trung.
 4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV (`students.csv`) mà Giảng viên thực hiện chấm điểm.
 
 ---
@@ -60,7 +60,7 @@ classDiagram
     class Instructor["Giảng viên (Instructor / Lecturer)"]
     class SystemAdmin["Quản trị viên hệ thống (System Administrator - Admin)"]
 
-    class AIService["AI Service Provider (Google Gemini API Hub)"]
+    class AIService["AI Service Provider (AI Hub)"]
     class SandboxRunner["Môi trường Biên dịch & Sandbox (GCC / Javac / Python)"]
     class WebBackend["Web Server Backend (NestJS Central Server)"]
 
@@ -76,14 +76,14 @@ classDiagram
 
 | Tác nhân | Giao diện sử dụng | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA |
 | :--- | :--- | :--- |
-| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. Gemini API key được vận hành cấu hình trong biến môi trường máy chủ `GEMINI_API_KEY`, không nhập qua Web Admin. |
+| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. AI API key được vận hành cấu hình trong biến môi trường máy chủ `AI_API_KEY`, không nhập qua Web Admin.         |
 | **Giảng viên (Instructor / Lecturer)** | **Desktop App Client (PyQt6)** | Đăng nhập; cấu hình compiler và sandbox; quản lý đợt chấm, sinh viên, testcase; gọi các tính năng AI qua backend; chấm bài và xuất kết quả cục bộ ra CSV/Excel. |
 
 ### 2.2. Tác nhân Hệ thống & Dịch vụ Ngoài (External Supporting Actors)
 
 | Tác nhân ngoài                                                   | Bản chất kỹ thuật                                                                                                                                         | Vai trò tương tác đối với hệ thống AITA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AI Service Provider (Google Gemini API Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép. |
+| **AI Service Provider (AI Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép.                |
 | **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error).                                                        |
 | **Web Server Backend (NestJS Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (Passport-JWT, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục người dùng và hạn ngạch AI.<br />- Cung cấp API AI Gateway (sinh testcase, code review bài WA, phát hiện đạo văn vòng 2).<br />- Đảm bảo nguyên tắc bảo mật Local-First: Không lưu trữ hay đồng bộ bài thi của sinh viên lên máy chủ. |
 
@@ -99,7 +99,7 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **UC-01**                                                                                              | Đăng nhập & Xác thực Hệ thống                      | Login & System Authentication                          | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
 | **UC-02**                                                                                              | Quản lý Tài khoản & Phân quyền Giảng viên         | Manage Instructor Accounts & RBAC                      | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **UC-03**                                                                                              | Cấp mới Access Token bằng Refresh Token            | Refresh Access Token & Session Rotation               | Admin, Giảng viên               | Web Admin / Desktop App | Web Server Backend                          |
-| **UC-04**                                                                                              | Quản lý hạn ngạch & Giám sát sử dụng AI            | Manage AI Quotas & Usage Monitoring          | Admin                             | Web Admin Dashboard     | Web Server Backend, Gemini AI Hub           |
+| **UC-04**                                                                                              | Quản lý hạn ngạch & Giám sát sử dụng AI            | Manage AI Quotas & Usage Monitoring          | Admin                             | Web Admin Dashboard     | Web Server Backend, AI Hub                  |
 | **UC-05**                                                                                              | Xem Báo cáo tài khoản & Sử dụng AI | View Account & AI Usage Reports                | Admin                             | Web Admin Dashboard     | Web Server Backend                          |
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
 | **UC-06**                                                                                              | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ   | Configure Local Compilers & Sandbox Settings           | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
@@ -107,7 +107,7 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **UC-08**                                                                                              | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV       | Import Submissions via`students.csv` (MSSV, File)    | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
 | **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)**      |                                                           |                                                        |                                   |                         |                                             |
 | **UC-09**                                                                                              | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công    | Manage Black-box Testcases Manually (Input/Output)     | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
-| **UC-10**                                                                                              | Tự động Sinh Testcase Biên bằng AI                   | Auto-Generate Boundary Testcases with Gemini AI        | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
+| **UC-10**                                                                                              | Tự động Sinh Testcase Biên bằng AI                   | Auto-Generate Boundary Testcases with AI Hub        | Giảng viên                      | Desktop App Client      | AI Hub                                       |
 | **UC-11**                                                                                              | Thiết lập Động cơ So khớp 7 Chế độ               | Configure 7 Output Matching Strategies                 | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
 | **Phân hệ 4: Tự động Thực thi & Chấm điểm (Execution & Automated Grading Pipeline)**          |                                                           |                                                        |                                   |                         |                                             |
 | **UC-12**                                                                                              | Thực thi Chấm điểm Tự động Hàng loạt             | Execute Batch Grading (Parallel Subprocess,`main()`) | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
@@ -116,8 +116,8 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **UC-15**                                                                                              | Chấm lại & Điều chỉnh Điểm thủ công              | Re-grade & Override Scores Manually                    | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
 | **UC-19**                                                                                              | Chấm Điểm Bài Tập Web Tự Động                     | Automated Web Assignment Grading & Scoring             | Giảng viên                      | Desktop App Client      | Headless Browser, DOM/CSS Parser, AI Gateway |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)**              |                                                           |                                                        |                                   |                         |                                             |
-| **UC-16**                                                                                              | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand    | Generate On-Demand AI Code Review (WA Only)            | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
-| **UC-17**                                                                                              | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng            | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
+| **UC-16**                                                                                              | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand    | Generate On-Demand AI Code Review (WA Only)            | Giảng viên                      | Desktop App Client      | AI Hub                                      |
+| **UC-17**                                                                                              | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng            | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên                      | Desktop App Client      | AI Hub                                      |
 | **Phân hệ 6: Báo cáo, Đánh giá Cục Bộ (Reporting & Local Export)**                            |                                                           |                                                        |                                   |                         |                                             |
 | **UC-18**                                                                                              | Xuất Báo cáo Kết quả Điểm                          | Export Gradebook (`results.csv` & Excel)             | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
 
@@ -131,16 +131,16 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
    - `<<include>>` **UC-11 (Thiết lập Động cơ So khớp 7 Chế độ)**: Mỗi lần chấm bắt buộc phải áp dụng một chiến lược cụ thể trong 7 chiến lược so khớp (`ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`).
    - `<<include>>` **UC-13 (Giám sát Tiến độ Chấm Thời gian thực)**: Hệ thống luôn duy trì luồng cập nhật thanh tiến độ thực tế (Progress Bar) thông qua cơ chế đa luồng `QThread`.
 2. **UC-10 (Tự động Sinh Testcase Biên bằng AI)**:
-   - `<<include>>` **UC-01 (Đăng nhập & Xác thực)**: Phải có phiên đăng nhập hợp lệ với JWT để Web Backend cấp quyền sử dụng quota Gemini AI.
+   - `<<include>>` **UC-01 (Đăng nhập & Xác thực)**: Phải có phiên đăng nhập hợp lệ với JWT để Web Backend cấp quyền sử dụng quota AI Hub.
 
 ### 4.2. Quan hệ mở rộng (`<<extend>>`)
 
 1. **UC-16 (Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand)** mở rộng từ **UC-14 (Xem Chi tiết Kết quả & Nhật ký Bài nộp)**:
-   - *Điểm mở rộng (Extension Point: Error Diagnosed)*: Chỉ khi Giảng viên xem một bài nộp cụ thể bị đánh giá sai kết quả (`WA`) và bấm chọn nút `[✨ AI Phân tích lỗi]`, hệ thống mới gửi request đến Gemini AI. **Bỏ qua hoàn toàn các bài lỗi biên dịch (`CE`)** để tiết kiệm token và tránh nghẽn API.
+   - *Điểm mở rộng (Extension Point: Error Diagnosed)*: Chỉ khi Giảng viên xem một bài nộp cụ thể bị đánh giá sai kết quả (`WA`) và bấm chọn nút `[✨ AI Phân tích lỗi]`, hệ thống mới gửi request đến AI Hub. **Bỏ qua hoàn toàn các bài lỗi biên dịch (`CE`)** để tiết kiệm token và tránh nghẽn API.
 2. **UC-15 (Chấm lại & Điều chỉnh Điểm thủ công)** mở rộng từ **UC-14 (Xem Chi tiết Kết quả & Nhật ký Bài nộp)**:
    - *Điểm mở rộng (Extension Point: Score Override)*: Khi giảng viên nhận thấy sinh viên có giải thuật đặc biệt hoặc có sai sót trong dữ liệu testcase, giảng viên có thể ghi đè điểm số trực tiếp.
 3. **UC-17 (Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng)**:
-   - Bước phân tích nâng cao bởi Gemini AI là một điểm mở rộng (*Extension Point: High Similarity Detected > 80%*): Sau khi quét AST 100% offline tại Vòng 1, chỉ những cặp bài có độ tương đồng vượt ngưỡng (> 80%) mới kích hoạt gửi dữ liệu tóm tắt lên Gemini AI để lập biên bản vi phạm.
+   - Bước phân tích nâng cao bởi AI Hub là một điểm mở rộng (*Extension Point: High Similarity Detected > 80%*): Sau khi quét AST 100% offline tại Vòng 1, chỉ những cặp bài có độ tương đồng vượt ngưỡng (> 80%) mới kích hoạt gửi dữ liệu tóm tắt lên AI Hub để lập biên bản vi phạm.
 
 ---
 
@@ -150,13 +150,13 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 ---
 
-### 5.1. UC-10: Tự Động Sinh Testcase Biên Bằng AI (Auto-Generate Boundary Testcases with Gemini AI)
+### 5.1. UC-10: Tự Động Sinh Testcase Biên Bằng AI (Auto-Generate Boundary Testcases with AI Hub)
 
 * **Mã Use Case**: `UC-10`
 * **Tên Use Case**: Tự động sinh Testcase biên bằng AI (AI Black-box Testcase Generator)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Gemini AI Hub (Web Server Backend)
-* **Mô tả tóm tắt**: Giảng viên nhập yêu cầu đề bài và ràng buộc nghiệp vụ. Gemini AI tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên). Dữ liệu sinh ra hiển thị dưới dạng bảng chọn lọc trực quan, cho phép nạp trực tiếp vào CSDL SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết bất kỳ dòng mã giải mẫu (solution code) nào**.
+* **Tác nhân hỗ trợ ngoài**: AI Hub (Web Server Backend)
+* **Mô tả tóm tắt**: Giảng viên nhập yêu cầu đề bài và ràng buộc nghiệp vụ. AI Hub tự động phân tích và sinh danh sách các cặp **`INPUT` và `OUTPUT kỳ vọng`** hoàn chỉnh (bao gồm các ca kiểm thử giá trị biên). Dữ liệu sinh ra hiển thị dưới dạng bảng chọn lọc trực quan, cho phép nạp trực tiếp vào CSDL SQLite cục bộ mà **giảng viên hoàn toàn không cần phải viết bất kỳ dòng mã giải mẫu (solution code) nào**.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã đăng nhập tài khoản hợp lệ trên Desktop App.
   2. Hạn ngạch (Quota) gọi AI của Giảng viên trên Web Server Backend còn khả dụng.
@@ -174,8 +174,8 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
    - Nút chính **"Sinh Testcase"** (nền xanh đặc) và nút viền **"Hủy"**.
 3. Giảng viên dán nội dung tóm tắt đề bài / định dạng input-output và bấm **"Sinh Testcase"**.
 4. Desktop App đóng gói payload gửi yêu cầu bất đồng bộ lên endpoint `/api/v1/ai/generate-testcases` của Web Server Backend.
-5. Web Server Backend thẩm định JWT, kiểm tra hạn ngạch token còn lại trong ngày của Giảng viên và gọi Google Gemini API.
-6. Gemini AI phân tích đề bài và phản hồi danh sách testcase gồm các cặp dữ liệu `input` và `expected_output` bao quát trường hợp biên.
+5. Web Server Backend thẩm định JWT, kiểm tra hạn ngạch token còn lại trong ngày của Giảng viên và gọi AI Gateway API.
+6. AI Hub phân tích đề bài và phản hồi danh sách testcase gồm các cặp dữ liệu `input` và `expected_output` bao quát trường hợp biên.
 7. Web Server Backend ghi nhận token tiêu thụ vào `ai_quota_logs` và trả kết quả về Desktop App.
 8. Desktop App hiển thị kết quả trực quan dạng bảng gồm 3 cột: Checkbox chọn từng dòng, **Input (Đầu vào)** và **Expected Output (Đầu ra kỳ vọng)** (không hiển thị mã JSON thô). Nút "Thêm Các Testcase Đã Chọn" được kích hoạt.
 9. Giảng viên đánh dấu tick các testcase đạt yêu cầu (hỗ trợ nút "Chọn Tất Cả", "Bỏ Chọn Tất Cả") và bấm **"Thêm Các Testcase Đã Chọn"**.
@@ -240,8 +240,8 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Mã Use Case**: `UC-16`
 * **Tên Use Case**: Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand bằng AI
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Gemini AI Hub (Web Server Backend)
-* **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API, chức năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). Gemini AI đọc mã nguồn, đối chiếu với log lỗi và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
+* **Tác nhân hỗ trợ ngoài**: AI Hub (Web Server Backend)
+* **Mô tả tóm tắt**: Nhằm tối ưu hóa tài nguyên và tránh nghẽn API, chức năng này vận hành theo cơ chế **On-Demand (Lazy Loading)**: Giảng viên chỉ kích hoạt thủ công khi xem chi tiết một bài nộp cụ thể bị lỗi logic (`WA`). AI Hub đọc mã nguồn, đối chiếu với log lỗi và tự động sinh bản nhận xét sư phạm ngắn gọn, chỉ ra dòng code gây lỗi và gợi ý logic để sinh viên tự sửa. **Hệ thống bỏ qua hoàn toàn các bài bị lỗi biên dịch (`CE`)** vì đã có sẵn log chi tiết của trình biên dịch.
 * **Tiền điều kiện (Preconditions)**:
   1. Bài nộp của sinh viên đã được chấm và có kết quả `WA`.
   2. Phiên làm việc của Giảng viên còn hạn ngạch gọi AI.
@@ -255,8 +255,8 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 2. Giảng viên bấm nút **`[✨ AI Phân tích lỗi]`**.
 3. Hệ thống Desktop App tổng hợp ngữ cảnh gồm: mã nguồn câu hỏi bị sai, ngôn ngữ lập trình, dữ liệu testcase bị sai (`INPUT`, `Expected Output`, `Actual Output`).
 4. Hệ thống gửi yêu cầu bất đồng bộ đến endpoint `/api/v1/ai/code-review` của Web Server Backend.
-5. Web Server Backend chuyển tiếp prompt chuẩn hóa tới Gemini AI với yêu cầu: chỉ ra dòng code lỗi, giải thích bản chất lỗi thuật toán và đưa ra gợi ý tư duy sư phạm mà không đưa ra code sửa sẵn.
-6. Gemini AI xử lý và trả về đoạn nhận xét sư phạm ngắn gọn.
+5. Web Server Backend chuyển tiếp prompt chuẩn hóa tới AI Hub với yêu cầu: chỉ ra dòng code lỗi, giải thích bản chất lỗi thuật toán và đưa ra gợi ý tư duy sư phạm mà không đưa ra code sửa sẵn.
+6. AI Hub xử lý và trả về đoạn nhận xét sư phạm ngắn gọn.
 7. Hệ thống hiển thị bản nháp nhận xét lên khung văn bản trên giao diện Desktop.
 8. Giảng viên xem lại, có thể chỉnh sửa bổ sung nội dung bằng tay nếu muốn.
 9. Giảng viên bấm **"Xác nhận & Lưu nhận xét"**.
@@ -273,8 +273,8 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Mã Use Case**: `UC-17`
 * **Tên Use Case**: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (Two-Stage Plagiarism Detection)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Gemini AI Hub (Web Server Backend)
-* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên Gemini AI để phân tích ngữ nghĩa và trích xuất bằng chứng sao chép phục vụ lập biên bản.
+* **Tác nhân hỗ trợ ngoài**: AI Hub (Web Server Backend)
+* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên AI Hub để phân tích ngữ nghĩa và trích xuất bằng chứng sao chép phục vụ lập biên bản.
 * **Tiền điều kiện (Preconditions)**:
   1. Đợt chấm có từ hai bài nộp trở lên của cùng một câu hỏi.
 * **Hậu điều kiện (Postconditions)**:
@@ -291,8 +291,8 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 3. Nếu không có cặp bài nào vượt ngưỡng $\ge 80\%$, hệ thống thông báo "Không phát hiện nghi vấn sao chép mã nguồn bất thường". Use Case kết thúc.
 4. **Vòng 2 - Xác thực chuyên sâu bằng AI (AI Verification)**:
    - Với 1-3 cặp bài có độ tương đồng vượt ngưỡng $\ge 80\%$, hệ thống cho phép Giảng viên bấm **`[✨ AI Phân tích bằng chứng]`**.
-   - Hệ thống gửi cấu trúc mã nguồn tóm tắt của cặp bài lên Gemini AI Hub.
-   - Gemini AI phân tích các thủ thuật gian lận tinh vi: đổi tên biến, đảo hàm, hoán đổi vòng lặp `for`/`while`, và trả về biên bản tóm tắt bằng chứng sao chép.
+   - Hệ thống gửi cấu trúc mã nguồn tóm tắt của cặp bài lên AI Hub.
+   - AI Hub phân tích các thủ thuật gian lận tinh vi: đổi tên biến, đảo hàm, hoán đổi vòng lặp `for`/`while`, và trả về biên bản tóm tắt bằng chứng sao chép.
 5. Giảng viên bấm vào cặp bài nghi vấn: Desktop App mở giao diện so sánh trực quan song song hai bên (Side-by-side Diff Viewer) với các đoạn code nghi vấn được tô sáng màu đỏ kèm nhận xét bằng chứng từ AI.
 6. Giảng viên xác nhận đánh dấu vi phạm kỷ luật học thuật. Use Case kết thúc.
 
@@ -376,7 +376,7 @@ actor "Quản trị viên\n(System Admin)" as Admin
 actor "Giảng viên\n(Instructor)" as Instructor
 
 ' 2. Tác nhân hệ thống ngoài (External Supporting Actors)
-actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
+actor "AI Hub\n(API Gateway)" as AIService <<System>>
 actor "Sandbox Runner\n(GCC / Javac / Python)" as Sandbox <<System>>
 actor "Headless Web Runner\n(Playwright / Chromium / W3C)" as WebRunner <<System>>
 actor "Web Server Backend\n(NestJS Central API)" as Cloud <<System>>
@@ -416,7 +416,7 @@ rectangle "Hệ Sinh Thái Toàn Diện AITA" {
 
         package "Tính năng Thông minh có AI Hỗ trợ" {
             usecase "UC-16: Phân tích Lỗi & Sinh Nhận xét AI (On-Demand cho WA)" as UC16
-            usecase "UC-17: Kiểm tra Đạo văn 2 Vòng (AST + Gemini AI >80%)" as UC17
+            usecase "UC-17: Kiểm tra Đạo văn 2 Vòng (AST + AI Hub >80%)" as UC17
         }
 
         package "Báo cáo & Xuất Bảng Điểm Cục Bộ" {

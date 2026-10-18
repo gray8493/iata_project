@@ -277,8 +277,8 @@ class ModeSelectionWindow(QMainWindow):
         
         header_layout.addStretch(1)
         
-        # 1.3 Nút "Gemini AI: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
-        ai_badge = QLabel("Gemini AI: Sẵn Sàng", header)
+        # 1.3 Nút "AI Hub: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
+        ai_badge = QLabel("AI Hub: Sẵn Sàng", header)
         ai_badge.setFixedHeight(34)
         ai_badge.setStyleSheet(f"""
             QLabel {{
@@ -388,7 +388,7 @@ class ModeSelectionWindow(QMainWindow):
                 "4 Môn học cốt lõi: PRF (C), PRO (Java/Python), DSA (Java/Python), PHP (Python)",
                 "Chấm tự động qua hàm main() với 7 chiến lược so khớp",
                 "Sandbox Runner đo CPU, RAM, bắt lỗi TLE & MLE thời gian thực",
-                "AI Gemini tự động sinh Testcase biên chuẩn xác",
+                "AI Hub tự động sinh Testcase biên chuẩn xác",
                 "Quét đạo văn 2 vòng: Cây cú pháp AST và Đối soát ngữ nghĩa"
             ],
             btn_text="Vào Chấm Thi Thực Hành",
@@ -472,7 +472,7 @@ class ModeSelectionWindow(QMainWindow):
             if res.get("success"):
                 rem = res.get("remaining_tokens", 50000)
                 limit = res.get("daily_limit_tokens", 50000)
-                self.lbl_ai_badge.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_badge.setText(f"AI Hub: Còn {rem:,} / {limit:,} Tokens")
                 self.lbl_ai_badge.setToolTip(
                     f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
                     f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
@@ -480,7 +480,7 @@ class ModeSelectionWindow(QMainWindow):
                     f"• Còn lại: {rem:,} tokens"
                 )
             else:
-                self.lbl_ai_badge.setText("Gemini AI: Sẵn Sàng")
+                self.lbl_ai_badge.setText("AI Hub: Sẵn Sàng")
 
 
 if __name__ == "__main__":

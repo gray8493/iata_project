@@ -1,7 +1,7 @@
 # Đặc Tả API: Phân Hệ AI Gateway & Quản Lý Hạn Ngạch (AI Hub API)
 
 ### Thư mục: `docs/apis/ai/`
-### Phân hệ: Web Server Backend (NestJS AI Module) & Google Gemini AI Hub
+### Phân hệ: Web Server Backend (NestJS AI Module) & AI Hub
 
 ---
 

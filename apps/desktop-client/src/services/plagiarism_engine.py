@@ -14,7 +14,7 @@ Pipeline:
      a compact, position-independent fingerprint set.
   4. Similarity             -> Jaccard index over the two fingerprint sets (%).
 
-This module has no network / AI dependency; Stage 2 (Gemini semantic
+This module has no network / AI dependency; Stage 2 (AI semantic
 verification) stays in `services.ai_service`.
 """
 
