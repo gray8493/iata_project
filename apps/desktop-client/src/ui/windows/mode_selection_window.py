@@ -400,14 +400,14 @@ class ModeSelectionWindow(QMainWindow):
         # Card 2: Web Assignment
         self.card_web = ModeCard(
             title="Chấm Bài Tập & Đồ Án Web (Web Assignment)",
-            badge_text="FRONTEND & BACKEND WEB",
+            badge_text="FRONTEND WEB (HTML/CSS/JS)",
             description="Phân hệ chuyên trách chấm bài tập giao diện và ứng dụng web từ thư mục bài nộp; mỗi bài gồm link Live URL và link GitHub Repo.",
             features=[
                 "Nạp bài nộp từ thư mục: mỗi thư mục đặt tên là MSSV, chứa file .txt có Live URL và GitHub",
-                "Chấm đồng thời cả Live Website và GitHub Repo cho mọi bài",
-                "Playwright Headless Browser kiểm thử tương tác E2E và Responsive",
-                "Thẩm định cây DOM ngữ nghĩa và quét W3C CSS/HTML Linting",
-                "AI Gemini thẩm định bố cục thẩm mỹ và đối soát gian lận chéo"
+                "Playwright Headless Browser render trang và chụp ảnh toàn trang",
+                "Chấm cây DOM ngữ nghĩa, lint CSS (tinycss2) và chỉ số tương tác JS",
+                "AI Vision thẩm định bố cục thẩm mỹ giao diện qua AI Gateway",
+                "Tổng hợp điểm theo Rubric 4 tiêu chí và hiển thị kết quả trực quan"
             ],
             btn_text="Vào Phân Hệ Chấm Web",
             parent=central

@@ -121,32 +121,7 @@ class DatabaseManager:
             );
             """)
 
-            # 5. Bảng local_web_grading_results (Kết quả chấm Web riêng biệt)
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS local_web_grading_results (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                submission_id INTEGER NOT NULL,
-                website_url TEXT,
-                github_url TEXT,
-                grading_mode TEXT NOT NULL DEFAULT 'HYBRID',
-                entrypoint_file TEXT NOT NULL DEFAULT 'index.html',
-                score_dom REAL NOT NULL DEFAULT 0.0,
-                score_lint REAL NOT NULL DEFAULT 0.0,
-                score_func REAL NOT NULL DEFAULT 0.0,
-                score_ui REAL NOT NULL DEFAULT 0.0,
-                final_score REAL NOT NULL DEFAULT 0.0,
-                final_verdict TEXT NOT NULL,
-                screenshot_path TEXT,
-                rubric_log TEXT,
-                ai_feedback TEXT,
-                graded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_deleted INTEGER DEFAULT 0,
-                deleted_at DATETIME,
-                FOREIGN KEY (submission_id) REFERENCES local_student_submissions(id) ON DELETE CASCADE
-            );
-            """)
-
-            # 6. Bảng local_plagiarism_reports (Kết quả quét đạo văn 2 vòng)
+            # 5. Bảng local_plagiarism_reports (Kết quả quét đạo văn 2 vòng)
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS local_plagiarism_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +137,7 @@ class DatabaseManager:
             );
             """)
 
-            # 7. Bảng local_web_submissions (Danh sách sinh viên & link đồ án Web)
+            # 6. Bảng local_web_submissions (Danh sách sinh viên & link đồ án Web)
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS local_web_submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,6 +154,10 @@ class DatabaseManager:
                 score_ui REAL,
                 total_score REAL,
                 verdict TEXT DEFAULT 'PENDING',
+                rubric_log TEXT,
+                screenshot_path TEXT,
+                ai_feedback TEXT,
+                graded_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_deleted INTEGER DEFAULT 0
             );
@@ -188,7 +167,6 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_subs_class_id ON local_student_submissions(class_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_subs_mssv ON local_student_submissions(student_mssv);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_results_sub_id ON local_grading_results(submission_id);")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_results_sub_id ON local_web_grading_results(submission_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_mssv ON local_web_submissions(mssv);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tc_class_id ON local_test_cases(class_id);")
             
@@ -281,6 +259,10 @@ class DatabaseManager:
                 "display_mssv": "TEXT",
                 "link_file_name": "TEXT",
                 "link_changed": "INTEGER DEFAULT 0",
+                "rubric_log": "TEXT",
+                "screenshot_path": "TEXT",
+                "ai_feedback": "TEXT",
+                "graded_at": "DATETIME",
             }
             for column, ddl in additions.items():
                 if column not in existing:
@@ -670,43 +652,6 @@ class DatabaseManager:
                 raise RuntimeError("Failed to retrieve row ID from local_grading_results.")
             return cursor.lastrowid
 
-    def save_web_grading_result(
-        self,
-        submission_id: int,
-        grading_mode: str,
-        score_dom: float,
-        score_lint: float,
-        score_func: float,
-        score_ui: float,
-        final_score: float,
-        final_verdict: str,
-        website_url: Optional[str] = None,
-        github_url: Optional[str] = None,
-        screenshot_path: Optional[str] = None,
-        rubric_log: Optional[str] = None,
-        ai_feedback: Optional[str] = None
-    ) -> int:
-        """Saves or updates independent web assignment grading result."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO local_web_grading_results (
-                    submission_id, website_url, github_url, grading_mode,
-                    score_dom, score_lint, score_func, score_ui, final_score,
-                    final_verdict, screenshot_path, rubric_log, ai_feedback
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                submission_id, website_url, github_url, grading_mode,
-                score_dom, score_lint, score_func, score_ui, final_score,
-                final_verdict, screenshot_path, rubric_log, ai_feedback
-            ))
-            
-            cursor.execute("UPDATE local_student_submissions SET status = ? WHERE id = ?", (final_verdict, submission_id))
-            conn.commit()
-            if cursor.lastrowid is None:
-                raise RuntimeError("Failed to retrieve row ID from local_web_grading_results.")
-            return cursor.lastrowid
-
     def override_submission_score(
         self,
         submission_id: int,
@@ -904,16 +849,23 @@ class DatabaseManager:
         score_e2e: float,
         score_ui: float,
         total_score: float,
-        verdict: str = "PASSED"
+        verdict: str = "PENDING",
+        rubric_log: Optional[str] = None,
+        screenshot_path: Optional[str] = None,
+        ai_feedback: Optional[str] = None
     ) -> bool:
-        """Updates grading scores for a web submission."""
+        """Updates grading scores (and optional grading evidence) for a web submission."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE local_web_submissions
-                SET score_dom = ?, score_lint = ?, score_e2e = ?, score_ui = ?, total_score = ?, verdict = ?
+                SET score_dom = ?, score_lint = ?, score_e2e = ?, score_ui = ?, total_score = ?, verdict = ?,
+                    rubric_log = ?, screenshot_path = ?, ai_feedback = ?, graded_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND is_deleted = 0
-            """, (score_dom, score_lint, score_e2e, score_ui, total_score, verdict, submission_id))
+            """, (
+                score_dom, score_lint, score_e2e, score_ui, total_score, verdict,
+                rubric_log, screenshot_path, ai_feedback, submission_id
+            ))
             conn.commit()
             return cursor.rowcount > 0
 

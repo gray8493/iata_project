@@ -12,7 +12,7 @@ Pipeline per submission:
   3. CSS standards scoring   -> TinyCSS2 W3C syntax lint + responsive media queries.
   4. Functional scoring      -> Playwright/DOM interaction metrics (scripts,
      event listeners, interactive controls).
-  5. UI/UX scoring           -> Gemini Vision via the Central AI Gateway
+  5. UI/UX scoring           -> AI Vision (OpenRouter) via the Central AI Gateway
      (`POST /api/v1/ai/evaluate-web-ui`) using the base64 screenshot.
 
 When Playwright/Chromium is unavailable the engine degrades gracefully to a
@@ -128,7 +128,7 @@ class WebRubricEngine:
             ui_available = ui_score > 0.0
             log_lines.append(f"[UI]: {ui_log}")
         else:
-            log_lines.append("[UI]: Chưa có ảnh chụp màn hình nên bỏ qua đánh giá thẩm mỹ (Gemini Vision).")
+            log_lines.append("[UI]: Chưa có ảnh chụp màn hình nên bỏ qua đánh giá thẩm mỹ (AI Vision).")
 
         components = {
             "dom": dom_score,
@@ -345,10 +345,10 @@ class WebRubricEngine:
                 ui = float(res.get("ui_score", 0.0))
                 ui = max(0.0, min(ui, 10.0))
                 feedback = res.get("overall_feedback", "") or ""
-                return ui, feedback, f"Gemini Vision đánh giá {ui:.1f}/10 ({res.get('tokens_consumed', 0)} tokens)."
+                return ui, feedback, f"AI Vision đánh giá {ui:.1f}/10 ({res.get('tokens_consumed', 0)} tokens)."
             return 0.0, "", f"AI Gateway không đánh giá được: {res.get('message', 'không rõ lý do')}"
         except Exception as ex:
-            return 0.0, "", f"Lỗi gọi Gemini Vision: {self._short(ex)}"
+            return 0.0, "", f"Lỗi gọi AI Vision: {self._short(ex)}"
 
     # ------------------------------------------------------------------
     # Helpers

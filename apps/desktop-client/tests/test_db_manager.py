@@ -155,7 +155,7 @@ def test_rescan_after_clear_saves_fresh_reports(db, class_id):
 def test_web_submission_columns_exist_after_migration(db):
     with db.get_connection() as conn:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(local_web_submissions)")}
-    assert {"source_folder_path", "is_missing", "display_mssv"} <= cols
+    assert {"source_folder_path", "is_missing", "display_mssv", "rubric_log", "screenshot_path", "ai_feedback", "graded_at"} <= cols
 
 
 def test_add_web_submission_with_folder_metadata(db):
@@ -209,4 +209,24 @@ def test_update_web_submission_source_keeps_fields_when_none_given(db):
     db.update_web_submission_source(id_, source_folder_path=None)
     row = db.get_all_web_submissions()[0]
     assert row["live_url"] == "http://old.dev" and row["is_missing"] == 0
+
+
+def test_update_web_submission_scores_persists_evidence(db):
+    id_ = db.add_web_submission(
+        mssv="SE180002", name="NV B", live_url="http://site.dev",
+        course_code="WEB201c", class_name="SE1806",
+    )
+    assert db.update_web_submission_scores(
+        submission_id=id_, score_dom=8.0, score_lint=7.5, score_e2e=6.0,
+        score_ui=9.0, total_score=7.7, verdict="PASSED",
+        rubric_log="[DOM]: 8/8 thẻ -> 8.0/10", screenshot_path="D:/shots/SE180002.png",
+        ai_feedback="Bố cục cân đối",
+    ) is True
+
+    row = db.get_all_web_submissions()[0]
+    assert row["total_score"] == 7.7 and row["verdict"] == "PASSED"
+    assert row["rubric_log"] == "[DOM]: 8/8 thẻ -> 8.0/10"
+    assert row["screenshot_path"] == "D:/shots/SE180002.png"
+    assert row["ai_feedback"] == "Bố cục cân đối"
+    assert row["graded_at"] is not None
 

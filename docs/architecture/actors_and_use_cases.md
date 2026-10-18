@@ -114,7 +114,7 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **UC-13**                                                                                              | Giám sát Tiến độ Chấm Thời gian thực              | Monitor Real-Time Grading Progress                     | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
 | **UC-14**                                                                                              | Xem Chi tiết Kết quả & Nhật ký Bài nộp             | View Submission Result & Execution Logs                | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
 | **UC-15**                                                                                              | Chấm lại & Điều chỉnh Điểm thủ công              | Re-grade & Override Scores Manually                    | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
-| **UC-19**                                                                                              | Chấm Điểm Bài Tập Web Tự Động                     | Automated Web Assignment Grading & Scoring             | Giảng viên                      | Desktop App Client      | Headless Browser, W3C Parser, Gemini AI Hub |
+| **UC-19**                                                                                              | Chấm Điểm Bài Tập Web Tự Động                     | Automated Web Assignment Grading & Scoring             | Giảng viên                      | Desktop App Client      | Headless Browser, DOM/CSS Parser, AI Gateway |
 | **Phân hệ 5: Tính năng Thông minh có AI Hỗ trợ (Smart AI-Assisted Capabilities)**              |                                                           |                                                        |                                   |                         |                                             |
 | **UC-16**                                                                                              | Phân tích Lỗi & Sinh Nhận xét Sư phạm On-Demand    | Generate On-Demand AI Code Review (WA Only)            | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
 | **UC-17**                                                                                              | Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng            | Two-Stage Plagiarism Detection (AST + AI Verification) | Giảng viên                      | Desktop App Client      | Gemini AI Hub                               |
@@ -330,37 +330,27 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Mã Use Case**: `UC-19`
 * **Tên Use Case**: Chấm Điểm Bài Tập Web Tự Động (Automated Web Assignment Grading & Scoring)
 * **Tác nhân chính**: Giảng viên (Instructor)
-* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local W3C & DOM Parser, Git Subsystem, Google Gemini AI Hub
-* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm toàn diện cho các bài tập thiết kế & lập trình web (HTML5, CSS3, JavaScript, PHP) trên Desktop App. Giảng viên cấu hình Rubric điểm gồm 4 thành phần: Cấu trúc DOM & Ngữ nghĩa, Chuẩn W3C/Linter & Git, Kiểm thử hành vi tương tác E2E bằng Playwright, và Đánh giá giao diện trực quan bằng Gemini Vision. Hệ thống hỗ trợ nguồn nộp bài linh hoạt qua file `students.csv` (gồm `MSSV,Website_URL,Github_URL`) với 3 chế độ chấm: **Chỉ chấm Live Website (`LIVE_ONLY`)**, **Chỉ chấm GitHub Repo (`REPO_ONLY`)**, hoặc **Chế độ kết hợp (`HYBRID`)** có đối soát chéo chống gian lận. Kết quả được lưu riêng biệt vào CSDL SQLite cục bộ (`local_web_grading_results`).
+* **Tác nhân hỗ trợ ngoài**: Headless Browser Runner (Playwright / Chromium Engine), Local DOM Parser (`BeautifulSoup4`), Local CSS Linter (`tinycss2`), Central AI Gateway (AI Vision qua OpenRouter)
+* **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm các bài tập thiết kế web (HTML5, CSS3, JavaScript) trên Desktop App. Giảng viên cấu hình Rubric điểm gồm 4 thành phần: Cấu trúc DOM & Ngữ nghĩa (20%), Chuẩn CSS Linting qua TinyCSS2 (20%), Kiểm thử chức năng/tương tác JS (30%), và Đánh giá giao diện trực quan bằng AI Vision (30%). Bài nộp được nhập từ **thư mục cục bộ** (mỗi thư mục con là một MSSV kèm file `.txt` chứa link Live Website và/hoặc GitHub Repo — **không dùng `students.csv`**). Kết quả được lưu vào bảng `local_web_submissions` trong SQLite cục bộ.
 * **Tiền điều kiện (Preconditions)**:
-  1. Giảng viên đã nạp danh sách sinh viên `students.csv` (chứa Live URL, GitHub URL, hoặc cả hai) hoặc thư mục bài nộp web offline.
+  1. Giảng viên đã nhập danh sách bài nộp từ thư mục (mỗi thư mục con là một MSSV kèm file `.txt` chứa link), hoặc thêm/sửa thủ công.
   2. Môi trường Headless Browser (Playwright / Chromium) đã sẵn sàng trên máy trạm của Giảng viên.
 * **Hậu điều kiện (Postconditions)**:
-  1. Điểm số bài nộp web (thang điểm 10) được lưu vào bảng riêng biệt `local_web_grading_results` trong SQLite cục bộ kèm `website_url`, `github_url`, `grading_mode`.
-  2. Bản ghi chi tiết kết quả từng tiêu chí và ảnh chụp màn hình bài nộp được lưu trữ để phục vụ phúc khảo.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên chọn chế độ "Chấm Bài Web", chọn 1 trong 3 chế độ chấm và nhấn nút **"Bắt đầu chấm Web" (Start Web Grading)**.
+  1. Điểm 4 tiêu chí (`score_dom`, `score_lint`, `score_e2e`, `score_ui`), điểm tổng `total_score` và `verdict` được cập nhật vào bảng `local_web_submissions` trong SQLite cục bộ.
+  2. Ảnh chụp màn hình bài nộp được lưu trên đĩa (`data/web_screenshots/`) và nhật ký thẩm định chi tiết được giữ để phục vụ phúc khảo.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên mở phân hệ "Chấm Bài Tập & Đồ Án Web" và nhấn nút **"Bắt Đầu Thẩm Định Web" (Start Web Grading)**.
 
 #### Luồng sự kiện chính (Main Flow):
-1. Giảng viên chọn bài nộp hoặc đợt chấm thuộc môn lập trình Web (ví dụ: PHP / Web Frontend).
-2. Giảng viên lựa chọn **Chế độ chấm**:
-   - **Chế độ 1 - Live Website Only (`LIVE_ONLY`)**: Chấm theo domain đã deploy (Vercel, Netlify,...).
-   - **Chế độ 2 - GitHub Repo Only (`REPO_ONLY`)**: Chấm theo mã nguồn kho GitHub (tự động clone, phân tích cấu trúc, linting, git history).
-   - **Chế độ 3 - Hybrid Mode (`HYBRID`)**: Chấm kết hợp cả domain và repo, đối soát chéo tài sản tĩnh để chống gian lận lấy web người khác nộp.
-3. Giảng viên thiết lập hoặc chọn cấu hình Rubric chấm điểm:
-   - Trọng số Cấu trúc DOM & Ngữ nghĩa HTML (mặc định 30%).
-   - Trọng số Kiểm tra chuẩn W3C, Linter & Git Quality (mặc định 10%).
-   - Trọng số Kiểm thử Chức năng E2E với Playwright (mặc định 40%).
-   - Trọng số Đánh giá Giao diện Thẩm mỹ Gemini Vision (mặc định 20%).
-4. Giảng viên nhấn nút **"Bắt đầu chấm Web"**.
-5. Desktop App khởi chạy tiến trình chấm điểm cô lập:
-   - **Bước 5.1 (Chuẩn bị nguồn)**: Clone repo về thư mục tạm nếu chọn `REPO_ONLY`/`HYBRID`, hoặc trích xuất domain live nếu chọn `LIVE_ONLY`/`HYBRID`.
-   - **Bước 5.2 (DOM Parser)**: Quét cây DOM, kiểm tra sự tồn tại của các thẻ bắt buộc, thuộc tính form, table theo checklist.
-   - **Bước 5.3 (W3C Linter & Git)**: Quét lỗi cú pháp HTML5/CSS3 offline, đánh giá tính đều đặn của Git commit.
-   - **Bước 5.4 (Playwright Headless Runner)**: Mở trang web trong Chromium không đầu, thực thi bộ kịch bản kiểm thử hành vi tương tác ở cả 2 viewport Desktop và Mobile.
-   - **Bước 5.5 (Gemini Vision AI)**: Chụp ảnh toàn trang gửi Gemini AI đánh giá thẩm mỹ giao diện và độ hoàn thiện UI.
-   - **Bước 5.6 (Cross-check gian lận)**: Ở chế độ `HYBRID`, đối soát chéo hash assets giữa Live Web và Repo GitHub để cảnh báo nếu không trùng khớp.
-6. Hệ thống tổng hợp điểm số theo Rubric, ghi dữ liệu vào bảng `local_web_grading_results` trong SQLite cục bộ và cập nhật thanh tiến độ.
-7. Kết quả điểm chi tiết và danh sách lỗi từng tiêu chí hiển thị trực quan trên bảng kết quả. Use Case kết thúc.
+1. Giảng viên mở phân hệ "Chấm Bài Tập & Đồ Án Web" và nạp danh sách bài nộp (từ thư mục hoặc thêm thủ công).
+2. Giảng viên nhấn nút **"Bắt Đầu Thẩm Định Web"**.
+3. Desktop App khởi chạy tiến trình chấm điểm cô lập (`WebRubricEngine` + `WebGradingWorker` trên `QThread`):
+   - **Bước 3.1 (Render)**: Playwright Chromium headless mở Live URL hoặc `index.html` cục bộ, trích xuất DOM/CSS/chỉ số tương tác và chụp ảnh toàn trang.
+   - **Bước 3.2 (DOM Parser)**: `BeautifulSoup4` quét cây DOM, kiểm tra thẻ ngữ nghĩa, phân cấp heading, thuộc tính `alt` và cấu trúc form.
+   - **Bước 3.3 (CSS Linter)**: `tinycss2` phát hiện lỗi cú pháp, đánh giá media query và inline-style.
+   - **Bước 3.4 (Functional)**: Đánh giá mức độ tương tác qua script, event listener và các phần tử điều khiển.
+   - **Bước 3.5 (AI Vision)**: Gửi ảnh chụp kèm rubric lên Central AI Gateway (`POST /api/v1/ai/evaluate-web-ui`) để đánh giá bố cục, màu sắc và tính responsive.
+4. Hệ thống tổng hợp điểm theo Rubric (DOM 20% / Lint 20% / E2E 30% / UI 30%), cập nhật kết quả vào bảng `local_web_submissions` và cập nhật thanh tiến độ.
+5. Kết quả điểm chi tiết và danh sách lỗi từng tiêu chí hiển thị trực quan trên bảng kết quả. Use Case kết thúc.
 
 ---
 
@@ -479,7 +469,7 @@ UC19 --> AIService : Đánh giá giao diện & nhận xét Rubric
 UC06 --> Sandbox : Thẩm định đường dẫn gcc/javac/python
 UC12 --> Sandbox : Chạy subprocess qua hàm main & đo RAM/CPU
 UC15 --> Sandbox : Chạy lại bài nộp đơn lẻ
-UC19 --> WebRunner : Khởi chạy Chromium headless & DOM/W3C parser
+UC19 --> WebRunner : Khởi chạy Chromium headless & DOM/CSS parser
 
 @enduml
 ```

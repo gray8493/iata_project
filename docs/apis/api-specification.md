@@ -609,7 +609,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 ---
 
 #### 3.4.5. `POST /api/v1/ai/evaluate-web-ui` (UC-19 Web Multimodal)
-* **Mô tả**: Đánh giá thẩm mỹ và độ tương thích giao diện trang web bài thi qua ảnh chụp màn hình bằng Gemini Vision.
+* **Mô tả**: Đánh giá thẩm mỹ và độ tương thích giao diện trang web bài thi qua ảnh chụp màn hình bằng AI Vision (Central AI Gateway gọi OpenRouter).
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
   - `screenshot_base64`: Chuỗi base64 ảnh chụp màn hình (PNG/JPEG, tối đa 5MB), bắt buộc (`required`).
