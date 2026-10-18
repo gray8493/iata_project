@@ -1877,7 +1877,7 @@ class AITAMainWindow(QMainWindow):
                         continue
 
                     if mssv in seen_mssv:
-                        duplicates.append(mssv)
+                        pass # Cho phép trùng, xử lý update ở tầng DB
                     seen_mssv.add(mssv)
 
                     valid.append({
@@ -1900,7 +1900,7 @@ class AITAMainWindow(QMainWindow):
                     mssv = match.group(1).upper()
 
                     if mssv in seen_mssv:
-                        duplicates.append(mssv)
+                        pass # Cho phép trùng, xử lý update ở tầng DB
                     seen_mssv.add(mssv)
 
                     valid.append({

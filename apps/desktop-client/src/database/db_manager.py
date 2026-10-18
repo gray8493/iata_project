@@ -804,11 +804,55 @@ class DatabaseManager:
             return cursor.lastrowid
 
     def get_all_web_sessions(self) -> List[Dict[str, Any]]:
-        """Fetches all active web grading sessions."""
+        """Fetches all active web grading sessions with total submissions count."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM local_web_sessions WHERE is_deleted = 0 ORDER BY created_at DESC")
+            cursor.execute("""
+                SELECT s.*, 
+                       COUNT(CASE WHEN sub.is_deleted = 0 THEN 1 END) as total_submissions
+                FROM local_web_sessions s
+                LEFT JOIN local_web_submissions sub ON s.id = sub.session_id
+                WHERE s.is_deleted = 0
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+            """)
             return [dict(row) for row in cursor.fetchall()]
+
+    def get_web_session_by_id(self, session_id: int) -> Optional[Dict[str, Any]]:
+        """Fetches a specific active web grading session by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM local_web_sessions WHERE id = ? AND is_deleted = 0", (session_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_latest_web_session(self) -> Optional[Dict[str, Any]]:
+        """Fetches the most recent active web grading session if one exists."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM local_web_sessions WHERE is_deleted = 0 ORDER BY created_at DESC, id DESC LIMIT 1")
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def ensure_default_web_session(self) -> Optional[int]:
+        """
+        Migrates any legacy web submissions lacking a session_id into an active session
+        if one exists, without automatically creating unwanted dummy sessions.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM local_web_sessions WHERE is_deleted = 0 ORDER BY id ASC LIMIT 1")
+            existing = cursor.fetchone()
+            if not existing:
+                return None
+            session_id = existing["id"]
+            cursor.execute("""
+                UPDATE local_web_submissions
+                SET session_id = ?
+                WHERE session_id IS NULL AND is_deleted = 0
+            """, (session_id,))
+            conn.commit()
+            return session_id
 
     def delete_web_session(self, session_id: int):
         """Soft-deletes a web session and cascades to its submissions."""
@@ -897,16 +941,24 @@ class DatabaseManager:
         self,
         course_code: str,
         class_name: str,
-        new_mode: str
+        new_mode: str,
+        session_id: Optional[int] = None
     ) -> int:
-        """Batch updates the grading mode for all existing active submissions in a course/class."""
+        """Batch updates the grading mode for all existing active submissions in a course/class or session."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE local_web_submissions
-                SET mode = ?
-                WHERE course_code = ? AND class_name = ? AND is_deleted = 0
-            """, (new_mode.strip(), course_code, class_name))
+            if session_id:
+                cursor.execute("""
+                    UPDATE local_web_submissions
+                    SET mode = ?
+                    WHERE session_id = ? AND is_deleted = 0
+                """, (new_mode.strip(), session_id))
+            else:
+                cursor.execute("""
+                    UPDATE local_web_submissions
+                    SET mode = ?
+                    WHERE course_code = ? AND class_name = ? AND is_deleted = 0
+                """, (new_mode.strip(), course_code, class_name))
             conn.commit()
             return cursor.rowcount
 
