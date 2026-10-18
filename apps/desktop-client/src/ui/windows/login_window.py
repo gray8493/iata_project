@@ -303,7 +303,7 @@ class LoginWindow(QMainWindow):
         card_layout.addSpacing(16)
         
         # 5. Dòng phiên bản nhỏ tinh tế ở chân card
-        lbl_version = QLabel("Phiên bản 2.4.0 (Build 2026)", card)
+        lbl_version = QLabel("Phiên bản 1.0.0 (Build 2026)", card)
         lbl_version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_version.setStyleSheet("""
             QLabel {{
