@@ -8,12 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from services.web_rubric_service import WebRubricEngine, WEIGHTS
-from ui.dialogs.web_folder_import_dialog import (
-    MSSV_PATTERN,
-    classify_url,
-    select_link_file,
-)
+from services.web_rubric_service import WebRubricEngine, WEIGHTS, classify_url
 
 
 SEMANTIC_HTML = """
@@ -150,15 +145,8 @@ def test_grade_without_html_returns_failed(engine):
 
 
 # ------------------------------------------------------------------------------
-# Folder-import recognition helpers (WebFolderImportDialog)
+# URL classification & normalization helpers
 # ------------------------------------------------------------------------------
-def test_mssv_pattern_accepts_and_rejects():
-    import re
-    assert re.match(MSSV_PATTERN, "SE180001")
-    assert not re.match(MSSV_PATTERN, "SE18001")
-    assert not re.match(MSSV_PATTERN, "180001SE")
-
-
 def test_classify_url_normalizes_github_repo():
     kind, normalized, error = classify_url("https://github.com/user/repo.git/tree/main")
     assert kind == "repo"
@@ -179,29 +167,20 @@ def test_classify_url_rejects_non_url():
     assert error != ""
 
 
-def test_select_link_file_prefers_priority_name(tmp_path):
-    (tmp_path / "random.txt").write_text("x", encoding="utf-8")
-    (tmp_path / "links.txt").write_text("x", encoding="utf-8")
-    picked, status = select_link_file(tmp_path)
-    assert status == ""
-    assert picked is not None and picked.name == "links.txt"
-
-
-def test_select_link_file_no_txt_flags_missing(tmp_path):
-    picked, status = select_link_file(tmp_path)
-    assert picked is None
-    assert status == "no_txt"
-
-
-def test_select_link_file_ambiguous_when_unresolvable(tmp_path):
-    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
-    (tmp_path / "b.txt").write_text("x", encoding="utf-8")
-    picked, status = select_link_file(tmp_path)
-    assert picked is None
-    assert status == "ambiguous"
-
-
 def test_engine_screenshots_dir_defaults_under_data():
     eng = WebRubricEngine()
     assert eng.screenshots_dir.name == "web_screenshots"
     assert isinstance(eng.screenshots_dir, Path)
+
+
+def test_grade_repo_only_ui_score_is_none(monkeypatch):
+    eng = WebRubricEngine()
+    monkeypatch.setattr(eng, "_fetch_github_raw", lambda url: (SEMANTIC_HTML, ["body { color: red; }"]))
+    res = eng.grade(repo_url="https://github.com/test/project", mode="REPO_ONLY")
+    assert res.score_ui is None
+    assert res.score_dom is not None
+    assert res.score_lint is not None
+    assert res.score_func is not None
+    assert res.total_score > 0
+    assert "Không áp dụng (chế độ chỉ chấm GitHub Repo)" in res.rubric_log
+

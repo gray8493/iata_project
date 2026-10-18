@@ -28,6 +28,35 @@ from typing import Any, Dict, List, Optional, Tuple
 
 SEMANTIC_TAGS = ("header", "nav", "main", "footer", "section", "article", "aside", "form")
 WEIGHTS = {"dom": 0.2, "lint": 0.2, "func": 0.3, "ui": 0.3}
+GITHUB_HOST = "github.com"
+
+
+def classify_url(raw_url: str) -> Tuple[Optional[str], str, str]:
+    """
+    Classifies a single link.
+    Returns (kind, normalized, error) where kind is "repo", "live" or None.
+    A github.com/<user>/<repo> link is normalized (drops /tree/..., .git and trailing "/").
+    """
+    from urllib.parse import urlparse
+    url = (raw_url or "").strip().rstrip(".,;:!?)\"]'")
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return None, url, "Link không đúng định dạng http:// hoặc https://"
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if host == GITHUB_HOST or host.endswith("." + GITHUB_HOST):
+        parts = [p for p in parsed.path.split("/") if p]
+        if len(parts) >= 2:
+            user, repo = parts[0], parts[1]
+            if repo.lower().endswith(".git"):
+                repo = repo[:-4]
+            return "repo", f"https://{GITHUB_HOST}/{user}/{repo}", ""
+        return None, url, "Link GitHub không đúng dạng github.com/<user>/<repo>"
+    if host:
+        return "live", url, ""
+    return None, url, "Link không đúng định dạng http:// hoặc https://"
+
 
 _JS_PROBE = """
 () => {
@@ -42,10 +71,10 @@ _JS_PROBE = """
 
 @dataclass
 class WebRubricResult:
-    score_dom: float = 0.0
-    score_lint: float = 0.0
-    score_func: float = 0.0
-    score_ui: float = 0.0
+    score_dom: Optional[float] = None
+    score_lint: Optional[float] = None
+    score_func: Optional[float] = None
+    score_ui: Optional[float] = None
     total_score: float = 0.0
     verdict: str = "FAILED"
     screenshot_path: Optional[str] = None
@@ -72,6 +101,61 @@ class WebRubricEngine:
             self._ai_service = AiService()
         return self._ai_service
 
+    @staticmethod
+    def _fetch_github_raw(repo_url: Optional[str]) -> Tuple[str, List[str]]:
+        """
+        Fetches index.html and stylesheets directly from GitHub raw content (0 disk footprint).
+        Supports branches: main, master.
+        """
+        if not repo_url:
+            return "", []
+        import urllib.request
+        from urllib.parse import urlparse
+
+        parsed = urlparse(repo_url.strip())
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        if len(path_parts) < 2:
+            return "", []
+        user, repo = path_parts[0], path_parts[1]
+        if repo.endswith(".git"):
+            repo = repo[:-4]
+
+        html = ""
+        branches = ["main", "master"]
+        matched_branch = ""
+        for br in branches:
+            for file_name in ["index.html", "Index.html", "index.htm"]:
+                raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{br}/{file_name}"
+                try:
+                    req = urllib.request.Request(raw_url, headers={"User-Agent": "AITA-Web-Grader"})
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        if resp.status == 200:
+                            html = resp.read().decode("utf-8", errors="replace")
+                            matched_branch = br
+                            break
+                except Exception:
+                    continue
+            if html:
+                break
+
+        css_texts: List[str] = []
+        if matched_branch:
+            for css_candidate in ["style.css", "styles.css", "css/style.css", "css/styles.css", "main.css"]:
+                css_url = f"https://raw.githubusercontent.com/{user}/{repo}/{matched_branch}/{css_candidate}"
+                try:
+                    req = urllib.request.Request(css_url, headers={"User-Agent": "AITA-Web-Grader"})
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        if resp.status == 200:
+                            css_texts.append(resp.read().decode("utf-8", errors="replace"))
+                except Exception:
+                    continue
+
+        if html:
+            for block in re.findall(r"<style[^>]*>(.*?)</style>", html, flags=re.DOTALL | re.IGNORECASE):
+                css_texts.append(block)
+
+        return html, css_texts
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -80,63 +164,113 @@ class WebRubricEngine:
         live_url: Optional[str] = None,
         local_dir: Optional[str] = None,
         repo_url: Optional[str] = None,
-        mssv: str = ""
+        mssv: str = "",
+        mode: str = "HYBRID"
     ) -> WebRubricResult:
-        """Grades a single web submission and returns its rubric breakdown."""
-        target_url = self._resolve_target_url(live_url, local_dir)
-        log_lines: List[str] = []
+        """
+        Grades a single web submission according to its mode:
+        - LIVE_ONLY: grades live website only (Playwright render -> DOM, CSS, JS, UI/UX).
+        - REPO_ONLY: grades GitHub repo only (raw source -> DOM, CSS, JS; UI/UX is not applicable).
+        - HYBRID: grades both live website and repository.
+        """
+        norm_mode = (mode or "HYBRID").upper()
+        if norm_mode not in ("LIVE_ONLY", "REPO_ONLY", "HYBRID"):
+            norm_mode = "HYBRID"
 
+        log_lines: List[str] = [f"[MODE]: Chế độ chấm '{norm_mode}'."]
         html = ""
         css_texts: List[str] = []
         js_metrics: Dict[str, int] = {}
         screenshot_bytes: Optional[bytes] = None
-        ui_available = False
 
-        if target_url:
+        if norm_mode == "LIVE_ONLY":
+            target_url = (live_url or "").strip()
+            if not target_url:
+                return WebRubricResult(
+                    verdict="FAILED",
+                    rubric_log=f"[ERROR]: Chế độ Live URL nhưng bài nộp chưa có link trang web.",
+                    error="MISSING_LIVE_URL"
+                )
             try:
                 html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
                 log_lines.append(f"[PLAYWRIGHT]: Render thành công '{target_url}'.")
             except Exception as ex:
-                log_lines.append(f"[PLAYWRIGHT]: Không render được bằng Chromium ({self._short(ex)}). Chuyển sang phân tích tĩnh.")
+                log_lines.append(f"[PLAYWRIGHT]: Không render được bằng Chromium ({self._short(ex)}).")
+                return WebRubricResult(
+                    verdict="FAILED",
+                    rubric_log="\n".join(log_lines) + f"\n[RESULT]: Lỗi kết nối Live URL: {self._short(ex)}.",
+                    error="RENDER_FAILED"
+                )
+
+        elif norm_mode == "REPO_ONLY":
+            log_lines.append(f"[GITHUB]: Đọc mã nguồn từ repo '{repo_url}'...")
+            html, css_texts = self._fetch_github_raw(repo_url)
+            if not html and local_dir:
+                log_lines.append("[STATIC]: Tải trực tiếp từ repo không thấy index.html, kiểm tra thư mục cục bộ...")
                 html, css_texts = self._load_static(local_dir)
-        else:
-            log_lines.append("[INPUT]: Không có Live URL, phân tích mã nguồn tĩnh từ thư mục cục bộ.")
-            html, css_texts = self._load_static(local_dir)
+            if not html:
+                return WebRubricResult(
+                    verdict="FAILED",
+                    rubric_log="\n".join(log_lines) + f"\n[RESULT]: Không tìm thấy index.html trên repo '{repo_url}'.",
+                    error="NO_HTML_IN_REPO"
+                )
+            log_lines.append(f"[GITHUB]: Lấy mã nguồn thành công ({len(html)} ký tự HTML, {len(css_texts)} nguồn CSS).")
 
-        if not html:
-            return WebRubricResult(
-                verdict="FAILED",
-                rubric_log="\n".join(log_lines) + "\n[RESULT]: Không tìm thấy mã nguồn HTML để thẩm định.",
-                error="NO_HTML"
-            )
+        else: # HYBRID
+            target_url = self._resolve_target_url(live_url, local_dir)
+            if target_url:
+                try:
+                    html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
+                    log_lines.append(f"[PLAYWRIGHT]: Render thành công Live URL '{target_url}'.")
+                except Exception as ex:
+                    log_lines.append(f"[PLAYWRIGHT]: Không render được Live URL ({self._short(ex)}). Thử lấy mã nguồn từ repo.")
+            if not html and repo_url:
+                html, css_texts = self._fetch_github_raw(repo_url)
+            if not html and local_dir:
+                html, css_texts = self._load_static(local_dir)
+            if not html:
+                return WebRubricResult(
+                    verdict="FAILED",
+                    rubric_log="\n".join(log_lines) + "\n[RESULT]: Không tìm thấy mã nguồn HTML từ Live URL lẫn GitHub Repo để thẩm định.",
+                    error="NO_HTML"
+                )
 
+        # 1. Chấm DOM
         dom_score, dom_log = self._score_dom(html)
         log_lines.append(f"[DOM]: {dom_log}")
 
+        # 2. Chấm CSS Lint
         lint_score, lint_log = self._score_css(html, css_texts)
         log_lines.append(f"[CSS]: {lint_log}")
 
+        # 3. Chấm Function JS
         func_score, func_log = self._score_func(html, js_metrics)
         log_lines.append(f"[JS]: {func_log}")
 
+        # 4. Chấm UI/UX (chỉ áp dụng khi có ảnh chụp màn hình Playwright)
         screenshot_path = None
-        ui_score = 0.0
+        ui_score: Optional[float] = None
         ai_feedback = ""
-        if screenshot_bytes:
-            screenshot_path = self._save_screenshot(screenshot_bytes, mssv)
-            ui_score, ai_feedback, ui_log = self._score_ui(screenshot_bytes)
-            ui_available = ui_score > 0.0
-            log_lines.append(f"[UI]: {ui_log}")
-        else:
-            log_lines.append("[UI]: Chưa có ảnh chụp màn hình nên bỏ qua đánh giá thẩm mỹ (AI Vision).")
 
-        components = {
+        if norm_mode == "REPO_ONLY":
+            log_lines.append("[UI/UX]: Không áp dụng (chế độ chỉ chấm GitHub Repo).")
+        else:
+            if screenshot_bytes:
+                screenshot_path = self._save_screenshot(screenshot_bytes, mssv)
+                raw_ui, ai_feedback, ui_log = self._score_ui(screenshot_bytes)
+                ui_score = raw_ui
+                log_lines.append(f"[UI/UX]: {ui_log}")
+            else:
+                log_lines.append("[UI/UX]: Không có ảnh chụp màn hình để AI Vision thẩm định.")
+
+        components: Dict[str, Optional[float]] = {
             "dom": dom_score,
             "lint": lint_score,
             "func": func_score,
         }
-        if ui_available:
+        if ui_score is not None:
             components["ui"] = ui_score
+
         total = self._weighted_total(components)
         verdict = self._verdict(total)
 
@@ -146,7 +280,7 @@ class WebRubricEngine:
             score_dom=round(dom_score, 2),
             score_lint=round(lint_score, 2),
             score_func=round(func_score, 2),
-            score_ui=round(ui_score, 2),
+            score_ui=round(ui_score, 2) if ui_score is not None else None,
             total_score=round(total, 2),
             verdict=verdict,
             screenshot_path=screenshot_path,
@@ -353,11 +487,12 @@ class WebRubricEngine:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _weighted_total(self, components: Dict[str, float]) -> float:
-        total_weight = sum(WEIGHTS[k] for k in components)
+    def _weighted_total(self, components: Dict[str, Optional[float]]) -> float:
+        valid = {k: v for k, v in components.items() if v is not None and k in WEIGHTS}
+        total_weight = sum(WEIGHTS[k] for k in valid)
         if total_weight <= 0:
             return 0.0
-        return sum(components[k] * WEIGHTS[k] for k in components) / total_weight * 1.0
+        return sum(valid[k] * WEIGHTS[k] for k in valid) / total_weight * 1.0
 
     @staticmethod
     def _verdict(total: float) -> str:

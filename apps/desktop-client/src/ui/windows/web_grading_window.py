@@ -22,7 +22,8 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QProgressBar, QMessageBox, QFileDialog,
     QDialog, QSplitter, QTextEdit, QDoubleSpinBox, QFormLayout,
-    QLineEdit, QTabWidget, QScrollArea, QMenu
+    QLineEdit, QTabWidget, QScrollArea, QMenu, QRadioButton,
+    QButtonGroup, QComboBox
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -31,8 +32,7 @@ if str(SRC_DIR) not in sys.path:
 
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
-from services.web_rubric_service import WebRubricEngine
-from ui.dialogs.web_folder_import_dialog import WebFolderImportDialog, MSSV_PATTERN
+from services.web_rubric_service import WebRubricEngine, classify_url
 from ui.components import make_aita_avatar_pixmap
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
@@ -96,7 +96,8 @@ class WebGradingWorker(QThread):
                 live_url=st.get("live_url"),
                 local_dir=local_dir,
                 repo_url=st.get("repo_url"),
-                mssv=st.get("mssv", "")
+                mssv=st.get("mssv", ""),
+                mode=st.get("mode", "HYBRID")
             )
 
             st["score_dom"] = result.score_dom
@@ -163,7 +164,7 @@ class WebDetailDialog(QDialog):
         self.st = student_info
         self.regrade_requested = False
         self.score_override: Optional[Dict[str, float]] = None
-        self.setWindowTitle(f"Chi Tiết Thẩm Định Web - {self.st.get('mssv')} ({self.st.get('name')})")
+        self.setWindowTitle(f"Chi Tiết Thẩm Định Web - {self.st.get('mssv')}")
 
         screen = QGuiApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else None
@@ -188,7 +189,9 @@ class WebDetailDialog(QDialog):
 
         info_v = QVBoxLayout()
         info_v.setSpacing(6)
-        lbl_name = QLabel(f"Sinh viên: {self.st.get('mssv')} — {self.st.get('name')}", header)
+        mode_val = self.st.get("mode") or "HYBRID"
+        mode_label = {"LIVE_ONLY": "Live URL", "REPO_ONLY": "GitHub", "HYBRID": "Hybrid"}.get(mode_val, mode_val)
+        lbl_name = QLabel(f"Mã Số Sinh Viên: {self.st.get('mssv')}  |  Chế Độ: {mode_label}", header)
         lbl_name.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
 
         live_val = self.st.get('live_url') or 'Chưa có'
@@ -219,7 +222,7 @@ class WebDetailDialog(QDialog):
         lbl_r_t.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         lc_layout.addWidget(lbl_r_t)
 
-        def add_criterion_row(name, score, desc):
+        def add_criterion_row(name, score, desc, is_na=False):
             f = QFrame(left_card)
             f.setStyleSheet(f"background: {COLOR_SURFACE_SECONDARY}; border: 1px solid {COLOR_BORDER_LIGHT}; border-radius: 10px; padding: 10px;")
             fl = QVBoxLayout(f)
@@ -229,8 +232,12 @@ class WebDetailDialog(QDialog):
             top_f = QHBoxLayout()
             lbl_cn = QLabel(name, f)
             lbl_cn.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-            lbl_cs = QLabel(f"{score:.1f} / 10" if score is not None else "—", f)
-            lbl_cs.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {COLOR_PRIMARY};")
+            if is_na:
+                lbl_cs = QLabel("Không áp dụng", f)
+                lbl_cs.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_MUTED};")
+            else:
+                lbl_cs = QLabel(f"{score:.1f} / 10" if score is not None else "—", f)
+                lbl_cs.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {COLOR_PRIMARY};")
             top_f.addWidget(lbl_cn)
             top_f.addStretch(1)
             top_f.addWidget(lbl_cs)
@@ -242,10 +249,16 @@ class WebDetailDialog(QDialog):
             fl.addWidget(lbl_cd)
             lc_layout.addWidget(f)
 
+        is_repo_only = (mode_val == "REPO_ONLY")
         add_criterion_row("1. Cấu Trúc HTML & DOM", self.st.get("score_dom"), "Thẻ ngữ nghĩa (header, nav, main, footer), alt ảnh, heading hierarchy.")
         add_criterion_row("2. Chuẩn Hóa CSS / HTML Linting", self.st.get("score_lint"), "Kiểm tra cú pháp CSS bằng tinycss2, hạn chế inline-style, có media query responsive.")
         add_criterion_row("3. Chỉ Số Tương Tác JS", self.st.get("score_e2e"), "Thống kê script, addEventListener, onclick và các thành phần tương tác trong HTML (không chạy E2E thật).")
-        add_criterion_row("4. Thẩm Định Giao Diện UI/UX", self.st.get("score_ui"), "AI Vision đánh giá ảnh chụp toàn trang (viewport desktop 1440px) theo 4 tiêu chí thẩm mỹ.")
+        add_criterion_row(
+            "4. Thẩm Định Giao Diện UI/UX",
+            self.st.get("score_ui"),
+            "Chế độ GitHub không thẩm định UI/UX giao diện trình duyệt." if is_repo_only else "AI Vision đánh giá ảnh chụp toàn trang (viewport desktop 1440px) theo 4 tiêu chí thẩm mỹ.",
+            is_na=is_repo_only
+        )
 
         ai_feedback = (self.st.get("ai_feedback") or "").strip()
         if ai_feedback:
@@ -378,7 +391,8 @@ class WebScoreOverrideDialog(QDialog):
         super().__init__(parent)
         self.st = student_info
         self.scores: Optional[Dict[str, float]] = None
-        self.setWindowTitle(f"Sửa Điểm Thủ Công - {self.st.get('mssv')} ({self.st.get('name')})")
+        self.mode = self.st.get("mode") or "HYBRID"
+        self.setWindowTitle(f"Sửa Điểm Thủ Công - {self.st.get('mssv')}")
         self.setMinimumWidth(460)
         self.setStyleSheet(LIGHT_THEME_QSS)
         self._init_ui()
@@ -388,12 +402,18 @@ class WebScoreOverrideDialog(QDialog):
         layout.setContentsMargins(22, 22, 22, 22)
         layout.setSpacing(14)
 
-        note = QLabel(
-            "Điểm do giảng viên nhập sẽ ghi đè điểm rubric tự động. "
-            "Tổng điểm và kết quả (PASSED/PARTIAL/FAILED) được tính lại theo trọng số "
-            "DOM 20% / Lint 20% / Function 30% / UI 30%.",
-            self
-        )
+        if self.mode == "REPO_ONLY":
+            note_text = (
+                "Chế độ GitHub: Tiêu chí UI/UX không áp dụng. "
+                "Tổng điểm quy đổi thang 10 theo trọng số DOM 20% / Lint 20% / Function 30% (chia 0.7)."
+            )
+        else:
+            note_text = (
+                "Điểm do giảng viên nhập sẽ ghi đè điểm rubric tự động. "
+                "Tổng điểm và kết quả (PASSED/PARTIAL/FAILED) được tính theo trọng số "
+                "DOM 20% / Lint 20% / Function 30% / UI 30%."
+            )
+        note = QLabel(note_text, self)
         note.setWordWrap(True)
         note.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 12px; line-height: 1.4;")
         layout.addWidget(note)
@@ -404,6 +424,10 @@ class WebScoreOverrideDialog(QDialog):
         self.spin_lint = self._make_spin(self.st.get("score_lint"))
         self.spin_func = self._make_spin(self.st.get("score_e2e"))
         self.spin_ui = self._make_spin(self.st.get("score_ui"))
+        if self.mode == "REPO_ONLY":
+            self.spin_ui.setEnabled(False)
+            self.spin_ui.setToolTip("Không áp dụng cho chế độ GitHub (không tính vào tổng điểm)")
+
         form.addRow("1. Cấu trúc HTML & DOM:", self.spin_dom)
         form.addRow("2. Chuẩn hóa CSS / Lint:", self.spin_lint)
         form.addRow("3. Chỉ số tương tác JS:", self.spin_func)
@@ -445,7 +469,10 @@ class WebScoreOverrideDialog(QDialog):
         lint = self.spin_lint.value()
         func = self.spin_func.value()
         ui = self.spin_ui.value()
-        total = (dom * 0.2 + lint * 0.2 + func * 0.3 + ui * 0.3)
+        if self.mode == "REPO_ONLY":
+            total = round((dom * 0.2 + lint * 0.2 + func * 0.3) / 0.7, 2)
+        else:
+            total = round(dom * 0.2 + lint * 0.2 + func * 0.3 + ui * 0.3, 2)
         verdict = "PASSED" if total >= 7.0 else ("PARTIAL" if total >= 5.0 else "FAILED")
         self.lbl_total.setText(f"Tổng điểm: {total:.1f} / 10  →  {verdict}")
 
@@ -454,7 +481,7 @@ class WebScoreOverrideDialog(QDialog):
             "score_dom": self.spin_dom.value(),
             "score_lint": self.spin_lint.value(),
             "score_func": self.spin_func.value(),
-            "score_ui": self.spin_ui.value(),
+            "score_ui": None if self.mode == "REPO_ONLY" else self.spin_ui.value(),
         }
         self.accept()
 
@@ -465,11 +492,19 @@ class WebScoreOverrideDialog(QDialog):
 class WebSubmissionDialog(QDialog):
     """
     Dialog for adding/editing a single web submission or pasting multiple links from Excel/Sheets.
-    Conforms strictly to items 12, 13, 14, 15:
-    - Single mode: MSSV, Name, Live URL, GitHub Repo, Save, Cancel.
-    - Bulk mode: Large text area (MSSV, Name, Live URL, GitHub Repo), Preview with error detection, Add All.
-    - Real-time inline validation with red border & descriptive messages.
+    Strictly conforms to rules:
+    - No student name (MSSV only).
+    - Titles display current grading mode: 'Live URL', 'GitHub', 'Hybrid'.
+    - Single tab: only fields belonging to the current mode are shown; others are hidden completely.
+    - Bulk tab: format strictly adapted to the mode, with preview table, red rows on error, and Add All button.
+    - Real-time inline validation with descriptive messages below inputs.
     """
+
+    MODE_NAMES = {
+        "LIVE_ONLY": "Live URL",
+        "REPO_ONLY": "GitHub",
+        "HYBRID": "Hybrid"
+    }
 
     def __init__(
         self,
@@ -480,17 +515,19 @@ class WebSubmissionDialog(QDialog):
         open_bulk_tab: bool = False
     ):
         super().__init__(parent)
-        self.current_mode = current_mode.upper()  # 'LIVE_ONLY', 'REPO_ONLY', 'HYBRID'
+        self.current_mode = (current_mode or "HYBRID").upper()
+        if self.current_mode not in self.MODE_NAMES:
+            self.current_mode = "HYBRID"
         self.existing_item = existing_item
         self.is_edit_mode = existing_item is not None
         self.existing_mssvs = set(m.upper() for m in (existing_mssvs or []))
         if self.existing_item and self.existing_item.get("mssv"):
-            # Bỏ MSSV hiện tại ra khỏi tập kiểm tra trùng khi đang sửa
             self.existing_mssvs.discard(self.existing_item.get("mssv", "").upper())
 
         self.added_submissions: List[Dict[str, Any]] = []
 
-        title = "Sửa Bài Nộp Đồ Án Web" if self.is_edit_mode else "Thêm Bài Nộp Đồ Án Web"
+        mode_label = self.MODE_NAMES.get(self.current_mode, "Hybrid")
+        title = f"Sửa Bài Nộp - Chế độ: {mode_label}" if self.is_edit_mode else f"Thêm Bài Nộp - Chế độ: {mode_label}"
         self.setWindowTitle(title)
 
         screen = QGuiApplication.primaryScreen()
@@ -537,14 +574,14 @@ class WebSubmissionDialog(QDialog):
         # Tab 1: Form Thêm / Sửa đơn lẻ
         tab_single = QWidget()
         self._init_single_tab(tab_single)
-        tab_label = "Sửa Thông Tin Bài Nộp" if self.is_edit_mode else "Nhập Từng Bài Nộp"
+        tab_label = "Sửa Thông Tin Bài Nộp" if self.is_edit_mode else "Thêm Từng Bài"
         self.tabs.addTab(tab_single, tab_label)
 
-        # Tab 2: Dán nhiều link (Chỉ hiện khi ở chế độ thêm mới)
+        # Tab 2: Dán nhiều dòng (chỉ hiển thị khi thêm mới)
         if not self.is_edit_mode:
             tab_bulk = QWidget()
             self._init_bulk_tab(tab_bulk)
-            self.tabs.addTab(tab_bulk, "Dán Nhiều Link")
+            self.tabs.addTab(tab_bulk, "Dán Nhiều Dòng")
             if open_bulk_tab:
                 self.tabs.setCurrentIndex(1)
 
@@ -555,7 +592,29 @@ class WebSubmissionDialog(QDialog):
         vbox.setContentsMargins(12, 12, 12, 12)
         vbox.setSpacing(12)
 
-        # 1. MSSV
+        # Khi sửa bài: cho phép đổi chế độ của bài nộp đó
+        if self.is_edit_mode:
+            lbl_m = QLabel("Chế Độ Chấm:", parent)
+            lbl_m.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
+            self.combo_mode = QComboBox(parent)
+            self.combo_mode.setFixedHeight(36)
+            self.combo_mode.addItem("Live URL", "LIVE_ONLY")
+            self.combo_mode.addItem("GitHub", "REPO_ONLY")
+            self.combo_mode.addItem("Hybrid", "HYBRID")
+
+            # Set current selection
+            idx = 2
+            if self.current_mode == "LIVE_ONLY":
+                idx = 0
+            elif self.current_mode == "REPO_ONLY":
+                idx = 1
+            self.combo_mode.setCurrentIndex(idx)
+            self.combo_mode.currentIndexChanged.connect(self._on_single_mode_changed)
+
+            vbox.addWidget(lbl_m)
+            vbox.addWidget(self.combo_mode)
+
+        # 1. Ô MSSV
         lbl_mssv = QLabel("Mã Số Sinh Viên (MSSV):", parent)
         lbl_mssv.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
         self.txt_mssv = QLineEdit(parent)
@@ -569,24 +628,8 @@ class WebSubmissionDialog(QDialog):
         vbox.addWidget(self.txt_mssv)
         vbox.addWidget(self.lbl_err_mssv)
 
-        # 2. Họ và tên
-        lbl_name = QLabel("Họ và Tên Sinh Viên:", parent)
-        lbl_name.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-        self.txt_name = QLineEdit(parent)
-        self.txt_name.setFixedHeight(38)
-        self.txt_name.setPlaceholderText("Ví dụ: Nguyễn Văn An")
-        self.lbl_err_name = QLabel("", parent)
-        self.lbl_err_name.setStyleSheet(f"color: {COLOR_ERROR}; font-size: 11px;")
-        self.lbl_err_name.setVisible(False)
-        self.txt_name.textChanged.connect(self._validate_single_form)
-        vbox.addWidget(lbl_name)
-        vbox.addWidget(self.txt_name)
-        vbox.addWidget(self.lbl_err_name)
-
-        # 3. Live URL
-        is_live_req = (self.current_mode in ["LIVE_ONLY", "HYBRID"])
-        live_label_text = "Live Website URL (*bắt buộc):" if is_live_req else "Live Website URL (không bắt buộc):"
-        self.lbl_live = QLabel(live_label_text, parent)
+        # 2. Ô Live URL (chỉ hiện khi thuộc chế độ)
+        self.lbl_live = QLabel("Live Website URL:", parent)
         self.lbl_live.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
         self.txt_live = QLineEdit(parent)
         self.txt_live.setFixedHeight(38)
@@ -599,10 +642,8 @@ class WebSubmissionDialog(QDialog):
         vbox.addWidget(self.txt_live)
         vbox.addWidget(self.lbl_err_live)
 
-        # 4. GitHub Repo
-        is_repo_req = (self.current_mode in ["REPO_ONLY", "HYBRID"])
-        repo_label_text = "GitHub Repository URL (*bắt buộc):" if is_repo_req else "GitHub Repository URL (không bắt buộc):"
-        self.lbl_repo = QLabel(repo_label_text, parent)
+        # 3. Ô GitHub Repo (chỉ hiện khi thuộc chế độ)
+        self.lbl_repo = QLabel("GitHub Repository URL:", parent)
         self.lbl_repo.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
         self.txt_repo = QLineEdit(parent)
         self.txt_repo.setFixedHeight(38)
@@ -638,22 +679,49 @@ class WebSubmissionDialog(QDialog):
         # Nạp dữ liệu cũ nếu ở chế độ sửa
         if self.is_edit_mode and self.existing_item:
             self.txt_mssv.setText(self.existing_item.get("mssv", ""))
-            self.txt_name.setText(self.existing_item.get("name", ""))
             self.txt_live.setText(self.existing_item.get("live_url", ""))
             self.txt_repo.setText(self.existing_item.get("repo_url", ""))
+
+        self._update_single_field_visibility()
+        self._validate_single_form()
+
+    def _on_single_mode_changed(self):
+        new_mode = self.combo_mode.currentData()
+        if new_mode:
+            self.current_mode = new_mode
+            mode_label = self.MODE_NAMES.get(self.current_mode, "Hybrid")
+            self.setWindowTitle(f"Sửa Bài Nộp - Chế độ: {mode_label}")
+            self._update_single_field_visibility()
+            self._validate_single_form()
+
+    def _update_single_field_visibility(self):
+        show_live = (self.current_mode in ("LIVE_ONLY", "HYBRID"))
+        show_repo = (self.current_mode in ("REPO_ONLY", "HYBRID"))
+
+        self.lbl_live.setVisible(show_live)
+        self.txt_live.setVisible(show_live)
+        if not show_live:
+            self.lbl_err_live.setVisible(False)
+            self.txt_live.setStyleSheet("")
+
+        self.lbl_repo.setVisible(show_repo)
+        self.txt_repo.setVisible(show_repo)
+        if not show_repo:
+            self.lbl_err_repo.setVisible(False)
+            self.txt_repo.setStyleSheet("")
 
     def _validate_single_form(self) -> bool:
         """Real-time validation for single entry form."""
         is_valid = True
 
-        # Validate MSSV
-        mssv = self.txt_mssv.text().strip()
-        if not mssv:
+        # 1. Validate MSSV
+        raw_mssv = self.txt_mssv.text().strip().upper()
+        if not raw_mssv:
             self.lbl_err_mssv.setText("Mã số sinh viên không được để trống.")
             self.lbl_err_mssv.setVisible(True)
             self.txt_mssv.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
             is_valid = False
-        elif mssv.upper() in self.existing_mssvs:
+        elif raw_mssv in self.existing_mssvs:
             self.lbl_err_mssv.setText("MSSV này đã tồn tại trong danh sách bài nộp.")
             self.lbl_err_mssv.setVisible(True)
             self.txt_mssv.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
@@ -662,51 +730,42 @@ class WebSubmissionDialog(QDialog):
             self.lbl_err_mssv.setVisible(False)
             self.txt_mssv.setStyleSheet("")
 
-        # Validate Name
-        name = self.txt_name.text().strip()
-        if not name:
-            self.lbl_err_name.setText("Họ và tên không được để trống.")
-            self.lbl_err_name.setVisible(True)
-            self.txt_name.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
-            is_valid = False
-        else:
-            self.lbl_err_name.setVisible(False)
-            self.txt_name.setStyleSheet("")
+        # 2. Validate Live URL
+        show_live = (self.current_mode in ("LIVE_ONLY", "HYBRID"))
+        if show_live:
+            live_url = self.txt_live.text().strip()
+            if not live_url:
+                self.lbl_err_live.setText("Vui lòng nhập Live Website URL.")
+                self.lbl_err_live.setVisible(True)
+                self.txt_live.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
+                is_valid = False
+            elif not (live_url.startswith("http://") or live_url.startswith("https://")):
+                self.lbl_err_live.setText("URL phải bắt đầu bằng http:// hoặc https://")
+                self.lbl_err_live.setVisible(True)
+                self.txt_live.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
+                is_valid = False
+            else:
+                self.lbl_err_live.setVisible(False)
+                self.txt_live.setStyleSheet("")
 
-        # Validate Live URL
-        is_live_req = (self.current_mode in ["LIVE_ONLY", "HYBRID"])
-        live_url = self.txt_live.text().strip()
-        if is_live_req and not live_url:
-            self.lbl_err_live.setText("Chế độ này yêu cầu phải có Live Website URL.")
-            self.lbl_err_live.setVisible(True)
-            self.txt_live.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
-            is_valid = False
-        elif live_url and not (live_url.startswith("http://") or live_url.startswith("https://")):
-            self.lbl_err_live.setText("URL phải bắt đầu bằng http:// hoặc https://")
-            self.lbl_err_live.setVisible(True)
-            self.txt_live.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
-            is_valid = False
-        else:
-            self.lbl_err_live.setVisible(False)
-            self.txt_live.setStyleSheet("")
-
-        # Validate GitHub Repo
-        is_repo_req = (self.current_mode in ["REPO_ONLY", "HYBRID"])
-        repo_url = self.txt_repo.text().strip()
-        github_pattern = r"(https?://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-        if is_repo_req and not repo_url:
-            self.lbl_err_repo.setText("Chế độ này yêu cầu phải có GitHub Repository URL.")
-            self.lbl_err_repo.setVisible(True)
-            self.txt_repo.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
-            is_valid = False
-        elif repo_url and not re.search(github_pattern, repo_url):
-            self.lbl_err_repo.setText("GitHub Repo phải đúng dạng github.com/<user>/<repo>")
-            self.lbl_err_repo.setVisible(True)
-            self.txt_repo.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
-            is_valid = False
-        else:
-            self.lbl_err_repo.setVisible(False)
-            self.txt_repo.setStyleSheet("")
+        # 3. Validate GitHub Repo
+        show_repo = (self.current_mode in ("REPO_ONLY", "HYBRID"))
+        if show_repo:
+            repo_url = self.txt_repo.text().strip()
+            kind, _, err_msg = classify_url(repo_url)
+            if not repo_url:
+                self.lbl_err_repo.setText("Vui lòng nhập GitHub Repository URL.")
+                self.lbl_err_repo.setVisible(True)
+                self.txt_repo.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
+                is_valid = False
+            elif kind != "repo":
+                self.lbl_err_repo.setText(err_msg or "GitHub Repo phải đúng dạng github.com/<user>/<repo>")
+                self.lbl_err_repo.setVisible(True)
+                self.txt_repo.setStyleSheet(f"border: 1.5px solid {COLOR_ERROR};")
+                is_valid = False
+            else:
+                self.lbl_err_repo.setVisible(False)
+                self.txt_repo.setStyleSheet("")
 
         self.btn_save_single.setEnabled(is_valid)
         return is_valid
@@ -714,16 +773,16 @@ class WebSubmissionDialog(QDialog):
     def _save_single_submission(self):
         if not self._validate_single_form():
             return
-        
-        live_url = self.txt_live.text().strip()
-        repo_url = self.txt_repo.text().strip()
-        # Chuẩn hóa https:// cho repo_url nếu người dùng chỉ nhập github.com/...
-        if repo_url and not repo_url.startswith("http://") and not repo_url.startswith("https://"):
-            repo_url = f"https://{repo_url}"
+
+        live_url = self.txt_live.text().strip() if self.current_mode in ("LIVE_ONLY", "HYBRID") else ""
+        repo_url = self.txt_repo.text().strip() if self.current_mode in ("REPO_ONLY", "HYBRID") else ""
+        if repo_url:
+            _, normalized_repo, _ = classify_url(repo_url)
+            repo_url = normalized_repo
 
         item = {
             "mssv": self.txt_mssv.text().strip().upper(),
-            "name": self.txt_name.text().strip(),
+            "name": "",
             "live_url": live_url,
             "repo_url": repo_url,
             "mode": self.current_mode,
@@ -741,26 +800,42 @@ class WebSubmissionDialog(QDialog):
         self.accept()
 
     # --------------------------------------------------------------------------
-    # Tab 2: Dán Nhiều Link (Google Sheets / Excel)
+    # Tab 2: Dán Nhiều Dòng
     # --------------------------------------------------------------------------
     def _init_bulk_tab(self, parent: QWidget):
         vbox = QVBoxLayout(parent)
         vbox.setContentsMargins(12, 12, 12, 12)
         vbox.setSpacing(12)
 
-        lbl_instruct = QLabel(
-            "Dán danh sách sinh viên trực tiếp từ Google Sheets hoặc Excel.\n"
-            "Mỗi dòng một sinh viên: MSSV, Họ tên, Live URL, GitHub Repo (phân tách bởi dấu phẩy hoặc tab).",
-            parent
-        )
+        # Hướng dẫn theo chế độ
+        if self.current_mode == "LIVE_ONLY":
+            instruct_text = (
+                "Dán danh sách sinh viên: mỗi dòng một sinh viên gồm MSSV, Live URL (phân tách bởi dấu phẩy hoặc tab).\n"
+                "Định dạng mẫu: MSSV, link web"
+            )
+            placeholder_text = "SE180001, https://my-web.vercel.app\nSE180002, https://my-shop.netlify.app"
+        elif self.current_mode == "REPO_ONLY":
+            instruct_text = (
+                "Dán danh sách sinh viên: mỗi dòng một sinh viên gồm MSSV, GitHub Repo (phân tách bởi dấu phẩy hoặc tab).\n"
+                "Định dạng mẫu: MSSV, link repo"
+            )
+            placeholder_text = "SE180001, https://github.com/sinhvien/web-project\nSE180002, https://github.com/sinhvien/ecommerce"
+        else: # HYBRID
+            instruct_text = (
+                "Dán danh sách sinh viên: mỗi dòng gồm MSSV, link web, link repo (phân tách bởi dấu phẩy hoặc tab).\n"
+                "Hệ thống tự nhận diện link github.com là repo, link còn lại là web (không phụ thuộc thứ tự)."
+            )
+            placeholder_text = (
+                "SE180001, https://my-web.vercel.app, https://github.com/sinhvien/web-project\n"
+                "SE180002, https://github.com/sinhvien/ecommerce, https://my-shop.netlify.app"
+            )
+
+        lbl_instruct = QLabel(instruct_text, parent)
         lbl_instruct.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; line-height: 1.4;")
         vbox.addWidget(lbl_instruct)
 
         self.txt_bulk = QTextEdit(parent)
-        self.txt_bulk.setPlaceholderText(
-            "SE18001, Nguyễn Văn A, https://web-app-a.vercel.app, https://github.com/nva/web-project\n"
-            "SE18002, Trần Thị B, https://shop-app-b.netlify.app, https://github.com/ttb/ecommerce"
-        )
+        self.txt_bulk.setPlaceholderText(placeholder_text)
         self.txt_bulk.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {COLOR_SURFACE_SECONDARY};
@@ -775,7 +850,7 @@ class WebSubmissionDialog(QDialog):
         """)
         vbox.addWidget(self.txt_bulk, stretch=2)
 
-        # Hàng nút Xem trước & trạng thái
+        # Hàng nút Xem trước & tóm tắt
         preview_bar = QHBoxLayout()
         preview_bar.setSpacing(12)
         btn_preview = QPushButton("Xem Trước", parent)
@@ -792,17 +867,28 @@ class WebSubmissionDialog(QDialog):
 
         # Bảng xem trước kết quả
         self.tbl_preview = QTableWidget(parent)
-        self.tbl_preview.setColumnCount(5)
-        self.tbl_preview.setHorizontalHeaderLabels(["MSSV", "Họ và Tên", "Live URL", "GitHub Repo", "Trạng Thái"])
+        if self.current_mode == "LIVE_ONLY":
+            headers = ["MSSV", "Live URL", "Trạng Thái"]
+        elif self.current_mode == "REPO_ONLY":
+            headers = ["MSSV", "GitHub Repo", "Trạng Thái"]
+        else:
+            headers = ["MSSV", "Live URL", "GitHub Repo", "Trạng Thái"]
+
+        self.tbl_preview.setColumnCount(len(headers))
+        self.tbl_preview.setHorizontalHeaderLabels(headers)
         p_header = self.tbl_preview.horizontalHeader()
         p_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        p_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        p_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        p_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        p_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
-        self.tbl_preview.setColumnWidth(0, 95)
-        self.tbl_preview.setColumnWidth(1, 140)
-        self.tbl_preview.setColumnWidth(4, 180)
+        self.tbl_preview.setColumnWidth(0, 110)
+        if len(headers) == 3:
+            p_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            p_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+            self.tbl_preview.setColumnWidth(2, 220)
+        else:
+            p_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            p_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+            p_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+            self.tbl_preview.setColumnWidth(3, 220)
+
         self.tbl_preview.verticalHeader().setVisible(False)
         self.tbl_preview.setShowGrid(True)
         vbox.addWidget(self.tbl_preview, stretch=3)
@@ -827,10 +913,12 @@ class WebSubmissionDialog(QDialog):
         vbox.addLayout(footer)
 
     def _preview_bulk_entries(self):
-        """Parses the text area line by line and populates preview table with error tracking."""
         raw_text = self.txt_bulk.toPlainText().strip()
         if not raw_text:
-            QMessageBox.information(self, "Chưa Nhập Dữ Liệu", "Vui lòng dán danh sách link sinh viên vào ô văn bản trước khi bấm 'Xem Trước'!")
+            QMessageBox.information(
+                self, "Chưa Nhập Dữ Liệu",
+                "Vui lòng dán danh sách sinh viên vào ô trước khi bấm 'Xem Trước'!"
+            )
             return
 
         lines = raw_text.splitlines()
@@ -839,76 +927,101 @@ class WebSubmissionDialog(QDialog):
         seen_mssvs_in_batch = set()
         error_count = 0
 
-        is_live_req = (self.current_mode in ["LIVE_ONLY", "HYBRID"])
-        is_repo_req = (self.current_mode in ["REPO_ONLY", "HYBRID"])
-        github_pattern = r"(https?://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-
         for line_idx, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
 
-            # Tách bằng tab nếu có, ngược lại tách bằng dấu phẩy
             if "\t" in line:
-                parts = [p.strip() for p in line.split("\t")]
+                parts = [p.strip() for p in line.split("\t") if p.strip()]
             else:
-                parts = [p.strip() for p in line.split(",")]
+                parts = [p.strip() for p in line.split(",") if p.strip()]
 
-            mssv = parts[0] if len(parts) > 0 else ""
-            name = parts[1] if len(parts) > 1 else ""
-            live = parts[2] if len(parts) > 2 else ""
-            repo = parts[3] if len(parts) > 3 else ""
-
+            raw_mssv = parts[0].upper() if len(parts) > 0 else ""
             row_errs = []
-            if not mssv:
+
+            # 1. Check MSSV
+            if not raw_mssv:
                 row_errs.append("Thiếu MSSV")
-            elif mssv.upper() in self.existing_mssvs:
+            elif raw_mssv in self.existing_mssvs:
                 row_errs.append("Trùng MSSV trong bảng")
-            elif mssv.upper() in seen_mssvs_in_batch:
+            elif raw_mssv in seen_mssvs_in_batch:
                 row_errs.append("Trùng MSSV trong danh sách dán")
 
-            if not name:
-                row_errs.append("Thiếu Họ tên")
+            live_url = ""
+            repo_url = ""
 
-            if is_live_req and not live:
-                row_errs.append("Thiếu Live URL")
-            elif live and not (live.startswith("http://") or live.startswith("https://")):
-                row_errs.append("Live URL sai định dạng")
+            if self.current_mode == "LIVE_ONLY":
+                if len(parts) < 2:
+                    row_errs.append("Thiếu Live URL")
+                else:
+                    live_candidate = parts[1]
+                    if not (live_candidate.startswith("http://") or live_candidate.startswith("https://")):
+                        row_errs.append("Live URL sai định dạng")
+                    else:
+                        live_url = live_candidate
 
-            if is_repo_req and not repo:
-                row_errs.append("Thiếu GitHub Repo")
-            elif repo and not re.search(github_pattern, repo):
-                row_errs.append("GitHub Repo sai dạng")
+            elif self.current_mode == "REPO_ONLY":
+                if len(parts) < 2:
+                    row_errs.append("Thiếu GitHub Repo")
+                else:
+                    repo_candidate = parts[1]
+                    kind, normalized, err_msg = classify_url(repo_candidate)
+                    if kind != "repo":
+                        row_errs.append(err_msg or "GitHub Repo sai dạng")
+                    else:
+                        repo_url = normalized
+
+            else: # HYBRID
+                links = parts[1:]
+                if len(links) < 2:
+                    row_errs.append("Cần cả Live URL và GitHub Repo")
+                else:
+                    for lk in links[:2]:
+                        kind, norm, _ = classify_url(lk)
+                        if kind == "repo" and not repo_url:
+                            repo_url = norm
+                        elif (lk.startswith("http://") or lk.startswith("https://")) and not live_url:
+                            live_url = lk
+                    if not live_url:
+                        row_errs.append("Thiếu Live URL")
+                    if not repo_url:
+                        row_errs.append("Thiếu GitHub Repo")
 
             r = self.tbl_preview.rowCount()
             self.tbl_preview.insertRow(r)
             self.tbl_preview.setRowHeight(r, 36)
 
-            item_mssv = QTableWidgetItem(mssv)
-            item_name = QTableWidgetItem(name)
-            item_live = QTableWidgetItem(live)
-            item_repo = QTableWidgetItem(repo)
+            item_mssv = QTableWidgetItem(raw_mssv)
+            row_items = [item_mssv]
+
+            if self.current_mode == "LIVE_ONLY":
+                item_live = QTableWidgetItem(live_url or (parts[1] if len(parts) > 1 else ""))
+                row_items.append(item_live)
+            elif self.current_mode == "REPO_ONLY":
+                item_repo = QTableWidgetItem(repo_url or (parts[1] if len(parts) > 1 else ""))
+                row_items.append(item_repo)
+            else:
+                item_live = QTableWidgetItem(live_url)
+                item_repo = QTableWidgetItem(repo_url)
+                row_items.extend([item_live, item_repo])
 
             if row_errs:
                 error_count += 1
                 err_text = "Lỗi: " + ", ".join(row_errs)
                 item_status = QTableWidgetItem(err_text)
                 item_status.setForeground(QColor(COLOR_ERROR))
-                for itm in [item_mssv, item_name, item_live, item_repo]:
+                for itm in row_items:
                     itm.setForeground(QColor(COLOR_ERROR))
             else:
-                seen_mssvs_in_batch.add(mssv.upper())
+                seen_mssvs_in_batch.add(raw_mssv)
                 item_status = QTableWidgetItem("Hợp lệ")
                 item_status.setForeground(QColor(COLOR_SUCCESS))
-
-                if repo and not repo.startswith("http://") and not repo.startswith("https://"):
-                    repo = f"https://{repo}"
-
                 parsed_valid.append({
-                    "mssv": mssv.upper(),
-                    "name": name,
-                    "live_url": live,
-                    "repo_url": repo,
+                    "mssv": raw_mssv,
+                    "name": "",
+                    "live_url": live_url,
+                    "repo_url": repo_url,
                     "mode": self.current_mode,
                     "score_dom": None,
                     "score_lint": None,
@@ -918,22 +1031,21 @@ class WebSubmissionDialog(QDialog):
                     "verdict": "PENDING"
                 })
 
-            self.tbl_preview.setItem(r, 0, item_mssv)
-            self.tbl_preview.setItem(r, 1, item_name)
-            self.tbl_preview.setItem(r, 2, item_live)
-            self.tbl_preview.setItem(r, 3, item_repo)
-            self.tbl_preview.setItem(r, 4, item_status)
+            row_items.append(item_status)
+            for c_idx, itm in enumerate(row_items):
+                self.tbl_preview.setItem(r, c_idx, itm)
 
         self.added_submissions = parsed_valid
-        total_parsed = len(parsed_valid) + error_count
         if error_count > 0:
-            self.lbl_bulk_summary.setText(f"Phát hiện {len(parsed_valid)} dòng hợp lệ, {error_count} dòng có lỗi (sẽ được bỏ qua).")
-            self.lbl_bulk_summary.setStyleSheet(f"color: {COLOR_WARNING}; font-size: 12px; font-weight: 600;")
+            self.lbl_bulk_summary.setText(
+                f"Phát hiện {len(parsed_valid)} dòng hợp lệ, {error_count} dòng lỗi (tô đỏ). Vui lòng sửa lỗi trước khi thêm!"
+            )
+            self.lbl_bulk_summary.setStyleSheet(f"color: {COLOR_ERROR}; font-size: 12px; font-weight: 600;")
+            self.btn_add_all.setEnabled(False)
         else:
             self.lbl_bulk_summary.setText(f"Hoàn hảo: Toàn bộ {len(parsed_valid)} bài nộp đều hợp lệ sẵn sàng thêm.")
             self.lbl_bulk_summary.setStyleSheet(f"color: {COLOR_SUCCESS}; font-size: 12px; font-weight: 600;")
-
-        self.btn_add_all.setEnabled(len(parsed_valid) > 0)
+            self.btn_add_all.setEnabled(len(parsed_valid) > 0)
 
     def _commit_bulk_entries(self):
         if not self.added_submissions:
@@ -1248,48 +1360,66 @@ class WebGradingMainWindow(QMainWindow):
         card.setProperty("class", "Card")
         layout = QHBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
-        # 1. Cách nạp duy nhất: Chọn Thư Mục Bài Nộp (mục 8, 10)
-        self.btn_import_folder = QPushButton("Chọn Thư Mục Bài Nộp", card)
-        self.btn_import_folder.setFixedHeight(38)
-        self.btn_import_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_import_folder.clicked.connect(self._import_web_folder)
-        layout.addWidget(self.btn_import_folder)
+        # 1. Nhóm Chế Độ Chấm (Mục 1)
+        lbl_m = QLabel("Chế Độ Chấm:", card)
+        lbl_m.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
+        layout.addWidget(lbl_m)
 
-        # 1b. Thêm bài nộp thủ công (nhập từng bài hoặc dán nhiều link)
+        rb_style = f"""
+            QRadioButton {{
+                font-size: 13px;
+                font-weight: 500;
+                color: {COLOR_TEXT_PRIMARY};
+                background: transparent;
+                border: none;
+                spacing: 6px;
+            }}
+            QRadioButton::indicator {{
+                width: 18px;
+                height: 18px;
+                border-radius: 9px;
+                border: 1.5px solid {COLOR_BORDER_DEFAULT};
+                background-color: #FFFFFF;
+            }}
+            QRadioButton::indicator:hover {{
+                border-color: {COLOR_PRIMARY};
+            }}
+            QRadioButton::indicator:checked {{
+                border: 5px solid {COLOR_PRIMARY};
+                background-color: #FFFFFF;
+            }}
+        """
+
+        self.btn_group_mode = QButtonGroup(self)
+        self.rb_live = QRadioButton("Live URL", card)
+        self.rb_repo = QRadioButton("GitHub", card)
+        self.rb_hybrid = QRadioButton("Hybrid", card)
+        self.rb_hybrid.setChecked(True)
+
+        for idx, rb in enumerate([self.rb_live, self.rb_repo, self.rb_hybrid], start=1):
+            rb.setStyleSheet(rb_style)
+            rb.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            self.btn_group_mode.addButton(rb, idx)
+            layout.addWidget(rb)
+
+        self.btn_group_mode.idClicked.connect(self._on_mode_radio_changed)
+
+        layout.addSpacing(10)
+
+        # 2. MỘT nút "Thêm Bài Nộp" duy nhất (Mục 2)
         self.btn_add = QPushButton("Thêm Bài Nộp", card)
-        self.btn_add.setProperty("class", "ToolbarActionBtn")
+        self.btn_add.setProperty("class", "PrimaryBtn")
         self.btn_add.setFixedHeight(38)
         self.btn_add.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_add.setToolTip("Thêm bài nộp bằng tay: nhập từng bài hoặc dán danh sách từ Excel/Google Sheets.")
-        self.btn_add.clicked.connect(self._show_add_menu)
+        self.btn_add.setToolTip("Thêm bài nộp bằng tay hoặc dán nhiều link theo chế độ đang chọn.")
+        self.btn_add.clicked.connect(self._open_add_submission_dialog)
         layout.addWidget(self.btn_add)
-
-        # 1c. Chọn lớp / môn đang chấm (bộ lọc dữ liệu + nhãn xuất bảng điểm)
-        self.btn_class = QPushButton("", card)
-        self.btn_class.setProperty("class", "ToolbarActionBtn")
-        self.btn_class.setFixedHeight(38)
-        self.btn_class.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_class.setToolTip("Đổi môn học / lớp đang chấm. Danh sách bài nộp sẽ được lọc theo lựa chọn này.")
-        self.btn_class.clicked.connect(self._change_class_course)
-        layout.addWidget(self.btn_class)
-
-        # 2. Quét Lại Thư Mục (chỉ hiện sau khi đã nạp một thư mục gốc)
-        self.btn_rescan_folder = QPushButton("Quét Lại Thư Mục", card)
-        self.btn_rescan_folder.setProperty("class", "ToolbarActionBtn")
-        self.btn_rescan_folder.setFixedHeight(38)
-        self.btn_rescan_folder.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_rescan_folder.setToolTip(
-            "Nhận diện lại thư mục đã nạp: thêm MSSV mới, đánh dấu thư mục mất và link đã thay đổi (không xóa điểm)."
-        )
-        self.btn_rescan_folder.clicked.connect(self._rescan_web_folder)
-        self.btn_rescan_folder.setVisible(False)
-        layout.addWidget(self.btn_rescan_folder)
 
         layout.addStretch(1)
 
-        # 3. Xuất Bảng Điểm (disable khi chưa có điểm — mục 25, 26)
+        # 3. Xuất Bảng Điểm (disable khi chưa có điểm)
         self.btn_export = QPushButton("Xuất Bảng Điểm", card)
         self.btn_export.setProperty("class", "ToolbarActionBtn")
         self.btn_export.setFixedHeight(38)
@@ -1297,7 +1427,7 @@ class WebGradingMainWindow(QMainWindow):
         self.btn_export.clicked.connect(self._show_export_menu)
         layout.addWidget(self.btn_export)
 
-        # 4. Nút chính: Bắt Đầu Thẩm Định Web (disable khi chưa có bài nộp — mục 25)
+        # 4. Nút chính: Bắt Đầu Thẩm Định Web (disable khi chưa có bài nộp)
         self.btn_start = QPushButton("Bắt Đầu Thẩm Định Web", card)
         self.btn_start.setObjectName("BatchGradeBtn")
         self.btn_start.setFixedHeight(38)
@@ -1307,16 +1437,38 @@ class WebGradingMainWindow(QMainWindow):
 
         return card
 
-    def _set_button_class(self, btn: QPushButton, cls: str):
-        """Switches a button's style class and re-polishes it so QSS takes effect immediately."""
-        if btn.property("class") != cls:
-            btn.setProperty("class", cls)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-            btn.update()
+    def _get_current_grading_mode_code(self) -> str:
+        checked_id = self.btn_group_mode.checkedId()
+        if checked_id == 1:
+            return "LIVE_ONLY"
+        elif checked_id == 2:
+            return "REPO_ONLY"
+        return "HYBRID"
+
+    def _on_mode_radio_changed(self, button_id: int):
+        new_mode = self._get_current_grading_mode_code()
+        if not self._web_students:
+            return
+
+        mode_name = {"LIVE_ONLY": "Live URL", "REPO_ONLY": "GitHub", "HYBRID": "Hybrid"}.get(new_mode, "Hybrid")
+        reply = QMessageBox.question(
+            self,
+            "Đổi Chế Độ Chấm",
+            f"Bạn vừa đổi chế độ trên thanh công cụ thành '{mode_name}'.\n\n"
+            f"Bạn có muốn áp dụng chế độ '{mode_name}' cho toàn bộ bài nộp hiện có không?\n\n"
+            f"(Nếu chọn 'Yes': Tất cả bài cũ sẽ chuyển sang chế độ '{mode_name}'. Bài nào thiếu link theo chế độ mới sẽ được đánh dấu 'Thiếu link'.)\n"
+            f"(Nếu chọn 'No': Chế độ mới chỉ áp dụng cho các bài nộp thêm mới về sau.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.db.update_all_web_submissions_mode(
+                self.current_course_code, self.current_class_name, new_mode
+            )
+            self._load_submissions_from_db()
 
     def _apply_action_states(self):
-        """Mục 25: disable + tooltip + single-primary-highlight rule for toolbar buttons."""
+        """Mục 9 & 25: disable + tooltip cho các nút trên thanh công cụ."""
         has_data = bool(self._web_students)
         has_scores = any(s.get("total_score") is not None for s in self._web_students)
 
@@ -1327,10 +1479,6 @@ class WebGradingMainWindow(QMainWindow):
         self.btn_export.setToolTip(
             "" if has_scores else "Chưa có điểm. Hãy thẩm định bài trước khi xuất bảng điểm."
         )
-
-        # Toolbar "Chọn Thư Mục Bài Nộp" stays an outlined action; only one solid primary
-        # exists on screen at a time (empty-state button when empty, "Bắt Đầu Thẩm Định" otherwise).
-        self._set_button_class(self.btn_import_folder, "SecondaryBtn")
 
     def _update_class_button(self):
         self.btn_class.setText(f"Lớp: {self.current_class_name} · {self.current_course_code}")
@@ -1462,7 +1610,7 @@ class WebGradingMainWindow(QMainWindow):
         self.table_header_row.addWidget(self.txt_search)
         layout.addLayout(self.table_header_row)
 
-        # 1. Empty State (mục 23): một khối căn giữa, viền liền rất nhạt (bỏ viền đứt nét lớn)
+        # 1. Empty State (mục 9): một khối căn giữa, viền liền nhạt
         self.empty_state_frame = QFrame(self.table_card)
         self.empty_state_frame.setStyleSheet(f"""
             QFrame {{
@@ -1482,8 +1630,7 @@ class WebGradingMainWindow(QMainWindow):
         es_layout.addWidget(lbl_es_title)
 
         lbl_es_sub = QLabel(
-            "Bấm 'Chọn Thư Mục Bài Nộp' để chọn thư mục chứa bài làm "
-            "(mỗi thư mục đặt tên là MSSV, bên trong có file .txt chứa link Live URL và GitHub).",
+            "Chọn chế độ chấm, rồi bấm 'Thêm Bài Nộp' để dán link",
             self.empty_state_frame
         )
         lbl_es_sub.setWordWrap(True)
@@ -1491,15 +1638,8 @@ class WebGradingMainWindow(QMainWindow):
         lbl_es_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         es_layout.addWidget(lbl_es_sub)
 
-        btn_es_import = QPushButton("Chọn Thư Mục Bài Nộp", self.empty_state_frame)
-        btn_es_import.setProperty("class", "PrimaryBtn")
-        btn_es_import.setFixedHeight(38)
-        btn_es_import.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_es_import.clicked.connect(self._import_web_folder)
-        es_layout.addWidget(btn_es_import, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        btn_es_add = QPushButton("Thêm Bài Nộp Thủ Công", self.empty_state_frame)
-        btn_es_add.setProperty("class", "SecondaryBtn")
+        btn_es_add = QPushButton("Thêm Bài Nộp", self.empty_state_frame)
+        btn_es_add.setProperty("class", "PrimaryBtn")
         btn_es_add.setFixedHeight(38)
         btn_es_add.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_es_add.clicked.connect(self._open_add_submission_dialog)
@@ -1507,42 +1647,40 @@ class WebGradingMainWindow(QMainWindow):
 
         layout.addWidget(self.empty_state_frame, stretch=1)
 
-        # 2. Table Widget (mục 20: bỏ cột "Chế Độ")
+        # 2. Table Widget: chuẩn 11 cột (mục 7)
         self.table = QTableWidget(self.table_card)
-        self.table.setColumnCount(12)
+        self.table.setColumnCount(11)
         self.table.setHorizontalHeaderLabels([
-            "MSSV", "Họ và Tên", "Live URL", "GitHub Repo",
-            "DOM", "Lint", "Function", "UI/UX", "Tổng Điểm", "Kết Quả", "Ngày Chấm", "Thao Tác"
+            "MSSV", "Chế Độ", "Live URL", "GitHub Repo",
+            "DOM", "Lint", "Function", "UI/UX", "Tổng Điểm", "Kết Quả", "Thao Tác"
         ])
-        self.table.setColumnHidden(1, True)  # Họ và Tên chỉ hiện khi có bài có tên
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(11, QHeaderView.ResizeMode.Fixed)
-        for col, width in {0: 110, 1: 160, 4: 62, 5: 62, 6: 78, 7: 62, 8: 88, 9: 150, 10: 130, 11: 250}.items():
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Fixed)
+        for col, width in {0: 110, 1: 95, 4: 65, 5: 65, 6: 78, 7: 100, 8: 88, 9: 145, 10: 240}.items():
             self.table.setColumnWidth(col, width)
 
-        # Tiêu đề căn cùng nội dung (mục 20): chữ căn trái, điểm căn giữa
-        for col in (0, 1, 2, 3):
+        # Tiêu đề căn cùng nội dung: chữ căn trái, điểm và trạng thái căn giữa
+        for col in (0, 2, 3):
             it = self.table.horizontalHeaderItem(col)
             if it:
                 it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        for col in range(4, 12):
+        for col in (1, 4, 5, 6, 7, 8, 9, 10):
             it = self.table.horizontalHeaderItem(col)
             if it:
                 it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter)
 
-        # Tooltips giải thích cho các cột viết tắt
+        # Tooltips giải thích cho các cột
         tooltip_map = {
             4: "Cấu trúc HTML5 ngữ nghĩa, thẻ SEO, alt ảnh, heading hierarchy",
-            5: "Kiểm tra cú pháp CSS bằng tinycss2, hạn chế inline-style, có media query responsive",
-            6: "Chỉ số JS tĩnh (script, addEventListener, onclick) và các thành phần tương tác trong HTML",
-            7: "AI Vision đánh giá ảnh chụp toàn trang theo 4 tiêu chí thẩm mỹ",
-            8: "Tổng điểm theo trọng số DOM 20% / Lint 20% / Function 30% / UI 30%",
-            9: "PASSED ≥ 7.0, PARTIAL ≥ 5.0, FAILED < 5.0",
-            10: "Thời điểm chấm điểm gần nhất"
+            5: "Kiểm tra cú pháp CSS bằng tinycss2, hạn chế inline-style, responsive media queries",
+            6: "Chỉ số tương tác JS và các thành phần tương tác trong HTML",
+            7: "AI Vision đánh giá ảnh chụp màn hình theo tiêu chí thẩm mỹ (Không áp dụng cho chế độ GitHub)",
+            8: "Tổng điểm theo rubric các tiêu chí áp dụng (thang 10)",
+            9: "PASSED ≥ 7.0, PARTIAL ≥ 5.0, FAILED < 5.0"
         }
         for col, tip in tooltip_map.items():
             item = self.table.horizontalHeaderItem(col)
@@ -1565,9 +1703,9 @@ class WebGradingMainWindow(QMainWindow):
         return self.table_card
 
     SORT_KEYS = {
-        0: "mssv", 1: "name", 2: "live_url", 3: "repo_url",
+        0: "mssv", 1: "mode", 2: "live_url", 3: "repo_url",
         4: "score_dom", 5: "score_lint", 6: "score_e2e", 7: "score_ui",
-        8: "total_score", 9: "verdict", 10: "graded_at",
+        8: "total_score", 9: "verdict",
     }
 
     def _on_header_clicked(self, col: int):
@@ -1627,76 +1765,121 @@ class WebGradingMainWindow(QMainWindow):
         graded = sum(1 for s in self._web_students if s.get("total_score") is not None)
         self.lbl_progress_status.setText(f"Đã chấm {graded}/{total} bài")
 
-        # Search filter by MSSV / display MSSV / name
+        # Search filter by MSSV
         query = self.txt_search.text().strip().lower() if hasattr(self, "txt_search") else ""
         if query:
             rows = [
                 s for s in self._web_students
                 if query in (s.get("mssv") or "").lower()
-                or query in (s.get("display_mssv") or "").lower()
-                or query in (s.get("name") or "").lower()
             ]
         else:
             rows = list(self._web_students)
 
         self.table.setRowCount(len(rows))
 
-        has_any_name = any((s.get("name") or "").strip() for s in self._web_students)
-        self.table.setColumnHidden(1, not has_any_name)
+        mode_name_map = {
+            "LIVE_ONLY": "Live URL",
+            "REPO_ONLY": "GitHub",
+            "HYBRID": "Hybrid"
+        }
 
         for r, item in enumerate(rows):
             self.table.setRowHeight(r, 48)
+            mode = (item.get("mode") or "HYBRID").upper()
+            live_url = (item.get("live_url") or "").strip()
+            repo_url = (item.get("repo_url") or "").strip()
 
-            # Cột MSSV: dùng nhãn hiển thị (có hậu tố khi trùng), đánh dấu thư mục mất / link đổi
-            display_mssv = item.get("display_mssv") or item.get("mssv", "")
-            is_missing = bool(item.get("is_missing"))
-            link_changed = bool(item.get("link_changed"))
-            if is_missing:
-                mssv_text = f"{display_mssv} — Không còn trên đĩa"
-            elif link_changed:
-                mssv_text = f"{display_mssv} — Link đã thay đổi"
-            else:
-                mssv_text = display_mssv
+            # Kiểm tra trạng thái thiếu link theo chế độ
+            is_missing_link = False
+            if mode == "LIVE_ONLY" and not live_url:
+                is_missing_link = True
+            elif mode == "REPO_ONLY" and not repo_url:
+                is_missing_link = True
+            elif mode == "HYBRID" and (not live_url or not repo_url):
+                is_missing_link = True
+
+            # 0. Cột MSSV (mục 4: chuẩn hóa, hiển thị cảnh báo nếu thiếu link)
+            display_mssv = item.get("mssv", "")
+            mssv_text = f"{display_mssv} — Thiếu link" if is_missing_link else display_mssv
             item_mssv = QTableWidgetItem(mssv_text)
             item_mssv.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            if is_missing:
+            if is_missing_link:
                 item_mssv.setForeground(QColor(COLOR_ERROR))
-                item_mssv.setToolTip("Thư mục gốc không còn trên đĩa. Điểm số hiện có được giữ nguyên.")
-            elif link_changed:
-                item_mssv.setForeground(QColor(COLOR_WARNING))
-                item_mssv.setToolTip("Link đã thay đổi so với lần nạp trước, nên chấm lại. Điểm cũ được giữ nguyên.")
-            else:
-                src = item.get("source_folder_path")
-                if src:
-                    item_mssv.setToolTip(f"Tên thư mục gốc: {Path(src).name}")
+                item_mssv.setToolTip("Bài nộp chưa có đủ link cho chế độ chấm đã chọn.")
             self.table.setItem(r, 0, item_mssv)
 
-            item_name = QTableWidgetItem(item.get("name") or "")
-            item_name.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            item_name.setFont(QFont("Inter", 10, QFont.Weight.Medium))
-            self.table.setItem(r, 1, item_name)
+            # 1. Cột Chế Độ (mục 7)
+            mode_display = mode_name_map.get(mode, "Hybrid")
+            item_mode = QTableWidgetItem(mode_display)
+            item_mode.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_mode.setFont(QFont("Inter", 9, QFont.Weight.Medium))
+            self.table.setItem(r, 1, item_mode)
 
-            # Link dài dùng tooltip + hiển thị
-            live_str = item.get("live_url", "") or "—"
-            item_live = QTableWidgetItem(live_str)
-            item_live.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            item_live.setToolTip(live_str)
+            # 2. Cột Live URL (mục 7: nếu không thuộc chế độ hiển thị "-")
+            if mode == "REPO_ONLY":
+                item_live = QTableWidgetItem("-")
+                item_live.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_live.setForeground(QColor(COLOR_TEXT_MUTED))
+            else:
+                live_text = live_url if live_url else "Thiếu link"
+                item_live = QTableWidgetItem(live_text)
+                item_live.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                if not live_url:
+                    item_live.setForeground(QColor(COLOR_ERROR))
+                else:
+                    item_live.setToolTip(live_url)
             self.table.setItem(r, 2, item_live)
 
-            repo_str = item.get("repo_url", "") or "—"
-            item_repo = QTableWidgetItem(repo_str)
-            item_repo.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            item_repo.setToolTip(repo_str)
+            # 3. Cột GitHub Repo (mục 7: nếu không thuộc chế độ hiển thị "-")
+            if mode == "LIVE_ONLY":
+                item_repo = QTableWidgetItem("-")
+                item_repo.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_repo.setForeground(QColor(COLOR_TEXT_MUTED))
+            else:
+                repo_text = repo_url if repo_url else "Thiếu link"
+                item_repo = QTableWidgetItem(repo_text)
+                item_repo.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                if not repo_url:
+                    item_repo.setForeground(QColor(COLOR_ERROR))
+                else:
+                    item_repo.setToolTip(repo_url)
             self.table.setItem(r, 3, item_repo)
 
-            # Cột điểm căn giữa (đã bỏ cột "Chế Độ")
-            for col_idx, key in enumerate(["score_dom", "score_lint", "score_e2e", "score_ui"], start=4):
-                val = item.get(key)
-                val_str = f"{val:.1f}" if val is not None else "—"
-                score_item = QTableWidgetItem(val_str)
-                score_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.table.setItem(r, col_idx, score_item)
+            # 4. Cột DOM (align Center)
+            val_dom = item.get("score_dom")
+            dom_str = f"{val_dom:.1f}" if val_dom is not None else "—"
+            item_dom = QTableWidgetItem(dom_str)
+            item_dom.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 4, item_dom)
 
+            # 5. Cột Lint (align Center)
+            val_lint = item.get("score_lint")
+            lint_str = f"{val_lint:.1f}" if val_lint is not None else "—"
+            item_lint = QTableWidgetItem(lint_str)
+            item_lint.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 5, item_lint)
+
+            # 6. Cột Function (align Center)
+            val_func = item.get("score_e2e")
+            func_str = f"{val_func:.1f}" if val_func is not None else "—"
+            item_func = QTableWidgetItem(func_str)
+            item_func.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 6, item_func)
+
+            # 7. Cột UI/UX (mục 6, 7: Không áp dụng cho REPO_ONLY)
+            if mode == "REPO_ONLY":
+                item_ui = QTableWidgetItem("Không áp dụng")
+                item_ui.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_ui.setForeground(QColor(COLOR_TEXT_MUTED))
+                item_ui.setToolTip("Chế độ chỉ chấm GitHub Repo không áp dụng tiêu chí UI/UX Vision.")
+            else:
+                val_ui = item.get("score_ui")
+                ui_str = f"{val_ui:.1f}" if val_ui is not None else "—"
+                item_ui = QTableWidgetItem(ui_str)
+                item_ui.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 7, item_ui)
+
+            # 8. Cột Tổng Điểm (align Center, in đậm)
             tot = item.get("total_score")
             tot_str = f"{tot:.1f}" if tot is not None else "—"
             tot_item = QTableWidgetItem(tot_str)
@@ -1711,19 +1894,11 @@ class WebGradingMainWindow(QMainWindow):
                     tot_item.setForeground(QColor(COLOR_ERROR))
             self.table.setItem(r, 8, tot_item)
 
-            # Cột Kết Quả (verdict pill)
+            # 9. Cột Kết Quả (verdict pill)
             verdict = item.get("verdict") or "PENDING"
             self.table.setCellWidget(r, 9, WebVerdictPill(verdict, self.table))
 
-            # Cột Ngày Chấm
-            graded_at = item.get("graded_at")
-            graded_str = str(graded_at)[:16] if graded_at else "—"
-            graded_item = QTableWidgetItem(graded_str)
-            graded_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            graded_item.setForeground(QColor(COLOR_TEXT_SECONDARY))
-            self.table.setItem(r, 10, graded_item)
-
-            # Cột Thao Tác (mục 21): "Xem Chi Tiết" + "Sửa" + "Xóa" qua make_action_cell dùng chung
+            # 10. Cột Thao Tác (Xem Chi Tiết, Sửa, Xóa)
             btn_view = QPushButton("Xem Chi Tiết")
             btn_view.setStyleSheet(f"""
                 QPushButton {{
@@ -1779,27 +1954,18 @@ class WebGradingMainWindow(QMainWindow):
             """)
             btn_del.clicked.connect(lambda _, st=item: self._delete_student_submission(st))
 
-            self.table.setCellWidget(r, 11, make_action_cell([btn_view, btn_edit, btn_del], self.table))
+            self.table.setCellWidget(r, 10, make_action_cell([btn_view, btn_edit, btn_del], self.table))
 
     # --------------------------------------------------------------------------
     # Thao tác Thêm / Sửa / Xóa bài nộp
     # --------------------------------------------------------------------------
-    def _show_add_menu(self):
-        menu = QMenu(self)
-        a_single = menu.addAction("Nhập Từng Bài Nộp")
-        a_bulk = menu.addAction("Dán Nhiều Link (Excel / Google Sheets)")
-        chosen = menu.exec(self.btn_add.mapToGlobal(self.btn_add.rect().bottomLeft()))
-        if chosen == a_single:
-            self._open_add_submission_dialog()
-        elif chosen == a_bulk:
-            self._open_bulk_submission_dialog()
-
     def _open_add_submission_dialog(self):
-        """Opens dialog to add a new submission."""
+        """Mục 2 & 3: Mở hộp thoại nhập link theo chế độ đang chọn trên toolbar."""
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
+        current_mode = self._get_current_grading_mode_code()
         dlg = WebSubmissionDialog(
             parent=self,
-            current_mode="HYBRID",
+            current_mode=current_mode,
             existing_mssvs=existing_mssvs,
             open_bulk_tab=False
         )
@@ -1808,164 +1974,10 @@ class WebGradingMainWindow(QMainWindow):
                 try:
                     sub_id = self.db.add_web_submission(
                         mssv=item["mssv"],
-                        name=item["name"],
-                        live_url=item["live_url"],
-                        repo_url=item["repo_url"],
-                        mode=item["mode"],
-                        course_code=self.current_course_code,
-                        class_name=self.current_class_name
-                    )
-                    item["id"] = sub_id
-                except Exception:
-                    pass
-            self._load_submissions_from_db()
-
-    def _import_web_folder(self):
-        """Recognizes submissions from a root folder (folder name = MSSV) and imports the chosen items."""
-        root = QFileDialog.getExistingDirectory(
-            self, "Chọn Thư Mục Chứa Bài Nộp", str(Path.home())
-        )
-        if not root:
-            return
-
-        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
-        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        added = 0
-        for item in dlg.import_items:
-            try:
-                self.db.add_web_submission(
-                    mssv=item["mssv"],
-                    name=item["name"],
-                    live_url=item["live_url"],
-                    repo_url=item["repo_url"],
-                    mode="HYBRID",
-                    course_code=self.current_course_code,
-                    class_name=self.current_class_name,
-                    source_folder_path=item["source_folder_path"],
-                    display_mssv=item["display_mssv"],
-                    link_file_name=item.get("link_file_name")
-                )
-                added += 1
-            except Exception:
-                pass
-
-        self._web_root_folder = root
-        self._settings.setValue("root_folder", root)
-        self.btn_rescan_folder.setVisible(True)
-        self._load_submissions_from_db()
-
-        skipped_note = ""
-        if dlg.skipped_dirs or dlg.skipped_files:
-            skipped_note = (
-                f"\n- Đã bỏ qua {len(dlg.skipped_dirs)} thư mục hệ thống/ẩn "
-                f"và {len(dlg.skipped_files)} file lẻ ở thư mục gốc."
-            )
-        QMessageBox.information(
-            self,
-            "Nạp Thư Mục Hoàn Tất",
-            f"Đã nạp {added} bài nộp từ thư mục:\n{root}{skipped_note}\n\n"
-            "Quy ước: tên thư mục con chính là MSSV của sinh viên."
-        )
-
-    def _rescan_web_folder(self):
-        """Re-recognizes the root folder; adds new MSSVs, marks vanished folders and
-        changed links. Never deletes existing grades (mục 18)."""
-        if not self._web_root_folder:
-            QMessageBox.warning(
-                self, "Chưa Có Thư Mục",
-                "Vui lòng bấm 'Chọn Thư Mục Bài Nộp' trước khi quét lại!"
-            )
-            return
-
-        root = self._web_root_folder
-        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
-        dlg = WebFolderImportDialog(self, root_dir=root, existing_mssvs=existing_mssvs)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        recognized_dirs = {item["source_folder_path"] for item in dlg.import_items}
-        folder_rows = {
-            s.get("source_folder_path"): s
-            for s in self._web_students if s.get("source_folder_path")
-        }
-
-        added = 0
-        refreshed = 0
-        changed = 0
-        for item in dlg.import_items:
-            path = item["source_folder_path"]
-            existing = folder_rows.get(path)
-            if existing:
-                link_changed = (
-                    (existing.get("live_url") or "") != (item.get("live_url") or "")
-                    or (existing.get("repo_url") or "") != (item.get("repo_url") or "")
-                )
-                self.db.update_web_submission_source(
-                    submission_id=existing["id"],
-                    source_folder_path=path,
-                    display_mssv=item["display_mssv"],
-                    name=item["name"],
-                    live_url=item["live_url"],
-                    repo_url=item["repo_url"],
-                    link_file_name=item.get("link_file_name"),
-                    link_changed=link_changed
-                )
-                refreshed += 1
-                if link_changed:
-                    changed += 1
-            else:
-                self.db.add_web_submission(
-                    mssv=item["mssv"],
-                    name=item["name"],
-                    live_url=item["live_url"],
-                    repo_url=item["repo_url"],
-                    mode="HYBRID",
-                    course_code=self.current_course_code,
-                    class_name=self.current_class_name,
-                    source_folder_path=path,
-                    display_mssv=item["display_mssv"],
-                    link_file_name=item.get("link_file_name")
-                )
-                added += 1
-
-        missing = 0
-        for path, row in folder_rows.items():
-            if path not in recognized_dirs:
-                self.db.set_web_submission_missing(row["id"], True)
-                missing += 1
-
-        self._load_submissions_from_db()
-
-        message = (
-            f"Quét lại hoàn tất cho thư mục:\n{root}\n\n"
-            f"- Thêm mới: {added} bài\n"
-            f"- Cập nhật: {refreshed} bài\n"
-            f"- Link đã thay đổi (nên chấm lại): {changed} bài\n"
-            f"- Không còn trên đĩa: {missing} bài (điểm số được giữ nguyên)"
-        )
-        QMessageBox.information(self, "Quét Lại Thư Mục", message)
-
-    def _open_bulk_submission_dialog(self):
-        """Opens dialog focusing directly on the bulk paste tab."""
-        existing_mssvs = [s.get("mssv", "") for s in self._web_students]
-        dlg = WebSubmissionDialog(
-            parent=self,
-            current_mode="HYBRID",
-            existing_mssvs=existing_mssvs,
-            open_bulk_tab=True
-        )
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.added_submissions:
-            for item in dlg.added_submissions:
-                try:
-                    sub_id = self.db.add_web_submission(
-                        mssv=item["mssv"],
-                        name=item["name"],
-                        live_url=item["live_url"],
-                        repo_url=item["repo_url"],
-                        mode=item["mode"],
+                        name="",
+                        live_url=item.get("live_url", ""),
+                        repo_url=item.get("repo_url", ""),
+                        mode=item.get("mode", current_mode),
                         course_code=self.current_course_code,
                         class_name=self.current_class_name
                     )
@@ -1975,7 +1987,7 @@ class WebGradingMainWindow(QMainWindow):
             self._load_submissions_from_db()
 
     def _edit_student_submission(self, student_info: Dict[str, Any]):
-        """Opens dialog to edit an existing submission."""
+        """Mục 8: Mở hộp thoại sửa bài nộp, cho đổi link và chế độ của bài đó."""
         existing_mssvs = [s.get("mssv", "") for s in self._web_students]
         dlg = WebSubmissionDialog(
             parent=self,
@@ -1991,27 +2003,33 @@ class WebGradingMainWindow(QMainWindow):
                     self.db.update_web_submission(
                         submission_id=sub_id,
                         mssv=updated["mssv"],
-                        name=updated["name"],
-                        live_url=updated["live_url"],
-                        repo_url=updated["repo_url"],
-                        mode=updated["mode"]
+                        name="",
+                        live_url=updated.get("live_url", ""),
+                        repo_url=updated.get("repo_url", ""),
+                        mode=updated.get("mode", "HYBRID")
                     )
                 except Exception:
                     pass
             self._load_submissions_from_db()
 
     def _delete_student_submission(self, student_info: Dict[str, Any]):
-        """Deletes a student submission with confirmation dialog."""
+        """Mục 8: Xóa bài nộp khỏi danh sách với hộp thoại xác nhận."""
         mssv = student_info.get("mssv", "")
-        name = student_info.get("name", "")
         ret = QMessageBox.question(
             self,
             "Xác Nhận Xóa Bài Nộp",
-            f"Bạn có chắc chắn muốn gỡ bài nộp khỏi danh sách:\n{mssv} — {name}?\n\n"
-            "Lưu ý: thao tác này chỉ gỡ khỏi danh sách chấm, KHÔNG xóa thư mục bài nộp trên đĩa.",
+            f"Bạn có chắc chắn muốn gỡ bài nộp của sinh viên {mssv} khỏi danh sách?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
+        if ret == QMessageBox.StandardButton.Yes:
+            sub_id = student_info.get("id")
+            if sub_id:
+                try:
+                    self.db.delete_web_submission(sub_id)
+                except Exception:
+                    pass
+            self._load_submissions_from_db()
         if ret == QMessageBox.StandardButton.Yes:
             sub_id = student_info.get("id")
             if sub_id:
@@ -2180,15 +2198,9 @@ class WebGradingMainWindow(QMainWindow):
             ws = wb.active
             ws.title = "Bảng Điểm Đồ Án Web"
 
-            # Cột Họ và Tên chỉ xuất khi có ít nhất một bài có tên (nguồn: file .txt của thư mục)
-            include_name = any((st.get("name") or "").strip() for st in self._web_students)
-
-            # Tiêu đề bảng
-            headers = ["MSSV"]
-            if include_name:
-                headers.append("Họ và Tên")
-            headers += [
-                "Live Website URL", "GitHub Repo URL",
+            # Tiêu đề bảng: Chuẩn 11 cột (bỏ Họ và Tên, thêm Chế Độ)
+            headers = [
+                "MSSV", "Chế Độ", "Live Website URL", "GitHub Repo URL",
                 "DOM (10)", "Lint (10)", "Function (10)", "UI/UX (10)", "Tổng Điểm (10)", "Kết Quả", "Ngày Chấm"
             ]
             last_col_letter = get_column_letter(len(headers))
@@ -2220,18 +2232,23 @@ class WebGradingMainWindow(QMainWindow):
             ws.row_dimensions[3].height = 28
 
             # Dữ liệu
-            left_align_cols = {1, 2, 3, 4} if include_name else {1, 2, 3}
+            left_align_cols = {1, 3, 4}
             for st in self._web_students:
-                row_data = [st.get("display_mssv") or st.get("mssv", "")]
-                if include_name:
-                    row_data.append(st.get("name", ""))
-                row_data += [
-                    st.get("live_url", ""),
-                    st.get("repo_url", ""),
+                st_mode = st.get("mode", "HYBRID")
+                mode_name = {"LIVE_ONLY": "Live URL", "REPO_ONLY": "GitHub", "HYBRID": "Hybrid"}.get(st_mode, "Hybrid")
+                live_val = st.get("live_url", "") if st_mode in ("LIVE_ONLY", "HYBRID") else "—"
+                repo_val = st.get("repo_url", "") if st_mode in ("REPO_ONLY", "HYBRID") else "—"
+                ui_val = "K/A" if st_mode == "REPO_ONLY" else (st.get("score_ui") if st.get("score_ui") is not None else "")
+
+                row_data = [
+                    st.get("display_mssv") or st.get("mssv", ""),
+                    mode_name,
+                    live_val,
+                    repo_val,
                     st.get("score_dom") if st.get("score_dom") is not None else "",
                     st.get("score_lint") if st.get("score_lint") is not None else "",
                     st.get("score_e2e") if st.get("score_e2e") is not None else "",
-                    st.get("score_ui") if st.get("score_ui") is not None else "",
+                    ui_val,
                     st.get("total_score") if st.get("total_score") is not None else "",
                     st.get("verdict", "PENDING"),
                     str(st.get("graded_at"))[:16] if st.get("graded_at") else ""
@@ -2250,10 +2267,7 @@ class WebGradingMainWindow(QMainWindow):
                         c.alignment = Alignment(horizontal="center", vertical="center")
 
             # Tự động điều chỉnh độ rộng cột
-            col_widths = [14]
-            if include_name:
-                col_widths.append(24)
-            col_widths += [34, 34, 12, 12, 14, 12, 14, 16, 18]
+            col_widths = [14, 12, 34, 34, 12, 12, 14, 12, 14, 16, 18]
             for idx, width in enumerate(col_widths, start=1):
                 col_letter = get_column_letter(idx)
                 ws.column_dimensions[col_letter].width = width
@@ -2282,10 +2296,6 @@ class WebGradingMainWindow(QMainWindow):
             pdf_writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
             pdf_writer.setPageOrientation(QPageLayout.Orientation.Landscape)
 
-            # Tạo HTML hiển thị tài liệu chuẩn
-            include_name = any((st.get("name") or "").strip() for st in self._web_students)
-            name_th = '<th width="16%">Họ và Tên</th>' if include_name else ""
-
             html_rows = ""
 
             def _sfmt(v):
@@ -2295,25 +2305,26 @@ class WebGradingMainWindow(QMainWindow):
                 tot = st.get("total_score")
                 tot_str = f"{tot:.1f}" if tot is not None else "—"
                 mssv_display = html.escape(str(st.get("display_mssv") or st.get("mssv", "")))
-                name_td = (
-                    f'<td style="padding: 6px; border: 1px solid #CBD5E1;">{html.escape(str(st.get("name", "")))}</td>'
-                    if include_name else ""
-                )
-                live_html = html.escape(str(st.get('live_url') or '—'))
-                repo_html = html.escape(str(st.get('repo_url') or '—'))
+                st_mode = st.get("mode", "HYBRID")
+                mode_name = {"LIVE_ONLY": "Live URL", "REPO_ONLY": "GitHub", "HYBRID": "Hybrid"}.get(st_mode, "Hybrid")
+                live_text = (st.get('live_url') or '—') if st_mode in ("LIVE_ONLY", "HYBRID") else '—'
+                repo_text = (st.get('repo_url') or '—') if st_mode in ("REPO_ONLY", "HYBRID") else '—'
+                live_html = html.escape(str(live_text))
+                repo_html = html.escape(str(repo_text))
+                ui_html = "K/A" if st_mode == "REPO_ONLY" else _sfmt(st.get('score_ui'))
                 verdict_html = html.escape(str(st.get('verdict', 'PENDING')))
                 graded_str = str(st.get("graded_at"))[:16] if st.get("graded_at") else "—"
                 html_rows += f"""
                 <tr style="background-color: {'#F8FAFC' if idx % 2 == 0 else '#FFFFFF'};">
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{idx}</td>
                     <td style="padding: 6px; border: 1px solid #CBD5E1;"><b>{mssv_display}</b></td>
-                    {name_td}
+                    <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{mode_name}</td>
                     <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{live_html}</td>
                     <td style="padding: 6px; border: 1px solid #CBD5E1; font-size: 9px;">{repo_html}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{_sfmt(st.get('score_dom'))}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{_sfmt(st.get('score_lint'))}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{_sfmt(st.get('score_e2e'))}</td>
-                    <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{_sfmt(st.get('score_ui'))}</td>
+                    <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{ui_html}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1; font-weight: bold; color: #2F80ED;">{tot_str}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{verdict_html}</td>
                     <td align="center" style="padding: 6px; border: 1px solid #CBD5E1;">{graded_str}</td>
@@ -2338,16 +2349,16 @@ class WebGradingMainWindow(QMainWindow):
                     <thead>
                         <tr>
                             <th width="3%">STT</th>
-                            <th width="8%">MSSV</th>
-                            {name_th}
-                            <th width="21%">Live Website</th>
-                            <th width="21%">GitHub Repo</th>
+                            <th width="9%">MSSV</th>
+                            <th width="8%">Chế Độ</th>
+                            <th width="20%">Live Website</th>
+                            <th width="20%">GitHub Repo</th>
                             <th width="5%">DOM</th>
                             <th width="5%">Lint</th>
                             <th width="5%">Function</th>
                             <th width="5%">UI/UX</th>
                             <th width="6%">Tổng Điểm</th>
-                            <th width="7%">Kết Quả</th>
+                            <th width="6%">Kết Quả</th>
                             <th width="8%">Ngày Chấm</th>
                         </tr>
                     </thead>

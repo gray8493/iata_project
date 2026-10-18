@@ -254,6 +254,7 @@ class DatabaseManager:
             cursor.execute("PRAGMA table_info(local_web_submissions)")
             existing = {row[1] for row in cursor.fetchall()}
             additions = {
+                "mode": "TEXT NOT NULL DEFAULT 'HYBRID'",
                 "source_folder_path": "TEXT",
                 "is_missing": "INTEGER DEFAULT 0",
                 "display_mssv": "TEXT",
@@ -840,6 +841,23 @@ class DatabaseManager:
             """, (submission_id,))
             conn.commit()
             return cursor.rowcount > 0
+
+    def update_all_web_submissions_mode(
+        self,
+        course_code: str,
+        class_name: str,
+        new_mode: str
+    ) -> int:
+        """Batch updates the grading mode for all existing active submissions in a course/class."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_web_submissions
+                SET mode = ?
+                WHERE course_code = ? AND class_name = ? AND is_deleted = 0
+            """, (new_mode.strip(), course_code, class_name))
+            conn.commit()
+            return cursor.rowcount
 
     def update_web_submission_scores(
         self,
