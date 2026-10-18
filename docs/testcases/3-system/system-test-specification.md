@@ -128,11 +128,11 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 - Giảng viên có JWT Token hợp lệ và còn hạn ngạch AI.
-- `GEMINI_API_KEY` đã được cấu hình; nhà cung cấp AI phản hồi JSON hợp lệ.
+- `OPENROUTER_API_KEYS` đã được cấu hình; nhà cung cấp AI phản hồi JSON hợp lệ.
 
 #### Các bước thực hiện (Test Steps)
 1. Giảng viên gửi `POST /api/v1/ai/generate-testcases` với `count = 3`.
-2. `GeminiService` giữ chỗ hạn ngạch, gọi nhà cung cấp và nhận JSON.
+2. `OpenRouterService` giữ chỗ hạn ngạch, gọi nhà cung cấp và nhận JSON.
 3. `AiGatewayService.generateTestcases` kiểm tra số lượng và định dạng từng testcase.
 
 #### Kết quả kỳ vọng (Expected Result)
@@ -181,7 +181,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 1. Giảng viên gửi `POST /api/v1/ai/verify-plagiarism` với mã nguồn 2 bài.
-2. `GeminiService` giữ chỗ hạn ngạch và gọi provider.
+2. `OpenRouterService` giữ chỗ hạn ngạch và gọi provider.
 3. `AiGatewayService.verifyPlagiarism` kiểm tra cấu trúc JSON trả về.
 
 #### Kết quả kỳ vọng (Expected Result)

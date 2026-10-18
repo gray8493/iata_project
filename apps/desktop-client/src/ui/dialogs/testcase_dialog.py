@@ -37,7 +37,7 @@ logger = logging.getLogger("AITA.TestcaseDialog")
 
 
 # ==============================================================================
-# WORKER LUỒNG PHỤ GỌI GEMINI AI QUA CENTRAL BACKEND
+# WORKER LUỒNG PHỤ GỌI AI HUB (OPENROUTER ĐA TÀI KHOẢN) QUA CENTRAL BACKEND
 # ==============================================================================
 class AiTestcaseWorker(QThread):
     finished = pyqtSignal(dict)

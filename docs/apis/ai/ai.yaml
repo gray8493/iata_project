@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: AITA Gemini AI Hub API
-  version: 1.0.0
-  description: Phân hệ API điều phối Gemini (sinh testcase, review code, quét đạo văn, chấm UI web); model cấu hình tại backend.
+  title: AITA AI Hub API (OpenRouter multi-key)
+  version: 1.1.0
+  description: Phân hệ API điều phối AI qua OpenRouter (xoay vòng nhiều API key) — sinh testcase, review code, quét đạo văn, chấm UI web; model cấu hình tại backend.
 paths:
   /ai/quota:
     get:
@@ -111,3 +111,31 @@ paths:
       responses:
         '200':
           description: Thành công
+  /ai/provider-status:
+    get:
+      summary: Trạng thái AI Hub OpenRouter (xoay vòng đa tài khoản, chỉ ADMIN)
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Lấy trạng thái AI Hub thành công
+                data:
+                  provider: openrouter
+                  model: openrouter/free
+                  accounts_configured: 3
+                  structured_outputs_supported: true
+                  accounts:
+                    - account: ACC-01
+                      key_hint: 'sk-or-v1-…fbea'
+                      state: READY
+                      cooldown_remaining_seconds: 0
+                    - account: ACC-02
+                      key_hint: 'sk-or-v1-…81ac'
+                      state: COOLDOWN
+                      cooldown_remaining_seconds: 42
+        '403':
+          description: Chỉ ADMIN được xem trạng thái

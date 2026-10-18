@@ -1,18 +1,18 @@
 import { HttpException, UnprocessableEntityException } from '@nestjs/common';
 import { AiGatewayService } from '../modules/ai-gateway/ai-gateway.service';
-import { GeminiService } from '../modules/ai-gateway/gemini.service';
+import { OpenRouterService } from '../modules/ai-gateway/openrouter.service';
 import { AiQuotaService } from '../modules/ai-gateway/ai-quota.service';
 import { GenerateTestcasesDto } from '../modules/ai-gateway/dto/generate-testcases.dto';
 import { VerifyPlagiarismDto } from '../modules/ai-gateway/dto/verify-plagiarism.dto';
 import { createValidationPipe } from '../common/validation/validation-pipe.factory';
 
 describe('System (docs: docs/testcases/3-system/system-test-specification.md)', () => {
-  let gemini: { generateJson: jest.Mock };
+  let provider: { generateJson: jest.Mock };
   let ai: AiGatewayService;
 
   beforeEach(() => {
-    gemini = { generateJson: jest.fn() };
-    ai = new AiGatewayService(gemini as unknown as GeminiService);
+    provider = { generateJson: jest.fn() };
+    ai = new AiGatewayService(provider as unknown as OpenRouterService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -28,14 +28,14 @@ describe('System (docs: docs/testcases/3-system/system-test-specification.md)', 
         { input: '2', expected_output: 'YES', explanation: 'số nguyên tố chẵn', is_boundary: true },
         { input: '1000000', expected_output: 'NO', explanation: 'giá trị cực đại', is_boundary: true },
       ];
-      gemini.generateJson.mockResolvedValue({ data: { testcases }, tokensConsumed: 1234 });
+      provider.generateJson.mockResolvedValue({ data: { testcases }, tokensConsumed: 1234 });
 
       const result = await ai.generateTestcases('u1', { problem_description: 'Viết chương trình kiểm tra số nguyên tố N', language: 'C', count: 3, include_boundary: true } as any);
 
       expect(result.message).toBe('Sinh testcase tự động bằng AI thành công');
       expect(result.data.tokens_consumed).toBe(1234);
       expect(result.data.testcases).toHaveLength(3);
-      expect(gemini.generateJson).toHaveBeenCalledWith(expect.objectContaining({ feature: 'TESTCASE_GEN', userId: 'u1' }));
+      expect(provider.generateJson).toHaveBeenCalledWith(expect.objectContaining({ feature: 'TESTCASE_GEN', userId: 'u1' }));
     });
   });
 
@@ -46,8 +46,8 @@ describe('System (docs: docs/testcases/3-system/system-test-specification.md)', 
         release: jest.fn(),
         settle: jest.fn(),
       };
-      const aiConfig = { get: jest.fn((key: string, def?: string) => (key === 'GEMINI_API_KEY' ? 'test-key' : def)), getOrThrow: jest.fn() };
-      const service = new GeminiService(aiConfig as any, quota as unknown as AiQuotaService);
+      const aiConfig = { get: jest.fn((key: string, def?: string) => (key === 'OPENROUTER_API_KEYS' ? 'test-key' : def)), getOrThrow: jest.fn() };
+      const service = new OpenRouterService(aiConfig as any, quota as unknown as AiQuotaService);
 
       const error = await service.generateJson({ userId: 'u1', feature: 'TESTCASE_GEN', prompt: 'p'.repeat(40), schema: {} as any, maxOutputTokens: 100 }).catch((e) => e);
 
@@ -59,7 +59,7 @@ describe('System (docs: docs/testcases/3-system/system-test-specification.md)', 
 
   describe('ST03_PlagiarismVong2_TC001: AI phân tích ngữ nghĩa cặp bài nghi vấn (Vòng 2)', () => {
     it('trả về bằng chứng sao chép đúng cấu trúc', async () => {
-      gemini.generateJson.mockResolvedValue({
+      provider.generateJson.mockResolvedValue({
         data: { is_plagiarized: true, confidence_percentage: 86, evidence_summary: 'Đổi tên biến và đảo vị trí hàm', cloned_segments: [{ student_a_lines: '1-3', student_b_lines: '2-4', technique: 'rename' }] },
         tokensConsumed: 900,
       });

@@ -467,7 +467,7 @@ class SubmissionDetailDialog(QDialog):
         ta_layout.setSpacing(10)
         ta_layout.setContentsMargins(12, 12, 12, 12)
         
-        self.btn_run_ai_review = QPushButton("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
+        self.btn_run_ai_review = QPushButton("Kích Hoạt AI Hub Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
         self.btn_run_ai_review.setProperty("class", "AIBtn")
         self.btn_run_ai_review.setFixedHeight(36)
         self.btn_run_ai_review.clicked.connect(self._run_ai_review)
@@ -1008,14 +1008,14 @@ class SubmissionDetailDialog(QDialog):
     def _on_ai_review_finished(self, result: Dict[str, Any]):
         stop_spinner(self)
         self.btn_run_ai_review.setEnabled(True)
-        self.btn_run_ai_review.setText("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này")
+        self.btn_run_ai_review.setText("Kích Hoạt AI Hub Phân Tích Lỗi Mã Nguồn Bài Này")
 
         if result.get("success"):
             line_val = result.get("suspected_error_line")
             line_str = f"Dòng {line_val}" if line_val else "Toàn bộ cấu trúc logic hàm chính"
             tokens = result.get("tokens_consumed", 0)
             
-            fb_text = f"""[PHÂN TÍCH MÃ NGUỒN BỞI GEMINI AI - NGÔN NGỮ: {self.file_name.split('.')[-1].upper()}]:
+            fb_text = f"""[PHÂN TÍCH MÃ NGUỒN BỞI AI HUB - NGÔN NGỮ: {self.file_name.split('.')[-1].upper()}]:
 • Tệp phân tích: {self.file_name} (Sinh viên: {self.mssv})
 • Phân loại lỗi: {result.get('bug_category', 'LOGIC_ERROR')}
 • Vị trí nghi vấn: {line_str}

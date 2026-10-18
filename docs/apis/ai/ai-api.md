@@ -5,12 +5,13 @@
 
 ---
 
-## 1. Danh Sách Endpoints (5 APIs)
+## 1. Danh Sách Endpoints (6 APIs)
 
 | Method | Endpoint | Use Case | Mô tả |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/ai/quota` | UC-04 | Kiểm tra hạn ngạch Token hôm nay & thời điểm reset |
-| `POST` | `/api/v1/ai/generate-testcases` | UC-10 | Tự động sinh testcase biên bằng Gemini |
+| `GET` | `/api/v1/ai/provider-status` | UC-04 | Trạng thái AI Hub OpenRouter (số tài khoản, cooldown) — chỉ ADMIN, không trả API key |
+| `POST` | `/api/v1/ai/generate-testcases` | UC-10 | Tự động sinh testcase biên bằng AI Hub |
 | `POST` | `/api/v1/ai/review-code` | UC-16 | Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA |
 | `POST` | `/api/v1/ai/verify-plagiarism` | UC-17 | Xác thực ngữ nghĩa nghi vấn đạo văn > 80% (Vòng 2) |
 | `POST` | `/api/v1/ai/evaluate-web-ui` | UC-19 | Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal |

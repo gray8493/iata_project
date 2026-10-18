@@ -21,7 +21,7 @@
   - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
   - `POST /ai/evaluate-web-ui`: 13 Testcases (03 Normal, 02 Boundary, 08 Exception)
 
-> **Ghi chú thiết kế (khớp mã nguồn `AiGatewayController`, `AiGatewayService`, `GeminiService`, `AiQuotaService`, các DTO)**:
+> **Ghi chú thiết kế (khớp mã nguồn `AiGatewayController`, `AiGatewayService`, `OpenRouterService`, `AiQuotaService`, các DTO)**:
 > - Toàn bộ controller dùng `JwtAuthGuard, RolesGuard, AdaptiveThrottlerGuard` và `@Roles('INSTRUCTOR')`. Vì vậy cả người chưa đăng nhập (401) lẫn tài khoản `ADMIN` (403 `FORBIDDEN_ADMIN_ONLY`) đều không gọi được.
 > - `AdaptiveThrottlerGuard` chặn `429 RATE_LIMIT_EXCEEDED` khi vượt giới hạn (các endpoint POST dùng `@Throttle` limit 15/phút).
 > - `GenerateTestcasesDto`: `problem_description` chuỗi `20..5000`; `language` ∈ `{C, JAVA, PYTHON, WEB}`; `count` số nguyên `1..10` (mặc định 3); `include_boundary` boolean (mặc định true).
@@ -329,11 +329,11 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `GeminiService.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
+- `OpenRouterService.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gọi `AiGatewayService.generateTestcases(userId, dto)` với `gemini.generateJson` ném lỗi 429.
+1. Gọi `AiGatewayService.generateTestcases(userId, dto)` với `provider.generateJson` ném lỗi 429.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -527,7 +527,7 @@ Boundary
 
 ---
 
-# UT03_AiGenerateTestcases_TC010: Dịch vụ Gemini AI gặp sự cố kết nối hoặc quá tải
+# UT03_AiGenerateTestcases_TC010: Dịch vụ AI gặp sự cố kết nối hoặc quá tải
 
 #### Loại test
 
@@ -543,7 +543,7 @@ Exception
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gọi `GeminiService.generateJson(...)` với client `models.generateContent` ném `{ status: 503 }`.
+1. Gọi `OpenRouterService.generateJson(...)` với tầng HTTP `post()` ném `{ status: 503 }`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -569,7 +569,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `gemini.generateJson` trả `{ data: { testcases: undefined }, tokensConsumed: 10 }`.
+- `provider.generateJson` trả `{ data: { testcases: undefined }, tokensConsumed: 10 }`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -603,7 +603,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả `{ data: { testcases: [...3 phần tử...] }, tokensConsumed: 1234 }`; gọi `AiGatewayService.generateTestcases(userId, dto)`.
+1. `provider.generateJson` trả `{ data: { testcases: [...3 phần tử...] }, tokensConsumed: 1234 }`; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -633,7 +633,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả 1 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
+1. `provider.generateJson` trả 1 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -663,7 +663,7 @@ Boundary
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả 10 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
+1. `provider.generateJson` trả 10 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -724,7 +724,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả đúng testcase; gọi `AiGatewayService.generateTestcases(userId, dto)`.
+1. `provider.generateJson` trả đúng testcase; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -816,7 +816,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `gemini.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1044,7 +1044,7 @@ Exception
 
 ---
 
-# UT03_AiReviewCode_TC011: Dịch vụ Gemini AI gặp sự cố kết nối hoặc model quá tải
+# UT03_AiReviewCode_TC011: Dịch vụ AI gặp sự cố kết nối hoặc model quá tải
 
 #### Loại test
 
@@ -1090,7 +1090,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả `{ data: { suspected_error_line: 4, issue_summary, pedagogical_feedback, bug_category }, tokensConsumed: 900 }`; gọi `AiGatewayService.reviewCode(userId, dto)`.
+1. `provider.generateJson` trả `{ data: { suspected_error_line: 4, issue_summary, pedagogical_feedback, bug_category }, tokensConsumed: 900 }`; gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1120,7 +1120,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả dữ liệu hợp lệ không có `suspected_error_line`; gọi `AiGatewayService.reviewCode(userId, dto)`.
+1. `provider.generateJson` trả dữ liệu hợp lệ không có `suspected_error_line`; gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1274,7 +1274,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `gemini.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1472,7 +1472,7 @@ Exception
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC010: Dịch vụ Gemini AI gặp sự cố kết nối hoặc mạng bị timeout
+# UT03_AiVerifyPlagiarism_TC010: Dịch vụ AI gặp sự cố kết nối hoặc mạng bị timeout
 
 #### Loại test
 
@@ -1518,7 +1518,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả dữ liệu hợp lệ; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
+1. `provider.generateJson` trả dữ liệu hợp lệ; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1610,7 +1610,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả `cloned_segments` = `[]` nhưng `is_plagiarized = true`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
+1. `provider.generateJson` trả `cloned_segments` = `[]` nhưng `is_plagiarized = true`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1702,7 +1702,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `gemini.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1870,7 +1870,7 @@ Boundary
 
 ---
 
-# UT03_AiEvaluateWebUI_TC009: Dịch vụ Gemini Multimodal Vision gặp sự cố hoặc timeout phản hồi
+# UT03_AiEvaluateWebUI_TC009: Dịch vụ AI Multimodal Vision gặp sự cố hoặc timeout phản hồi
 
 #### Loại test
 
@@ -1916,7 +1916,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả `evaluation_details` khớp 3 tiêu chí; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+1. `provider.generateJson` trả `evaluation_details` khớp 3 tiêu chí; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2007,7 +2007,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `gemini.generateJson` trả `evaluation_details` toàn FAIL; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+1. `provider.generateJson` trả `evaluation_details` toàn FAIL; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 

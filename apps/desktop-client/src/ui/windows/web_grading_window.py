@@ -60,7 +60,7 @@ def make_action_cell(buttons: List[QPushButton], parent: QWidget) -> QWidget:
 
 
 # ==============================================================================
-# 0. WORKER THẨM ĐỊNH WEB THẬT (PLAYWRIGHT + BEAUTIFULSOUP + TINYCSS2 + GEMINI VISION)
+# 0. WORKER THẨM ĐỊNH WEB THẬT (PLAYWRIGHT + BEAUTIFULSOUP + TINYCSS2 + AI HUB VISION)
 # ==============================================================================
 class WebGradingWorker(QThread):
     """Runs the real 4-criteria web rubric engine off the UI thread."""

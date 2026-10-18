@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { AiGatewayService } from '../modules/ai-gateway/ai-gateway.service';
 import { AiQuotaService } from '../modules/ai-gateway/ai-quota.service';
-import { GeminiService } from '../modules/ai-gateway/gemini.service';
+import { OpenRouterService } from '../modules/ai-gateway/openrouter.service';
 import { GenerateTestcasesDto } from '../modules/ai-gateway/dto/generate-testcases.dto';
 import { ReviewCodeDto } from '../modules/ai-gateway/dto/review-code.dto';
 import { VerifyPlagiarismDto } from '../modules/ai-gateway/dto/verify-plagiarism.dto';
@@ -17,7 +17,7 @@ import { ApiExceptionFilter } from '../common/filters/api-exception.filter';
 
 describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   let ai: AiGatewayService;
-  let gemini: { generateJson: jest.Mock };
+  let provider: { generateJson: jest.Mock };
   const instructorId = '550e8400-e29b-41d4-a716-446655440001';
 
   const configMock = {
@@ -39,8 +39,8 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   }
 
   beforeEach(() => {
-    gemini = { generateJson: jest.fn() };
-    ai = new AiGatewayService(gemini as unknown as GeminiService);
+    provider = { generateJson: jest.fn() };
+    ai = new AiGatewayService(provider as unknown as OpenRouterService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -241,7 +241,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC003: Giảng viên đã hết hạn ngạch', () => {
     it('trả 429 AI_QUOTA_EXCEEDED', async () => {
-      gemini.generateJson.mockRejectedValue(quotaExceeded());
+      provider.generateJson.mockRejectedValue(quotaExceeded());
       const error = await ai.generateTestcases(instructorId, { ...validGenerate } as GenerateTestcasesDto).catch((e) => e);
       expect(error.getStatus()).toBe(429);
       expect((error.getResponse() as any).error_code).toBe('AI_QUOTA_EXCEEDED');
@@ -292,16 +292,16 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
-  describe('UT03_AiGenerateTestcases_TC010: Gemini gặp sự cố kết nối/quá tải', () => {
-    it('GeminiService ném 502 AI_PROVIDER_ERROR và hoàn quota', async () => {
+  describe('UT03_AiGenerateTestcases_TC010: Nhà cung cấp AI gặp sự cố kết nối/quá tải', () => {
+    it('OpenRouterService ném 502 AI_PROVIDER_ERROR và hoàn quota', async () => {
       const quotaMock = {
         reserve: jest.fn().mockResolvedValue({ configId: 'q1', reserved: 100, date: todayUtc() }),
         release: jest.fn().mockResolvedValue(undefined),
         settle: jest.fn(),
       };
-      const config = { get: jest.fn((key: string, def?: string) => (key === 'GEMINI_API_KEY' ? 'test-key' : def)) };
-      const service = new GeminiService(config as unknown as ConfigService, quotaMock as unknown as AiQuotaService);
-      (service as any).client = { models: { generateContent: jest.fn().mockRejectedValue({ status: 503 }) } };
+      const config = { get: jest.fn((key: string, def?: string) => (key === 'OPENROUTER_API_KEYS' ? 'test-key' : def)) };
+      const service = new OpenRouterService(config as unknown as ConfigService, quotaMock as unknown as AiQuotaService);
+      (service as any).post = jest.fn().mockRejectedValue({ status: 503 });
       const error = await service.generateJson({ userId: instructorId, feature: 'TESTCASE_GEN', prompt: 'p', schema: {} as any, maxOutputTokens: 100 }).catch((e) => e);
       expect(error).toBeInstanceOf(BadGatewayException);
       expect(error.getStatus()).toBe(502);
@@ -312,7 +312,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC011: Phản hồi AI sai cấu trúc JSON', () => {
     it('trả 502 AI_INVALID_RESPONSE', async () => {
-      gemini.generateJson.mockResolvedValue({ data: {}, tokensConsumed: 10 });
+      provider.generateJson.mockResolvedValue({ data: {}, tokensConsumed: 10 });
       const error = await ai.generateTestcases(instructorId, { ...validGenerate } as GenerateTestcasesDto).catch((e) => e);
       expect(error).toBeInstanceOf(BadGatewayException);
       expect(error.getStatus()).toBe(502);
@@ -322,7 +322,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC012: Thành công với tham số mặc định', () => {
     it('trả tokens_consumed và 3 testcase', async () => {
-      gemini.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 1234 });
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 1234 });
       const result = await ai.generateTestcases(instructorId, { ...validGenerate } as GenerateTestcasesDto);
       expect(result.message).toBe('Sinh testcase tự động bằng AI thành công');
       expect((result.data as any).tokens_consumed).toBe(1234);
@@ -332,7 +332,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC013: Thành công với count = 1 (biên dưới)', () => {
     it('trả đúng 1 testcase', async () => {
-      gemini.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(1) }, tokensConsumed: 200 });
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(1) }, tokensConsumed: 200 });
       const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 1 } as GenerateTestcasesDto);
       expect((result.data as any).testcases).toHaveLength(1);
     });
@@ -340,7 +340,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC014: Thành công với count = 10 (biên trên)', () => {
     it('trả đúng 10 testcase', async () => {
-      gemini.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(10) }, tokensConsumed: 5000 });
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(10) }, tokensConsumed: 5000 });
       const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 10 } as GenerateTestcasesDto);
       expect((result.data as any).testcases).toHaveLength(10);
     });
@@ -349,7 +349,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiGenerateTestcases_TC015: problem_description dài đúng 20 ký tự (biên dưới)', () => {
     it('hợp lệ và sinh thành công', async () => {
       await expect(validate(GenerateTestcasesDto, { ...validGenerate, problem_description: 'a'.repeat(20) })).resolves.toBeDefined();
-      gemini.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 100 });
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 100 });
       const result = await ai.generateTestcases(instructorId, { ...validGenerate, problem_description: 'a'.repeat(20) } as GenerateTestcasesDto);
       expect((result.data as any).testcases).toHaveLength(3);
     });
@@ -357,9 +357,9 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiGenerateTestcases_TC016: Thành công PYTHON với include_boundary = false', () => {
     it('prompt không chèn cụm boundary', async () => {
-      gemini.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 100 });
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 100 });
       await ai.generateTestcases(instructorId, { ...validGenerate, language: 'PYTHON', include_boundary: false } as GenerateTestcasesDto);
-      const prompt: string = gemini.generateJson.mock.calls[0][0].prompt;
+      const prompt: string = provider.generateJson.mock.calls[0][0].prompt;
       expect(prompt).toContain('PYTHON');
       expect(prompt).not.toContain('including boundary cases');
     });
@@ -390,7 +390,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiReviewCode_TC003: Giảng viên đã hết hạn ngạch', () => {
     it('trả 429 AI_QUOTA_EXCEEDED', async () => {
-      gemini.generateJson.mockRejectedValue(quotaExceeded());
+      provider.generateJson.mockRejectedValue(quotaExceeded());
       const error = await ai.reviewCode(instructorId, { ...validReview } as ReviewCodeDto).catch((e) => e);
       expect((error.getResponse() as any).error_code).toBe('AI_QUOTA_EXCEEDED');
     });
@@ -446,9 +446,9 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
-  describe('UT03_AiReviewCode_TC011: Gemini gặp sự cố kết nối', () => {
+  describe('UT03_AiReviewCode_TC011: Nhà cung cấp AI gặp sự cố kết nối', () => {
     it('trả 502 AI_PROVIDER_ERROR', async () => {
-      gemini.generateJson.mockRejectedValue(providerError());
+      provider.generateJson.mockRejectedValue(providerError());
       const error = await ai.reviewCode(instructorId, { ...validReview } as ReviewCodeDto).catch((e) => e);
       expect(error.getStatus()).toBe(502);
       expect((error.getResponse() as any).error_code).toBe('AI_PROVIDER_ERROR');
@@ -457,7 +457,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiReviewCode_TC012: Phân tích lỗi C thành công (off-by-one)', () => {
     it('trả suspected_error_line và tokens', async () => {
-      gemini.generateJson.mockResolvedValue(validReviewData({ suspected_error_line: 4 }));
+      provider.generateJson.mockResolvedValue(validReviewData({ suspected_error_line: 4 }));
       const result = await ai.reviewCode(instructorId, { ...validReview } as ReviewCodeDto);
       expect(result.message).toBe('Phân tích mã nguồn bằng AI thành công');
       expect((result.data as any).suspected_error_line).toBe(4);
@@ -467,7 +467,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiReviewCode_TC013: Phân tích Java thành công (không có dòng lỗi)', () => {
     it('không có suspected_error_line vẫn hợp lệ', async () => {
-      gemini.generateJson.mockResolvedValue(validReviewData());
+      provider.generateJson.mockResolvedValue(validReviewData());
       const result = await ai.reviewCode(instructorId, { ...validReview, language: 'JAVA' } as ReviewCodeDto);
       expect((result.data as any).suspected_error_line).toBeUndefined();
       expect((result.data as any).bug_category).toBe('OFF_BY_ONE');
@@ -477,7 +477,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiReviewCode_TC014: source_code dài đúng 10 ký tự (biên dưới)', () => {
     it('hợp lệ và phân tích thành công', async () => {
       await expect(validate(ReviewCodeDto, { ...validReview, source_code: 'a'.repeat(10) })).resolves.toBeDefined();
-      gemini.generateJson.mockResolvedValue(validReviewData());
+      provider.generateJson.mockResolvedValue(validReviewData());
       const result = await ai.reviewCode(instructorId, { ...validReview, source_code: 'a'.repeat(10) } as ReviewCodeDto);
       expect((result.data as any).issue_summary).toBeDefined();
     });
@@ -487,7 +487,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     it('chuỗi rỗng hợp lệ và phân tích thành công', async () => {
       const body = { ...validReview, failed_testcase: { input: '1 2', expected_output: '3', actual_output: '' } };
       await expect(validate(ReviewCodeDto, body)).resolves.toBeDefined();
-      gemini.generateJson.mockResolvedValue(validReviewData());
+      provider.generateJson.mockResolvedValue(validReviewData());
       const result = await ai.reviewCode(instructorId, body as ReviewCodeDto);
       expect((result.data as any).bug_category).toBeDefined();
     });
@@ -527,7 +527,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiVerifyPlagiarism_TC003: Giảng viên đã hết hạn ngạch', () => {
     it('trả 429 AI_QUOTA_EXCEEDED', async () => {
-      gemini.generateJson.mockRejectedValue(quotaExceeded());
+      provider.generateJson.mockRejectedValue(quotaExceeded());
       const error = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism } as VerifyPlagiarismDto).catch((e) => e);
       expect((error.getResponse() as any).error_code).toBe('AI_QUOTA_EXCEEDED');
     });
@@ -575,9 +575,9 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
-  describe('UT03_AiVerifyPlagiarism_TC010: Gemini gặp sự cố kết nối', () => {
+  describe('UT03_AiVerifyPlagiarism_TC010: Nhà cung cấp AI gặp sự cố kết nối', () => {
     it('trả 502 AI_PROVIDER_ERROR', async () => {
-      gemini.generateJson.mockRejectedValue(providerError());
+      provider.generateJson.mockRejectedValue(providerError());
       const error = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism } as VerifyPlagiarismDto).catch((e) => e);
       expect(error.getStatus()).toBe(502);
       expect((error.getResponse() as any).error_code).toBe('AI_PROVIDER_ERROR');
@@ -586,7 +586,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiVerifyPlagiarism_TC011: Xác thực thành công đạo văn tinh vi', () => {
     it('trả is_plagiarized và confidence', async () => {
-      gemini.generateJson.mockResolvedValue(plagiarismData());
+      provider.generateJson.mockResolvedValue(plagiarismData());
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism } as VerifyPlagiarismDto);
       expect(result.message).toBe('Phân tích bằng chứng đạo văn thành công');
       expect((result.data as any).is_plagiarized).toBe(true);
@@ -597,7 +597,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiVerifyPlagiarism_TC012: Biên dưới 80% (trùng hợp ngẫu nhiên)', () => {
     it('hợp lệ và trả is_plagiarized false', async () => {
       await expect(validate(VerifyPlagiarismDto, { ...validPlagiarism, ast_similarity_percentage: 80 })).resolves.toBeDefined();
-      gemini.generateJson.mockResolvedValue(plagiarismData({ is_plagiarized: false, confidence_percentage: 30, evidence_summary: 'Common boilerplate.' }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ is_plagiarized: false, confidence_percentage: 30, evidence_summary: 'Common boilerplate.' }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, ast_similarity_percentage: 80 } as VerifyPlagiarismDto);
       expect((result.data as any).is_plagiarized).toBe(false);
     });
@@ -606,7 +606,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiVerifyPlagiarism_TC013: Biên trên 100% (sao chép nguyên văn)', () => {
     it('hợp lệ và trả confidence 100', async () => {
       await expect(validate(VerifyPlagiarismDto, { ...validPlagiarism, ast_similarity_percentage: 100 })).resolves.toBeDefined();
-      gemini.generateJson.mockResolvedValue(plagiarismData({ confidence_percentage: 100 }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ confidence_percentage: 100 }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, ast_similarity_percentage: 100 } as VerifyPlagiarismDto);
       expect((result.data as any).confidence_percentage).toBe(100);
     });
@@ -614,7 +614,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiVerifyPlagiarism_TC014: Tách hàm con Java với cloned_segments rỗng', () => {
     it('mảng rỗng vẫn hợp lệ', async () => {
-      gemini.generateJson.mockResolvedValue(plagiarismData({ cloned_segments: [] }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ cloned_segments: [] }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, language: 'JAVA' } as VerifyPlagiarismDto);
       expect((result.data as any).cloned_segments).toEqual([]);
     });
@@ -648,7 +648,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
 
   describe('UT03_AiEvaluateWebUI_TC003: Giảng viên đã hết hạn ngạch', () => {
     it('trả 429 AI_QUOTA_EXCEEDED', async () => {
-      gemini.generateJson.mockRejectedValue(quotaExceeded());
+      provider.generateJson.mockRejectedValue(quotaExceeded());
       const error = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: ['Layout'] } as EvaluateWebUiDto).catch((e) => e);
       expect((error.getResponse() as any).error_code).toBe('AI_QUOTA_EXCEEDED');
     });
@@ -692,9 +692,9 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
-  describe('UT03_AiEvaluateWebUI_TC009: Gemini Vision gặp sự cố', () => {
+  describe('UT03_AiEvaluateWebUI_TC009: Nhà cung cấp AI Vision gặp sự cố', () => {
     it('trả 502 AI_PROVIDER_ERROR', async () => {
-      gemini.generateJson.mockRejectedValue(providerError());
+      provider.generateJson.mockRejectedValue(providerError());
       const error = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: ['Layout'] } as EvaluateWebUiDto).catch((e) => e);
       expect(error.getStatus()).toBe(502);
       expect((error.getResponse() as any).error_code).toBe('AI_PROVIDER_ERROR');
@@ -704,7 +704,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiEvaluateWebUI_TC010: Đánh giá thành công với 3 tiêu chí', () => {
     it('tính ui_score trung bình = 8', async () => {
       const rubric = ['Layout', 'Color', 'Typography'];
-      gemini.generateJson.mockResolvedValue(evalData(rubric, [9, 8, 7], ['PASS', 'PASS', 'PARTIAL'], 8));
+      provider.generateJson.mockResolvedValue(evalData(rubric, [9, 8, 7], ['PASS', 'PASS', 'PARTIAL'], 8));
       const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
       expect(result.message).toBe('Đánh giá giao diện Web bằng AI thành công');
       expect((result.data as any).ui_score).toBe(8);
@@ -714,7 +714,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiEvaluateWebUI_TC011: Đánh giá thành công với 1 tiêu chí (biên dưới)', () => {
     it('ui_score bằng điểm tiêu chí duy nhất', async () => {
       const rubric = ['Layout'];
-      gemini.generateJson.mockResolvedValue(evalData(rubric, [6.5], ['PARTIAL'], 6.5));
+      provider.generateJson.mockResolvedValue(evalData(rubric, [6.5], ['PARTIAL'], 6.5));
       const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
       expect((result.data as any).ui_score).toBe(6.5);
     });
@@ -723,7 +723,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiEvaluateWebUI_TC012: Đánh giá thành công với ảnh JPEG data URL', () => {
     it('chấp nhận JPEG và tính ui_score', async () => {
       const rubric = ['Layout', 'Color'];
-      gemini.generateJson.mockResolvedValue(evalData(rubric, [8, 9], ['PASS', 'PASS'], 8.5));
+      provider.generateJson.mockResolvedValue(evalData(rubric, [8, 9], ['PASS', 'PASS'], 8.5));
       const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: `data:image/jpeg;base64,${jpegBase64}`, rubric_requirements: rubric } as EvaluateWebUiDto);
       expect((result.data as any).ui_score).toBe(8.5);
     });
@@ -732,7 +732,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   describe('UT03_AiEvaluateWebUI_TC013: Bài làm vi phạm rubric (ui_score thấp)', () => {
     it('verdict FAIL và ui_score = 2', async () => {
       const rubric = ['Layout', 'Color', 'Typography'];
-      gemini.generateJson.mockResolvedValue(evalData(rubric, [2, 3, 1], ['FAIL', 'FAIL', 'FAIL'], 2));
+      provider.generateJson.mockResolvedValue(evalData(rubric, [2, 3, 1], ['FAIL', 'FAIL', 'FAIL'], 2));
       const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
       expect((result.data as any).ui_score).toBe(2);
       expect((result.data as any).evaluation_details.every((d: any) => d.verdict === 'FAIL')).toBe(true);

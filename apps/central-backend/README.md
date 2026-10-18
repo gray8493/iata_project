@@ -1,6 +1,6 @@
 # AITA Central Backend
 
-Central REST API for authentication, account administration, AI quota and Gemini services, and audit reporting. The implementation follows the NestJS + Prisma + PostgreSQL stack in `docs/architecture/tech-stack.md`.
+Central REST API for authentication, account administration, AI quota and OpenRouter AI services (multi-key rotation), and audit reporting. The implementation follows the NestJS + Prisma + PostgreSQL stack in `docs/architecture/tech-stack.md`.
 
 ## Requirements
 
