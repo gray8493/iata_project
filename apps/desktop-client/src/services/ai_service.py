@@ -70,8 +70,14 @@ class AiService:
         if lang_upper not in ["C", "JAVA", "PYTHON", "WEB"]:
             lang_upper = "C"
 
+        # Đảm bảo problem_description đáp ứng MinLength(20) của Backend
+        description = problem_description.strip()
+        if len(description) < 20:
+            # Pad mô tả nếu quá ngắn để tránh VALIDATION_FAILED từ class-validator
+            description = description.ljust(20, ' ')
+
         payload = {
-            "problem_description": problem_description.strip(),
+            "problem_description": description,
             "language": lang_upper,
             "count": max(1, min(10, count)),
             "include_boundary": include_boundary

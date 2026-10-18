@@ -7,6 +7,7 @@ import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { HealthModule } from './modules/health/health.module';
 import { RateLimitModule } from './common/rate-limit.module';
+import { RedisModule } from './common/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -23,12 +24,16 @@ import { PrismaModule } from './prisma/prisma.module';
         JWT_ACCESS_EXPIRES_IN: Joi.string().pattern(/^[1-9]\d*(s|m|h|d)$/).default('15m'),
         JWT_REFRESH_SECRET: Joi.string().min(32).required(),
         JWT_REFRESH_EXPIRES_IN: Joi.string().pattern(/^[1-9]\d*(s|m|h|d)$/).default('7d'),
-        GEMINI_API_KEY: Joi.string().allow('').optional(),
-        GEMINI_MODEL: Joi.string().default('gemini-3.8-flash'),
-        WEB_ADMIN_ORIGINS: Joi.string().default('http://localhost:3001'),
+        OPENROUTER_API_KEYS: Joi.string().allow('').optional(),
+        OPENROUTER_MODEL: Joi.string().optional(),
+        OPENROUTER_BASE_URL: Joi.string().uri().optional(),
+        OPENROUTER_TIMEOUT_MS: Joi.number().integer().min(1).optional(),
+        OPENROUTER_KEY_COOLDOWN_MS: Joi.number().integer().min(0).optional(),
+        CORS_ORIGINS: Joi.string().default('http://localhost:3001'),
       }),
     }),
     PrismaModule,
+    RedisModule,
     AuthModule,
     UsersModule,
     AiGatewayModule,

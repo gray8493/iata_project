@@ -1,34 +1,34 @@
 import 'reflect-metadata';
 import { json } from 'express';
-import { UnprocessableEntityException, ValidationPipe } from '@nestjs/common';
+import compression = require('compression');
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
+import { createValidationPipe } from './common/validation/validation-pipe.factory';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
+  app.use(compression({ threshold: 1024 }));
   app.use(json({ limit: '7mb' }));
   app.setGlobalPrefix('api/v1');
   const config = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', config.get<number>('TRUST_PROXY_HOPS', 0));
   app.enableCors({
-    origin: config.getOrThrow<string>('WEB_ADMIN_ORIGINS').split(',').map((origin) => origin.trim()).filter(Boolean),
+    origin: config
+      .getOrThrow<string>('CORS_ORIGINS')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With'],
+    exposedHeaders: ['X-Total-Count'],
+    credentials: true,
+    maxAge: 86400,
   });
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-    exceptionFactory: (errors) => new UnprocessableEntityException({
-      error_code: 'VALIDATION_FAILED',
-      message: 'Dữ liệu gửi lên không đúng định dạng.',
-      details: errors.map((error) => ({ field: error.property, issues: Object.values(error.constraints ?? {}) })),
-    }),
-  }));
+  app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalInterceptors(new ResponseEnvelopeInterceptor());
 

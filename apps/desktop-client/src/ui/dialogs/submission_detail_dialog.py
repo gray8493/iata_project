@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any
 from PyQt6.QtCore import Qt, QRect, QSize, QRegularExpression, QThread, pyqtSignal
 from PyQt6.QtGui import (
     QFont, QColor, QPainter, QTextFormat, QSyntaxHighlighter,
-    QTextCharFormat, QGuiApplication, QCursor
+    QTextCharFormat, QGuiApplication, QCursor, QIcon
 )
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -28,6 +28,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ui.styles.theme import LIGHT_THEME_QSS
+from ui.components import start_spinner, stop_spinner
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
 
@@ -51,6 +52,23 @@ class AiReviewWorker(QThread):
             failed_testcase=self.failed_testcase
         )
         self.finished.emit(result)
+
+
+class RegradeWorker(QThread):
+    """Re-grades this single submission off the UI thread (UC-15)."""
+    regrade_finished = pyqtSignal(dict)
+
+    def __init__(self, submission_id: int, parent=None):
+        super().__init__(parent)
+        self.submission_id = submission_id
+
+    def run(self):
+        from services.grading_service import GradingService
+        try:
+            result = GradingService().regrade_submission(self.submission_id)
+            self.regrade_finished.emit({"success": True, "result": result})
+        except Exception as ex:
+            self.regrade_finished.emit({"success": False, "message": str(ex)})
 
 
 class LineNumberArea(QWidget):
@@ -215,9 +233,20 @@ class SubmissionDetailDialog(QDialog):
         self.verdict = verdict
         self.score = score
         self.db = DatabaseManager()
+        self._source_is_placeholder = True
         
-        self.setWindowTitle(f"Chi Tiết Bài Nộp - {self.mssv} ({self.file_name})")
-        
+        # UX #6: bài nộp theo thư mục (không có đuôi file) -> nhãn không bị nhắc MSSV hai lần
+        self.display_file_name = file_name or "—"
+        if self.display_file_name != "—" and Path(self.display_file_name).suffix == "":
+            self.display_file_name = f"'{self.display_file_name}' (thư mục bài nộp)"
+
+        self.setWindowTitle(f"Chi Tiết Bài Nộp - {self.mssv} ({self.display_file_name})")
+
+        # Đảm bảo title bar luôn có avatar AITA ngay cả khi chạy ngoài entry point chính
+        avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
+        if avatar_path.exists():
+            self.setWindowIcon(QIcon(str(avatar_path)))
+
         # 10. Giới hạn chiều cao theo vùng làm việc màn hình
         screen = QGuiApplication.primaryScreen()
         if screen:
@@ -264,7 +293,7 @@ class SubmissionDetailDialog(QDialog):
         t_layout.addWidget(lbl_student)
         
         # Nhãn Tệp Bài Thi riêng biệt
-        lbl_file = QLabel(f"Tệp Bài Thi: <b>{self.file_name}</b>", top_card)
+        lbl_file = QLabel(f"Tệp Bài Thi: <b>{self.display_file_name}</b>", top_card)
         lbl_file.setStyleSheet("""
             QLabel {
                 font-size: 13px;
@@ -303,43 +332,17 @@ class SubmissionDetailDialog(QDialog):
         self.btn_open_env.setVisible(False)
         t_layout.addWidget(self.btn_open_env)
         
-        # Nhãn Trạng Thái
-        self.lbl_verdict_badge = QLabel(f"Trạng thái: <b>{self.verdict}</b>", top_card)
+        # Nhãn Trạng Thái + Nhãn Điểm Số (style được tái sử dụng khi chấm lại)
+        self.lbl_verdict_badge = QLabel(top_card)
         self.lbl_verdict_badge.setFixedHeight(32)
-        v_bg = "#DCFCE7" if self.verdict == "AC" else ("#FEE2E2" if self.verdict in ("WA", "CE", "RE", "TLE") else "#F1F5F9")
-        v_color = "#15803D" if self.verdict == "AC" else ("#B91C1C" if self.verdict in ("WA", "CE", "RE", "TLE") else "#475569")
-        self.lbl_verdict_badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {v_bg};
-                color: {v_color};
-                font-weight: 700;
-                font-size: 12px;
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-                padding: 0 14px;
-                line-height: 1.4;
-            }}
-        """)
         if self.verdict == "CE":
             self.lbl_verdict_badge.setToolTip("CE = Compile Error (lỗi biên dịch cú pháp mã nguồn)")
         t_layout.addWidget(self.lbl_verdict_badge)
-        
-        # Nhãn Điểm Số
-        self.lbl_score_badge = QLabel(f"Điểm số: <b>{self.score}</b>", top_card)
+
+        self.lbl_score_badge = QLabel(top_card)
         self.lbl_score_badge.setFixedHeight(32)
-        self.lbl_score_badge.setStyleSheet("""
-            QLabel {
-                background-color: #EFF6FF;
-                color: #1D4ED8;
-                font-weight: 800;
-                font-size: 12px;
-                border: 1px solid #BFDBFE;
-                border-radius: 8px;
-                padding: 0 14px;
-                line-height: 1.4;
-            }
-        """)
         t_layout.addWidget(self.lbl_score_badge)
+        self._refresh_header_badges()
         
         layout.addWidget(top_card)
         
@@ -387,18 +390,22 @@ class SubmissionDetailDialog(QDialog):
         
         # 1. Bảng Chi Tiết Testcase: Xóa cột số thứ tự thừa, căn tiêu đề & dữ liệu thẳng cột
         self.table_tc_results = QTableWidget(tab_tc)
-        self.table_tc_results.setColumnCount(5)
-        self.table_tc_results.setHorizontalHeaderLabels(["#", "Input", "Expected Output", "Actual Output", "Kết Quả"])
+        self.table_tc_results.setColumnCount(6)
+        self.table_tc_results.setHorizontalHeaderLabels([
+            "#", "Input", "Expected Output", "Actual Output", "Kết Quả", "Thời Gian"
+        ])
         self.table_tc_results.verticalHeader().setVisible(False)  # Xóa cột số thứ tự thừa ngoài cùng bên trái
-        
+
         header = self.table_tc_results.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table_tc_results.setColumnWidth(0, 45)  # # nhỏ
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Input rộng
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Expected Output rộng
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng (thật - pain #4)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         self.table_tc_results.setColumnWidth(4, 95)  # Kết Quả vừa
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.table_tc_results.setColumnWidth(5, 82)  # Thời gian chạy hiệu dụng mỗi testcase
         
         # 5. Bảng testcase cao vừa theo số dòng (tối thiểu 4 dòng)
         self.table_tc_results.setMinimumHeight(150)
@@ -460,14 +467,14 @@ class SubmissionDetailDialog(QDialog):
         ta_layout.setSpacing(10)
         ta_layout.setContentsMargins(12, 12, 12, 12)
         
-        self.btn_run_ai_review = QPushButton("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
+        self.btn_run_ai_review = QPushButton("Kích Hoạt AI Hub Phân Tích Lỗi Mã Nguồn Bài Này", tab_ai)
         self.btn_run_ai_review.setProperty("class", "AIBtn")
         self.btn_run_ai_review.setFixedHeight(36)
         self.btn_run_ai_review.clicked.connect(self._run_ai_review)
         ta_layout.addWidget(self.btn_run_ai_review)
         
         self.txt_ai_feedback = QTextEdit(tab_ai)
-        self.txt_ai_feedback.setPlaceholderText("Bấm nút trên để Gemini AI phân tích vị trí dòng lỗi thuật toán và đưa ra nhận xét sư phạm...")
+        self.txt_ai_feedback.setPlaceholderText("Bấm nút trên để AI Hub phân tích vị trí dòng lỗi thuật toán và đưa ra nhận xét sư phạm...")
         self.txt_ai_feedback.setReadOnly(True)
         self.txt_ai_feedback.setStyleSheet("""
             QTextEdit {
@@ -529,9 +536,16 @@ class SubmissionDetailDialog(QDialog):
         splitter.setSizes([540, 660])
         layout.addWidget(splitter, stretch=1)
         
-        # 10. Footer: Nút Đóng cách mép ít nhất 16px
+        # 10. Footer: Nút Chấm Lại bên trái, Nút Đóng bên phải cách mép ít nhất 16px
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 4, 16, 16)
+        self.btn_regrade = QPushButton("Chấm Lại Bài Này", self)
+        self.btn_regrade.setProperty("class", "PrimaryBtn")
+        self.btn_regrade.setFixedHeight(36)
+        self.btn_regrade.setFixedWidth(150)
+        self.btn_regrade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_regrade.clicked.connect(self._regrade)
+        footer.addWidget(self.btn_regrade)
         footer.addStretch(1)
         btn_close = QPushButton("Đóng", self)
         btn_close.setProperty("class", "SecondaryBtn")
@@ -551,6 +565,108 @@ class SubmissionDetailDialog(QDialog):
         except Exception as ex:
             QMessageBox.warning(self, "Lỗi Mở Cấu Hình", f"Không thể mở cửa sổ Cấu hình: {str(ex)}")
 
+    def _refresh_header_badges(self):
+        """Re-renders verdict & score badges (used on first show and after re-grade)."""
+        v_bg = "#DCFCE7" if self.verdict == "AC" else (
+            "#FEE2E2" if self.verdict in ("WA", "CE", "RE", "TLE") else "#F1F5F9"
+        )
+        v_color = "#15803D" if self.verdict == "AC" else (
+            "#B91C1C" if self.verdict in ("WA", "CE", "RE", "TLE") else "#475569"
+        )
+        self.lbl_verdict_badge.setText(f"Trạng thái: <b>{self.verdict}</b>")
+        self.lbl_verdict_badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: {v_bg};
+                color: {v_color};
+                font-weight: 700;
+                font-size: 12px;
+                border: 1px solid #E2E8F0;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }}
+        """)
+        self.lbl_score_badge.setText(f"Điểm số: <b>{self.score}</b>")
+        self.lbl_score_badge.setStyleSheet("""
+            QLabel {
+                background-color: #EFF6FF;
+                color: #1D4ED8;
+                font-weight: 800;
+                font-size: 12px;
+                border: 1px solid #BFDBFE;
+                border-radius: 8px;
+                padding: 0 14px;
+                line-height: 1.4;
+            }
+        """)
+
+    def _regrade(self):
+        """Re-runs the sandbox grading pipeline for this single submission (UC-15)."""
+        if not self.submission_id:
+            QMessageBox.warning(self, "Không Xác Định", "Không xác định được ID bài nộp để chấm lại!")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Chấm Lại Bài Nộp",
+            f"Chạy lại sandbox chấm bài của sinh viên {self.mssv} với bộ testcase hiện tại?\n"
+            "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.btn_regrade.setEnabled(False)
+        self.btn_regrade.setText("Đang Chạy Sandbox Chấm Lại...")
+        start_spinner(self, f"Đang chạy sandbox chấm lại bài của {self.mssv}...")
+        self.regrade_worker = RegradeWorker(self.submission_id, parent=self)
+        self.regrade_worker.regrade_finished.connect(self._on_regrade_finished)
+        self.regrade_worker.start()
+
+    def _on_regrade_finished(self, res: Dict[str, Any]):
+        stop_spinner(self)
+        self.btn_regrade.setEnabled(True)
+        self.btn_regrade.setText("Chấm Lại Bài Này")
+
+        if not res.get("success"):
+            QMessageBox.critical(
+                self,
+                "Chấm Lại Thất Bại",
+                f"Không thể chấm lại bài nộp của sinh viên {self.mssv}:\n{res.get('message', '')}"
+            )
+            return
+
+        result = res.get("result", {})
+        self.verdict = result.get("verdict", self.verdict)
+        self.score = f"{result.get('score', 0.0)} / 10"
+        try:
+            self.score = f"{float(result.get('score', 0.0)):.1f} / 10"
+        except (TypeError, ValueError):
+            pass
+
+        self.btn_open_env.setVisible(False)
+        self._refresh_header_badges()
+        self._load_real_submission_data()
+
+        # Tab AI chỉ kích hoạt cho bài sinh viên chạy được nhưng sai kết quả (WA)
+        is_wa = (self.verdict == "WA")
+        self.tabs.setTabEnabled(1, is_wa)
+        self.tabs.setTabToolTip(
+            1,
+            "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)" if not is_wa else ""
+        )
+
+        QMessageBox.information(
+            self,
+            "Đã Chấm Lại Xong",
+            f"Bài nộp của sinh viên {self.mssv} vừa được chấm lại:\n"
+            f"• Trạng thái: {self.verdict}\n"
+            f"• Điểm số: {self.score}\n"
+            f"• Thời gian chạy: {float(result.get('execution_time_ms', 0.0)):.0f}ms | "
+            f"RAM: {float(result.get('memory_used_mb', 0.0)):.1f}MB"
+        )
+
+
     def _copy_compile_log(self):
         """Sao chép nhật ký biên dịch vào clipboard."""
         text = self.txt_compile_log.toPlainText()
@@ -561,21 +677,112 @@ class SubmissionDetailDialog(QDialog):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(2000, lambda: self.btn_copy_log.setText("Sao Chép Nhật Ký"))
 
+    def _parse_evidence_items(self, raw_details: Any) -> Optional[List[Dict[str, Any]]]:
+        """
+        Pain #4: đọc chứng cứ per-testcase JSON mà GradingService lưu vào cột diff_details.
+        Trả None nếu diff_details là văn bản cũ (diff plain text của bản trước hợp nhất JSON).
+        """
+        if not raw_details or not isinstance(raw_details, str):
+            return None
+        try:
+            parsed = json.loads(raw_details)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        items = parsed.get("items")
+        if not isinstance(items, list) or not items:
+            return None
+        return [it for it in items if isinstance(it, dict)]
+
+    @staticmethod
+    def _truncate_cell(text: str, limit: int = 35) -> str:
+        display = (text or "").replace("\n", " ⏎ ")
+        if len(display) > limit:
+            return display[: limit - 3] + "..."
+        return display
+
+    @staticmethod
+    def _verdict_style(verdict: str):
+        """(text, QColor) cho từng trạng thái của một testcase trong bảng chi tiết."""
+        return {
+            "PASS": ("AC", Qt.GlobalColor.darkGreen),
+            "AC": ("AC", Qt.GlobalColor.darkGreen),
+            "WA": ("WA", Qt.GlobalColor.red),
+            "TLE": ("TLE", Qt.GlobalColor.darkYellow),
+            "MLE": ("MLE", Qt.GlobalColor.darkYellow),
+            "RE": ("RE", Qt.GlobalColor.darkRed),
+            "CE": ("CE", Qt.GlobalColor.darkRed),
+            "SKIP": ("SKIP", Qt.GlobalColor.gray),
+        }.get(verdict, (verdict, Qt.GlobalColor.red))
+
+    # Phần mở rộng mã nguồn được nhận diện khi đường dẫn là thư mục bài nộp
+    SOURCE_EXTENSIONS = (".java", ".py", ".c", ".cpp", ".cc", ".h", ".hpp", ".cs")
+
+    @staticmethod
+    def _comment_prefix(file_name: str) -> str:
+        if file_name.lower().endswith((".py", ".rb", ".sh")):
+            return "#"
+        return "//"
+
+    def _read_source_code_text(self) -> str:
+        """Đọc mã nguồn trực tiếp: nếu là tệp thì đọc, nếu là thư mục thì gộp tất cả file code.
+
+        Đồng bộ cờ self._source_is_placeholder để các phần khác biết panel đang
+        hiển thị mã thật hay thông báo lỗi.
+        """
+        def finish(text: str, is_placeholder: bool) -> str:
+            self._source_is_placeholder = is_placeholder
+            return text
+
+        self._source_is_placeholder = True
+
+        if not self.source_file_path:
+            return finish(
+                "// Chưa xác định đường dẫn mã nguồn trong CSDL.\n"
+                "// Hãy bấm 'Quét lại thư mục' ở màn hình chính để cập nhật bài nộp.",
+                True,
+            )
+        base = Path(self.source_file_path)
+        if base.is_file():
+            try:
+                return finish(base.read_text(encoding="utf-8", errors="replace"), False)
+            except Exception as e:
+                return finish(f"// Không thể đọc tệp mã nguồn:\n// {str(e)}", True)
+        if base.is_dir():
+            source_files = sorted(
+                f for f in base.iterdir() if f.is_file() and f.suffix.lower() in self.SOURCE_EXTENSIONS
+            )
+            if source_files:
+                parts = []
+                for f in source_files:
+                    try:
+                        body = f.read_text(encoding="utf-8", errors="replace")
+                    except Exception as e:
+                        body = f"(Không đọc được tệp: {e})"
+                    sep = self._comment_prefix(f.name)
+                    parts.append(f"{sep} ===== {f.name} =====\n{body}".rstrip())
+                return finish("\n\n".join(parts), False)
+            other_files = sorted(f.name for f in base.iterdir() if f.is_file())
+            if other_files:
+                return finish(
+                    "// Thư mục bài nộp không chứa tệp mã nguồn quen thuộc "
+                    f"({', '.join(self.SOURCE_EXTENSIONS)}).\n"
+                    f"// Các tệp hiện có: {', '.join(other_files[:20])}",
+                    True,
+                )
+        return finish(
+            "// Không tìm thấy tệp mã nguồn tại đường dẫn:\n"
+            f"// {self.source_file_path}\n"
+            "// Vui lòng kiểm tra lại cấu trúc thư mục bài nộp hoặc bấm 'Quét lại thư mục'.",
+            True,
+        )
+
     def _load_real_submission_data(self):
         """Loads actual source file content and actual grading results from SQLite."""
-        # 1. Load Real Source File
-        if self.source_file_path and Path(self.source_file_path).is_file():
-            try:
-                code_text = Path(self.source_file_path).read_text(encoding="utf-8", errors="replace")
-                self.txt_source_code.setPlainText(code_text)
-            except Exception as e:
-                self.txt_source_code.setPlainText(f"// Không thể đọc tệp mã nguồn:\n// {str(e)}")
-        else:
-            self.txt_source_code.setPlainText(
-                f"// Không tìm thấy tệp mã nguồn tại đường dẫn:\n"
-                f"// {self.source_file_path or 'Chưa xác định đường dẫn'}\n"
-                f"// Vui lòng kiểm tra lại cấu trúc thư mục bài nộp."
-            )
+        # 1. Load Real Source File (hỗ trợ cả đường dẫn dạng thư mục chứa nhiều file)
+        source_text = self._read_source_code_text()
+        self.txt_source_code.setPlainText(source_text)
 
         # 2. Load Real Grading Results from SQLite
         if not self.submission_id:
@@ -593,6 +800,7 @@ class SubmissionDetailDialog(QDialog):
         self.txt_compile_log.setPlainText(c_log)
 
         # 4. Kiểm tra nếu nhật ký có chữ "Không tìm thấy trình biên dịch"
+        self.btn_open_env.setVisible("Không tìm thấy trình biên dịch" in c_log)
         if "Không tìm thấy trình biên dịch" in c_log:
             self.lbl_verdict_badge.setText("Lỗi hệ thống")
             self.lbl_verdict_badge.setStyleSheet("""
@@ -635,28 +843,41 @@ class SubmissionDetailDialog(QDialog):
         final_verdict = result.get("final_verdict", self.verdict)
         is_ce = (final_verdict == "CE" or "Không tìm thấy trình biên dịch" in c_log)
 
+        # Pain #4: tăng cường bảng bằng chứng lấy output thật theo từng testcase đã chạy
+        evidence_items = self._parse_evidence_items(result.get("diff_details"))
+
         # Nếu có danh sách testcase thật trong CSDL
         if real_testcases:
             self.table_tc_results.setRowCount(len(real_testcases))
             for r, tc in enumerate(real_testcases):
                 inp = str(tc.get("input_data", "")).strip()
                 exp = str(tc.get("expected_output", "")).strip()
-                
-                # Cắt ngắn nếu quá dài, hiển thị đầy đủ trong tooltip
-                inp_display = inp.replace("\n", " ⏎ ")
-                if len(inp_display) > 35:
-                    inp_display = inp_display[:32] + "..."
-                    
-                exp_display = exp.replace("\n", " ⏎ ")
-                if len(exp_display) > 35:
-                    exp_display = exp_display[:32] + "..."
+                inp_display = self._truncate_cell(inp)
+                exp_display = self._truncate_cell(exp)
+                act_tooltip = ""
 
                 # 3. Khi CE: Cột Actual Output để trống, không ghi Khớp hay Không chạy được
                 if is_ce:
                     act_display = ""
                     tc_verdict = "Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else "CE"
                     v_color = Qt.GlobalColor.darkRed
+                    ev = None
                 else:
+                    ev = evidence_items[r] if evidence_items and r < len(evidence_items) else None
+
+                if ev is not None:
+                    # Có bằng chứng JSON mới: hiển thị đúng verdict riêng của từng testcase
+                    tc_verdict, v_color = self._verdict_style(str(ev.get("verdict", "WA")))
+                    actual = str(ev.get("actual", "") or "")
+                    if not actual and str(ev.get("stderr", "") or ""):
+                        actual = f"(stderr) {str(ev.get('stderr'))}"
+                    act_display = self._truncate_cell(actual)
+                    act_tooltip = (
+                        f"Actual Output đầy đủ:\n{actual or '(trống)'}\n\n"
+                        f"Strategy: {ev.get('strategy', '')} | Weight: {ev.get('weight', '')}"
+                    )
+                elif not is_ce:
+                    # Fallback hành vi cũ khi không có bằng chứng (bài chấm trước khi có JSON)
                     if final_verdict == "AC":
                         act_display = exp_display
                         tc_verdict = "AC"
@@ -684,11 +905,13 @@ class SubmissionDetailDialog(QDialog):
                 item_exp.setToolTip(f"Expected Output đầy đủ:\n{exp}")
                 self.table_tc_results.setItem(r, 2, item_exp)
 
-                # Cột 3: Actual Output
+                # Cột 3: Actual Output (thật theo từng testcase khi có bằng chứng JSON)
                 item_act = QTableWidgetItem(act_display)
                 item_act.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 if is_ce:
                     item_act.setForeground(Qt.GlobalColor.gray)
+                if act_tooltip:
+                    item_act.setToolTip(act_tooltip)
                 self.table_tc_results.setItem(r, 3, item_act)
 
                 # Cột 4: Kết Quả
@@ -696,7 +919,27 @@ class SubmissionDetailDialog(QDialog):
                 item_verd.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item_verd.setForeground(v_color)
                 item_verd.setFont(QFont("Inter", 9, QFont.Weight.Bold))
+                if ev is not None and str(ev.get("verdict", "")) == "SKIP":
+                    item_verd.setToolTip("Testcase này không chạy: bài nộp dừng sớm ở một testcase trước (TLE/RE/MLE/CE).")
                 self.table_tc_results.setItem(r, 4, item_verd)
+
+                # Cột 5: Thời gian chạy hiệu dụng của testcase này (không có với bản cũ)
+                time_label = ""
+                if ev is not None:
+                    try:
+                        t_val = float(ev.get("time_ms", 0.0))
+                        time_label = f"{t_val:.0f}ms"
+                    except (TypeError, ValueError):
+                        time_label = "—"
+                    if str(ev.get("verdict", "")) == "SKIP":
+                        time_label = "—"
+                else:
+                    time_label = "—"
+                item_time = QTableWidgetItem(time_label)
+                item_time.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_time.setForeground(QColor("#64748B"))
+                item_time.setFont(QFont("Consolas", 9))
+                self.table_tc_results.setItem(r, 5, item_time)
             return
 
         # Fallback nếu chưa có testcase trong CSDL
@@ -725,7 +968,7 @@ class SubmissionDetailDialog(QDialog):
     def _run_ai_review(self):
         """Calls Central Backend AI Gateway to review student code with pedagogical feedback."""
         code = self.txt_source_code.toPlainText().strip()
-        if not code or code.startswith("// Không tìm thấy"):
+        if not code or getattr(self, "_source_is_placeholder", True):
             QMessageBox.warning(self, "Không Có Mã Nguồn", "Không tìm thấy mã nguồn của sinh viên để phân tích!")
             return
 
@@ -755,22 +998,24 @@ class SubmissionDetailDialog(QDialog):
 
         self.btn_run_ai_review.setEnabled(False)
         self.btn_run_ai_review.setText("Đang kết nối AI Gateway phân tích mã nguồn...")
-        self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & Gemini AI Gateway để nhận xét sư phạm...")
+        self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & AI Gateway để nhận xét sư phạm...")
+        start_spinner(self, "AI Hub đang phân tích mã nguồn và soạn nhận xét...")
 
         self.ai_review_worker = AiReviewWorker(code, lang, problem, failed_tc)
         self.ai_review_worker.finished.connect(self._on_ai_review_finished)
         self.ai_review_worker.start()
 
     def _on_ai_review_finished(self, result: Dict[str, Any]):
+        stop_spinner(self)
         self.btn_run_ai_review.setEnabled(True)
-        self.btn_run_ai_review.setText("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này")
+        self.btn_run_ai_review.setText("Kích Hoạt AI Hub Phân Tích Lỗi Mã Nguồn Bài Này")
 
         if result.get("success"):
             line_val = result.get("suspected_error_line")
             line_str = f"Dòng {line_val}" if line_val else "Toàn bộ cấu trúc logic hàm chính"
             tokens = result.get("tokens_consumed", 0)
             
-            fb_text = f"""[PHÂN TÍCH MÃ NGUỒN BỞI GEMINI AI - NGÔN NGỮ: {self.file_name.split('.')[-1].upper()}]:
+            fb_text = f"""[PHÂN TÍCH MÃ NGUỒN BỞI AI HUB - NGÔN NGỮ: {self.file_name.split('.')[-1].upper()}]:
 • Tệp phân tích: {self.file_name} (Sinh viên: {self.mssv})
 • Phân loại lỗi: {result.get('bug_category', 'LOGIC_ERROR')}
 • Vị trí nghi vấn: {line_str}
@@ -795,7 +1040,7 @@ class SubmissionDetailDialog(QDialog):
             QMessageBox.information(
                 self,
                 "AI Hoàn Tất",
-                f"Gemini AI đã phân tích xong mã nguồn bài nộp của sinh viên {self.mssv}!\n"
+                f"AI Hub đã phân tích xong mã nguồn bài nộp của sinh viên {self.mssv}!\n"
                 f"(Tiêu thụ: {tokens} tokens trên CSDL Neon)"
             )
         else:

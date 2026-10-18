@@ -29,6 +29,7 @@ if str(SRC_DIR) not in sys.path:
 from ui.styles.theme import LIGHT_THEME_QSS
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.plagiarism_engine import PlagiarismEngine
 
 
 class AiPlagiarismWorker(QThread):
@@ -630,65 +631,62 @@ class PlagiarismDialog(QDialog):
         self.progress_bar.setValue(10)
         QApplication.processEvents()
 
+        cls_info = self.db.get_class_by_id(self.class_id)
+        language = (cls_info or {}).get("programming_language", "C")
+
         # Đọc mã nguồn thật từ đĩa
-        valid_subs = []
+        scan_items = []
         for s in subs:
             p = Path(s["source_file_path"])
             if p.is_file():
                 try:
                     content = p.read_text(encoding="utf-8", errors="replace")
-                    tokens = set(content.split())
-                    valid_subs.append({
-                        "mssv": s["student_mssv"],
-                        "name": s.get("student_name", "Sinh viên"),
-                        "path": str(p),
-                        "content": content,
-                        "tokens": tokens
-                    })
                 except Exception:
-                    pass
+                    continue
+                scan_items.append({
+                    "mssv": s["student_mssv"],
+                    "name": s["student_mssv"],
+                    "path": str(p),
+                    "content": content
+                })
 
-        self.progress_bar.setValue(35)
+        self.progress_bar.setValue(40)
         QApplication.processEvents()
 
-        if len(valid_subs) < 2:
+        if len(scan_items) < 2:
             self._finish_scan()
             self._show_empty_state("Không tìm thấy đủ tệp mã nguồn hợp lệ trên đĩa để quét.")
             return
 
         # Ngưỡng phát hiện do người dùng cấu hình (Cách 1: Lọc triệt để theo ngưỡng đã chọn)
         red_threshold = float(self.spin_thresh.value())
-        pairs_found = []
-        total_pairs_checked = 0
-        v2_red_alert = 0
 
-        all_combinations = list(itertools.combinations(valid_subs, 2))
-        total_combos = max(1, len(all_combinations))
+        # Vòng 1: Động cơ bóc tách cấu trúc (AST-style normalization) + Winnowing, chạy 100% offline
+        engine = PlagiarismEngine()
+        report = engine.scan_class(scan_items, language=language, threshold=red_threshold)
+        total_pairs_checked = report["total_pairs"]
+        raw_matches = report["matches"]
 
-        for idx, (s1, s2) in enumerate(all_combinations):
-            total_pairs_checked += 1
-            # Jaccard similarity trên tập token
-            union = s1["tokens"] | s2["tokens"]
-            inter = s1["tokens"] & s2["tokens"]
-            sim = (len(inter) / len(union) * 100) if union else 0.0
+        self.progress_bar.setValue(80)
+        QApplication.processEvents()
 
-            # Chỉ ghi nhận các cặp bài đạt từ ngưỡng do người dùng chọn trở lên
-            if sim >= red_threshold:
-                v2_red_alert += 1
-                verdict_txt = f"Báo động đỏ (≥{int(red_threshold)}%)"
-                pairs_found.append({
-                    "sv_a": s1["mssv"],
-                    "sv_b": s2["mssv"],
-                    "sim": sim,
-                    "verdict": verdict_txt,
-                    "code_a": s1["content"],
-                    "code_b": s2["content"]
-                })
+        # Lưu báo cáo Vòng 1 vào CSDL cục bộ (local_plagiarism_reports)
+        try:
+            self.db.clear_plagiarism_reports(self.class_id)
+            for m in raw_matches:
+                self.db.save_plagiarism_report(self.class_id, m["sv_a"], m["sv_b"], m["sim"])
+        except Exception:
+            pass
 
-            progress_val = int(35 + (idx + 1) / total_combos * 60)
-            self.progress_bar.setValue(progress_val)
-            if idx % 5 == 0:
-                QApplication.processEvents()
+        pairs_found = [{
+            "sv_a": m["sv_a"],
+            "sv_b": m["sv_b"],
+            "sim": m["sim"],
+            "verdict": m["verdict"],
+            "code_a": m["code_a"],
+            "code_b": m["code_b"]
+        } for m in raw_matches]
+        v2_red_alert = len(pairs_found)
 
         self.progress_bar.setValue(100)
         QApplication.processEvents()
@@ -832,6 +830,7 @@ class PlagiarismDialog(QDialog):
         cls_info = self.db.get_class_by_id(self.class_id) if self.class_id else None
         lang = cls_info.get("programming_language", "C") if cls_info else "C"
 
+        self._ai_pair = (sv_a, sv_b)
         self.btn_run_ai_plag.setEnabled(False)
         self.btn_run_ai_plag.setText("Đang kết nối AI Gateway...")
         self.txt_ai_evidence.setText(f"// Đang gửi mã nguồn cặp bài ({sv_a} vs {sv_b}) lên Central Backend để AI đối soát chuyên sâu...")
@@ -877,6 +876,17 @@ class PlagiarismDialog(QDialog):
 (Dữ liệu thực tế từ Neon DB & AI Gateway - Tiêu thụ: {tokens} tokens)
 """
             self.txt_ai_evidence.setText(report_text)
+
+            # Lưu bằng chứng Vòng 2 vào báo cáo đạo văn cục bộ
+            try:
+                pair = getattr(self, "_ai_pair", None)
+                if pair and self.class_id:
+                    self.db.update_plagiarism_report_evidence(
+                        self.class_id, pair[0], pair[1], report_text.strip()
+                    )
+            except Exception:
+                pass
+
             QMessageBox.information(
                 self,
                 "AI Thẩm Định Hoàn Tất",

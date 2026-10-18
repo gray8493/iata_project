@@ -8,7 +8,7 @@ Tài liệu này ghi nhận minh bạch toàn bộ các câu Prompt và kết qu
 
 ## 1. Thông Tin Chung
 
-- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT / Google Gemini
+- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT
 - **Người thực hiện**: Nhóm phát triển dự án AITA
 - **Mục đích**: Hỗ trợ phân tích yêu cầu, xây dựng kiến trúc thư mục, chuẩn hóa quy trình làm việc nhóm và thiết lập mẫu kịch bản kiểm thử.
 
@@ -75,7 +75,7 @@ AI đã biên soạn tài liệu [docs/architecture/system-overview.md](file:///
 - Phạm vi 4 môn học: C, Java, Python, DSA, OOP.
 - Quy trình chấm điểm khép kín 5 bước: Import Excel danh sách lớp ➔ Tự động ánh xạ (Auto-mapping) theo MSSV ➔ Nạp testcase ➔ Chấm song song đa tiến trình (Parallel Batch Runner) ➔ Xuất bảng điểm Excel hoàn chỉnh.
 - Hệ thống mã lỗi chuẩn: `AC`, `WA`, `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (lỗi runtime).
-- Ứng dụng AI Gemini: Tự động sinh testcase biên, phân tích mã lỗi và viết nhận xét sư phạm điền thẳng vào cột Excel của từng sinh viên.
+- Ứng dụng AI Hub: Tự động sinh testcase biên, phân tích mã lỗi và viết nhận xét sư phạm điền thẳng vào cột Excel của từng sinh viên.
 - Áp dụng 3 Design Patterns bắt buộc của đề bài: Factory Method (`RunnerFactory`), Strategy Pattern (`MatchingStrategy`), Adapter Pattern (`CompilerAdapter`).
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
@@ -83,24 +83,24 @@ AI đã biên soạn tài liệu [docs/architecture/system-overview.md](file:///
 
 ---
 
-### 🔹 PROMPT 04: Chuẩn Hóa Ngăn Xếp Công Nghệ (Python, SQLite, Gemini)
+### 🔹 PROMPT 04: Chuẩn Hóa Ngăn Xếp Công Nghệ (Python, SQLite, AI Hub)
 
 #### 1. Mục tiêu
 Xác định công nghệ cụ thể và các thư viện bên thứ ba đảm nhiệm từng tính năng của Desktop App.
 
 #### 2. Câu Prompt đã gửi
-> *"Tạo file công nghệ sử dụng gồm python, các thư viện python, SQLite, gemini."*
+> *"Tạo file công nghệ sử dụng gồm python, các thư viện python, SQLite, AI Hub."*
 
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã tạo tài liệu [docs/architecture/tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md) chi tiết:
 - Ngôn ngữ: Python 3.11+; GUI: PySide6 / PyQt6.
 - Thư viện: `psutil` (giám sát RAM/CPU, bắt TLE/MLE), `subprocess` (chạy gcc, java, python), `openpyxl`/`pandas` (đọc/ghi file Excel bảng điểm), `pathlib`/`zipfile` (quản lý bài nộp).
 - Database: SQLite3 cục bộ (bảng lớp, sinh viên, testcase, kết quả).
-- AI: Google Gemini API (`google-generativeai`).
+- AI: AI Hub (OpenRouter) qua REST API.
 - Đóng gói: `PyInstaller` ra 1 file `.exe` duy nhất cho Windows.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
-- **Đánh giá của nhóm**: Python và SQLite là sự kết hợp hoàn hảo cho ứng dụng Desktop Offline-first. Nhóm lựa chọn mô hình `gemini-1.5-flash` vì tốc độ phản hồi dưới 1 giây và chi phí token cực thấp.
+- **Đánh giá của nhóm**: Python và SQLite là sự kết hợp hoàn hảo cho ứng dụng Desktop Offline-first. Nhóm lựa chọn mô hình `openrouter/free` vì tốc độ phản hồi dưới 1 giây và chi phí token cực thấp.
 
 ---
 
@@ -175,7 +175,7 @@ Nâng cấp đồ án từ một công cụ Desktop đơn lẻ thành một **H�
 
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã rà soát và cập nhật đồng bộ các tài liệu kỹ thuật ([docs/architecture/system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md) và [docs/architecture/tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md)):
-- **Web Server Backend (Python FastAPI)**: Xây dựng RESTful API tự sinh OpenAPI Swagger (`/docs`), xác thực bảo mật JWT Token, mã hóa mật khẩu Bcrypt, phân quyền theo vai trò RBAC (`Admin`, `Instructor`, `Student`), quản lý dữ liệu trung tâm qua SQLAlchemy ORM và đóng vai trò AI Gateway kiểm soát hạn ngạch Gemini.
+- **Web Server Backend (Python FastAPI)**: Xây dựng RESTful API tự sinh OpenAPI Swagger (`/docs`), xác thực bảo mật JWT Token, mã hóa mật khẩu Bcrypt, phân quyền theo vai trò RBAC (`Admin`, `Instructor`, `Student`), quản lý dữ liệu trung tâm qua SQLAlchemy ORM và đóng vai trò AI Gateway kiểm soát hạn ngạch AI Hub.
 - **Trang Web Admin Quản Lý (Web Admin Dashboard)**: Xây dựng 4 phân hệ cốt lõi: Quản lý người dùng & gán role, Quản lý môn học & phân công lớp, Giám sát quota Token AI theo thời gian thực và Báo cáo tổng hợp số liệu toàn trường.
 - **Desktop App Client (PyQt6/PySide6)**: Kết nối với Web Server Backend qua REST API để đồng bộ dữ liệu lớp học, xác thực giảng viên và đồng bộ kết quả chấm điểm lên máy chủ.
 - **Cập nhật danh mục thư viện & dependencies**: Bổ sung `fastapi`, `uvicorn[standard]`, `python-jose[cryptography]`, `passlib[bcrypt]`, `sqlalchemy`, `jinja2` vào `requirements.txt`.
@@ -200,7 +200,7 @@ AI đã điều chỉnh và chuẩn hóa triệt để tài liệu kiến trúc 
   - Hệ thống nạp `INPUT` vào luồng chuẩn `stdin` của bài làm sinh viên; thu nhận kết quả từ luồng chuẩn `stdout` (`OUTPUT thực tế`).
   - Nếu `OUTPUT thực tế == OUTPUT của Giảng viên` thì tính là **ĐÚNG (Passed / AC)**; nếu sai lệch thì là **SAI (Wrong Answer / WA)**.
 - **Tối giản hóa tính năng AI**:
-  - Gemini AI khi hỗ trợ sinh testcase chỉ cần nhận văn bản đề bài là tự động suy luận ra cả cặp `INPUT` và `OUTPUT kỳ vọng`, điền thẳng vào bảng testcase để giảng viên duyệt/sửa mà **hoàn toàn KHÔNG cần cung cấp file code mẫu `solution`**.
+  - AI Hub khi hỗ trợ sinh testcase chỉ cần nhận văn bản đề bài là tự động suy luận ra cả cặp `INPUT` và `OUTPUT kỳ vọng`, điền thẳng vào bảng testcase để giảng viên duyệt/sửa mà **hoàn toàn KHÔNG cần cung cấp file code mẫu `solution`**.
   - AI Code Review chỉ kích hoạt khi bài làm sinh viên in ra Output khác với Output của giảng viên (hoặc lỗi thực thi) để đối chiếu và chỉ ra dòng sai logic.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
@@ -259,7 +259,7 @@ AI đã tính toán bài toán phụ tải thực tế (lớp 40 sinh viên $\ti
 - **AI Code Review**: Chuyển từ cơ chế tự động sang **On-Demand (Lazy Loading)**; chỉ gọi khi giảng viên chủ động bấm nút phân tích cho bài cụ thể; bỏ qua lỗi biên dịch `CE` để tránh lãng phí.
 - **AI Plagiarism Detection**: Triển khai **Mô hình Lọc 2 vòng (Two-Stage Filtering)**:
   - *Vòng 1 (Offline 100%)*: Dùng thuật toán băm cây cú pháp AST / Tokenization cục bộ quét toàn bộ 2.340 cặp trong 0.5 giây mà không tốn 1 token nào.
-  - *Vòng 2 (AI Verification)*: Chỉ gửi 1-3 cặp có độ tương đồng bất thường vượt ngưỡng (> 80%) lên cho Gemini AI phân tích bằng chứng sao chép.
+  - *Vòng 2 (AI Verification)*: Chỉ gửi 1-3 cặp có độ tương đồng bất thường vượt ngưỡng (> 80%) lên cho AI Hub phân tích bằng chứng sao chép.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Điểm sáng về Tư duy Thiết kế Hệ thống (System Architecture Mastery)**: Đây là minh chứng mẫu mực cho tiêu chí đánh giá môn SWD392 về việc "sử dụng AI có trách nhiệm và hiệu quả kinh tế" (Cost-effective & Responsible AI Design). Nhóm không tích hợp AI một cách ngây thơ (naive) mà biết kết hợp sức mạnh thuật toán truyền thống chạy offline với AI đám mây để tạo ra một hệ thống vừa nhanh, vừa rẻ, vừa ổn định 100%.
@@ -294,7 +294,7 @@ Xác định chuẩn xác phạm vi của Web Admin: Là công cụ quản trị
 
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã chuẩn hóa lại ma trận phân quyền RBAC và danh mục chức năng trong toàn bộ tài liệu ([docs/architecture/system-overview.md](file:///e:/AITA/docs/architecture/system-overview.md), [docs/architecture/tech-stack.md](file:///e:/AITA/docs/architecture/tech-stack.md)):
-- **Web Admin Dashboard**: Chỉ có **Admin** đăng nhập để: Quản lý tài khoản Giảng viên, quản lý danh mục 4 môn học (PRF, PRO, DSA, PHP), cấu hình API Key và giám sát hạn ngạch token Gemini AI.
+- **Web Admin Dashboard**: Chỉ có **Admin** đăng nhập để: Quản lý tài khoản Giảng viên, quản lý danh mục 4 môn học (PRF, PRO, DSA, PHP), cấu hình API Key và giám sát hạn ngạch token AI Hub.
 - **Desktop App Client**: Dành cho **Giảng viên (Instructor)** đăng nhập để thực hiện nghiệp vụ chấm bài offline-first tốc độ cao từ file CSV.
 - **Học sinh (Student)**: Không có tài khoản trong hệ thống, không truy cập Web. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV `students.csv`.
 
@@ -314,7 +314,7 @@ Rà soát, chuẩn hóa và tái thiết kế tài liệu Đặc tả Tác nhân
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã phân tích các thay đổi kiến trúc và cập nhật toàn diện tài liệu [docs/architecture/actors_and_use_cases.md](file:///c:/AITA/iata_project/docs/architecture/actors_and_use_cases.md):
 - **Phân định rõ 2 giao diện người dùng theo chuẩn RBAC**: 
-  - *Web Admin Dashboard*: Dành riêng cho **Quản trị viên (Admin)** quản lý tài khoản Giảng viên, quản lý danh mục môn học (PRF, PRO, DSA, PHP), cấu hình API Key & Quota Gemini AI tập trung, giám sát token toàn trường và xem lịch sử chấm.
+  - *Web Admin Dashboard*: Dành riêng cho **Quản trị viên (Admin)** quản lý tài khoản Giảng viên, quản lý danh mục môn học (PRF, PRO, DSA, PHP), cấu hình API Key & Quota AI Hub tập trung, giám sát token toàn trường và xem lịch sử chấm.
   - *Desktop App Client (PyQt6)*: Dành riêng cho **Giảng viên (Instructor)** thực hiện toàn bộ quy trình chấm bài offline-first tốc độ cao từ file `students.csv` (chuẩn 2 cột: `MSSV,File`), cấu hình sandbox và xuất `results.csv`.
   - Khẳng định rõ: **Sinh viên không có tài khoản** và không truy cập vào Web/Desktop.
 - **Chuẩn hóa nguyên lý chấm Black-box & hàm `main()` độc lập**:
@@ -323,7 +323,7 @@ AI đã phân tích các thay đổi kiến trúc và cập nhật toàn diện 
 - **Mở rộng động cơ so khớp 7 chiến lược (Strategy Pattern)**: Bổ sung đầy đủ 7 chiến lược so khớp (`ExactMatch`, `IgnoreWhitespace`, `CaseInsensitive`, `FloatingPointTolerance`, `UnorderedTokens`, `RegexPattern`, `SpecialJudge`).
 - **Tối ưu hóa cơ chế AI thông minh**:
   - *AI Code Review*: Cơ chế **On-Demand (Lazy Loading)**, chỉ bấm nút `[✨ AI Phân tích lỗi]` khi xem chi tiết bài bị lỗi logic `WA`, bỏ qua bài lỗi biên dịch `CE` vì đã có log của compiler.
-  - *AI Plagiarism Detection*: Cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 quét AST/Winnowing cục bộ 100% offline; Vòng 2 chỉ gửi 1-3 cặp nghi vấn vượt ngưỡng (> 80%) lên Gemini AI.
+  - *AI Plagiarism Detection*: Cơ chế **Lọc 2 vòng (Two-Stage Filtering)**: Vòng 1 quét AST/Winnowing cục bộ 100% offline; Vòng 2 chỉ gửi 1-3 cặp nghi vấn vượt ngưỡng (> 80%) lên AI Hub.
 - **Tái cấu trúc ma trận 19 Use Cases & Sơ đồ PlantUML**: Cập nhật ma trận phân hệ rõ ràng và mã nguồn PlantUML Use Case Diagram chuẩn xác theo phân quyền.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
@@ -343,7 +343,7 @@ Xác định chính xác ranh giới hệ thống và phân loại danh sách c�
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã đề xuất danh sách sơ bộ bao gồm:
 - Tác nhân người dùng: Giảng viên (Instructor), Trợ giảng (Teaching Assistant - TA), Quản trị viên (System Administrator - Admin).
-- Tác nhân hệ thống ngoài: Môi trường biên dịch / Sandbox (GCC, Javac, Python Runtime), Dịch vụ AI (Google Gemini API), Bộ lưu trữ cục bộ (Local Storage / SQLite), Máy chủ Web Backend (Web API Server).
+- Tác nhân hệ thống ngoài: Môi trường biên dịch / Sandbox (GCC, Javac, Python Runtime), Dịch vụ AI (AI Hub), Bộ lưu trữ cục bộ (Local Storage / SQLite), Máy chủ Web Backend (Web API Server).
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Quyết định thiết kế của Nhóm (Design Decisions)**:
@@ -409,7 +409,7 @@ Chuyển hóa toàn bộ danh mục 19 Use Cases, các tác nhân người dùng
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã sinh đoạn mã PlantUML mô tả đầy đủ:
 - 2 Primary Actors: Admin, Instructor.
-- 3 External Supporting Actors: Gemini AI Hub, Sandbox Runner, Web Server Backend.
+- 3 External Supporting Actors: AI Hub, Sandbox Runner, Web Server Backend.
 - Các use case được nhóm theo các package trực quan: Web Admin Dashboard và Desktop App Client.
 - Các mũi tên tương tác người dùng, mũi tên `<<include>>`, `<<extend>>` và kết nối tác nhân ngoài.
 
@@ -477,7 +477,7 @@ AI đã phân tích và làm sáng tỏ 3 vấn đề:
   - Khẳng định: Giảng viên **KHÔNG** có quyền truy cập vào Web Admin Dashboard. Web Admin là không gian làm việc độc quyền của Admin.
   - `UC-01` là endpoint Backend chung (`/api/v1/auth/login`). Khi tài khoản Giảng viên (`role: "instructor"`) cố đăng nhập vào Web Admin, hệ thống chặn lại với lỗi `403 Forbidden`. Giảng viên chỉ đăng nhập trên Desktop App Client để lấy JWT phục vụ đồng bộ dữ liệu và gọi AI.
 - **Vấn đề 2 (Quy trình Cấp phát Tài khoản Giảng viên)**:
-  - Giảng viên **KHÔNG** tự đăng ký tự do (No Self-Registration) nhằm bảo vệ hạn ngạch Google Gemini API của nhà trường.
+  - Giảng viên **KHÔNG** tự đăng ký tự do (No Self-Registration) nhằm bảo vệ hạn ngạch AI Hub (OpenRouter) của nhà trường.
   - Toàn bộ tài khoản Giảng viên do Admin khởi tạo tập trung trên Web Admin (`UC-02`) dựa trên danh sách phân công của Phòng Đào tạo, sau đó cấp phát về email nội bộ của trường (`@fpt.edu.vn`).
 - **Vấn đề 3 (Chứng minh Tính Khả Thi Hiệu Năng 18.2s & Thiết Lập Độ Nặng Sandbox)**:
   - *Bản chất bài thi lập trình*: File sinh viên rất nhẹ (30-150 dòng, 2-10 KB); biên dịch C (`gcc`) 50-100ms, Java (`javac`) 200-400ms, Python <20ms; mỗi testcase chạy 1-20ms.
@@ -530,14 +530,14 @@ Thiết kế và đóng gói mã nguồn PlantUML cho 2 loại sơ đồ mô hì
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã thiết kế và lưu trữ đúng **2 file mã nguồn PlantUML tổng thể toàn dự án** trong thư mục [docs/diagrams/puml/](file:///e:/AITA/docs/diagrams/puml/):
 1. **[sequence_diagram.puml](file:///e:/AITA/docs/diagrams/puml/sequence_diagram.puml)**: Sơ đồ tuần tự tổng thể toàn hệ sinh thái (System-Wide Sequence Diagram) mô tả trọn vẹn 4 giai đoạn vòng đời của hệ thống:
-   - *Giai đoạn 1*: Admin quản trị tài khoản Giảng viên, cấu hình môn học và cấp hạn ngạch Quota Gemini trên Web Admin Dashboard.
+   - *Giai đoạn 1*: Admin quản trị tài khoản Giảng viên, cấu hình môn học và cấp hạn ngạch Quota AI trên Web Admin Dashboard.
    - *Giai đoạn 2*: Giảng viên đăng nhập Desktop App, nạp `students.csv` và gọi AI sinh bộ Testcase `(Input, Output)`.
    - *Giai đoạn 3*: Thực thi chấm bài tự động đa tiến trình offline-first qua hàm `main()`, `psutil` đo tài nguyên, so khớp 7 chế độ và xuất `results.csv`.
    - *Giai đoạn 4*: AI phân tích lỗi On-demand, quét đạo văn 2 vòng và đồng bộ kết quả chấm lên Cloud Backend để Admin xem báo cáo.
 2. **[communication_diagram.puml](file:///e:/AITA/docs/diagrams/puml/communication_diagram.puml)**: Sơ đồ giao tiếp tổng thể toàn hệ sinh thái (System-Wide Communication Diagram) thể hiện sự cộng tác liên phân hệ qua 4 nhóm chu trình nghiệp vụ được đánh số tuần tự giữa: Web Admin, Desktop App Client, FastAPI Gateway, AI Hub và Sandbox Runner.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
-- **Tầm nhìn hệ sinh thái tích hợp (Ecosystem-Level Modeling)**: Việc xây dựng cả **Sequence Diagram và Communication Diagram ở cấp độ Toàn Dự Án** mang lại cái nhìn bao quát toàn diện về kiến trúc tích hợp của đồ án SWD392. Sơ đồ chứng minh sự gắn kết chặt chẽ và dòng chảy dữ liệu thông suốt giữa Quản trị viên (Web Admin), Giảng viên (Desktop App) và Máy chủ trung tâm (FastAPI & Google Gemini AI Hub), đáp ứng trọn vẹn điểm số phần mềm tích hợp (30%) và phân tích mô hình hóa của giai đoạn Evaluation 1.
+- **Tầm nhìn hệ sinh thái tích hợp (Ecosystem-Level Modeling)**: Việc xây dựng cả **Sequence Diagram và Communication Diagram ở cấp độ Toàn Dự Án** mang lại cái nhìn bao quát toàn diện về kiến trúc tích hợp của đồ án SWD392. Sơ đồ chứng minh sự gắn kết chặt chẽ và dòng chảy dữ liệu thông suốt giữa Quản trị viên (Web Admin), Giảng viên (Desktop App) và Máy chủ trung tâm (FastAPI & AI Hub), đáp ứng trọn vẹn điểm số phần mềm tích hợp (30%) và phân tích mô hình hóa của giai đoạn Evaluation 1.
 
 ---
 
@@ -546,7 +546,7 @@ AI đã thiết kế và lưu trữ đúng **2 file mã nguồn PlantUML tổng 
 #### 1. Mục tiêu
 Hoàn tất trọn bộ 4 sơ đồ UML bắt buộc của giai đoạn Đánh giá 1 (Evaluation 1: Requirement Analysis & Modeling) môn học SWD392 bằng cách thiết kế và đóng gói mã nguồn PlantUML độc lập cho:
 1. **Use Case Diagram** (`use_case_diagram.puml`): Mô hình hóa trực quan toàn bộ 19 Use Cases, phân định ranh giới 3 phân hệ (Web Admin, Desktop App Client, Central Backend) và các tác nhân người dùng / tác nhân ngoài.
-2. **Activity Diagram** (`activity_diagram.puml`): Mô hình hóa chi tiết quy trình nghiệp vụ cốt lõi xuyên suốt toàn hệ thống bằng kỹ thuật phân vùng Swimlanes chuẩn UML (Giảng viên, Desktop UI, Sandbox Engine, Backend API, Gemini AI).
+2. **Activity Diagram** (`activity_diagram.puml`): Mô hình hóa chi tiết quy trình nghiệp vụ cốt lõi xuyên suốt toàn hệ thống bằng kỹ thuật phân vùng Swimlanes chuẩn UML (Giảng viên, Desktop UI, Sandbox Engine, Backend API, AI Hub).
 
 #### 2. Câu Prompt đã gửi
 > *"Được rồi bây giờ tạo 2 file docs/diagrams/puml/use_case_diagram.puml và docs/diagrams/puml/activity_diagram.puml khi prompt thì đọc file này @docs/ai-prompts/eval-1/ai-prompts-log.md"*
@@ -555,10 +555,10 @@ Hoàn tất trọn bộ 4 sơ đồ UML bắt buộc của giai đoạn Đánh g
 AI đã thiết kế và tạo thành công 2 file mã nguồn PlantUML trong thư mục [docs/diagrams/puml/](file:///d:/SWD_Project/docs/diagrams/puml/):
 1. **[use_case_diagram.puml](file:///d:/SWD_Project/docs/diagrams/puml/use_case_diagram.puml)**:
    - Thể hiện đầy đủ 2 Tác nhân con người chính: `Admin` (Web Admin) và `Instructor` (Desktop App).
-   - Thể hiện 3 Tác nhân hệ thống ngoài: `FastAPI Central API`, `Google Gemini AI Hub`, `Sandbox Execution Runner`.
+   - Thể hiện 3 Tác nhân hệ thống ngoài: `FastAPI Central API`, `AI Hub`, `Sandbox Execution Runner`.
    - Gom cụm 19 Use Cases theo các package phân hệ logic, biểu diễn chuẩn xác các liên kết tương tác, quan hệ `<<include>>` (áp dụng chiến lược so khớp, giám sát tiến độ thời gian thực) và `<<extend>>` (phân tích lỗi AI on-demand khi gặp WA, điều chỉnh điểm).
 2. **[activity_diagram.puml](file:///d:/SWD_Project/docs/diagrams/puml/activity_diagram.puml)**:
-   - Ứng dụng cấu trúc **Swimlanes (5 phân vùng trực quan)**: `Giảng viên`, `Desktop App UI (PyQt6)`, `Desktop Core & Sandbox Runner`, `Web Server Backend (FastAPI)`, `Google Gemini AI Hub`.
+   - Ứng dụng cấu trúc **Swimlanes (5 phân vùng trực quan)**: `Giảng viên`, `Desktop App UI (PyQt6)`, `Desktop Core & Sandbox Runner`, `Web Server Backend (FastAPI)`, `AI Hub`.
    - Mô hình hóa khép kín 4 giai đoạn hoạt động:
      1. Khởi động, xác thực JWT và thiết lập đợt chấm (nạp `students.csv`, sinh testcase biên bằng AI hoặc nạp tay, chọn 1 trong 7 chiến lược so khớp).
      2. Thực thi chấm bài tự động hàng loạt đa tiến trình offline-first (biên dịch GCC/Javac/Python, chạy subprocess qua hàm `main()`, `psutil` bắt TLE/MLE/RE, so khớp Strategy Pattern ra verdict AC/WA, cập nhật progress bar thời gian thực qua Qt Signal/Slot).
@@ -652,7 +652,7 @@ AI đã thực hiện rà soát và điều chỉnh triệt để trên toàn b�
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
 - **Bảo mật dữ liệu học thuật tuyệt đối (FERPA / Academic Privacy Compliance)**: Bài thi lập trình và bảng điểm của sinh viên là dữ liệu nhạy cảm. Việc lưu trữ hoàn toàn cục bộ trên máy giảng viên và xuất file vật lý để nộp phòng đào tạo giúp triệt tiêu rủi ro rò rỉ dữ liệu bài thi trên Internet.
-- **Tối ưu hóa tài nguyên máy chủ Neon Cloud**: Web Server Backend và CSDL Neon không phải gánh tải việc lưu trữ hàng nghìn log chạy testcase hay dung lượng mã nguồn bài nộp sinh viên, giúp duy trì gói Neon Serverless miễn phí mà không lo quá hạn ngạch. Backend chỉ tập trung làm tốt 2 nhiệm vụ: Xác thực (Auth) và Cầu nối bảo mật Gemini AI (AI Gateway).
+- **Tối ưu hóa tài nguyên máy chủ Neon Cloud**: Web Server Backend và CSDL Neon không phải gánh tải việc lưu trữ hàng nghìn log chạy testcase hay dung lượng mã nguồn bài nộp sinh viên, giúp duy trì gói Neon Serverless miễn phí mà không lo quá hạn ngạch. Backend chỉ tập trung làm tốt 2 nhiệm vụ: Xác thực (Auth) và Cầu nối bảo mật AI Hub (AI Gateway).
 
 
 

@@ -10,6 +10,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 const publicUserSelect = {
   id: true, username: true, fullName: true, email: true, role: true,
   isActive: true, createdAt: true,
+  quotaConfig: { select: { dailyTokenLimit: true, usedTokensToday: true } },
 } satisfies Prisma.UserSelect;
 
 @Injectable()
@@ -64,16 +65,17 @@ export class UsersService {
   async get(id: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, isDeleted: false },
-      select: { ...publicUserSelect, quotaConfig: { select: { dailyTokenLimit: true } } },
+      select: publicUserSelect,
     });
     if (!user) throw this.notFound();
-    return { message: 'Lấy thông tin tài khoản thành công', data: {
-      ...this.toPublicUser(user), daily_token_quota: user.quotaConfig?.dailyTokenLimit ?? null,
-    } };
+    return { message: 'Lấy thông tin tài khoản thành công', data: this.toPublicUser(user) };
   }
 
   async update(id: string, input: UpdateUserDto, actorId: string) {
-    const current = await this.prisma.user.findFirst({ where: { id, isDeleted: false } });
+    const current = await this.prisma.user.findFirst({
+      where: { id, isDeleted: false },
+      select: { id: true, role: true, isActive: true },
+    });
     if (!current) throw this.notFound();
     if (id === actorId && input.is_active === false) {
       throw new ForbiddenException({ error_code: 'USER_CANNOT_DISABLE_SELF', message: 'Bạn không thể tự vô hiệu hóa tài khoản đang sử dụng.', details: null });
@@ -113,7 +115,10 @@ export class UsersService {
   }
 
   async delete(id: string, actorId: string) {
-    const current = await this.prisma.user.findFirst({ where: { id, isDeleted: false } });
+    const current = await this.prisma.user.findFirst({
+      where: { id, isDeleted: false },
+      select: { id: true, role: true, isActive: true },
+    });
     if (!current) throw this.notFound();
     if (id === actorId) {
       throw new ForbiddenException({ error_code: 'USER_CANNOT_DELETE_SELF', message: 'Bạn không thể xóa tài khoản đang sử dụng.', details: null });
@@ -131,9 +136,16 @@ export class UsersService {
     return { message: 'Xóa người dùng thành công', data: null };
   }
 
-  private toPublicUser(user: { id: string; username: string; fullName: string; email: string; role: string; isActive: boolean; createdAt: Date }) {
-    return { id: user.id, username: user.username, full_name: user.fullName, email: user.email,
-      role: toAppRole(user.role), is_active: user.isActive, created_at: user.createdAt.toISOString() };
+  private toPublicUser(user: {
+    id: string; username: string; fullName: string; email: string; role: string; isActive: boolean; createdAt: Date;
+    quotaConfig?: { dailyTokenLimit: number; usedTokensToday: number } | null;
+  }) {
+    return {
+      id: user.id, username: user.username, full_name: user.fullName, email: user.email,
+      role: toAppRole(user.role), is_active: user.isActive, created_at: user.createdAt.toISOString(),
+      daily_token_quota: user.quotaConfig?.dailyTokenLimit ?? 50000,
+      used_tokens_today: user.quotaConfig?.usedTokensToday ?? 0,
+    };
   }
 
   private notFound(): NotFoundException {

@@ -8,6 +8,7 @@ import { AuthUser, CurrentUser } from '../auth/decorators/current-user.decorator
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiGatewayService } from './ai-gateway.service';
 import { AiQuotaService } from './ai-quota.service';
+import { OpenRouterService } from './openrouter.service';
 import { EvaluateWebUiDto } from './dto/evaluate-web-ui.dto';
 import { GenerateTestcasesDto } from './dto/generate-testcases.dto';
 import { ReviewCodeDto } from './dto/review-code.dto';
@@ -19,12 +20,19 @@ import { VerifyPlagiarismDto } from './dto/verify-plagiarism.dto';
 @Roles('INSTRUCTOR')
 @Controller('ai')
 export class AiGatewayController {
-  constructor(private readonly ai: AiGatewayService, private readonly quota: AiQuotaService) {}
+  constructor(private readonly ai: AiGatewayService, private readonly quota: AiQuotaService, private readonly openrouter: OpenRouterService) {}
 
   @Get('quota')
   @ApiOperation({ summary: 'Lấy hạn ngạch AI trong ngày' })
   async getQuota(@CurrentUser() user: AuthUser) {
     return { message: 'Lấy thông tin hạn ngạch AI thành công', data: await this.quota.snapshot(user.id) };
+  }
+
+  @Get('provider-status')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Lấy trạng thái AI Hub (OpenRouter) — chỉ ADMIN' })
+  getProviderStatus() {
+    return { message: 'Lấy trạng thái AI Hub thành công', data: this.openrouter.providerStatus() };
   }
 
   @Post('generate-testcases')

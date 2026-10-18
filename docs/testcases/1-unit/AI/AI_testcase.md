@@ -1,32 +1,48 @@
 # Thông Tin Chung Kiểm Thử Unit Test
 
-- **Phân hệ kiểm thử**: Phân hệ AI Gateway & Quản lý Hạn ngạch (AI Hub API)
+- **Phân hệ kiểm thử**: Phân hệ AI Gateway & Quản lý Hạn ngạch (AI Hub API - UC-04, UC-10, UC-16, UC-17, UC-19)
 - **Danh sách API kiểm thử**:
-  - `GET /api/v1/ai/quota` (UC-04: Kiểm tra hạn ngạch Token hôm nay & thời điểm reset)
-  - `POST /api/v1/ai/generate-testcases` (UC-10: Tự động sinh testcase biên bằng Gemini 1.5 Flash)
-  - `POST /api/v1/ai/review-code` (UC-16: Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA)
-  - `POST /api/v1/ai/verify-plagiarism` (UC-17: Xác thực ngữ nghĩa nghi vấn đạo văn > 80% Vòng 2)
-  - `POST /api/v1/ai/evaluate-web-ui` (UC-19: Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal)
+  - `GET /api/v1/ai/quota` (Kiểm tra hạn ngạch Token hôm nay & thời điểm reset)
+  - `GET /api/v1/ai/provider-status` (Trạng thái AI Hub OpenRouter multi-key - chỉ ADMIN)
+  - `POST /api/v1/ai/generate-testcases` (Tự động sinh testcase bằng AI OpenRouter)
+  - `POST /api/v1/ai/review-code` (Phân tích lỗi và sinh nhận xét sư phạm cho bài WA)
+  - `POST /api/v1/ai/verify-plagiarism` (Xác thực ngữ nghĩa nghi vấn đạo văn Vòng 2)
+  - `POST /api/v1/ai/evaluate-web-ui` (Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal)
 - **Người thực hiện (Tester/Dev)**: Kim Chi Ha
 - **Ngày tạo**: 04/10/2026
-- **Cập nhật lần cuối**: 04/10/2026 - 09:35
+- **Cập nhật lần cuối**: 17/10/2026 - 10:00
 - **Tài liệu liên quan**:
-  - [Đặc tả API Phân hệ AI (Markdown)](file:///c:/AITA/iata_project/docs/apis/ai/ai-api.md)
-  - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///c:/AITA/iata_project/docs/apis/ai/ai.yaml)
-  - [Đặc tả API Toàn hệ thống AITA](file:///c:/AITA/iata_project/docs/apis/api-specification.md)
-  - [Quy tắc kiểm thử Testcase](file:///c:/AITA/iata_project/rules/testcase-rules.md)
-- **Tổng số Testcase**: 65 Testcases (Trạng thái: Chưa thực thi - Sẵn sàng kiểm thử; Trường hợp False/Lỗi viết trước, True/Thành công viết sau; Đầy đủ Test Data cụ thể cho từng Testcase)
-  - `GET /api/v1/ai/quota`: 07 Testcases (05 False, 02 True)
-  - `POST /api/v1/ai/generate-testcases`: 16 Testcases (11 False, 05 True)
-  - `POST /api/v1/ai/review-code`: 15 Testcases (11 False, 04 True)
-  - `POST /api/v1/ai/verify-plagiarism`: 14 Testcases (10 False, 04 True)
-  - `POST /api/v1/ai/evaluate-web-ui`: 13 Testcases (09 False, 04 True)
+  - [Đặc tả API Phân hệ AI (Markdown)](file:///e:/AITA/docs/apis/ai/ai-api.md)
+  - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///e:/AITA/docs/apis/ai/ai.yaml)
+  - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
+- **Tổng số Testcase**: 88 Testcases (Phân loại: 16 Normal, 25 Boundary, 47 Exception)
+  - `GET /ai/quota`: 09 Testcases (02 Normal, 01 Boundary, 06 Exception)
+  - `GET /ai/provider-status`: 05 Testcases (01 Normal, 01 Boundary, 03 Exception)
+  - `POST /ai/generate-testcases`: 17 Testcases (02 Normal, 05 Boundary, 10 Exception)
+  - `POST /ai/review-code`: 15 Testcases (02 Normal, 04 Boundary, 09 Exception)
+  - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
+  - `POST /ai/evaluate-web-ui`: 16 Testcases (03 Normal, 05 Boundary, 08 Exception)
+  - `OpenRouterService (AiProvider)`: 12 Testcases (04 Normal, 04 Boundary, 04 Exception)
+
+> **Ghi chú thiết kế (khớp mã nguồn `AiGatewayController`, `AiGatewayService`, `OpenRouterService`, `AiQuotaService`, các DTO)**:
+> - Toàn bộ controller dùng `JwtAuthGuard, RolesGuard, AdaptiveThrottlerGuard` và `@Roles('INSTRUCTOR')`. Vì vậy cả người chưa đăng nhập (401) lẫn tài khoản `ADMIN` (403 `FORBIDDEN_ADMIN_ONLY`) đều không gọi được.
+> - `AdaptiveThrottlerGuard` chặn `429 RATE_LIMIT_EXCEEDED` khi vượt giới hạn (các endpoint POST dùng `@Throttle` limit 15/phút).
+> - `GenerateTestcasesDto`: `problem_description` chuỗi `20..5000`; `language` ∈ `{C, JAVA, PYTHON, WEB}`; `count` số nguyên `1..10` (mặc định 3); `include_boundary` boolean (mặc định true).
+> - `ReviewCodeDto`: `source_code` chuỗi `10..10000`; `language` ∈ `{C, JAVA, PYTHON, PHP}`; `problem_statement` chuỗi `1..3000`; `failed_testcase` là object lồng gồm `input`, `expected_output`, `actual_output` (mỗi chuỗi ≤ 10000).
+> - `VerifyPlagiarismDto`: `student_a_code`, `student_b_code` chuỗi `10..10000`; `ast_similarity_percentage` số trong `[80, 100]`; `language` ∈ `{C, JAVA, PYTHON, PHP}`.
+> - `EvaluateWebUiDto`: `screenshot_base64` chuỗi ≤ 7.000.000 ký tự; `rubric_requirements` mảng `1..20` phần tử (mỗi chuỗi ≤ 500).
+> - DTO validation message là **mặc định class-validator (tiếng Anh)**; lỗi lồng trong `failed_testcase` được báo qua `field = "failed_testcase"`.
+> - Lỗi nghiệp vụ AI: `AI_QUOTA_NOT_CONFIGURED` (403), `AI_QUOTA_EXCEEDED` (429), `AI_INVALID_RESPONSE` (502), `AI_IMAGE_INVALID` (400), `AI_PROVIDER_ERROR` (502), `AI_PROVIDER_RATE_LIMITED` (429), `AI_NOT_CONFIGURED` (503).
+> - `AiQuotaService.snapshot` trả `{ daily_limit_tokens, used_tokens_today, remaining_tokens (Math.max 0), reset_at_utc }`; tự reset `usedTokensToday` khi `lastResetDate` cũ hơn hôm nay (UTC).
+> - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân.
+> - `GET /ai/provider-status` có `@Roles('ADMIN')` ghi đè `@Roles('INSTRUCTOR')` của controller: chỉ ADMIN gọi được, giảng viên nhận 403 `FORBIDDEN_ADMIN_ONLY`. Trả về danh sách API key OpenRouter kèm `state` (`READY`/`COOLDOWN`), `cooldown_remaining_seconds`, `accounts_configured`, `structured_outputs_supported`.
+> - `OpenRouterService` xoay vòng nhiều API key; key bị `429`/`401`/`402`/`403` hoặc lỗi tạm thời sẽ bị đưa vào cooldown (rate: `OPENROUTER_KEY_COOLDOWN_MS`; exhausted: 30 phút; transient: 5 giây). Khi không còn key khả dụng vì tất cả đang cooldown, `generateJson` ném 429 `AI_PROVIDER_RATE_LIMITED`; lỗi không thuộc nhóm giới hạn/hết quota ném 502 `AI_PROVIDER_ERROR`. Không cấu hình key nào (`OPENROUTER_API_KEYS` rỗng) ném 503 `AI_NOT_CONFIGURED`.
 
 ---
 
 # ==============================================================================
 
-# PHẦN 1: API GET /api/v1/ai/quota (UC-04: KIỂM TRA HẠN NGẠCH TOKEN HÔM NAY)
+# PHẦN 1: API GET /api/v1/ai/quota (KIỂM TRA HẠN NGẠCH TOKEN HÔM NAY)
 
 # ==============================================================================
 
@@ -34,39 +50,23 @@
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server AI Gateway đang hoạt động bình thường.
-- Client gửi request không đính kèm Token trong Header.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có (None).
+- Header `Authorization` bỏ trống.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON chứa:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`, `details = null`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -80,38 +80,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server AI Gateway đang hoạt động bình thường.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có.
+- Header `Authorization: Bearer <INVALID_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Truyền token của tài khoản có vai trò không hợp lệ vào Header `Authorization: Bearer <INVALID_ROLE_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, { name: 'JsonWebTokenError' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_INVALID",
-    "message": "Mã truy cập không hợp lệ hoặc chữ ký sai.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -125,38 +110,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server AI Gateway đang hoạt động bình thường.
+- Passport trả `info.name = "TokenExpiredError"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có.
+- Header `Authorization: Bearer <EXPIRED_TOKEN>`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, { name: 'TokenExpiredError' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_EXPIRED",
-    "message": "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_TOKEN_EXPIRED"`, `message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -170,37 +140,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Tài khoản Giảng viên `id = 99` sở hữu Token đã bị chuyển cờ `is_active = false`.
+- Token hợp lệ nhưng tài khoản đã bị xóa mềm/vô hiệu hóa.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có.
+- `prisma.user.findFirst` trả `null`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Đính kèm Header `Authorization: Bearer <DISABLED_USER_TOKEN>`.
-3. Gửi Request lên hệ thống.
+1. Gọi `JwtStrategy.validate({ id, token_type: 'access' })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_ACCOUNT_DISABLED",
-    "message": "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_ACCOUNT_DISABLED"`, `message = "Tài khoản không còn hoạt động."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -214,37 +170,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Dịch vụ cơ sở dữ liệu quản lý quota bị ngắt kết nối giả lập (Mock DB connection error).
+- Dịch vụ cơ sở dữ liệu quản lý quota bị ngắt kết nối giả lập.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có (None).
-- **Mock State**: `DatabaseConnectionPool.status = 'DISCONNECTED'`.
+- `prisma.$transaction` ném `Error('Connection refused')`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Kích hoạt trạng thái lỗi ngắt kết nối database trên mock server.
-2. Gửi Request `GET /api/v1/ai/quota` với `VALID_INSTRUCTOR_TOKEN`.
+1. Gọi `AiQuotaService.snapshot(userId)`; cho `ApiExceptionFilter` bắt ngoại lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `500 Internal Server Error`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 500,
-    "error_code": "INTERNAL_SERVER_ERROR",
-    "message": "Đã xảy ra lỗi máy chủ nội bộ. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `500`, `error_code = "INTERNAL_SERVER_ERROR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -262,38 +204,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_hung` còn hạn ngạch: `daily_limit_tokens = 50000`, `used_tokens_today = 12450`.
+- Giảng viên đã xác thực, có cấu hình quota hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có.
+- `dailyTokenLimit = 50000`, `usedTokensToday = 15000`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Đính kèm Header `Authorization: Bearer <VALID_INSTRUCTOR_TOKEN>`.
-3. Gửi Request lên hệ thống.
+1. `aiQuotaConfig.findFirst`/`findUnique` trả cấu hình quota; gọi `AiQuotaService.snapshot(userId)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Lấy thông tin hạn ngạch AI thành công",
-    "data": {
-      "daily_limit_tokens": 50000,
-      "used_tokens_today": 12450,
-      "remaining_tokens": 37550,
-      "percentage_used": 24.9,
-      "reset_at_utc": "2026-10-05T00:00:00.000Z"
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `daily_limit_tokens = 50000`, `used_tokens_today = 15000`, `remaining_tokens = 35000`, `reset_at_utc` là đầu ngày UTC kế tiếp.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -307,42 +230,83 @@ Normal
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_quang` đã dùng hết toàn bộ hạn ngạch trong ngày (`used_tokens_today = 50000`).
+- Giảng viên đã dùng đúng bằng hạn mức trong ngày.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `GET /api/v1/ai/quota`
-- **Body Input**: Không có.
+- `dailyTokenLimit = 50000`, `usedTokensToday = 50000`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `GET /api/v1/ai/quota`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. Gửi Request lên hệ thống.
+1. `aiQuotaConfig.findFirst`/`findUnique` trả cấu hình quota; gọi `AiQuotaService.snapshot(userId)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Lấy thông tin hạn ngạch AI thành công",
-    "data": {
-      "daily_limit_tokens": 50000,
-      "used_tokens_today": 50000,
-      "remaining_tokens": 0,
-      "percentage_used": 100.0,
-      "reset_at_utc": "2026-10-05T00:00:00.000Z"
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `remaining_tokens = 0` (dùng `Math.max(0, ...)` để không trả số âm).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiQuota_TC008: Giảng viên chưa được cấu hình hạn ngạch AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Người dùng chưa có bản ghi `aiQuotaConfig` (hoặc bản ghi đã bị xóa mềm).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `aiQuotaConfig.findFirst` trả `null`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiQuotaService.snapshot(userId)` khi không tìm thấy cấu hình quota.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `403`, `error_code = "AI_QUOTA_NOT_CONFIGURED"`, `message = "Tài khoản chưa được cấu hình hạn ngạch AI."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiQuota_TC009: Tự động đặt lại hạn ngạch khi sang ngày UTC mới
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bản ghi quota có `lastResetDate` là ngày hôm qua (UTC).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `dailyTokenLimit = 50000`, `usedTokensToday = 40000`, `lastResetDate` = hôm qua.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `aiQuotaConfig.findFirst` trả cấu hình cũ; `updateMany` reset; `findUnique` trả cấu hình đã reset; gọi `AiQuotaService.snapshot(userId)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `updateMany` được gọi để reset; HTTP `200` với `used_tokens_today = 0`, `remaining_tokens = 50000`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -354,7 +318,7 @@ Binary
 
 # ==============================================================================
 
-# PHẦN 2: API POST /api/v1/ai/generate-testcases (UC-10: SINH TESTCASE BIÊN TỰ ĐỘNG)
+# PHẦN 2: API POST /api/v1/ai/generate-testcases (SINH TESTCASE TỰ ĐỘNG)
 
 # ==============================================================================
 
@@ -362,46 +326,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Hệ thống Web Server AI Gateway đang hoạt động bình thường.
-- Request không truyền header Authorization.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên dương N (1 <= N <= 10^6). Tính tổng các ước số nguyên của N.",
-    "language": "C",
-    "count": 3
-  }
-  ```
+- Header `Authorization` bỏ trống.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -411,49 +352,27 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC002: Quản trị viên (ADMIN) không có quyền gọi API sinh testcase của Giảng viên
+# UT03_AiGenerateTestcases_TC002: Quản trị viên (ADMIN) không có quyền gọi API sinh testcase
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
+- Người gọi xác thực hợp lệ với `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên N. Đếm số lượng ước số của N.",
-    "language": "C",
-    "count": 3
-  }
-  ```
+- `request.user.role = "ADMIN"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `RolesGuard.canActivate(context)` với yêu cầu `@Roles('INSTRUCTOR')`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_PERMISSION_DENIED",
-    "message": "Chỉ Giảng viên mới có quyền sử dụng tính năng sinh testcase AI.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`, `message = "Bạn không có quyền thực hiện thao tác này."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -467,49 +386,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_quang` đã dùng hết hạn ngạch 50,000/50,000 tokens trong ngày.
+- Tài khoản đã dùng hết quota, bước `reserve` thất bại.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên dương N. Liệt kê tất cả các ước số lẻ của N.",
-    "language": "PYTHON",
-    "count": 3
-  }
-  ```
+- `OpenRouterService.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.generateTestcases(userId, dto)` với `provider.generateJson` ném lỗi 429.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `429 Too Many Requests`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 429,
-    "error_code": "AI_QUOTA_EXCEEDED",
-    "message": "Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày (50,000/50,000 tokens). Vui lòng liên hệ Quản trị viên để cấp thêm quota hoặc đợi sang ngày hôm sau.",
-    "details": {
-      "daily_limit": 50000,
-      "current_usage": 50000,
-      "reset_at": "2026-10-05T00:00:00.000Z"
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `429`, `error_code = "AI_QUOTA_EXCEEDED"`, `message = "Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -523,49 +416,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "language": "C",
-    "count": 3
-  }
-  ```
+- Body: `{ language: "C" }` (thiếu `problem_description`).
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với request body thiếu trường `problem_description`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "problem_description",
-        "issue": "Mô tả bài toán (problem_description) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "problem_description", issues: ["problem_description must be a string"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -575,57 +442,27 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC005: problem_description có độ dài dưới 20 ký tự (Vi phạm biên minLength)
+# UT03_AiGenerateTestcases_TC005: problem_description có độ dài dưới 20 ký tự (Biên dưới)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-
-  ```json
-  {
-    "problem_description": "Tinh uoc so cua N.",
-    "language": "C",
-    "count": 3
-  }
-  ```
-
-  *(Chuỗi `"Tinh uoc so cua N."` có đúng 19 ký tự, vi phạm quy định minLength: 20)*
+- `problem_description = "Too short"` (9 ký tự).
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với request body chứa 19 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "problem_description",
-        "issue": "Mô tả bài toán phải có độ dài tối thiểu 20 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "problem_description", issues: ["problem_description must be longer than or equal to 20 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -635,57 +472,27 @@ Binary
 
 ---
 
-# UT03_AiGenerateTestcases_TC006: problem_description có độ dài vượt quá 5000 ký tự (Vi phạm biên maxLength)
+# UT03_AiGenerateTestcases_TC006: problem_description vượt quá 5000 ký tự (Biên trên)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-
-  ```json
-  {
-    "problem_description": "A...[chuỗi ký tự A lặp lại đúng 5001 lần]...A",
-    "language": "C",
-    "count": 3
-  }
-  ```
-
-  *(Tổng độ dài chuỗi là 5001 ký tự, vượt quá ngưỡng 5000 ký tự)*
+- `problem_description = "a".repeat(5001)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Tạo chuỗi ký tự độ dài 5001 ký tự.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "problem_description",
-        "issue": "Mô tả bài toán không được vượt quá 5000 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "problem_description", issues: ["problem_description must be shorter than or equal to 5000 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -699,49 +506,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên dương N. Tính tổng các ước số nguyên tố của N.",
-    "count": 3
-  }
-  ```
+- Body có `problem_description` hợp lệ nhưng thiếu `language`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với request body không có trường `language`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "language",
-        "issue": "Ngôn ngữ lập trình (language) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `field = "language"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -751,54 +532,27 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC008: Ngôn ngữ lập trình không hợp lệ (Không thuộc Enum [C, JAVA, PYTHON])
+# UT03_AiGenerateTestcases_TC008: Ngôn ngữ lập trình không hợp lệ (Không thuộc Enum)
 
 #### Loại test
 
-Binary
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên N. In ra số Fibonacci thứ N trong dãy.",
-    "language": "RUBY",
-    "count": 3
-  }
-  ```
+- `language = "JAVASCRIPT"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với `language = "ruby"`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "language",
-        "issue": "Ngôn ngữ không được hỗ trợ. Giá trị hợp lệ: C, JAVA, PYTHON."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "language", issues: ["language must be one of the following values: C, JAVA, PYTHON, WEB"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -808,61 +562,27 @@ Binary
 
 ---
 
-# UT03_AiGenerateTestcases_TC009: Số lượng testcase count nhỏ hơn 1 hoặc lớn hơn 10 (Vi phạm khoảng min 1 max 10)
+# UT03_AiGenerateTestcases_TC009: Số lượng testcase count nằm ngoài khoảng [1, 10]
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Body Input A (Dưới biên min: `count = 0`)**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên N. Kiểm tra tính chẵn lẻ của N.",
-    "language": "C",
-    "count": 0
-  }
-  ```
-- **Body Input B (Trên biên max: `count = 11`)**:
-  ```json
-  {
-    "problem_description": "Nhập vào số nguyên N. Kiểm tra tính chẵn lẻ của N.",
-    "language": "C",
-    "count": 11
-  }
-  ```
+- Trường hợp A: `count = 0`. Trường hợp B: `count = 11`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request ``.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` lần lượt với payload a và payload b.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: GenerateTestcasesDto })` cho từng trường hợp.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Cả 2 request đều nhận HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "count",
-        "issue": "Số lượng testcase sinh tự động phải nằm trong khoảng từ 1 đến 10."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `count must not be less than 1` (A) và `count must not be greater than 10` (B).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -872,50 +592,27 @@ Binary
 
 ---
 
-# UT03_AiGenerateTestcases_TC010: Dịch vụ Google Gemini AI bị gián đoạn kết nối hoặc quá tải (503 Service Unavailable)
+# UT03_AiGenerateTestcases_TC010: Dịch vụ AI gặp sự cố kết nối hoặc quá tải
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Google Gemini API phía ngoài trả mã lỗi 503 hoặc timeout kết nối mạng quá 30 giây.
+- Nhà cung cấp AI phản hồi lỗi (không phải 429).
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập mảng số nguyên A gồm N phần tử. Tìm giá trị lớn nhất trong mảng.",
-    "language": "C",
-    "count": 3
-  }
-  ```
-- **Mock State**: `GeminiService.generateContent() -> throws TimeoutException(30000ms)`.
+- Client nội bộ ném lỗi `{ status: 503 }`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Cấu hình mock Gemini Service ném lỗi gián đoạn dịch vụ / timeout 30s.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `OpenRouterService.generateJson(...)` với tầng HTTP `post()` ném `{ status: 503 }`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `503 Service Unavailable`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 503,
-    "error_code": "AI_SERVICE_UNAVAILABLE",
-    "message": "Dịch vụ Gemini AI hiện không khả dụng hoặc phản hồi quá lâu. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`, `message = "Không thể nhận phản hồi từ dịch vụ AI."`, và quota đã đặt trước được hoàn (`release`).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -925,50 +622,27 @@ Abnormal
 
 ---
 
-# UT03_AiGenerateTestcases_TC011: Phản hồi từ mô hình Gemini AI bị lỗi cấu trúc JSON (Parsing Failed)
+# UT03_AiGenerateTestcases_TC011: Phản hồi từ mô hình AI bị sai cấu trúc JSON
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Google Gemini API trả chuỗi Markdown tự do không parse được thành JSON mảng testcases.
+- OpenRouter trả JSON thiếu trường `testcases` hoặc số phần tử không khớp `count`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Giải phương trình bậc hai ax^2 + bx + c = 0.",
-    "language": "JAVA",
-    "count": 3
-  }
-  ```
-- **Mock Gemini Output**: `"Xin lỗi, tôi không thể tạo JSON theo định dạng yêu cầu được."`
+- `provider.generateJson` trả `{ data: { testcases: undefined }, tokensConsumed: 10 }`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. Thiết lập mock Gemini trả về chuỗi text thuần túy không chứa cấu trúc JSON.
-4. Gửi Request `POST /api/v1/ai/generate-testcases`.
+1. Gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `500 Internal Server Error`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 500,
-    "error_code": "AI_RESPONSE_PARSING_FAILED",
-    "message": "Mô hình AI trả về dữ liệu sai định dạng cấu trúc testcase.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"`, `message = "Dịch vụ AI trả về dữ liệu không đúng định dạng."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -986,62 +660,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
-- Dịch vụ Gemini AI hoạt động ổn định.
+- Giảng viên đã xác thực, còn hạn ngạch, OpenRouter trả đúng cấu trúc.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Viết chương trình nhập vào số nguyên dương N (1 <= N <= 10^6). Tính tổng các ước số của N.",
-    "language": "C"
-  }
-  ```
+- Body: `{ problem_description: <chuỗi hợp lệ>, language: "C" }`; OpenRouter trả 3 testcase hợp lệ.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với request body ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả `{ data: { testcases: [...3 phần tử...] }, tokensConsumed: 1234 }`; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Sinh testcase tự động bằng AI thành công",
-    "data": {
-      "tokens_consumed": 420,
-      "testcases": [
-        {
-          "input": "1",
-          "expected_output": "1",
-          "explanation": "Biên dưới nhỏ nhất N = 1",
-          "is_boundary": true
-        },
-        {
-          "input": "1000000",
-          "expected_output": "2480437",
-          "explanation": "Biên trên tối đa N = 10^6",
-          "is_boundary": true
-        },
-        {
-          "input": "999983",
-          "expected_output": "999984",
-          "explanation": "Số nguyên tố lớn chỉ có 2 ước",
-          "is_boundary": true
-        }
-      ]
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `message = "Sinh testcase tự động bằng AI thành công"`, `data.tokens_consumed = 1234`, `data.testcases` có 3 phần tử đủ trường `input/expected_output/explanation/is_boundary`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1055,36 +686,23 @@ Normal
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Kiểm tra xem số nguyên dương N có phải là số chính phương hay không.",
-    "language": "C",
-    "count": 1,
-    "include_boundary": true
-  }
-  ```
+- `count = 1`; OpenRouter trả đúng 1 testcase.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với `count = 1`.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả 1 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.testcases`: Mảng có chính xác 1 phần tử testcase biên.
+- HTTP `200`, `data.testcases` có đúng 1 phần tử.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1098,36 +716,23 @@ Binary
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Nhập ma trận vuông cấp N. Tính định thức của ma trận vuông các số thực.",
-    "language": "JAVA",
-    "count": 10,
-    "include_boundary": true
-  }
-  ```
+- `count = 10`; OpenRouter trả đúng 10 testcase.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với `count = 10`.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả 10 testcase hợp lệ; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.testcases`: Mảng gồm đúng 10 phần tử testcases.
+- HTTP `200`, `data.testcases` có đúng 10 phần tử.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1137,42 +742,28 @@ Binary
 
 ---
 
-# UT03_AiGenerateTestcases_TC015: Sinh testcase thành công với problem_description có độ dài đúng biên dưới (20 ký tự)
+# UT03_AiGenerateTestcases_TC015: Sinh testcase thành công với problem_description dài đúng biên dưới (20 ký tự)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-
-  ```json
-  {
-    "problem_description": "Tim uoc so nguyen N!",
-    "language": "JAVA",
-    "count": 2
-  }
-  ```
-
-  *(Chuỗi `"Tim uoc so nguyen N!"` có chính xác 20 ký tự)*
+- `problem_description = "a".repeat(20)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với request body chứa đúng 20 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AiGatewayService.generateTestcases(userId, dto)` với OpenRouter trả đúng `count` testcase.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Hệ thống chấp nhận chuỗi 20 ký tự và trả về `data.testcases` có 2 phần tử.
+- Validation hợp lệ, HTTP `200`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1190,32 +781,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/generate-testcases`
-- **Body Input**:
-  ```json
-  {
-    "problem_description": "Đọc file văn bản và đếm tần số xuất hiện của từng từ tiếng Anh.",
-    "language": "PYTHON",
-    "count": 3,
-    "include_boundary": false
-  }
-  ```
+- `language = "PYTHON"`, `include_boundary = false`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/generate-testcases`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/generate-testcases` với `include_boundary = false`.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả đúng testcase; gọi `AiGatewayService.generateTestcases(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.testcases`: Chứa 3 testcase bình thường, các giá trị `is_boundary` đều là `false`.
+- Prompt gửi OpenRouter chứa ngôn ngữ PYTHON và KHÔNG chèn cụm "including boundary cases"; HTTP `200`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1223,12 +801,41 @@ Normal
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
 |  Lần 1  |            |                    |                                     |                  |              |          |
 
+---
+
+# UT03_AiGenerateTestcases_TC017: Vượt giới hạn tần suất gọi API AI (Throttle)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã gửi quá 15 yêu cầu POST trong 60 giây.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `AdaptiveThrottlerGuard` với `limit = 15`, `ttl = 60s`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `AdaptiveThrottlerGuard.throwThrottlingException(...)` khi vượt ngưỡng.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `429`, `error_code = "RATE_LIMIT_EXCEEDED"`, `message = "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau."`, `details = { limit: 15, retry_after_seconds: 60 }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
 
 ---
 
 # ==============================================================================
 
-# PHẦN 3: API POST /api/v1/ai/review-code (UC-16: PHÂN TÍCH LỖI VÀ NHẬN XÉT SƯ PHẠM)
+# PHẦN 3: API POST /api/v1/ai/review-code (PHÂN TÍCH LỖI BÀI WA)
 
 # ==============================================================================
 
@@ -1236,50 +843,23 @@ Normal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Request không truyền Token xác thực.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); printf(\"%d\", a*2); return 0; }",
-    "language": "C",
-    "problem_statement": "Nhập số a, in ra gấp đôi số a.",
-    "failed_testcase": {
-      "input": "5",
-      "expected_output": "10",
-      "actual_output": "5"
-    }
-  }
-  ```
+- Header `Authorization` bỏ trống.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1289,54 +869,27 @@ Abnormal
 
 ---
 
-# UT03_AiReviewCode_TC002: Quản trị viên (ADMIN) không có quyền gọi API review code của Giảng viên
+# UT03_AiReviewCode_TC002: Quản trị viên (ADMIN) không có quyền gọi API review code
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
+- Người gọi xác thực hợp lệ với `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ printf(\"Hello\"); return 0; }",
-    "language": "C",
-    "problem_statement": "In ra Hello",
-    "failed_testcase": {
-      "input": "",
-      "expected_output": "Hello",
-      "actual_output": "Hi"
-    }
-  }
-  ```
+- `request.user.role = "ADMIN"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `RolesGuard.canActivate(context)` với `@Roles('INSTRUCTOR')`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_PERMISSION_DENIED",
-    "message": "Chỉ Giảng viên mới có quyền sử dụng tính năng nhận xét sư phạm On-Demand.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1350,53 +903,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_quang` đã dùng hết quota 50,000/50,000 tokens.
+- Bước `reserve` thất bại do vượt quota.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); printf(\"%d\", a); return 0; }",
-    "language": "C",
-    "problem_statement": "In ra so a",
-    "failed_testcase": {
-      "input": "1",
-      "expected_output": "1",
-      "actual_output": "0"
-    }
-  }
-  ```
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `429 Too Many Requests`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 429,
-    "error_code": "AI_QUOTA_EXCEEDED",
-    "message": "Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày.",
-    "details": {
-      "daily_limit": 50000,
-      "current_usage": 50000
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `429`, `error_code = "AI_QUOTA_EXCEEDED"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1410,54 +933,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "language": "C",
-    "problem_statement": "Tính tổng ước số của N.",
-    "failed_testcase": {
-      "input": "6",
-      "expected_output": "12",
-      "actual_output": "6"
-    }
-  }
-  ```
+- Body thiếu `source_code`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với body thiếu `source_code`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "source_code",
-        "issue": "Mã nguồn bài làm (source_code) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "source_code", issues: ["source_code must be a string"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1467,62 +959,27 @@ Abnormal
 
 ---
 
-# UT03_AiReviewCode_TC005: source_code có độ dài nhỏ hơn 10 ký tự (Vi phạm biên minLength)
+# UT03_AiReviewCode_TC005: source_code có độ dài nhỏ hơn 10 ký tự (Biên dưới)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-
-  ```json
-  {
-    "source_code": "int a=1;",
-    "language": "C",
-    "problem_statement": "Tính tổng các ước số",
-    "failed_testcase": {
-      "input": "1",
-      "expected_output": "1",
-      "actual_output": "0"
-    }
-  }
-  ```
-
-  *(Chuỗi `"int a=1;"` chỉ có 8 ký tự, vi phạm minLength: 10)*
+- `source_code = "int a;"` (6 ký tự).
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với `source_code` dưới 10 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "source_code",
-        "issue": "Mã nguồn phải có độ dài tối thiểu 10 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "source_code", issues: ["source_code must be longer than or equal to 10 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1532,59 +989,27 @@ Binary
 
 ---
 
-# UT03_AiReviewCode_TC006: source_code vượt quá độ dài tối đa 10000 ký tự (Vi phạm biên maxLength)
+# UT03_AiReviewCode_TC006: source_code vượt quá độ dài tối đa 10000 ký tự (Biên trên)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "int main(){ /* ...chuỗi comment dài 10001 ký tự... */ return 0; }",
-    "language": "C",
-    "problem_statement": "Bài toán lớn",
-    "failed_testcase": {
-      "input": "0",
-      "expected_output": "0",
-      "actual_output": "1"
-    }
-  }
-  ```
+- `source_code = "a".repeat(10001)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Tạo chuỗi mã nguồn có độ dài 10001 ký tự.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "source_code",
-        "issue": "Mã nguồn không được vượt quá 10000 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "source_code", issues: ["source_code must be shorter than or equal to 10000 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1598,54 +1023,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "language": "C",
-    "failed_testcase": {
-      "input": "1",
-      "expected_output": "1",
-      "actual_output": "0"
-    }
-  }
-  ```
+- Body thiếu `problem_statement`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` thiếu trường `problem_statement`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "problem_statement",
-        "issue": "Đề bài (problem_statement) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `field = "problem_statement"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1659,55 +1053,23 @@ Abnormal
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "language": "C",
-    "problem_statement": "Mô tả đề bài...[chuỗi văn bản lặp lại gồm 3005 ký tự]...",
-    "failed_testcase": {
-      "input": "1",
-      "expected_output": "1",
-      "actual_output": "0"
-    }
-  }
-  ```
+- `problem_statement = "a".repeat(3001)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với `problem_statement` gồm 3005 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "problem_statement",
-        "issue": "Đề bài không được vượt quá 3000 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "problem_statement", issues: ["problem_statement must be shorter than or equal to 3000 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1721,50 +1083,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "language": "C",
-    "problem_statement": "Tính tổng các ước số của N"
-  }
-  ```
+- Body thiếu `failed_testcase`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` không truyền object `failed_testcase`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "failed_testcase",
-        "issue": "Thông tin testcase bị sai (failed_testcase) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "failed_testcase", issues: ["failed_testcase must be an object"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1774,58 +1109,27 @@ Abnormal
 
 ---
 
-# UT03_AiReviewCode_TC010: Object failed_testcase thiếu một trong các trường con bắt buộc (expected_output)
+# UT03_AiReviewCode_TC010: Object failed_testcase thiếu trường con bắt buộc (expected_output)
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động (có `ValidateNested`).
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "language": "C",
-    "problem_statement": "Tính tổng các ước số",
-    "failed_testcase": {
-      "input": "6",
-      "actual_output": "6"
-    }
-  }
-  ```
+- `failed_testcase = { input: "1 2", actual_output: "4" }` (thiếu `expected_output`).
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với `failed_testcase` thiếu `expected_output`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: ReviewCodeDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "failed_testcase.expected_output",
-        "issue": "Kết quả kỳ vọng của testcase (expected_output) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `field = "failed_testcase"` (lỗi lồng từ DTO con được báo ở trường cha).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1835,55 +1139,27 @@ Abnormal
 
 ---
 
-# UT03_AiReviewCode_TC011: Dịch vụ Gemini AI gặp sự cố kết nối hoặc model quá tải (503 Service Unavailable)
+# UT03_AiReviewCode_TC011: Dịch vụ AI gặp sự cố kết nối hoặc model quá tải
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Google Gemini API trả mã lỗi 503 hoặc timeout kết nối mạng quá 30 giây.
+- Nhà cung cấp AI phản hồi lỗi (không phải 429).
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); printf(\"%d\", a); return 0; }",
-    "language": "C",
-    "problem_statement": "In ra số a",
-    "failed_testcase": {
-      "input": "5",
-      "expected_output": "5",
-      "actual_output": "0"
-    }
-  }
-  ```
-- **Mock State**: `GeminiService.reviewCode() -> throws TimeoutException(30000ms)`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Giả lập lỗi timeout mạng hoặc mã lỗi 503 từ máy chủ Google Gemini.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `503 Service Unavailable`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 503,
-    "error_code": "AI_SERVICE_UNAVAILABLE",
-    "message": "Dịch vụ Gemini AI hiện không khả dụng hoặc phản hồi quá lâu. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1901,51 +1177,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn hạn ngạch Token.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main() {\n  int n; scanf(\"%d\", &n);\n  int sum = 0;\n  for(int i=1; i<n; i++) if(n%i==0) sum+=i;\n  printf(\"%d\", sum);\n  return 0;\n}",
-    "language": "C",
-    "problem_statement": "Tính tổng tất cả các ước số của số nguyên dương N (bao gồm cả N).",
-    "failed_testcase": {
-      "input": "6",
-      "expected_output": "12",
-      "actual_output": "6"
-    }
-  }
-  ```
+- `source_code` C lỗi `for (i = 0; i <= n; i++)`; OpenRouter trả `suspected_error_line = 4`, các trường chuỗi đầy đủ.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với payload ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả `{ data: { suspected_error_line: 4, issue_summary, pedagogical_feedback, bug_category }, tokensConsumed: 900 }`; gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Phân tích mã nguồn bằng AI thành công",
-    "data": {
-      "tokens_consumed": 380,
-      "suspected_error_line": 5,
-      "issue_summary": "Thiếu ước số chính là N do điều kiện dừng vòng lặp là i < n thay vì i <= n.",
-      "pedagogical_feedback": "Em đã xử lý đúng thuật toán duyệt ước, tuy nhiên đề bài yêu cầu tính cả chính số N. Em hãy kiểm tra lại điều kiện vòng for(i=1; i<=n; i++) nhé.",
-      "bug_category": "OFF_BY_ONE_ERROR"
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `message = "Phân tích mã nguồn bằng AI thành công"`, `data.suspected_error_line = 4`, `data.tokens_consumed = 900`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1955,7 +1199,7 @@ Normal
 
 ---
 
-# UT03_AiReviewCode_TC013: Phân tích lỗi mã nguồn Java thành công (Lỗi logic điều kiện rẽ nhánh)
+# UT03_AiReviewCode_TC013: Phân tích lỗi mã nguồn Java thành công (Không xác định được dòng lỗi)
 
 #### Loại test
 
@@ -1963,41 +1207,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "import java.util.Scanner;\npublic class Main {\n  public static void main(String[] args){\n    Scanner sc = new Scanner(System.in);\n    int a = sc.nextInt();\n    if (a % 4 == 0) System.out.println(\"YES\");\n    else System.out.println(\"NO\");\n  }\n}",
-    "language": "JAVA",
-    "problem_statement": "Kiểm tra năm nhuận dương lịch (chia hết cho 400 hoặc chia hết cho 4 nhưng không chia hết cho 100).",
-    "failed_testcase": {
-      "input": "1900",
-      "expected_output": "NO",
-      "actual_output": "YES"
-    }
-  }
-  ```
+- OpenRouter KHÔNG trả `suspected_error_line` (trường tùy chọn).
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với payload java ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả dữ liệu hợp lệ không có `suspected_error_line`; gọi `AiGatewayService.reviewCode(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  - `success`: `true`
-  - `status_code`: `200`
-  - `data.bug_category`: `"LOGIC_CONDITION_ERROR"`
-  - `data.suspected_error_line`: 6
-  - `data.pedagogical_feedback`: Nhắc nhở sinh viên bổ sung điều kiện loại trừ năm tròn thế kỷ không chia hết cho 400 (`a % 100 != 0 || a % 400 == 0`).
+- HTTP `200`, `data.suspected_error_line` là `undefined` nhưng vẫn hợp lệ.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2007,48 +1229,28 @@ Normal
 
 ---
 
-# UT03_AiReviewCode_TC014: Phân tích mã nguồn Python với source_code có độ dài đúng biên dưới (10 ký tự)
+# UT03_AiReviewCode_TC014: Phân tích mã nguồn với source_code dài đúng biên dưới (10 ký tự)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-
-  ```json
-  {
-    "source_code": "print(1/0)",
-    "language": "PYTHON",
-    "problem_statement": "In ra kết quả phép chia",
-    "failed_testcase": {
-      "input": "",
-      "expected_output": "0",
-      "actual_output": "ZeroDivisionError"
-    }
-  }
-  ```
-
-  *(Chuỗi `"print(1/0)"` có đúng 10 ký tự)*
+- `source_code = "a".repeat(10)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với mã nguồn python 10 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AiGatewayService.reviewCode(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.bug_category`: `"DIVISION_BY_ZERO"`
-- `data.pedagogical_feedback`: Chỉ ra lỗi chia cho số 0 trong Python.
+- Validation hợp lệ, HTTP `200`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2062,41 +1264,24 @@ Binary
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
-- Bài làm của sinh viên không in ra bất kỳ ký tự nào ra màn hình (`actual_output = ""`).
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/review-code`
-- **Body Input**:
-  ```json
-  {
-    "source_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); return 0; }",
-    "language": "C",
-    "problem_statement": "Nhập số a và in ra bình phương của a.",
-    "failed_testcase": {
-      "input": "5",
-      "expected_output": "25",
-      "actual_output": ""
-    }
-  }
-  ```
+- `failed_testcase.actual_output = ""`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/review-code`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/review-code` với `actual_output = ""`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi (chuỗi rỗng vẫn hợp lệ do chỉ có `MaxLength`).
+2. Gọi `AiGatewayService.reviewCode(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.issue_summary`: Chỉ rõ bài làm thiếu thao tác in kết quả `printf`.
+- Chuỗi rỗng hợp lệ, HTTP `200`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2108,7 +1293,7 @@ Binary
 
 # ==============================================================================
 
-# PHẦN 4: API POST /api/v1/ai/verify-plagiarism (UC-17: XÁC THỰC ĐẠO VĂN VÒNG 2)
+# PHẦN 4: API POST /api/v1/ai/verify-plagiarism (XÁC THỰC ĐẠO VĂN VÒNG 2)
 
 # ==============================================================================
 
@@ -2116,46 +1301,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Request không đính kèm Token xác thực.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); printf(\"%d\", a); return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int b; scanf(\"%d\", &b); printf(\"%d\", b); return 0; }",
-    "ast_similarity_percentage": 95.0,
-    "language": "C"
-  }
-  ```
+- Header `Authorization` bỏ trống.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2165,50 +1327,27 @@ Abnormal
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC002: Quản trị viên (ADMIN) không có quyền gọi API xác thực đạo văn của Giảng viên
+# UT03_AiVerifyPlagiarism_TC002: Quản trị viên (ADMIN) không có quyền gọi API xác thực đạo văn
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
+- Người gọi xác thực hợp lệ với `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a; return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int b; return 0; }",
-    "ast_similarity_percentage": 90.0,
-    "language": "C"
-  }
-  ```
+- `request.user.role = "ADMIN"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `RolesGuard.canActivate(context)` với `@Roles('INSTRUCTOR')`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_PERMISSION_DENIED",
-    "message": "Chỉ Giảng viên mới có quyền sử dụng tính năng giám định đạo văn AI Vòng 2.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2222,46 +1361,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_quang` đã dùng hết 50,000/50,000 tokens.
+- Bước `reserve` thất bại do vượt quota.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a; return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int b; return 0; }",
-    "ast_similarity_percentage": 92.0,
-    "language": "C"
-  }
-  ```
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `429 Too Many Requests`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 429,
-    "error_code": "AI_QUOTA_EXCEEDED",
-    "message": "Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `429`, `error_code = "AI_QUOTA_EXCEEDED"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2275,50 +1391,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "ast_similarity_percentage": 90.0,
-    "language": "C"
-  }
-  ```
+- Body thiếu `student_b_code`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` thiếu `student_b_code`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "student_b_code",
-        "issue": "Mã nguồn bài nộp 2 (student_b_code) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "student_b_code", issues: ["student_b_code must be a string"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2332,54 +1421,23 @@ Abnormal
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-
-  ```json
-  {
-    "student_a_code": "int a=0;",
-    "student_b_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "ast_similarity_percentage": 85.0,
-    "language": "C"
-  }
-  ```
-
-  *(Chuỗi `"int a=0;"` có đúng 8 ký tự, vi phạm minLength: 10)*
+- `student_a_code = "abc"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với `student_a_code` 8 ký tự.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "student_a_code",
-        "issue": "Mã nguồn bài nộp 1 phải có độ dài tối thiểu 10 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "student_a_code", issues: ["student_a_code must be longer than or equal to 10 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2393,51 +1451,23 @@ Binary
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "student_b_code": "int main(){ /* ...chuỗi dài 10005 ký tự... */ return 0; }",
-    "ast_similarity_percentage": 85.0,
-    "language": "C"
-  }
-  ```
+- `student_a_code = "a".repeat(10001)`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Tạo mã nguồn `student_b_code` có độ dài 10005 ký tự.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "student_b_code",
-        "issue": "Mã nguồn bài nộp không được vượt quá 10000 ký tự."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "student_a_code", issues: ["student_a_code must be shorter than or equal to 10000 characters"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2447,56 +1477,27 @@ Binary
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC007: ast_similarity_percentage nhỏ hơn 80.0% (Vi phạm ngưỡng tối thiểu đưa vào Vòng 2)
+# UT03_AiVerifyPlagiarism_TC007: ast_similarity_percentage nhỏ hơn 80.0% (Biên dưới)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
-- Quy định hệ thống: Chỉ các cặp bài nộp có AST >= 80.0% mới được chuyển sang AI Vòng 2.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int x; scanf(\"%d\", &x); return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int y; scanf(\"%d\", &y); return 0; }",
-    "ast_similarity_percentage": 79.9,
-    "language": "C"
-  }
-  ```
+- `ast_similarity_percentage = 79.9`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 79.9`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "ast_similarity_percentage",
-        "issue": "Độ tương đồng AST đưa vào xác thực vòng 2 phải đạt tối thiểu 80.0%."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "ast_similarity_percentage", issues: ["ast_similarity_percentage must not be less than 80"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2506,55 +1507,27 @@ Binary
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC008: ast_similarity_percentage lớn hơn 100.0%
+# UT03_AiVerifyPlagiarism_TC008: ast_similarity_percentage lớn hơn 100.0% (Biên trên)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a; return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int b; return 0; }",
-    "ast_similarity_percentage": 105.0,
-    "language": "C"
-  }
-  ```
+- `ast_similarity_percentage = 100.1`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 105.0`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "ast_similarity_percentage",
-        "issue": "Độ tương đồng AST không được vượt quá 100.0%."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "ast_similarity_percentage", issues: ["ast_similarity_percentage must not be greater than 100"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2568,50 +1541,23 @@ Binary
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ return 0; }",
-    "ast_similarity_percentage": 95.0
-  }
-  ```
+- Body thiếu `language`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` thiếu trường `language`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: VerifyPlagiarismDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "language",
-        "issue": "Ngôn ngữ lập trình (language) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `field = "language"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2621,51 +1567,27 @@ Abnormal
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC010: Dịch vụ Gemini AI gặp sự cố kết nối hoặc mạng bị timeout khi giám định đạo văn
+# UT03_AiVerifyPlagiarism_TC010: Dịch vụ AI gặp sự cố kết nối hoặc mạng bị timeout
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Google Gemini API trả lỗi 503 hoặc timeout kết nối mạng quá 30 giây.
+- Nhà cung cấp AI phản hồi lỗi.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a; scanf(\"%d\", &a); return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int b; scanf(\"%d\", &b); return 0; }",
-    "ast_similarity_percentage": 90.0,
-    "language": "C"
-  }
-  ```
-- **Mock State**: `GeminiService.verifyPlagiarism() -> throws TimeoutException(30000ms)`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Cấu hình mock Gemini Service gặp lỗi timeout 30s.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `503 Service Unavailable`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 503,
-    "error_code": "AI_SERVICE_UNAVAILABLE",
-    "message": "Dịch vụ Gemini AI hiện không khả dụng hoặc phản hồi quá lâu. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2683,53 +1605,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn hạn ngạch Token.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main() {\n  int n; scanf(\"%d\", &n);\n  int sum = 0;\n  for(int i=1; i<=n; i++) if(n%i==0) sum+=i;\n  printf(\"%d\", sum);\n  return 0;\n}",
-    "student_b_code": "#include <stdio.h>\nint main() {\n  int total = 0;\n  int m; scanf(\"%d\", &m);\n  for(int j=1; j<=m; j++) {\n    if (m % j == 0) total += j;\n  }\n  printf(\"%d\", total);\n  return 0;\n}",
-    "ast_similarity_percentage": 94.8,
-    "language": "C"
-  }
-  ```
+- OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 92`, `cloned_segments` có 1 phần tử.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với request body ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả dữ liệu hợp lệ; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Phân tích bằng chứng đạo văn thành công",
-    "data": {
-      "tokens_consumed": 510,
-      "is_plagiarized": true,
-      "confidence_percentage": 94.8,
-      "evidence_summary": "Phát hiện đổi tên biến n -> m, sum -> total, hoán đổi thứ tự câu lệnh if không làm thay đổi luồng điều khiển; cấu trúc giải thuật giống nhau 100%.",
-      "cloned_segments": [
-        {
-          "student_a_lines": "5-9",
-          "student_b_lines": "6-10",
-          "technique": "VARIABLE_RENAMING"
-        }
-      ]
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `message = "Phân tích bằng chứng đạo văn thành công"`, `data.is_plagiarized = true`, `data.confidence_percentage = 92`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2739,41 +1627,28 @@ Normal
 
 ---
 
-# UT03_AiVerifyPlagiarism_TC012: Xác thực thành công khi độ tương đồng đúng biên dưới 80.0% (Kết luận trùng hợp ngẫu nhiên)
+# UT03_AiVerifyPlagiarism_TC012: Xác thực thành công khi độ tương đồng đúng biên dưới 80.0% (Biên dưới hợp lệ)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ printf(\"Hello World\"); return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ printf(\"Hello World\"); return 0; }",
-    "ast_similarity_percentage": 80.0,
-    "language": "C"
-  }
-  ```
+- `ast_similarity_percentage = 80`; OpenRouter trả `is_plagiarized = false`, `confidence_percentage = 30`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 80.0`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = false`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.is_plagiarized`: `false`.
-- `data.evidence_summary`: Xác định đây là mã nguồn mẫu in chuỗi cơ bản, việc trùng lặp là ngẫu nhiên, không cấu thành hành vi gian lận.
+- Hợp lệ, HTTP `200`, `data.is_plagiarized = false` (kết luận trùng hợp ngẫu nhiên).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2787,38 +1662,24 @@ Binary
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "#include <stdio.h>\nint main(){ int a, b; scanf(\"%d%d\", &a, &b); printf(\"%d\", a+b); return 0; }",
-    "student_b_code": "#include <stdio.h>\nint main(){ int a, b; scanf(\"%d%d\", &a, &b); printf(\"%d\", a+b); return 0; }",
-    "ast_similarity_percentage": 100.0,
-    "language": "C"
-  }
-  ```
+- `ast_similarity_percentage = 100`; OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 100`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với `ast_similarity_percentage = 100.0`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = true`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.is_plagiarized`: `true`.
-- `data.confidence_percentage`: `100.0`.
-- `data.evidence_summary`: Kết luận sao chép nguyên văn từng dòng code (Exact copy).
+- Hợp lệ, HTTP `200`, `data.confidence_percentage = 100`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2836,33 +1697,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/verify-plagiarism`
-- **Body Input**:
-  ```json
-  {
-    "student_a_code": "import java.util.Scanner;\npublic class Calc {\n  public static void main(String[] args){\n    Scanner sc = new Scanner(System.in);\n    int a = sc.nextInt(), b = sc.nextInt();\n    System.out.println(a * b + (a - b));\n  }\n}",
-    "student_b_code": "import java.util.Scanner;\npublic class Calc {\n  public static int compute(int x, int y){ return x * y + (x - y); }\n  public static void main(String[] args){\n    Scanner sc = new Scanner(System.in);\n    int x = sc.nextInt(), y = sc.nextInt();\n    System.out.println(compute(x, y));\n  }\n}",
-    "ast_similarity_percentage": 88.5,
-    "language": "JAVA"
-  }
-  ```
+- `language = "JAVA"`, `student_a_code`/`student_b_code` khác cấu trúc hàm nhưng tương đồng logic.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/verify-plagiarism`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/verify-plagiarism` với payload java ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả `cloned_segments` = `[]` nhưng `is_plagiarized = true`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.is_plagiarized`: `true`.
-- `data.evidence_summary`: Nhận diện kỹ thuật bọc biểu thức tính toán thành hàm con `compute()` nhằm ngụy trang gian lận.
+- HTTP `200`, `data.cloned_segments = []` vẫn hợp lệ (mảng rỗng được chấp nhận).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2874,7 +1721,7 @@ Normal
 
 # ==============================================================================
 
-# PHẦN 5: API POST /api/v1/ai/evaluate-web-ui (UC-19: ĐÁNH GIÁ GIAO DIỆN WEB MULTIMODAL)
+# PHẦN 5: API POST /api/v1/ai/evaluate-web-ui (ĐÁNH GIÁ GIAO DIỆN WEB)
 
 # ==============================================================================
 
@@ -2882,46 +1729,23 @@ Normal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Request không truyền Token xác thực.
+- Hệ thống AI Gateway đang hoạt động bình thường.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Bố cục cân đối có thanh điều hướng navbar trên đầu"
-    ]
-  }
-  ```
+- Header `Authorization` bỏ trống.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Không truyền Token xác thực (bỏ trống Header `Authorization`).
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `401 Unauthorized`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 401,
-    "error_code": "AUTH_TOKEN_MISSING",
-    "message": "Yêu cầu xác thực tài khoản. Vui lòng cung cấp Access Token.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2931,50 +1755,27 @@ Abnormal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC002: Quản trị viên (ADMIN) không có quyền gọi API chấm giao diện Web của Giảng viên
+# UT03_AiEvaluateWebUI_TC002: Quản trị viên (ADMIN) không có quyền gọi API chấm giao diện Web
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Người dùng đã đăng nhập với vai trò Quản trị viên `role = "ADMIN"`.
+- Người gọi xác thực hợp lệ với `role = "ADMIN"`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Có thanh điều hướng navbar"
-    ]
-  }
-  ```
+- `request.user.role = "ADMIN"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Quản trị viên vào Header `Authorization: Bearer <ADMIN_ACCESS_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `RolesGuard.canActivate(context)` với `@Roles('INSTRUCTOR')`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `403 Forbidden`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 403,
-    "error_code": "AUTH_PERMISSION_DENIED",
-    "message": "Chỉ Giảng viên mới có quyền sử dụng tính năng đánh giá giao diện Web qua AI.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2988,46 +1789,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên `teacher_quang` đã dùng hết 50,000/50,000 tokens.
+- Bước `reserve` thất bại do vượt quota.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Có thanh điều hướng navbar"
-    ]
-  }
-  ```
+- `provider.generateJson` ném `HttpException` 429 `AI_QUOTA_EXCEEDED`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token của Giảng viên đã cạn hạn ngạch ngày vào Header `Authorization: Bearer <EXHAUSTED_QUOTA_TOKEN>`.
-3. Đính kèm Request Body dữ liệu.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với ảnh hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `429 Too Many Requests`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 429,
-    "error_code": "AI_QUOTA_EXCEEDED",
-    "message": "Tài khoản của bạn đã sử dụng hết hạn ngạch Token AI trong ngày.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `429`, `error_code = "AI_QUOTA_EXCEEDED"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3041,50 +1819,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "rubric_requirements": [
-      "Bố cục cân đối có thanh điều hướng navbar"
-    ]
-  }
-  ```
+- Body thiếu `screenshot_base64`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` thiếu `screenshot_base64`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: EvaluateWebUiDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "screenshot_base64",
-        "issue": "Ảnh chụp màn hình (screenshot_base64) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "screenshot_base64", issues: ["screenshot_base64 must be a string"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3098,51 +1849,23 @@ Abnormal
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` đã cho qua; `AiGatewayService.decodeImage` kiểm tra định dạng.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "invalid_base64_string_not_an_image!@#$%",
-    "rubric_requirements": [
-      "Có thanh điều hướng navbar"
-    ]
-  }
-  ```
+- `screenshot_base64 = "not base64!!!"`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với chuỗi `screenshot_base64` rác.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "screenshot_base64",
-        "issue": "Dữ liệu ảnh phải là chuỗi định dạng Base64 hợp lệ của tệp hình ảnh."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `400`, `error_code = "AI_IMAGE_INVALID"`, `message = "Ảnh phải là dữ liệu PNG/JPEG base64 hợp lệ."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3152,50 +1875,27 @@ Abnormal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC006: screenshot_base64 vượt quá dung lượng tối đa 5MB (413 Payload Too Large)
+# UT03_AiEvaluateWebUI_TC006: screenshot_base64 vượt quá dung lượng tối đa 5MB (Biên trên)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- Ảnh giải mã vượt 5 MB.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,...[chuỗi base64 có dung lượng giải mã tương đương 5.2 MB]...",
-    "rubric_requirements": [
-      "Có navbar"
-    ]
-  }
-  ```
+- Base64 giải mã thành `5 MB + 1 byte`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Tạo chuỗi ảnh Base64 có kích thước vượt quá 5MB.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `413 Payload Too Large`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 413,
-    "error_code": "PAYLOAD_TOO_LARGE",
-    "message": "Dung lượng ảnh chụp màn hình vượt quá giới hạn cho phép (tối đa 5MB).",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `400`, `error_code = "AI_IMAGE_INVALID"`, `message = "Ảnh phải có kích thước tối đa 5 MB."`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3205,52 +1905,27 @@ Binary
 
 ---
 
-# UT03_AiEvaluateWebUI_TC007: Thiếu trường rubric_requirements hoặc truyền null trong Body
+# UT03_AiEvaluateWebUI_TC007: Thiếu trường rubric_requirements trong Body
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-  }
-  ```
+- Body thiếu `rubric_requirements`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` thiếu `rubric_requirements`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: EvaluateWebUiDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "rubric_requirements",
-        "issue": "Tiêu chí đánh giá giao diện (rubric_requirements) là trường bắt buộc."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "rubric_requirements", issues: ["rubric_requirements must be an array"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3260,53 +1935,27 @@ Abnormal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC008: rubric_requirements là mảng rỗng không có phần tử nào (Vi phạm minItems: 1)
+# UT03_AiEvaluateWebUI_TC008: rubric_requirements là mảng rỗng không có phần tử nào (Biên dưới)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên có Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": []
-  }
-  ```
+- `rubric_requirements = []`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với `rubric_requirements: []`.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(body, { type: 'body', metatype: EvaluateWebUiDto })`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `422 Unprocessable Entity`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 422,
-    "error_code": "VALIDATION_FAILED",
-    "message": "Dữ liệu gửi lên không đúng định dạng.",
-    "details": [
-      {
-        "field": "rubric_requirements",
-        "issue": "Danh sách tiêu chí đánh giá phải có tối thiểu 1 tiêu chí."
-      }
-    ],
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `422`, `details` chứa `{ field: "rubric_requirements", issues: ["rubric_requirements must contain at least 1 elements"] }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3316,51 +1965,27 @@ Binary
 
 ---
 
-# UT03_AiEvaluateWebUI_TC009: Dịch vụ Gemini Multimodal Vision gặp sự cố hoặc timeout phản hồi
+# UT03_AiEvaluateWebUI_TC009: Dịch vụ AI Multimodal Vision gặp sự cố hoặc timeout phản hồi
 
 #### Loại test
 
-Abnormal
+Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Google Gemini Multimodal Vision API trả mã lỗi 503 hoặc timeout kết nối mạng quá 35 giây.
+- Nhà cung cấp AI phản hồi lỗi.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Có thanh điều hướng navbar trên đầu"
-    ]
-  }
-  ```
-- **Mock State**: `GeminiVisionService.evaluateImage() -> throws TimeoutException(35000ms)`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Giả lập kết nối mạng tới Gemini Vision bị nghẽn (timeout > 35s) hoặc mã lỗi 503.
-2. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-3. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với ảnh hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `503 Service Unavailable`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": false,
-    "status_code": 503,
-    "error_code": "AI_SERVICE_UNAVAILABLE",
-    "message": "Dịch vụ Gemini AI hiện không khả dụng hoặc phản hồi quá lâu. Vui lòng thử lại sau.",
-    "details": null,
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3378,68 +2003,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn hạn ngạch Token.
-- Dịch vụ Gemini Vision hoạt động ổn định.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Bố cục cân đối có thanh điều hướng navbar trên đầu",
-      "Form đăng ký gồm 3 input và nút bấm nổi bật",
-      "Phối màu hài hòa, có độ tương phản văn bản tốt"
-    ]
-  }
-  ```
+- Ảnh PNG hợp lệ; 3 tiêu chí; OpenRouter trả điểm `[9, 8, 7]` với verdict PASS/PASS/PARTIAL.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với request body ở trên.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả `evaluation_details` khớp 3 tiêu chí; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Phản hồi JSON:
-  ```json
-  {
-    "success": true,
-    "status_code": 200,
-    "message": "Đánh giá giao diện Web bằng AI thành công",
-    "data": {
-      "tokens_consumed": 720,
-      "ui_score": 8.5,
-      "evaluation_details": [
-        {
-          "criterion": "Bố cục cân đối có thanh điều hướng navbar trên đầu",
-          "score": 10.0,
-          "verdict": "PASS",
-          "comment": "Navbar thiết kế rõ ràng, logo bên trái và link bên phải chuẩn mực."
-        },
-        {
-          "criterion": "Form đăng ký gồm 3 input và nút bấm nổi bật",
-          "score": 8.0,
-          "verdict": "PASS",
-          "comment": "Có đủ input nhưng khoảng cách padding giữa các trường hơi sát nhau."
-        },
-        {
-          "criterion": "Phối màu hài hòa, có độ tương phản văn bản tốt",
-          "score": 7.5,
-          "verdict": "PARTIAL",
-          "comment": "Màu nền sáng và chữ đen tương phản tốt, nhưng nút phụ viền xám nhạt hơi khó thấy."
-        }
-      ],
-      "overall_feedback": "Trang web có bố cục hài hòa, màu sắc nhã nhặn, đáp ứng tốt yêu cầu đề thi."
-    },
-    "timestamp": "2026-10-04T09:30:00.000Z"
-  }
-  ```
+- HTTP `200`, `message = "Đánh giá giao diện Web bằng AI thành công"`, `data.ui_score = 8` (trung bình 8.0).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3449,40 +2025,28 @@ Normal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC011: Đánh giá giao diện Web thành công với đúng 1 tiêu chí rubric (Biên dưới minItems: 1)
+# UT03_AiEvaluateWebUI_TC011: Đánh giá giao diện Web thành công với đúng 1 tiêu chí rubric (Biên dưới)
 
 #### Loại test
 
-Binary
+Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- `ValidationPipe` toàn cục đang hoạt động; còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Trang web có footer chứa thông tin bản quyền và liên hệ"
-    ]
-  }
-  ```
+- `rubric_requirements` có đúng 1 phần tử; OpenRouter trả 1 `evaluation_details`.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với mảng `rubric_requirements` có đúng 1 phần tử.
-4. Gửi Request lên hệ thống.
+1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
+2. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với OpenRouter trả đúng 1 phần tử.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.evaluation_details`: Mảng có chính xác 1 phần tử kết quả đánh giá cho tiêu chí footer.
+- HTTP `200`, `data.ui_score` bằng điểm của tiêu chí duy nhất.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3500,32 +2064,19 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
-    "rubric_requirements": [
-      "Giao diện tương thích độ phân giải desktop 1920x1080"
-    ]
-  }
-  ```
+- `screenshot_base64` là data URL `data:image/jpeg;base64,...` hợp lệ.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với ảnh định dạng jpeg.
-4. Gửi Request lên hệ thống.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- Hệ thống nhận diện chuẩn định dạng JPEG, trả về kết quả đánh giá thẩm mỹ giao diện.
+- `decodeImage` chấp nhận JPEG; HTTP `200`, `data.ui_score` được tính đúng.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -3535,7 +2086,7 @@ Normal
 
 ---
 
-# UT03_AiEvaluateWebUI_TC013: Đánh giá giao diện Web thành công khi bài làm vi phạm rubric (ui_score thấp, verdict FAIL)
+# UT03_AiEvaluateWebUI_TC013: Đánh giá thành công khi bài làm vi phạm rubric (ui_score thấp, verdict FAIL)
 
 #### Loại test
 
@@ -3543,39 +2094,637 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên sở hữu Token hợp lệ và còn quota.
-- Bài làm của sinh viên bị vỡ bố cục nghiêm trọng, chữ đè lên ảnh.
+- Giảng viên đã xác thực, còn hạn ngạch.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- **Method & Endpoint**: `POST /api/v1/ai/evaluate-web-ui`
-- **Body Input**:
-  ```json
-  {
-    "screenshot_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "rubric_requirements": [
-      "Bố cục cân đối, nội dung không bị tràn khung hay chữ đè lên nhau",
-      "Màu sắc chữ có độ tương phản đạt chuẩn WCAG AA"
-    ]
-  }
-  ```
+- OpenRouter trả điểm thấp `[2, 3, 1]` với verdict FAIL.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Khởi tạo HTTP Request `POST /api/v1/ai/evaluate-web-ui`.
-2. Truyền token xác thực của Giảng viên vào Header `Authorization: Bearer <INSTRUCTOR_TOKEN>`.
-3. `post /api/v1/ai/evaluate-web-ui` với ảnh bài nộp bị lỗi giao diện.
-4. Gửi Request lên hệ thống.
+1. `provider.generateJson` trả `evaluation_details` toàn FAIL; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP Status Code: `200 OK`.
-- `data.ui_score`: Điểm thấp (dưới 4.0 / 10.0).
-- `data.evaluation_details[].verdict`: `"FAIL"`.
-- `data.evaluation_details[].comment`: Nhận xét chỉ rõ các lỗi hiển thị vỡ layout và độ tương phản kém.
+- HTTP `200`, `data.ui_score = 2` (trung bình 2.0), các `verdict` đều `FAIL`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
 |  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC014: rubric_requirements vượt 20 phần tử (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; ảnh hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric_requirements` có 21 phần tử.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và payload 21 tiêu chí.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "rubric_requirements"` với issue `rubric_requirements must contain no more than 20 elements`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC015: Phần tử rubric vượt 500 ký tự (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; ảnh hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric_requirements = ["a" × 501]`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và 1 tiêu chí dài 501 ký tự.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "rubric_requirements"` với issue `each value in rubric_requirements must be shorter than or equal to 500 characters`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC016: screenshot_base64 vượt 7.000.000 ký tự (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `screenshot_base64` dài 7.000.001 ký tự.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và ảnh vượt giới hạn.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "screenshot_base64"` với issue `screenshot_base64 must be shorter than or equal to 7000000 characters`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# ==============================================================================
+
+# PHẦN 6: API GET /api/v1/ai/provider-status (TRẠNG THÁI AI HUB OPENROUTER)
+
+# ==============================================================================
+
+# UT03_AiProviderStatus_TC001: Không gửi Header Authorization trong yêu cầu lấy trạng thái AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Hệ thống AI Gateway đang hoạt động bình thường.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Header `Authorization` bỏ trống.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC002: Bearer Token đã hết hạn (Expired Token)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Token hết hạn được gửi lên.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `handleRequest(null, false, { name: 'TokenExpiredError' })`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `JwtAuthGuard.handleRequest` với lỗi `TokenExpiredError`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_TOKEN_EXPIRED"`, `message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC003: Giảng viên (INSTRUCTOR) không có quyền xem trạng thái AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Người dùng đã đăng nhập với vai trò `INSTRUCTOR`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `@Roles('ADMIN')` ghi đè; `RolesGuard` với metadata `['ADMIN']`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Xác thực request với user `role = "INSTRUCTOR"` qua `RolesGuard`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`, `message = "Bạn không có quyền thực hiện thao tác này."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC004: ADMIN lấy trạng thái AI Hub thành công (tất cả key READY)
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Cấu hình 2 API key OpenRouter, không key nào đang cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-a,key-b"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.providerStatus()` với tất cả key đang READY.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`, `data.provider = "openrouter"`, `accounts_configured = 2`, `structured_outputs_supported = true`; mỗi account có `state = "READY"`, `cooldown_remaining_seconds = 0`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC005: Trạng thái khi một key đang COOLDOWN (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Một API key vừa gặp lỗi và đang trong thời gian cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 key, `cooldownUntil` đặt trong tương lai.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Giả lập key trong cooldown rồi gọi `OpenRouterService.providerStatus()`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`, account tương ứng có `state = "COOLDOWN"` và `cooldown_remaining_seconds > 0`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# ==============================================================================
+
+# PHẦN 7: DỊCH VỤ NHÀ CUNG CẤP AI (OpenRouterService - XOAY VÒNG NHIỀU API KEY)
+
+# ==============================================================================
+
+# UT03_AiProvider_TC001: Gọi thành công qua tài khoản quay vòng trong pool
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool có 3 API key OpenRouter; `post()` trả nội dung JSON hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2,key-3"`, `schema` kiểu object có `ok`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.generateJson(...)` 3 lần liên tiếp.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Lần lượt dùng `key-1`, `key-2`, `key-3`; body gửi đi có `model = "openrouter/free"`, `temperature = 0.2`, `max_tokens = 100`, 2 message và `response_format.type = "json_schema"`; trả `{ data: { ok: true }, tokensConsumed: 15 }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC002: Token usage từ provider được ghi vết qua settle
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Provider trả `usage` thực tế `{ prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 }`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 API key; `feature = "TESTCASE_GEN"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` và kiểm tra lời gọi `quota.settle`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `tokensConsumed = 200`; `settle` nhận đúng prompt/completion/total tokens; `release` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC003: Tài khoản bị 429 thì tự chuyển sang tài khoản kế tiếp
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool có 2 API key; key đầu trả `429`, key thứ hai thành công.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi key-1 bị 429 và key-2 trả JSON hợp lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `post` được gọi 2 lần theo thứ tự `key-1`, `key-2`; trả kết quả thành công; `settle` gọi 1 lần; `release` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC004: Tất cả tài khoản đều bị giới hạn
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool 3 API key; mọi key đều trả `429`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2,key-3"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi tất cả request đều bị 429.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `429`, `error_code = "AI_PROVIDER_RATE_LIMITED"`; `post` gọi 3 lần; `release` được gọi để hoàn quota; `settle` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC005: Tài khoản đang cooldown bị bỏ qua ở lượt gọi kế tiếp (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Lượt gọi đầu làm toàn bộ key bị 429 và rơi vào cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` lần 1 (thất bại do 429).
+2. Gọi `generateJson` lần 2 ngay sau đó.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Cả hai lượt đều ném `429`; `post` chỉ được gọi 2 lần ở lượt đầu, lượt hai bỏ qua key đang cooldown (không đốt thêm request).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC006: Model không hỗ trợ response_format thì fallback tự động (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Model trả `400` với thông báo không hỗ trợ `json_schema`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 API key; lỗi `400 "response_format json_schema is not supported for this model"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson`; lần 1 bị 400 do `response_format`, lần 2 retry không kèm `response_format`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `post` gọi 2 lần; body lần 2 không có `response_format` và schema được nhúng vào prompt (`messages[0].content` chứa "JSON Schema"); trả kết quả thành công.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC007: Phản hồi bọc markdown code fence (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Provider trả nội dung ` ```json ... ``` `.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `content = "```json\n{\"ok\":true}\n```"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` với phản hồi bọc code fence.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Bóc tách được code fence và trả `data = { ok: true }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC008: Tính năng chấm UI gửi ảnh kèm prompt (Biên chức năng vision)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `feature = "UI_EVALUATION"` và có ảnh PNG.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `image = { mimeType: "image/png", base64: "QUJD" }`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` kèm `image`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `messages[1].content` gồm 1 phần tử text và 1 phần tử `image_url` với URL `data:image/png;base64,QUJD`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC009: Chưa cấu hình tài khoản AI nào
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `OPENROUTER_API_KEYS` rỗng.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = ""`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `503`, `error_code = "AI_NOT_CONFIGURED"`; `quota.reserve` và `post` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC010: Nhà cung cấp lỗi tạm thời chỉ có 1 tài khoản
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool chỉ có 1 API key; provider trả `503`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi provider lỗi tạm thời.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`, `message = "Không thể nhận phản hồi từ dịch vụ AI."`; `post` gọi 1 lần; `release` được gọi; `settle` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC011: Tài khoản hết hạn mức credits (402)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool 2 API key; provider trả `402` (hết credits).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi mọi key bị 402.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `402` được xếp vào nhóm capacity nên trả `429`, `error_code = "AI_PROVIDER_RATE_LIMITED"`; `post` gọi 2 lần và không thử lại key vừa lỗi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC012: Trạng thái pool phục vụ Web Admin
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Cấu hình 2 API key OpenRouter.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "sk-or-v1-fedcba987654,sk-or-v1-0123456789ab"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.providerStatus()`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `provider = "openrouter"`, `model = "openrouter/free"`, `accounts_configured = 2`; `accounts[0] = { account: "ACC-01", key_hint: "sk-or-v1-…7654", state: "READY", cooldown_remaining_seconds: 0 }`; response không chứa key gốc.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+

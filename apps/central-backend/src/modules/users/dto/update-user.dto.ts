@@ -26,7 +26,7 @@ export class UpdateUserDto {
   @IsOptional() @IsBoolean()
   is_active?: boolean;
 
-  @ApiPropertyOptional({ minimum: 1000, maximum: 1000000 })
-  @IsOptional() @IsInt() @Min(1000) @Max(1000000)
+  @ApiPropertyOptional({ default: 50000 })
+  @IsOptional() @IsInt() @Min(0)
   daily_token_quota?: number;
 }

@@ -32,14 +32,14 @@ object "<u>:CentralDatabase</u>\n(Prisma / PostgreSQL Central DB)" as CentralDB
 
 ' --- 5. Phân Hệ Trí Tuệ Nhân Tạo (AI Gateway Hub) ---
 object "<u>:AIGatewayHub</u>\n(Quản lý Quota; sử dụng key từ môi trường máy chủ)" as AIHub
-object "<u>:GoogleGeminiAPI</u>\n(Gemini 3.8 Flash Cloud)" as GeminiCloud
+object "<u>:AiGatewayProvider</u>\n(AI Cloud)" as AiCloud
 
 ' ==============================================================================
 ' CÁC LUỒNG GIAO TIẾP & THÔNG ĐIỆP TOÀN HỆ THỐNG ĐƯỢC ĐÁNH SỐ THEO PHÂN HỆ
 ' ==============================================================================
 
 ' --- NHÓM 1: Quản trị Hệ thống từ Web Admin Dashboard ---
-Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: setGeminiQuota(limits)\n1.4: viewAuditLogs()
+Admin -- WebAdminUI : 1.1: login(credentials)\n1.2: manageInstructors(accounts)\n1.3: setAiQuota(limits)\n1.4: viewAuditLogs()
 
 WebAdminUI -- WebBackend : 1.5: HTTP POST /auth/login\n1.6: HTTP REST (CRUD users)\n1.7: HTTP POST /admin/ai-quota\n1.8: HTTP GET /admin/reports
 
@@ -80,7 +80,7 @@ DesktopCore -- WebBackend : 4.3: HTTP POST /ai/generate-testcases\n4.6: HTTP POS
 
 WebBackend -- AIHub : 4.12: validateQuotaAndForward(token, promptJson)
 
-AIHub -- GeminiCloud : 4.13: generateContent(Multimodal 1.5 Flash)\n4.14: returnStructuredJSON()
+AIHub -- AiCloud : 4.13: generateContent(Multimodal 1.5 Flash)\n4.14: returnStructuredJSON()
 
 AIHub -- WebBackend : 4.15: returnAIFeedbackAndTrackTokens()
 

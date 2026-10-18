@@ -19,7 +19,10 @@ export class AuthService {
 
   async login(input: LoginDto) {
     const user = await this.prisma.user.findFirst({
-      where: { username: input.username, isDeleted: false },
+      where: {
+        OR: [{ username: input.username }, { email: input.username }],
+        isDeleted: false,
+      },
     });
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException({ error_code: 'AUTH_INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không chính xác.', details: null });
@@ -79,7 +82,7 @@ export class AuthService {
         secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: accessExpiresIn,
       }),
       this.jwt.signAsync({ ...identity, token_type: 'refresh', jti: refreshId }, {
-        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn, jwtid: refreshId,
+        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: refreshExpiresIn,
       }),
     ]);
     const decoded = this.jwt.decode(refreshToken) as { exp?: number } | null;

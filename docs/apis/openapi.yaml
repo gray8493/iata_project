@@ -22,7 +22,7 @@ tags:
   - name: Admin Users
     description: Các API quản trị người dùng & phân quyền RBAC (Dành riêng cho Admin)
   - name: AI Hub
-    description: Các API điều phối Trí tuệ nhân tạo Gemini & Giám sát Token Quota
+    description: Các API điều phối Trí tuệ nhân tạo AI Hub & Giám sát Token Quota
   - name: Admin Reports
     description: Các API báo cáo thống kê kiểm toán người dùng và hạn ngạch AI (Dành cho Admin)
 
@@ -352,7 +352,7 @@ paths:
     post:
       tags:
         - AI Hub
-      summary: Tự động sinh testcase biên bằng Gemini AI (UC-10)
+      summary: Tự động sinh testcase biên bằng AI Hub (UC-10)
       security:
         - BearerAuth: []
       requestBody:

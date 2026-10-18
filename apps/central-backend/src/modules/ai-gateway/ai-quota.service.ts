@@ -1,12 +1,16 @@
-import { ForbiddenException, HttpException, Injectable } from '@nestjs/common';
+import { ForbiddenException, HttpException, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService, REPORTS_OVERVIEW_CACHE_KEY } from '../../common/redis.service';
 
 export type AiFeature = 'TESTCASE_GEN' | 'CODE_REVIEW' | 'PLAGIARISM' | 'UI_EVALUATION';
 export interface QuotaReservation { configId: string; reserved: number; date: Date; }
 
 @Injectable()
 export class AiQuotaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redis?: RedisService,
+  ) {}
 
   async snapshot(userId: string) {
     const config = await this.getCurrentConfig(userId);
@@ -57,6 +61,7 @@ export class AiQuotaService {
         totalTokens: actual,
       } });
     });
+    await this.redis?.del(REPORTS_OVERVIEW_CACHE_KEY);
   }
 
   async release(reservation: QuotaReservation): Promise<void> {

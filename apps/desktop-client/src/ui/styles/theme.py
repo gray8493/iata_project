@@ -127,32 +127,32 @@ QPushButton {{
     max-height: 40px;
 }}
 
-QPushButton.PrimaryBtn, QPushButton#PrimaryBtn {{
+QPushButton.PrimaryBtn, QPushButton#PrimaryBtn, QPushButton[class="PrimaryBtn"] {{
     background-color: {COLOR_PRIMARY};
     color: #FFFFFF;
     border: none;
 }}
 
-QPushButton.PrimaryBtn:hover, QPushButton#PrimaryBtn:hover {{
+QPushButton.PrimaryBtn:hover, QPushButton#PrimaryBtn:hover, QPushButton[class="PrimaryBtn"]:hover {{
     background-color: {COLOR_PRIMARY_HOVER};
 }}
 
-QPushButton.PrimaryBtn:pressed, QPushButton#PrimaryBtn:pressed {{
+QPushButton.PrimaryBtn:pressed, QPushButton#PrimaryBtn:pressed, QPushButton[class="PrimaryBtn"]:pressed {{
     background-color: {COLOR_PRIMARY_ACTIVE};
 }}
 
-QPushButton.PrimaryBtn:disabled, QPushButton#PrimaryBtn:disabled {{
+QPushButton.PrimaryBtn:disabled, QPushButton#PrimaryBtn:disabled, QPushButton[class="PrimaryBtn"]:disabled {{
     background-color: {COLOR_TEXT_DISABLED};
     color: #FFFFFF;
 }}
 
-QPushButton.SecondaryBtn, QPushButton#SecondaryBtn {{
+QPushButton.SecondaryBtn, QPushButton#SecondaryBtn, QPushButton[class="SecondaryBtn"] {{
     background-color: {COLOR_SURFACE};
     color: {COLOR_PRIMARY};
-    border: 1px solid {COLOR_PRIMARY};
+    border: 1.5px solid {COLOR_PRIMARY};
 }}
 
-QPushButton.SecondaryBtn:hover, QPushButton#SecondaryBtn:hover {{
+QPushButton.SecondaryBtn:hover, QPushButton#SecondaryBtn:hover, QPushButton[class="SecondaryBtn"]:hover {{
     background-color: {COLOR_PRIMARY_BG};
 }}
 
@@ -227,6 +227,40 @@ QPushButton#BatchGradeBtn {{
 
 QPushButton#BatchGradeBtn:hover {{
     background-color: {COLOR_PRIMARY_HOVER};
+}}
+
+QPushButton#BatchGradeBtn:disabled {{
+    background-color: {COLOR_TEXT_DISABLED};
+    color: #FFFFFF;
+}}
+
+/* --- RADIO BUTTONS (ROUND INDICATOR: border-radius = half size for checked too) --- */
+QRadioButton {{
+    font-size: 13px;
+    spacing: 8px;
+    background: transparent;
+}}
+
+QRadioButton::indicator {{
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    border: 1.5px solid {COLOR_BORDER_DEFAULT};
+    background-color: {COLOR_SURFACE};
+}}
+
+QRadioButton::indicator:hover {{
+    border-color: {COLOR_PRIMARY};
+}}
+
+QRadioButton::indicator:checked {{
+    border: 5px solid {COLOR_PRIMARY};
+    border-radius: 9px;
+    background-color: {COLOR_SURFACE};
+}}
+
+QRadioButton::indicator:disabled {{
+    border-color: {COLOR_TEXT_DISABLED};
 }}
 
 /* --- FORM INPUTS & SELECTORS --- */
@@ -400,16 +434,16 @@ QTabBar::tab:selected {{
 /* --- CLEAN SCROLLBARS --- */
 QScrollBar:vertical {{
     border: none;
-    background: {COLOR_SURFACE_SECONDARY};
-    width: 6px;
-    border-radius: 3px;
+    background: #F1F5F9;
+    width: 10px;
+    border-radius: 5px;
     margin: 0px;
 }}
 
 QScrollBar::handle:vertical {{
-    background: {COLOR_BORDER_DEFAULT};
-    border-radius: 3px;
-    min-height: 24px;
+    background: #CBD5E1;
+    border-radius: 5px;
+    min-height: 28px;
 }}
 
 QScrollBar::handle:vertical:hover {{

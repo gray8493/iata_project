@@ -1,11 +1,27 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService, REPORTS_OVERVIEW_CACHE_KEY } from '../../common/redis.service';
 import { ListAiUsageDto } from './dto/list-ai-usage.dto';
+
+export interface OverviewResult {
+  message: string;
+  data: {
+    total_instructors: number;
+    ai_token_usage: {
+      total_tokens_consumed_month: number;
+      total_budget_limit: number;
+      top_consuming_feature: string | null;
+    };
+  };
+}
 
 @Injectable()
 export class AuditLogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redis?: RedisService,
+  ) {}
 
   async listAiUsage(query: ListAiUsageDto) {
     const from = query.from ? new Date(query.from) : undefined;
@@ -42,7 +58,10 @@ export class AuditLogsService {
     } };
   }
 
-  async overview() {
+  async overview(): Promise<OverviewResult> {
+    const cached = await this.redis?.getJson<OverviewResult>(REPORTS_OVERVIEW_CACHE_KEY);
+    if (cached) return cached;
+
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
@@ -58,7 +77,7 @@ export class AuditLogsService {
         _sum: { totalTokens: true }, orderBy: { _sum: { totalTokens: 'desc' } }, take: 1,
       }),
     ]);
-    return { message: 'Lấy số liệu thống kê tổng quan thành công', data: {
+    const result: OverviewResult = { message: 'Lấy số liệu thống kê tổng quan thành công', data: {
       total_instructors: totalInstructors,
       ai_token_usage: {
         total_tokens_consumed_month: usage._sum.totalTokens ?? 0,
@@ -66,5 +85,7 @@ export class AuditLogsService {
         top_consuming_feature: topFeature[0]?.featureType ?? null,
       },
     } };
+    await this.redis?.setJson(REPORTS_OVERVIEW_CACHE_KEY, result, 45);
+    return result;
   }
 }

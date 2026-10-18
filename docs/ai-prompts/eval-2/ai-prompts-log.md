@@ -8,7 +8,7 @@ Tài liệu này ghi nhận minh bạch toàn bộ các câu Prompt và kết qu
 
 ## 1. Thông Tin Chung
 
-- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT / Google Gemini
+- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT
 - **Người thực hiện**: Nhóm phát triển dự án AITA
 - **Mục tiêu giai đoạn Evaluation 2**:
   1. Lựa chọn kiến trúc phần mềm tổng thể (Layered & Clean Architecture, Client-Server RESTful).
@@ -48,7 +48,7 @@ AI đã tư vấn kiến trúc phân bổ sơ đồ lớp thành 3 phân hệ c�
    - Lớp điều phối ngữ cảnh `GradingContext` và các thực thể dữ liệu (`Submission`, `TestCase`, `GradingResult`).
 3. **Phân hệ 3: Central Backend & AI Gateway (FastAPI Service)**:
    - Tầng dịch vụ quản lý xác thực JWT và kiểm soát hạn ngạch Quota (`AuthService`, `QuotaManager`).
-   - Cầu nối AI Hub (`GeminiGateway`) điều phối gọi Google Gemini API bảo mật.
+   - Cầu nối AI Hub (`AiGateway`) điều phối gọi OpenRouter bảo mật.
    - Dịch vụ đồng bộ dữ liệu đợt chấm `GradingSessionSyncService` lưu CSDL trung tâm qua SQLAlchemy ORM.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
@@ -79,7 +79,7 @@ AI đã thiết kế và đóng gói thành công file mã nguồn PlantUML [doc
    - Lớp điều phối `BatchGradingManager` quản lý danh sách `Submission`, nạp `TestCase`, gọi `RunnerFactory` và sinh kết quả `GradingResult`.
 3. **Phân hệ 3 (Central Backend & AI Gateway Subsystem - Màu xanh dương #E3F2FD)**:
    - Tầng điều khiển & định tuyến API: `AuthController`, `AIGatewayController`, `SyncController`.
-   - Tầng dịch vụ nghiệp vụ: `AuthService` (băm mật khẩu Bcrypt, mã hóa JWT), `QuotaManager` (kiểm tra và trừ hạn ngạch gọi AI), `GeminiGatewayService` (kết nối bảo mật với Google Gemini API), `GradingSessionSyncService` (lưu trữ CSDL trung tâm).
+   - Tầng dịch vụ nghiệp vụ: `AuthService` (băm mật khẩu Bcrypt, mã hóa JWT), `QuotaManager` (kiểm tra và trừ hạn ngạch gọi AI), `AiGatewayService` (kết nối bảo mật với OpenRouter), `GradingSessionSyncService` (lưu trữ CSDL trung tâm).
    - Tầng thực thể CSDL ORM: `User`, `Course`, `GradingSessionRecord`.
 4. **Liên kết liên phân hệ (Cross-subsystem relationships)** và các ghi chú (Notes) làm nổi bật 3 Design Patterns theo yêu cầu đề bài.
 
@@ -104,7 +104,7 @@ AI đã thiết kế trọn vẹn giải pháp kiến trúc triển khai gồm:
    - **Node 2: Administrator Workstation**: Trình duyệt Web hiện đại kết nối Next.js Web Admin Dashboard qua HTTPS (Port 443).
    - **Node 3: Central Application Server Host (Ubuntu Linux 22.04 LTS)**: Chạy Nginx Ingress Proxy (chặn SSL/TLS 1.3, rate limit) chuyển tiếp vào Docker Container `central-backend` (NestJS 10, JWT RBAC Guard, AI Gateway Hub) và Redis In-Memory Cache (Port 6379).
    - **Node 4: Central Database Server Node (Ubuntu Linux / Managed DB)**: Chạy PostgreSQL 16 RDBMS (Port 5432, SSL encrypted).
-   - **Node 5: Google Cloud Platform (PaaS AI)**: Dịch vụ Google Gemini 1.5 Flash API phục vụ sinh testcase và phân tích lỗi.
+   - **Node 5: OpenRouter (AI Provider)**: Dịch vụ AI Hub phục vụ sinh testcase và phân tích lỗi.
 2. **Tài liệu đặc tả kiến trúc triển khai `docs/architecture/deployment-specification.md`**:
    - Thuyết minh chi tiết thông số phần cứng tối thiểu/khuyến nghị (CPU Cores, RAM, SSD NVMe).
    - Ma trận cổng mạng, giao thức truyền thông (HTTPS Port 443, PostgreSQL 5432, Redis 6379, IPC Stdin/Stdout).

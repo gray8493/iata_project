@@ -4,29 +4,24 @@ Validates Python syntax via py_compile and runs script through main execution.
 """
 
 import sys
-import py_compile
 from pathlib import Path
 from typing import Tuple, Optional
 
 from .base_runner import BaseRunner
 from core.sandbox.runner import SandboxRunner, SandboxResult
+from core.adapters.compiler_adapter import PythonInterpreterAdapter
+from core.app_paths import resolve_python_executable
 
 
 class PythonRunner(BaseRunner):
     """Runner for Python language (PHP, PRO, DSA)."""
 
-    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
-        if not source_path.exists():
-            return False, f"Không tìm thấy file mã nguồn: {source_path}", None
+    def __init__(self):
+        self.adapter = PythonInterpreterAdapter()
 
-        # Check Python syntax offline using py_compile
-        try:
-            py_compile.compile(str(source_path), doraise=True)
-            return True, "Cú pháp Python hợp lệ", str(source_path)
-        except py_compile.PyCompileError as err:
-            return False, f"Lỗi cú pháp Python (Syntax Error):\n{str(err)}", None
-        except Exception as ex:
-            return False, f"Lỗi kiểm tra mã nguồn: {str(ex)}", None
+    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
+        result = self.adapter.compile(source_path)
+        return result.success, result.log, result.target
 
     def execute(
         self,
@@ -36,7 +31,7 @@ class PythonRunner(BaseRunner):
         memory_limit_mb: int = 128
     ) -> SandboxResult:
         script_path = Path(executable_target)
-        cmd = [sys.executable, "-u", str(script_path)]
+        cmd = [resolve_python_executable(), "-u", str(script_path)]
 
         return SandboxRunner.run_process(
             command=cmd,

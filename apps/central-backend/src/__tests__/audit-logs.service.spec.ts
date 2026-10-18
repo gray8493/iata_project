@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { AuditLogsService } from './audit-logs.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { AuditLogsService } from '../modules/audit-logs/audit-logs.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('AuditLogsService (Web Admin Reports Unit Tests)', () => {
   let service: AuditLogsService;
@@ -35,7 +35,7 @@ describe('AuditLogsService (Web Admin Reports Unit Tests)', () => {
     jest.clearAllMocks();
   });
 
-  describe('UT03_Reports_TC001: Lấy báo cáo thống kê tổng quan (overview)', () => {
+  describe('UT04_Reports_TC001: Lấy báo cáo thống kê tổng quan (overview)', () => {
     it('trả về tổng số giảng viên, hạn ngạch và tính năng AI dùng nhiều nhất', async () => {
       prisma.user.count.mockResolvedValue(10);
       prisma.aiQuotaConfig.aggregate.mockResolvedValue({ _sum: { dailyTokenLimit: 500000 } });
@@ -53,7 +53,7 @@ describe('AuditLogsService (Web Admin Reports Unit Tests)', () => {
     });
   });
 
-  describe('UT03_Reports_TC002: Lấy nhật ký sử dụng AI có lọc (listAiUsage)', () => {
+  describe('UT04_Reports_TC002: Lấy nhật ký sử dụng AI có lọc (listAiUsage)', () => {
     it('trả về danh sách nhật ký AI kèm phân trang', async () => {
       const mockLog = {
         id: 'log-uuid-1',

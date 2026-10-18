@@ -35,7 +35,7 @@ actor "Quản trị viên\n(System Admin)" as Admin
 actor "Giảng viên\n(Instructor)" as Instructor
 
 ' Tác nhân hệ thống ngoài hỗ trợ (External Supporting Systems / Actors)
-actor "Google Gemini AI Hub\n(API Gateway)" as AIService <<System>>
+actor "AI Hub\n(API Gateway)" as AIService <<System>>
 actor "Sandbox Execution Runner\n(GCC / Javac / Python / psutil)" as Sandbox <<System>>
 actor "Headless Web Runner\n(Playwright / Chromium / W3C)" as WebRunner <<System>>
 actor "Web Server Backend\n(NestJS Central REST API)" as Cloud <<System>>
@@ -52,6 +52,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
     package "Phân Hệ Web Admin Dashboard (Dành cho Quản trị viên)" #E3F2FD {
         usecase "UC-01: Đăng nhập & Xác thực Hệ thống" as UC01
         usecase "UC-02: Quản lý Tài khoản & Phân quyền Giảng viên" as UC02
+        usecase "UC-03: Cấp mới Access Token bằng Refresh Token" as UC03
         usecase "UC-04: Quản lý hạn ngạch & Giám sát sử dụng AI" as UC04
         usecase "UC-05: Xem Báo cáo tài khoản & Sử dụng AI" as UC05
     }
@@ -69,7 +70,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
 
         package "2. Quản lý Testcase & Chiến lược So khớp" {
             usecase "UC-09: Quản lý Bộ Testcase Kiểm thử Black-box" as UC09
-            usecase "UC-10: Tự động Sinh Testcase Biên bằng AI (Gemini)" as UC10
+            usecase "UC-10: Tự động Sinh Testcase Biên bằng AI (AI Hub)" as UC10
             usecase "UC-11: Thiết lập Chiến lược So khớp Đầu ra (6 Checkbox + Kết hợp)" as UC11
         }
 
@@ -140,7 +141,7 @@ UC02 --> Cloud : CRUD tài khoản qua REST API
 UC04 --> Cloud : Lưu khóa API & thống kê token quota
 UC05 --> Cloud : Truy vấn nhật ký sử dụng AI & audit logs toàn trường
 
-' Kết nối với Trí tuệ nhân tạo (Google Gemini AI Hub)
+' Kết nối với Trí tuệ nhân tạo (AI Hub)
 UC10 --> AIService : Prompt sinh cặp Input/Output biên
 UC16 --> AIService : Gửi code lỗi WA phân tích sư phạm
 UC17 --> AIService : Phân tích ngữ nghĩa cặp bài nghi vấn >80% (Vòng 2)
@@ -161,13 +162,13 @@ end note
 note bottom of UC19
   Chấm bài Web theo Rubric 4 thành phần:
   DOM Check (30%), W3C Lint (10%),
-  Playwright E2E (40%), Gemini Vision (20%).
+  Playwright E2E (40%), AI Vision (20%).
 end note
 
 note right of UC17
   Cơ chế phát hiện sao chép 2 vòng:
   - Vòng 1: Quét AST / Winnowing 100% Offline (0.5s).
-  - Vòng 2: Chỉ gửi cặp bài nghi vấn >80% lên Gemini AI.
+  - Vòng 2: Chỉ gửi cặp bài nghi vấn >80% lên AI Hub.
 end note
 
 @enduml

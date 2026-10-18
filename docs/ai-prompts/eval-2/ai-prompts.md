@@ -9,7 +9,7 @@ Tài liệu này ghi nhận minh bạch toàn bộ các câu Prompt và kết qu
 
 ## 1. Thông Tin Chung
 
-- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT / Google Gemini
+- **Công cụ AI sử dụng**: Antigravity AI Assistant / ChatGPT
 - **Người thực hiện**: Nhóm phát triển dự án AITA
 - **Mục tiêu**: 
   - Phân rã kiến trúc toàn hệ sinh thái AITA thành các phân hệ và thành phần (Components) có tính độc lập cao, liên kết lỏng (loose coupling) và gắn kết cao (high cohesion).
@@ -28,13 +28,13 @@ Tài liệu này ghi nhận minh bạch toàn bộ các câu Prompt và kết qu
 Nhờ AI tư vấn phương pháp phân rã hệ thống AITA thành các phân hệ (Subsystems) và thành phần (Components) rõ ràng theo chuẩn UML 2.x, bảo đảm tách biệt ranh giới giữa phần mềm quản trị đám mây (Cloud Web Admin & Backend) và ứng dụng chấm thi ngoại tuyến cục bộ của giảng viên (Offline-First Desktop App).
 
 #### 2. Câu Prompt đã gửi
-> *"Dựa vào tài liệu system overview và tech stack của dự án AITA (Web Admin Next.js, Backend NestJS, Desktop App PyQt6 Python, Google Gemini AI), hãy phân rã hệ thống thành các component cho một Component Diagram chuẩn UML. Yêu cầu làm rõ ranh giới các phân hệ, cách các tầng Presentation, Application Core, và Storage tương tác với nhau."*
+> *"Dựa vào tài liệu system overview và tech stack của dự án AITA (Web Admin Next.js, Backend NestJS, Desktop App PyQt6 Python, AI Hub), hãy phân rã hệ thống thành các component cho một Component Diagram chuẩn UML. Yêu cầu làm rõ ranh giới các phân hệ, cách các tầng Presentation, Application Core, và Storage tương tác với nhau."*
 
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã đề xuất cấu trúc phân rã gồm 4 phân hệ chính và phân tầng chi tiết:
 1. **Phân hệ Web Admin (Next.js Dashboard)**: Gồm `Web Admin UI`, `User Management Component`, `Course Management Component`, `AI Quota Monitor Component`, và `Audit & Report Component`.
 2. **Phân hệ Máy chủ Trung tâm (NestJS Backend & AI Hub)**: Gồm `API Gateway Controller` (Swagger, Routing), `Auth & RBAC Service` (Passport-JWT), `Course & Academic Service`, `Grading Sync Service`, và `AI Hub Gateway` (Quota Guard & Token Counter).
-3. **Dịch vụ AI Đám mây (Cloud AI)**: `Google Gemini 1.5 Flash API` kết nối qua giao diện REST / SDK.
+3. **Dịch vụ AI Đám mây (Cloud AI)**: `AI Hub (OpenRouter)` kết nối qua giao diện REST / SDK.
 4. **Phân hệ Máy trạm Giảng viên (PyQt6 Desktop App Client)**: Phân tầng 3 lớp:
    - *Presentation Layer*: `MainWindow`, `SubmissionTableView`, `TestcaseEditorPanel`, `AIAssistantDialog`, `RealtimeProgressWorker` (QThread).
    - *Application Core Layer*: `GradingController`, `PlagiarismDetector` (AST & AI), `NetworkSyncClient` (HTTPX), `LocalStorageEngine`.
@@ -102,19 +102,19 @@ AI đã thiết kế thêm khối thành phần **OS Sandboxing & Resource Monit
 ### 🔹 PROMPT 04: Chuẩn Hóa Giao Diện Kết Nối (Interfaces) & Luồng Tích Hợp Giữa Các Phân Hệ
 
 #### 1. Mục tiêu
-Quy định chuẩn xác các giao diện công khai (Public Interfaces) kết nối giữa các phân hệ: Web Admin với NestJS Backend, Desktop App với NestJS Backend, và NestJS Backend với Google Gemini API & Database.
+Quy định chuẩn xác các giao diện công khai (Public Interfaces) kết nối giữa các phân hệ: Web Admin với NestJS Backend, Desktop App với NestJS Backend, và NestJS Backend với AI Hub (OpenRouter) & Database.
 
 #### 2. Câu Prompt đã gửi
-> *"Hãy định nghĩa các Interface chuẩn nối giữa các phân hệ trong Component Diagram: Interface REST API cho NestJS Backend kết nối với Web Admin và Desktop App, Interface ORM nối DB và Interface AI nối Gemini."*
+> *"Hãy định nghĩa các Interface chuẩn nối giữa các phân hệ trong Component Diagram: Interface REST API cho NestJS Backend kết nối với Web Admin và Desktop App, Interface ORM nối DB và Interface AI nối AI Hub."*
 
 #### 3. Kết quả do AI sinh ra (AI Output)
 AI đã chuẩn hóa hệ thống giao diện:
 - `IRestAPI` (`RESTful API / JSON - HTTPS Endpoints`): Giao diện công khai của NestJS API Gateway. Cả `Web Admin UI` và `NetworkSyncClient` (PyQt6) đều gửi yêu cầu có gắn kèm `JWT Bearer Token`.
 - `IPrismaORM` (`Prisma / TypeORM Data Access`): Cung cấp quyền truy xuất dữ liệu an toàn từ các Service nghiệp vụ xuống CSDL trung tâm (`PostgreSQL / SQLite Central`).
-- `IGeminiAPI` (`Gemini REST / SDK`): Điểm kết nối giữa `AIHubGateway` và đám mây `Google Gemini 1.5 Flash API`, cho phép kiểm soát Token và hạn ngạch (Quota Guard) tập trung.
+- `IAiApi` (`AI Hub REST / SDK`): Điểm kết nối giữa `AIHubGateway` và đám mây `AI Hub (OpenRouter)`, cho phép kiểm soát Token và hạn ngạch (Quota Guard) tập trung.
 
 #### 4. Giải trình & Tinh chỉnh của Nhóm (Team Justification & Customization)
-- **Đánh giá kiến trúc**: Việc đặt `AIHubGateway` tại NestJS Server thay vì cho Desktop App gọi thẳng Google Gemini giúp bảo vệ tuyệt đối API Key của nhà trường, ngăn chặn việc sinh viên trích xuất khóa API từ mã nguồn client, đồng thời giúp Admin theo dõi chi phí sử dụng theo thời gian thực.
+- **Đánh giá kiến trúc**: Việc đặt `AIHubGateway` tại NestJS Server thay vì cho Desktop App gọi thẳng AI Hub giúp bảo vệ tuyệt đối API Key của nhà trường, ngăn chặn việc sinh viên trích xuất khóa API từ mã nguồn client, đồng thời giúp Admin theo dõi chi phí sử dụng theo thời gian thực.
 
 ---
 

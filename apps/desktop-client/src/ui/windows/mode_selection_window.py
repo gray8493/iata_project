@@ -26,6 +26,7 @@ from ui.styles.theme import (
     COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
 from services.ai_service import AiService
+from ui.components import make_aita_avatar_pixmap
 
 
 
@@ -247,20 +248,27 @@ class ModeSelectionWindow(QMainWindow):
                 sep.setStyleSheet("background-color: #CBD5E1; border: none;")
                 header_layout.addWidget(sep)
         
-        # 1.2 Ô vuông xanh chữ "A" thay cho biểu tượng
-        logo_box = QLabel("A", header)
-        logo_box.setFixedSize(28, 28)
-        logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_box.setStyleSheet(f"""
-            QLabel {{
-                background-color: {COLOR_PRIMARY};
-                color: #FFFFFF;
-                font-weight: 700;
-                font-size: 15px;
-                border-radius: 6px;
-            }}
-        """)
-        header_layout.addWidget(logo_box)
+        # 1.2 Avatar AITA bo góc (fallback: ô vuông xanh chữ "A" nếu thiếu tệp ảnh)
+        _avatar_pm = make_aita_avatar_pixmap(28, 6)
+        if _avatar_pm is not None:
+            avatar_label = QLabel(header)
+            avatar_label.setPixmap(_avatar_pm)
+            avatar_label.setFixedSize(28, 28)
+            header_layout.addWidget(avatar_label)
+        else:
+            logo_box = QLabel("A", header)
+            logo_box.setFixedSize(28, 28)
+            logo_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo_box.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {COLOR_PRIMARY};
+                    color: #FFFFFF;
+                    font-weight: 700;
+                    font-size: 15px;
+                    border-radius: 6px;
+                }}
+            """)
+            header_layout.addWidget(logo_box)
         
         # App Title (Không dùng emoji)
         app_title = QLabel("AITA", header)
@@ -269,8 +277,8 @@ class ModeSelectionWindow(QMainWindow):
         
         header_layout.addStretch(1)
         
-        # 1.3 Nút "Gemini AI: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
-        ai_badge = QLabel("Gemini AI: Sẵn Sàng", header)
+        # 1.3 Nút "AI Hub: Sẵn Sàng": Đơn viền bo góc, cùng chiều cao 34px, bỏ icon
+        ai_badge = QLabel("AI Hub: Sẵn Sàng", header)
         ai_badge.setFixedHeight(34)
         ai_badge.setStyleSheet(f"""
             QLabel {{
@@ -380,7 +388,7 @@ class ModeSelectionWindow(QMainWindow):
                 "4 Môn học cốt lõi: PRF (C), PRO (Java/Python), DSA (Java/Python), PHP (Python)",
                 "Chấm tự động qua hàm main() với 7 chiến lược so khớp",
                 "Sandbox Runner đo CPU, RAM, bắt lỗi TLE & MLE thời gian thực",
-                "AI Gemini tự động sinh Testcase biên chuẩn xác",
+                "AI Hub tự động sinh Testcase biên chuẩn xác",
                 "Quét đạo văn 2 vòng: Cây cú pháp AST và Đối soát ngữ nghĩa"
             ],
             btn_text="Vào Chấm Thi Thực Hành",
@@ -392,14 +400,15 @@ class ModeSelectionWindow(QMainWindow):
         # Card 2: Web Assignment
         self.card_web = ModeCard(
             title="Chấm Bài Tập & Đồ Án Web (Web Assignment)",
-            badge_text="FRONTEND & BACKEND WEB",
-            description="Phân hệ chuyên trách các bài tập giao diện và ứng dụng web. Thẩm định đa nguồn linh hoạt từ domain website đã deploy hoặc repository GitHub.",
+            badge_text="FRONTEND WEB (HTML/CSS/JS)",
+            description="Phân hệ chuyên trách chấm bài tập giao diện và ứng dụng web; hỗ trợ 3 chế độ: Live Website Only, GitHub Repo Only, hoặc Hybrid.",
             features=[
-                "Công nghệ: HTML5, CSS3, JavaScript, PHP (WEB201c, PRF)",
-                "3 chế độ: Live Website Only, GitHub Repo Only, hoặc Hybrid",
-                "Playwright Headless Browser kiểm thử tương tác E2E và Responsive",
-                "Thẩm định cây DOM ngữ nghĩa và quét W3C CSS/HTML Linting",
-                "AI Gemini thẩm định bố cục thẩm mỹ và đối soát gian lận chéo"
+                "3 chế độ linh hoạt: Live Website Only, GitHub Repo Only, hoặc Hybrid",
+                "Thêm bài nhanh: nhập link từng bài hoặc dán danh sách hàng loạt từ Excel / Google Sheets",
+                "Playwright Headless Browser render trang và chụp ảnh toàn trang",
+                "Chấm cây DOM ngữ nghĩa, lint CSS (tinycss2) và chỉ số tương tác JS",
+                "AI Vision thẩm định bố cục thẩm mỹ giao diện qua AI Gateway",
+                "Tổng hợp điểm theo Rubric và hiển thị bảng điểm trực quan"
             ],
             btn_text="Vào Phân Hệ Chấm Web",
             parent=central
@@ -464,7 +473,7 @@ class ModeSelectionWindow(QMainWindow):
             if res.get("success"):
                 rem = res.get("remaining_tokens", 50000)
                 limit = res.get("daily_limit_tokens", 50000)
-                self.lbl_ai_badge.setText(f"Gemini AI: Còn {rem:,} / {limit:,} Tokens")
+                self.lbl_ai_badge.setText(f"AI Hub: Còn {rem:,} / {limit:,} Tokens")
                 self.lbl_ai_badge.setToolTip(
                     f"Hạn ngạch AI từ CSDL Neon Postgres:\n"
                     f"• Đã dùng hôm nay: {res.get('used_tokens_today', 0):,} tokens\n"
@@ -472,7 +481,7 @@ class ModeSelectionWindow(QMainWindow):
                     f"• Còn lại: {rem:,} tokens"
                 )
             else:
-                self.lbl_ai_badge.setText("Gemini AI: Sẵn Sàng")
+                self.lbl_ai_badge.setText("AI Hub: Sẵn Sàng")
 
 
 if __name__ == "__main__":

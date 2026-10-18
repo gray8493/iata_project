@@ -12,7 +12,7 @@ Hệ sinh thái phần mềm **AITA** được thiết kế theo mô hình **Ki�
 Mô hình này mang lại 3 ưu thế vượt trội:
 1. **Tốc độ chấm bài tối đa**: Toàn bộ quá trình biên dịch mã nguồn C, Java, Python và so khớp testcase diễn ra trực tiếp trên phần cứng máy tính của Giảng viên mà không chịu độ trễ mạng (Network Latency) hay nguy cơ nghẽn hàng đợi (Queue Bottleneck).
 2. **Khả năng hoạt động ngoại tuyến (Offline-First)**: Giảng viên vẫn có thể chấm bài thi bình thường trong phòng thi bị ngắt kết nối Internet; kết quả chấm được lưu đệm an toàn vào SQLite và xuất thẳng ra file `results.csv`.
-3. **Quản trị bảo mật & kiểm soát chi phí AI**: Quản trị viên quản lý danh mục môn học, phân quyền tài khoản Giảng viên và kiểm soát hạn ngạch token Google Gemini AI tập trung tại máy chủ, ngăn chặn tuyệt đối lộ API Key ra phía người dùng cuối.
+3. **Quản trị bảo mật & kiểm soát chi phí AI**: Quản trị viên quản lý danh mục môn học, phân quyền tài khoản Giảng viên và kiểm soát hạn ngạch token AI Hub tập trung tại máy chủ, ngăn chặn tuyệt đối lộ API Key ra phía người dùng cuối.
 
 Sơ đồ PlantUML tương ứng: [deployment_diagram.puml](file:///e:/AITA/docs/diagrams/puml/deployment_diagram.puml).
 
@@ -44,7 +44,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 +------------------------------------+       +------------------------------------+
 | Node 4: Neon Serverless Postgres   |       | Node 5: Google Cloud Platform      |
 | (Managed Cloud Database)           |       | (Managed AI Infrastructure)        |
-| - Lakebase PostgreSQL 16 Engine    |       | - Google Gemini 3.8 Flash API      |
+| - Lakebase PostgreSQL 16 Engine    |       | - AI Model API                     |
 | - aita_central_db (Pooled/Direct)  |       | - generativelanguage.googleapis.com|
 +------------------------------------+       +------------------------------------+
 ```
@@ -66,14 +66,14 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - **Trình thông dịch Python**: Python 3.10+ Standard Runtime (`python.exe`).
   - **Công cụ bảo vệ HĐH (Sandbox Guard)**: Thư viện `psutil` tích hợp sẵn trong client để giám sát mức chiếm dụng RAM, CPU và tự động cưỡng chế diệt các tiến trình lặp vô hạn.
 - **Lưu trữ cục bộ**: 
-  - Cơ sở dữ liệu SQLite 3 (`local_cache.db`): Lưu tạm cấu hình bài thi và kết quả chấm offline.
+  - Cơ sở dữ liệu SQLite 3 (`apps/desktop-client/data/local_grading.db`, chế độ WAL): Lưu cấu hình đợt chấm, testcase và kết quả chấm offline.
   - Tập tin CSV: `students.csv` (đầu vào: 2 cột `MSSV`, `File`) và `results.csv` (đầu ra: 7 cột hoàn chỉnh).
 
 ---
 
 ### 2.2. Node 2: Máy Trạm Quản Trị Viên (Administrator Terminal)
 
-- **Vai trò**: Cung cấp giao diện Web Admin để Quản trị viên (Admin) cấu hình hệ thống, quản lý tài khoản giảng viên, theo dõi hạn ngạch Gemini AI và kiểm toán hệ thống.
+- **Vai trò**: Cung cấp giao diện Web Admin để Quản trị viên (Admin) cấu hình hệ thống, quản lý tài khoản giảng viên, theo dõi hạn ngạch AI Hub và kiểm toán hệ thống.
 - **Hệ điều hành**: Độc lập nền tảng (Hỗ trợ tốt trên Windows, macOS, Linux).
 - **Phần mềm yêu cầu**: Trình duyệt Web chuẩn HTML5 hiện đại (Google Chrome ≥ 115, Microsoft Edge ≥ 115, Mozilla Firefox ≥ 118, Safari ≥ 16).
 - **Giao diện Web Frontend**: Ứng dụng Single Page Application (SPA) xây dựng trên nền tảng Next.js 14+ / React với thiết kế Modern Dashboard, tải trực tiếp qua giao thức HTTPS.
@@ -82,9 +82,9 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 ### 2.3. Node 3: Dịch Vụ Máy Chủ Đám Mây (Render.com Cloud PaaS Web Service)
 
-- **Vai trò**: Đóng vai trò Backend API tập trung, cung cấp endpoint xác thực JWT, quản lý tài khoản giảng viên, kiểm soát hạn ngạch và đóng vai trò AI Gateway Hub bảo mật trung gian khi gọi Google Gemini AI.
+- **Vai trò**: Đóng vai trò Backend API tập trung, cung cấp endpoint xác thực JWT, quản lý tài khoản giảng viên, kiểm soát hạn ngạch và đóng vai trò AI Gateway Hub bảo mật trung gian khi gọi AI Hub.
 - **Nền tảng triển khai**: **Render.com Cloud Platform (Managed Web Service)**.
-  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project.onrender.com/api/v1`.
+  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project-o4z6.onrender.com/api/v1`.
   - *Môi trường Local Development*: Khởi chạy trực tiếp bằng Node.js 20 LTS qua lệnh `npm run start:dev` (lắng nghe tại `http://localhost:3000/api/v1`).
 - **Cấu hình & Quản lý lưu lượng**:
   - **Tự động quản lý SSL/TLS 1.3**: Nền tảng Render tự động cung cấp chứng chỉ SSL/TLS 1.3 Let's Encrypt, hỗ trợ HTTP/2 và cơ chế phòng chống DDoS tầng mạng.
@@ -92,7 +92,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - **5 Modules Kiến trúc Cốt lõi**:
     1. `AuthModule`: Xác thực đăng nhập qua JWT Bearer, mã hóa mật khẩu Bcrypt, cấp và thu hồi Refresh Token.
     2. `UsersModule`: Quản lý danh sách tài khoản giảng viên, phân quyền RBAC (`ADMIN`, `INSTRUCTOR`).
-    3. `AiGatewayModule`: Proxy an toàn gọi Gemini API, tích hợp cơ chế đếm token tiêu thụ và khóa gọi khi vượt hạn ngạch ngày.
+    3. `AiGatewayModule`: Proxy an toàn gọi AI Gateway API, tích hợp cơ chế đếm token tiêu thụ và khóa gọi khi vượt hạn ngạch ngày.
     4. `AuditLogsModule`: Ghi nhận và truy vấn nhật ký gọi AI theo người dùng, môn học và tính năng.
     5. `HealthModule`: Cung cấp endpoint kiểm tra tình trạng dịch vụ (`/health`).
 
@@ -100,7 +100,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 ### 2.4. Node 4: Dịch Vụ Cơ Sở Dữ Liệu Đám Mây (Neon Serverless PostgreSQL Cloud)
 
-- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản người dùng, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Toàn bộ phiên chấm, bài nộp sinh viên và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First (SQLite `local_cache.db` và `results.csv`).
+- **Vai trò**: Lưu trữ dữ liệu tập trung gồm tài khoản người dùng, cấu hình hạn ngạch AI, refresh token và nhật ký sử dụng AI. Toàn bộ phiên chấm, bài nộp sinh viên và bảng điểm được lưu cục bộ trên Desktop App theo nguyên tắc Local-First (SQLite `apps/desktop-client/data/local_grading.db` và `results.csv`).
 - **Nền tảng**: **Neon Serverless Postgres** (Database-as-a-Service xây dựng trên kiến trúc Lakebase Postgres hiện đại).
 - **Hệ quản trị CSDL**: **PostgreSQL 16 Engine**.
 - **Tính năng nổi bật & Bảo đảm**:
@@ -115,7 +115,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 - **Vai trò**: Cung cấp mô hình ngôn ngữ lớn (LLM) hỗ trợ tự động sinh testcase biên, phân tích lỗi code và đối chứng gian lận học thuật.
 - **Nền tảng**: Google Cloud Platform (PaaS) – Google AI Studio / Vertex AI Foundation Models.
 - **Endpoint**: `https://generativelanguage.googleapis.com` (Giao tiếp qua REST API & gRPC).
-- **Mô hình triển khai**: Model Gemini được cấu hình bằng biến `GEMINI_MODEL` (mặc định `gemini-3.8-flash`); API key chỉ được lưu trong secret môi trường của backend.
+- **Mô hình triển khai**: Model AI được cấu hình bằng biến `AI_MODEL` (mặc định `gemini-3.8-flash`); API key chỉ được lưu trong secret môi trường của backend.
 
 ---
 
@@ -124,7 +124,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | Artifact Name | Định dạng đóng gói | Nơi triển khai (Deployed Node) | Công nghệ nền tảng | Mục đích sử dụng |
 | :--- | :--- | :--- | :--- | :--- |
 | **`AITA.exe`** | Standalone Executable | Node 1 (Instructor PC) | PyInstaller, Python 3.11, PyQt6 | Ứng dụng Desktop bản địa dành cho Giảng viên |
-| **`local_cache.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine | Lưu tạm testcases, cache phiên chấm offline |
+| **`local_grading.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine (WAL) | Lưu testcases, bài nộp và kết quả chấm offline |
 | **`Web Admin UI`** | SPA Static Bundle | Node 2 (Admin Browser) | Next.js 14, React, TailwindCSS | Giao diện điều hành hệ thống của Admin |
 | **`central-backend`** | Web Service Artifact | Node 3 (Render.com PaaS) | NestJS 10, Node.js 20, TypeScript | REST API Gateway, Auth RBAC, AI Quota Guard |
 | **`aita_central_db`**| Cloud Relational DB | Node 4 (Neon Cloud) | Neon Serverless PostgreSQL 16 | Cơ sở dữ liệu tập trung lưu Users, Quota Configs/Logs, Refresh Tokens |
@@ -138,7 +138,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | Admin Web Browser | Central Backend (Render) | **HTTPS (HTTP/2)** | `443` | Mã hóa TLS 1.3, Chứng chỉ SSL Let's Encrypt |
 | Desktop Client (`AITA.exe`) | Central Backend (Render) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
 | Central Backend (Render) | Neon Serverless Postgres | **PostgreSQL over TLS** | `5432` | TLS 1.3 Encrypted, Prisma Connection Pool (PgBouncer) |
-| Central Backend (Render) | Google Gemini API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ |
+| Central Backend (Render) | AI Gateway API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ    |
 | Desktop Client (`AITA.exe`) | Local Compiler Toolchain | **OS Standard Streams** | `IPC` | Đường ống Stdin, Stdout, Stderr qua `subprocess` |
 
 ---
@@ -175,7 +175,7 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
   - Kết nối repository Git trực tiếp với Render Web Service.
   - Thiết lập Build Command: `npm install && npm run build && npm run db:generate`
   - Thiết lập Start Command: `npm run start:prod`
-  - Khai báo các Environment Secrets: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GEMINI_API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`.
+  - Khai báo các Environment Secrets: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AI_API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`.
 - **Khởi chạy môi trường phát triển cục bộ (Local Development)**:
   ```bash
   cd apps/central-backend

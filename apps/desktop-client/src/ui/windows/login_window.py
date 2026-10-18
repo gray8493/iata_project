@@ -226,6 +226,10 @@ class LoginWindow(QMainWindow):
             self.action_toggle_pwd.setToolTip("Hiện mật khẩu")
             self.action_toggle_pwd.triggered.connect(self._toggle_password_visibility)
         card_layout.addWidget(self.txt_password)
+
+        # Phím Enter: ô Tài khoản nhảy sang ô Mật khẩu, ô Mật khẩu đăng nhập luôn
+        self.txt_username.returnPressed.connect(self.txt_password.setFocus)
+        self.txt_password.returnPressed.connect(self._handle_login)
         
         # Khoảng cách đến checkbox: 14px
         card_layout.addSpacing(14)
