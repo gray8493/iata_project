@@ -632,6 +632,27 @@ class SessionDialog(QDialog):
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
+        # UX #2: trùng tên đợt chấm đang hoạt động -> đề xuất hậu tố (2) để danh sách đợt không loạn
+        if self.existing_class_id is None:
+            db_name_check = DatabaseManager()
+            same_name_count = db_name_check.count_active_classes_by_name(class_name)
+            if same_name_count > 0:
+                suggested = f"{class_name} ({same_name_count + 1})"
+                reply = QMessageBox.question(
+                    self,
+                    "Tên Đợt Chấm Đã Tồn Tại",
+                    f"Đang có {same_name_count} đợt chấm hoạt động đặt tên '{class_name}'.\n"
+                    f"Đề xuất: tạo đợt mới với tên '{suggested}' để tránh nhầm lẫn giữa các kết quả.\n\n"
+                    "Tạo đợt chấm với tên gợi ý này?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    self.txt_class_name.setFocus()
+                    return
+                class_name = suggested
+                self.txt_class_name.setText(class_name)
+
         try:
             db = DatabaseManager()
             if self.existing_class_id:

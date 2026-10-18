@@ -26,6 +26,7 @@ from ui.styles.theme import (
     COLOR_BORDER_DEFAULT, COLOR_BORDER_LIGHT, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
 from services.ai_service import AiService
+from ui.components import make_aita_avatar_pixmap
 
 
 
@@ -247,24 +248,12 @@ class ModeSelectionWindow(QMainWindow):
                 sep.setStyleSheet("background-color: #CBD5E1; border: none;")
                 header_layout.addWidget(sep)
         
-        # 1.2 Avatar AITA (fallback: ô vuông xanh chữ "A" nếu thiếu tệp ảnh)
-        _avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
-        if _avatar_path.exists():
+        # 1.2 Avatar AITA bo góc (fallback: ô vuông xanh chữ "A" nếu thiếu tệp ảnh)
+        _avatar_pm = make_aita_avatar_pixmap(28, 6)
+        if _avatar_pm is not None:
             avatar_label = QLabel(header)
+            avatar_label.setPixmap(_avatar_pm)
             avatar_label.setFixedSize(28, 28)
-            avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            avatar_label.setStyleSheet("""
-                QLabel {
-                    background-color: #0B132B;
-                    border-radius: 6px;
-                }
-            """)
-            _pm = QPixmap(str(_avatar_path)).scaled(
-                22, 22,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            avatar_label.setPixmap(_pm)
             header_layout.addWidget(avatar_label)
         else:
             logo_box = QLabel("A", header)

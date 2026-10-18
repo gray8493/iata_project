@@ -868,6 +868,14 @@ class TestcaseDialog(QDialog):
 
         tl_layout.addLayout(tool_row)
 
+        # UX tổng trọng số: GV thấy ngay bảng quy đổi về thang 10 mà không phải chấm thử
+        total_row = QHBoxLayout()
+        total_row.addStretch(1)
+        self.lbl_tc_total = QLabel("", tab_tc)
+        self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+        total_row.addWidget(self.lbl_tc_total)
+        tl_layout.addLayout(total_row)
+
         # Bảng danh sách Testcase
         self.table_tc = QTableWidget(tab_tc)
         self.table_tc.setColumnCount(9)
@@ -1163,7 +1171,22 @@ class TestcaseDialog(QDialog):
             filtered = [tc for tc in self._all_testcases if tc.get("question_number", "").upper() == q_filter.upper()]
             self._render_testcases_table(filtered)
 
+    def _update_tc_total_label(self):
+        """Hiển thị tổng trọng số testcases của đợt để hiểu quy đổi thang điểm 10."""
+        cases = getattr(self, "_all_testcases", []) or []
+        total_weight = sum(float(tc.get("score_weight", 1.0) or 0.0) for tc in cases)
+        if total_weight <= 0:
+            self.lbl_tc_total.setText("Chưa có testcase nào — hãy thêm testcase trước khi bắt đầu chấm.")
+            self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: #DC2626; line-height: 1.4;")
+            return
+        per_unit = 10.0 / total_weight
+        self.lbl_tc_total.setText(
+            f"Tổng trọng số: {total_weight:.1f} — đạt đủ mới được 10/10; mỗi 1 trọng số tương đương {per_unit:.1f} điểm."
+        )
+        self.lbl_tc_total.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+
     def _render_testcases_table(self, testcases: List[Dict[str, Any]]):
+        self._update_tc_total_label()
         self.table_tc.setRowCount(len(testcases))
         for r, tc in enumerate(testcases):
             self.table_tc.setRowHeight(r, 52)

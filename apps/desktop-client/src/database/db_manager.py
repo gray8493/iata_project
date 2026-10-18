@@ -311,6 +311,18 @@ class DatabaseManager:
                 raise RuntimeError("Failed to retrieve row ID from local_classes.")
             return cursor.lastrowid
 
+    def count_active_classes_by_name(self, class_name: str) -> int:
+        """Số đợt chấm đang hoạt động (is_deleted=0) mang đúng tên này (bỏ qua hoa/thường)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM local_classes "
+                "WHERE is_deleted = 0 AND LOWER(TRIM(class_name)) = LOWER(TRIM(?))",
+                (class_name,)
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else 0
+
     def get_all_classes(self) -> List[Dict[str, Any]]:
         """Fetches all active (non-deleted) grading sessions."""
         with self.get_connection() as conn:

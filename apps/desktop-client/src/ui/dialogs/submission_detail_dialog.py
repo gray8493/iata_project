@@ -28,6 +28,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ui.styles.theme import LIGHT_THEME_QSS
+from ui.components import start_spinner, stop_spinner
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
 
@@ -234,7 +235,12 @@ class SubmissionDetailDialog(QDialog):
         self.db = DatabaseManager()
         self._source_is_placeholder = True
         
-        self.setWindowTitle(f"Chi Tiết Bài Nộp - {self.mssv} ({self.file_name})")
+        # UX #6: bài nộp theo thư mục (không có đuôi file) -> nhãn không bị nhắc MSSV hai lần
+        self.display_file_name = file_name or "—"
+        if self.display_file_name != "—" and Path(self.display_file_name).suffix == "":
+            self.display_file_name = f"'{self.display_file_name}' (thư mục bài nộp)"
+
+        self.setWindowTitle(f"Chi Tiết Bài Nộp - {self.mssv} ({self.display_file_name})")
 
         # Đảm bảo title bar luôn có avatar AITA ngay cả khi chạy ngoài entry point chính
         avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
@@ -287,7 +293,7 @@ class SubmissionDetailDialog(QDialog):
         t_layout.addWidget(lbl_student)
         
         # Nhãn Tệp Bài Thi riêng biệt
-        lbl_file = QLabel(f"Tệp Bài Thi: <b>{self.file_name}</b>", top_card)
+        lbl_file = QLabel(f"Tệp Bài Thi: <b>{self.display_file_name}</b>", top_card)
         lbl_file.setStyleSheet("""
             QLabel {
                 font-size: 13px;
@@ -612,11 +618,13 @@ class SubmissionDetailDialog(QDialog):
 
         self.btn_regrade.setEnabled(False)
         self.btn_regrade.setText("Đang Chạy Sandbox Chấm Lại...")
+        start_spinner(self, f"Đang chạy sandbox chấm lại bài của {self.mssv}...")
         self.regrade_worker = RegradeWorker(self.submission_id, parent=self)
         self.regrade_worker.regrade_finished.connect(self._on_regrade_finished)
         self.regrade_worker.start()
 
     def _on_regrade_finished(self, res: Dict[str, Any]):
+        stop_spinner(self)
         self.btn_regrade.setEnabled(True)
         self.btn_regrade.setText("Chấm Lại Bài Này")
 
@@ -991,12 +999,14 @@ class SubmissionDetailDialog(QDialog):
         self.btn_run_ai_review.setEnabled(False)
         self.btn_run_ai_review.setText("Đang kết nối AI Gateway phân tích mã nguồn...")
         self.txt_ai_feedback.setPlainText("// Đang gửi mã nguồn tới Central Backend & Gemini AI Gateway để nhận xét sư phạm...")
+        start_spinner(self, "Gemini AI đang phân tích mã nguồn và soạn nhận xét...")
 
         self.ai_review_worker = AiReviewWorker(code, lang, problem, failed_tc)
         self.ai_review_worker.finished.connect(self._on_ai_review_finished)
         self.ai_review_worker.start()
 
     def _on_ai_review_finished(self, result: Dict[str, Any]):
+        stop_spinner(self)
         self.btn_run_ai_review.setEnabled(True)
         self.btn_run_ai_review.setText("Kích Hoạt Gemini AI Phân Tích Lỗi Mã Nguồn Bài Này")
 

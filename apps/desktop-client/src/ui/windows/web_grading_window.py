@@ -31,6 +31,7 @@ from database.db_manager import DatabaseManager
 from services.ai_service import AiService
 from services.web_rubric_service import WebRubricEngine
 from ui.dialogs.web_folder_import_dialog import WebFolderImportDialog, MSSV_PATTERN
+from ui.components import make_aita_avatar_pixmap
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_PRIMARY_BG, COLOR_PRIMARY_LIGHT, COLOR_BG, COLOR_SURFACE,
@@ -888,32 +889,23 @@ class WebGradingMainWindow(QMainWindow):
         la_layout.setContentsMargins(6, 0, 6, 0)
         la_layout.setSpacing(12)
 
-        logo_icon = QFrame(logo_area)
-        logo_icon.setFixedSize(38, 38)
-        logo_icon.setStyleSheet(f"background-color: {COLOR_PRIMARY}; border-radius: 10px;")
-        _avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
-        if _avatar_path.exists():
-            li_layout = QVBoxLayout(logo_icon)
-            li_layout.setContentsMargins(3, 3, 3, 3)
-            avatar_label = QLabel(logo_icon)
-            _pixmap = QPixmap(str(_avatar_path)).scaled(
-                32, 32,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            avatar_label.setPixmap(_pixmap)
-            avatar_label.setFixedSize(32, 32)
-            avatar_label.setScaledContents(True)
-            avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            li_layout.addWidget(avatar_label)
+        _avatar_pm = make_aita_avatar_pixmap(38, 10)
+        if _avatar_pm is not None:
+            avatar_label = QLabel(logo_area)
+            avatar_label.setPixmap(_avatar_pm)
+            avatar_label.setFixedSize(38, 38)
+            la_layout.addWidget(avatar_label)
         else:
+            logo_icon = QFrame(logo_area)
+            logo_icon.setFixedSize(38, 38)
+            logo_icon.setStyleSheet(f"background-color: {COLOR_PRIMARY}; border-radius: 10px;")
             li_layout = QHBoxLayout(logo_icon)
             li_layout.setContentsMargins(0, 0, 0, 0)
             lbl_li = QLabel("W", logo_icon)
             lbl_li.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 800;")
             lbl_li.setAlignment(Qt.AlignmentFlag.AlignCenter)
             li_layout.addWidget(lbl_li)
-        la_layout.addWidget(logo_icon)
+            la_layout.addWidget(logo_icon)
 
         title_box = QVBoxLayout()
         title_box.setSpacing(2)

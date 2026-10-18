@@ -37,6 +37,7 @@ from ui.styles.theme import (
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
 from ui.components.toast import show_toast
+from ui.components import make_aita_avatar_pixmap, start_spinner, stop_spinner
 from ui.dialogs.session_dialog import SessionDialog
 from ui.dialogs.history_dialog import HistoryDialog
 from ui.dialogs.grading_guide_dialog import GradingGuideDialog
@@ -447,35 +448,26 @@ class AITAMainWindow(QMainWindow):
         la_layout.setContentsMargins(6, 0, 6, 0)
         la_layout.setSpacing(12)
         
-        logo_icon = QFrame(logo_area)
-        logo_icon.setFixedSize(38, 38)
-        logo_icon.setStyleSheet(f"""
-            background-color: {COLOR_PRIMARY};
-            border-radius: 10px;
-        """)
-        _avatar_path = Path(__file__).resolve().parents[3] / "assets" / "images" / "aita-avatar.png"
-        if _avatar_path.exists():
-            li_layout = QVBoxLayout(logo_icon)
-            li_layout.setContentsMargins(3, 3, 3, 3)
-            avatar_label = QLabel(logo_icon)
-            _pixmap = QPixmap(str(_avatar_path)).scaled(
-                32, 32,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            avatar_label.setPixmap(_pixmap)
-            avatar_label.setFixedSize(32, 32)
-            avatar_label.setScaledContents(True)
-            avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            li_layout.addWidget(avatar_label)
+        _avatar_pm = make_aita_avatar_pixmap(38, 10)
+        if _avatar_pm is not None:
+            avatar_label = QLabel(logo_area)
+            avatar_label.setPixmap(_avatar_pm)
+            avatar_label.setFixedSize(38, 38)
+            la_layout.addWidget(avatar_label)
         else:
+            logo_icon = QFrame(logo_area)
+            logo_icon.setFixedSize(38, 38)
+            logo_icon.setStyleSheet(f"""
+                background-color: {COLOR_PRIMARY};
+                border-radius: 10px;
+            """)
             li_layout = QHBoxLayout(logo_icon)
             li_layout.setContentsMargins(0, 0, 0, 0)
             lbl_li = QLabel("A", logo_icon)
             lbl_li.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 800;")
             lbl_li.setAlignment(Qt.AlignmentFlag.AlignCenter)
             li_layout.addWidget(lbl_li)
-        la_layout.addWidget(logo_icon)
+            la_layout.addWidget(logo_icon)
         
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
@@ -1694,36 +1686,52 @@ class AITAMainWindow(QMainWindow):
             )
             return
 
-        folder = QFileDialog.getExistingDirectory(self, "Chọn Thư Mục Chứa Bài Nộp Của Sinh Viên")
-        if not folder:
-            return
-
         classes = self.db.get_all_classes()
         class_info = next((c for c in classes if c["id"] == self.current_class_id), None)
         lang = class_info.get("programming_language", "C") if class_info else "C"
 
-        scanned = self._scan_submissions_directory(folder, lang)
-        valid_items = scanned["valid"]
-        if not valid_items:
-            QMessageBox.warning(
-                self, "Không Tìm Thấy Bài Nộp",
-                "Thư mục đã chọn không có file hoặc thư mục bài nộp hợp lệ nào khớp mã sinh viên!"
-            )
+        # UX #3: mở sẵn ở thư mục đã lưu cho đợt này thay vì để GV duyệt lại từ đầu
+        prev_dir = ""
+        if class_info:
+            for key in ("submissions_dir_path", "session_folder_path"):
+                candidate = class_info.get(key) or ""
+                if candidate and Path(candidate).exists():
+                    prev_dir = candidate
+                    break
+        if prev_dir:
+            folder = QFileDialog.getExistingDirectory(self, "Chọn Thư Mục Chứa Bài Nộp Của Sinh Viên", prev_dir)
+        else:
+            folder = QFileDialog.getExistingDirectory(self, "Chọn Thư Mục Chứa Bài Nộp Của Sinh Viên")
+        if not folder:
             return
 
-        # Lưu đường dẫn thư mục vào class
+        start_spinner(self, "Đang nạp bài nộp...")
         try:
-            with self.db.get_connection() as conn:
-                conn.execute(
-                    "UPDATE local_classes SET submissions_dir_path = ? WHERE id = ?",
-                    (folder, self.current_class_id)
+            scanned = self._scan_submissions_directory(folder, lang)
+            valid_items = scanned["valid"]
+            if not valid_items:
+                stop_spinner(self)
+                QMessageBox.warning(
+                    self, "Không Tìm Thấy Bài Nộp",
+                    "Thư mục đã chọn không có file hoặc thư mục bài nộp hợp lệ nào khớp mã sinh viên!"
                 )
-        except Exception:
-            pass
+                return
 
-        # Đồng bộ vào CSDL (giữ nguyên điểm các bài cũ)
-        added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
-        self._load_submissions_table(self.current_class_id)
+            # Lưu đường dẫn thư mục vào class
+            try:
+                with self.db.get_connection() as conn:
+                    conn.execute(
+                        "UPDATE local_classes SET submissions_dir_path = ? WHERE id = ?",
+                        (folder, self.current_class_id)
+                    )
+            except Exception:
+                pass
+
+            # Đồng bộ vào CSDL (giữ nguyên điểm các bài cũ)
+            added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
+            self._load_submissions_table(self.current_class_id)
+        finally:
+            stop_spinner(self)
 
         # Pain #3: nạp bài xong chỉ cần thông tin tổng quan — toast không khóa màn hình
         show_toast(
@@ -1732,6 +1740,9 @@ class AITAMainWindow(QMainWindow):
             f"({added} mới, {existing} giữ nguyên điểm).",
             kind="success",
         )
+
+        # UX #7: kiểm tra toolchain biên dịch sớm, báo đỏ trước khi GV bấm chấm
+        self._start_environment_probe(lang)
 
     def _handle_rescan_directory(self):
         """Rescans the existing submission directory without deleting or resetting grades."""
@@ -1750,11 +1761,15 @@ class AITAMainWindow(QMainWindow):
             return
 
         lang = class_info.get("programming_language", "C")
-        scanned = self._scan_submissions_directory(folder, lang)
-        valid_items = scanned["valid"]
+        start_spinner(self, "Đang quét lại thư mục bài nộp...")
+        try:
+            scanned = self._scan_submissions_directory(folder, lang)
+            valid_items = scanned["valid"]
 
-        added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
-        self._load_submissions_table(self.current_class_id)
+            added, existing = self.db.rescan_and_sync_submissions(self.current_class_id, valid_items)
+            self._load_submissions_table(self.current_class_id)
+        finally:
+            stop_spinner(self)
 
         msg = (
             f"Quét lại thư mục thành công:\n{folder}\n\n"
@@ -1939,13 +1954,14 @@ class AITAMainWindow(QMainWindow):
             sid = sub.get("id")
             if sid is None:
                 return
-            show_toast(self, f"Đang chấm lại bài của sinh viên {sub.get('student_mssv', '')}...", kind="info")
+            start_spinner(self, f"Đang chấm lại bài của sinh viên {sub.get('student_mssv', '')}...")
             regrade_worker = RegradeWorker(int(sid), parent=self)
             self._regrade_worker = regrade_worker
             regrade_worker.regrade_finished.connect(self._on_row_regrade_done)
             regrade_worker.start()
 
     def _on_row_regrade_done(self, payload: dict) -> None:
+        stop_spinner(self)
         self._regrade_worker = None
         if not payload.get("success"):
             show_toast(self, f"Chấm lại thất bại: {payload.get('message', '')}", kind="error")
@@ -2250,14 +2266,14 @@ class AITAMainWindow(QMainWindow):
         class_info = next((c for c in classes if c["id"] == self.current_class_id), None)
         class_name = class_info.get("class_name", "") if class_info else ""
 
-        # Yêu cầu 11: Hỏi xác nhận và nêu rõ hậu quả chốt đợt, không sửa điểm nữa
+        # Yêu cầu 11: Hỏi xác nhận và nêu rõ hậu quả chốt đợt, nói đúng hành vi của hệ thống
         ret = QMessageBox.question(
             self,
             "Xác Nhận Kết Thúc Phiên Chấm",
-            f"Bạn có chắc chắn muốn kết thúc và chốt đợt chấm '{class_name}' không?\n\n"
-            "Cảnh báo hậu quả:\n"
-            "• Đợt thi này sẽ được chốt sổ kết quả; toàn bộ bảng điểm và bài thi sẽ được khóa, không thể chỉnh sửa điểm hay chấm lại sau khi chốt đợt.\n"
-            "• Dữ liệu phiên chấm đã được lưu an toàn vào hệ thống và màn hình sẽ quay trở về trạng thái ban đầu.",
+            f"Bạn có chắc chắn muốn kết thúc phiên chấm đợt '{class_name}' không?\n\n"
+            "Điều gì sẽ xảy ra:\n"
+            "• Kết quả chấm đã được lưu an toàn trong hệ thống và không bị mất.\n"
+            "• Bảng làm việc đóng lại, chọn và mở lại đợt này bất kỳ lúc nào nếu cần bổ sung testcase hay chấm lại bài nào.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -2290,6 +2306,52 @@ class AITAMainWindow(QMainWindow):
         self.quota_worker = QuotaWorker()
         self.quota_worker.quota_received.connect(self._on_quota_received)
         self.quota_worker.start()
+
+    def _start_environment_probe(self, language: str):
+        """UX #7: quét toolchain (gcc/javac/python) sau khi nạp bài để GV biết ngay máy được chấm không."""
+        class EnvProbeWorker(QThread):
+            probe_done = pyqtSignal(dict)
+            def run(self_inner):
+                import shutil
+                tools = []
+                lang_upper = (language or "").upper()
+                if "JAVA" in lang_upper:
+                    tools.append(("javac", bool(shutil.which("javac"))))
+                if "PY" in lang_upper:
+                    try:
+                        from core.app_paths import resolve_python_executable
+                        from pathlib import Path as _Path
+                        tools.append(("python", _Path(resolve_python_executable()).is_file()))
+                    except Exception:
+                        tools.append(("python", True))
+                # C/C++ mọi ngôn ngữ đều đòi gcc; với PY/JAVA vẫn kiểm để chấm cả 2 lựa chọn
+                try:
+                    from core.adapters.compiler_adapter import find_gcc_executable
+                    tools.append(("gcc", bool(find_gcc_executable())))
+                except Exception:
+                    tools.append(("gcc", False))
+                self_inner.probe_done.emit({"language": language, "tools": tools})
+
+        self.env_probe_worker = EnvProbeWorker()
+        self.env_probe_worker.probe_done.connect(self._on_env_probe_done)
+        self.env_probe_worker.start()
+
+    def _on_env_probe_done(self, info: Dict[str, Any]):
+        tools = info.get("tools") or []
+        missing = [name for name, ok in tools if not ok]
+        if missing:
+            show_toast(
+                self,
+                f"Môi trường chấm thiếu: {', '.join(missing)}.\n"
+                "Mở 'Cấu Hình Môi Trường' trên thanh sidebar để thiết lập đường dẫn trình biên dịch.",
+                kind="warning",
+            )
+        elif tools:
+            show_toast(
+                self,
+                f"Môi trường chấm sẵn sàng: {', '.join(name for name, _ in tools)}.",
+                kind="success",
+            )
 
     def _on_quota_received(self, res: Dict[str, Any]):
         """
