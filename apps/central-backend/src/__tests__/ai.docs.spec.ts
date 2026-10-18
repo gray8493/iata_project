@@ -1,4 +1,4 @@
-import { ArgumentsHost, BadGatewayException, HttpException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
+import { ArgumentsHost, BadGatewayException, ForbiddenException, HttpException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { AiGatewayService } from '../modules/ai-gateway/ai-gateway.service';
@@ -10,6 +10,7 @@ import { VerifyPlagiarismDto } from '../modules/ai-gateway/dto/verify-plagiarism
 import { EvaluateWebUiDto } from '../modules/ai-gateway/dto/evaluate-web-ui.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { AdaptiveThrottlerGuard } from '../common/guards/adaptive-throttler.guard';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { JwtStrategy } from '../modules/auth/strategies/jwt.strategy';
 import { createValidationPipe } from '../common/validation/validation-pipe.factory';
@@ -214,8 +215,32 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
         const config = { id: 'q1', userId: instructorId, dailyTokenLimit: 50000, usedTokensToday: 50000, lastResetDate: todayUtc(), isDeleted: false };
         prisma.aiQuotaConfig.findFirst.mockResolvedValue(config);
         prisma.aiQuotaConfig.findUnique.mockResolvedValue(config);
+      const result = await quota.snapshot(instructorId);
+      expect(result.remaining_tokens).toBe(0);
+    });
+  });
+
+    describe('UT03_AiQuota_TC008: Giảng viên chưa được cấu hình hạn ngạch', () => {
+      it('trả 403 AI_QUOTA_NOT_CONFIGURED', async () => {
+        prisma.aiQuotaConfig.findFirst.mockResolvedValue(null);
+        const error = await quota.snapshot(instructorId).catch((e) => e);
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect(error.getStatus()).toBe(403);
+        expect(error.getResponse()).toEqual({ error_code: 'AI_QUOTA_NOT_CONFIGURED', message: 'Tài khoản chưa được cấu hình hạn ngạch AI.', details: null });
+      });
+    });
+
+    describe('UT03_AiQuota_TC009: Tự động đặt lại hạn ngạch khi sang ngày UTC mới', () => {
+      it('reset usedTokensToday về 0 khi lastResetDate là ngày hôm qua', async () => {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const stale = { id: 'q1', userId: instructorId, dailyTokenLimit: 50000, usedTokensToday: 40000, lastResetDate: yesterday, isDeleted: false };
+        prisma.aiQuotaConfig.findFirst.mockResolvedValue(stale);
+        prisma.aiQuotaConfig.updateMany.mockResolvedValue({ count: 1 });
+        prisma.aiQuotaConfig.findUnique.mockResolvedValue({ ...stale, usedTokensToday: 0, lastResetDate: todayUtc() });
         const result = await quota.snapshot(instructorId);
-        expect(result.remaining_tokens).toBe(0);
+        expect(prisma.aiQuotaConfig.updateMany).toHaveBeenCalled();
+        expect(result.used_tokens_today).toBe(0);
+        expect(result.remaining_tokens).toBe(50000);
       });
     });
   });
@@ -362,6 +387,17 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
       const prompt: string = provider.generateJson.mock.calls[0][0].prompt;
       expect(prompt).toContain('PYTHON');
       expect(prompt).not.toContain('including boundary cases');
+    });
+  });
+
+  describe('UT03_AiGenerateTestcases_TC017: Vượt giới hạn tần suất gọi AI (throttle)', () => {
+    it('trả 429 RATE_LIMIT_EXCEEDED kèm thông tin giới hạn', async () => {
+      const guard = new AdaptiveThrottlerGuard({} as any, {} as any, {} as any);
+      const error = await (guard as any)
+        .throwThrottlingException({} as any, { limit: 15, timeToBlockExpire: 60, timeToExpire: 60 } as any)
+        .catch((e: any) => e);
+      expect(error.getStatus()).toBe(429);
+      expect(error.getResponse()).toEqual({ error_code: 'RATE_LIMIT_EXCEEDED', message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.', details: { limit: 15, retry_after_seconds: 60 } });
     });
   });
 
@@ -736,6 +772,98 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
       const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
       expect((result.data as any).ui_score).toBe(2);
       expect((result.data as any).evaluation_details.every((d: any) => d.verdict === 'FAIL')).toBe(true);
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC014: rubric_requirements vượt 20 phần tử (biên trên)', () => {
+    it('trả 422 maxItems', async () => {
+      const rubric = Array.from({ length: 21 }, (_, i) => `Tiêu chí ${i + 1}`);
+      const error = await validationError(EvaluateWebUiDto, { screenshot_base64: pngBase64, rubric_requirements: rubric });
+      expectValidationDetail(error, 'rubric_requirements', 'rubric_requirements must contain no more than 20 elements');
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC015: phần tử rubric vượt 500 ký tự (biên trên)', () => {
+    it('trả 422 maxLength', async () => {
+      const error = await validationError(EvaluateWebUiDto, { screenshot_base64: pngBase64, rubric_requirements: ['a'.repeat(501)] });
+      expectValidationDetail(error, 'rubric_requirements', 'each value in rubric_requirements must be shorter than or equal to 500 characters');
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC016: screenshot_base64 vượt 7.000.000 ký tự (biên trên)', () => {
+    it('trả 422 maxLength', async () => {
+      const error = await validationError(EvaluateWebUiDto, { screenshot_base64: 'a'.repeat(7000001), rubric_requirements: ['Layout'] });
+      expectValidationDetail(error, 'screenshot_base64', 'screenshot_base64 must be shorter than or equal to 7000000 characters');
+    });
+  });
+
+  // =========================================================================
+  // PHẦN 6: GET /api/v1/ai/provider-status
+  // =========================================================================
+
+  describe('UT03_AiProviderStatus (OpenRouterService.providerStatus)', () => {
+    function makeProviderSvc(keys: string): OpenRouterService {
+      const cfg = { get: jest.fn((key: string, def?: any) => (key === 'OPENROUTER_API_KEYS' ? keys : def)) } as unknown as ConfigService;
+      return new OpenRouterService(cfg, {} as unknown as AiQuotaService);
+    }
+
+    describe('UT03_AiProviderStatus_TC001: Không gửi Header Authorization', () => {
+      it('trả 401 AUTH_INVALID_TOKEN', () => expectUnauthorizedNoToken());
+    });
+
+    describe('UT03_AiProviderStatus_TC002: Bearer Token đã hết hạn', () => {
+      it('trả 401 AUTH_TOKEN_EXPIRED', () => {
+        const error = (() => {
+          try {
+            new JwtAuthGuard().handleRequest(null, false, { name: 'TokenExpiredError' });
+          } catch (e) {
+            return e;
+          }
+        })() as UnauthorizedException;
+        expect(error.getStatus()).toBe(401);
+        expect(error.getResponse()).toEqual({ error_code: 'AUTH_TOKEN_EXPIRED', message: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', details: null });
+      });
+    });
+
+    describe('UT03_AiProviderStatus_TC003: Giảng viên không có quyền xem trạng thái AI', () => {
+      it('trả 403 FORBIDDEN_ADMIN_ONLY', () => {
+        const reflector = { getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']) } as unknown as Reflector;
+        const context = {
+          getHandler: () => ({}),
+          getClass: () => ({}),
+          switchToHttp: () => ({ getRequest: () => ({ user: { id: instructorId, username: 'gv', role: 'INSTRUCTOR' } }) }),
+        } as any;
+        const error = (() => {
+          try {
+            new RolesGuard(reflector).canActivate(context);
+          } catch (e) {
+            return e;
+          }
+        })() as any;
+        expect(error.getStatus()).toBe(403);
+        expect(error.getResponse()).toEqual({ error_code: 'FORBIDDEN_ADMIN_ONLY', message: 'Bạn không có quyền thực hiện thao tác này.', details: null });
+      });
+    });
+
+    describe('UT03_AiProviderStatus_TC004: ADMIN lấy trạng thái AI Hub thành công', () => {
+      it('trả danh sách key với state READY', () => {
+        const svc = makeProviderSvc('key-a,key-b');
+        const status = svc.providerStatus();
+        expect(status.provider).toBe('openrouter');
+        expect(status.accounts_configured).toBe(2);
+        expect(status.structured_outputs_supported).toBe(true);
+        expect(status.accounts.every((a) => a.state === 'READY' && a.cooldown_remaining_seconds === 0)).toBe(true);
+      });
+    });
+
+    describe('UT03_AiProviderStatus_TC005: Trạng thái khi một key đang COOLDOWN (biên)', () => {
+      it('báo COOLDOWN kèm số giây còn lại', () => {
+        const svc = makeProviderSvc('key-a');
+        (svc as any).cooldownUntil.set('key-a', Date.now() + 60_000);
+        const status = svc.providerStatus();
+        expect(status.accounts[0].state).toBe('COOLDOWN');
+        expect(status.accounts[0].cooldown_remaining_seconds).toBeGreaterThan(0);
+      });
     });
   });
 });

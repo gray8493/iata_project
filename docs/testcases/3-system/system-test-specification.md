@@ -121,7 +121,7 @@ Exception
 
 ---
 
-# ST02_AITestcaseGen_TC001: Sinh bộ testcase bằng Gemini AI thành công
+# ST02_AITestcaseGen_TC001: Sinh bộ testcase bằng AI OpenRouter thành công
 
 #### Loại test
 Normal

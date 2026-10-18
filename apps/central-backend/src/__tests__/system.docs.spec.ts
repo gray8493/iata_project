@@ -21,7 +21,7 @@ describe('System (docs: docs/testcases/3-system/system-test-specification.md)', 
     return createValidationPipe().transform(value, { type: 'body', metatype, data: '' } as any);
   }
 
-  describe('ST02_AITestcaseGen_TC001: Sinh bộ testcase bằng Gemini AI thành công', () => {
+  describe('ST02_AITestcaseGen_TC001: Sinh bộ testcase bằng AI OpenRouter thành công', () => {
     it('trả về đúng số lượng testcase hợp lệ và token tiêu thụ', async () => {
       const testcases = [
         { input: '-5', expected_output: 'NO', explanation: 'số âm', is_boundary: true },

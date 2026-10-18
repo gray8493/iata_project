@@ -3,7 +3,8 @@
 - **Phân hệ kiểm thử**: Phân hệ AI Gateway & Quản lý Hạn ngạch (AI Hub API - UC-04, UC-10, UC-16, UC-17, UC-19)
 - **Danh sách API kiểm thử**:
   - `GET /api/v1/ai/quota` (Kiểm tra hạn ngạch Token hôm nay & thời điểm reset)
-  - `POST /api/v1/ai/generate-testcases` (Tự động sinh testcase bằng Gemini)
+  - `GET /api/v1/ai/provider-status` (Trạng thái AI Hub OpenRouter multi-key - chỉ ADMIN)
+  - `POST /api/v1/ai/generate-testcases` (Tự động sinh testcase bằng AI OpenRouter)
   - `POST /api/v1/ai/review-code` (Phân tích lỗi và sinh nhận xét sư phạm cho bài WA)
   - `POST /api/v1/ai/verify-plagiarism` (Xác thực ngữ nghĩa nghi vấn đạo văn Vòng 2)
   - `POST /api/v1/ai/evaluate-web-ui` (Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal)
@@ -14,12 +15,14 @@
   - [Đặc tả API Phân hệ AI (Markdown)](file:///e:/AITA/docs/apis/ai/ai-api.md)
   - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///e:/AITA/docs/apis/ai/ai.yaml)
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
-- **Tổng số Testcase**: 65 Testcases (Phân loại: 10 Normal, 17 Boundary, 38 Exception)
-  - `GET /ai/quota`: 07 Testcases (01 Normal, 01 Boundary, 05 Exception)
-  - `POST /ai/generate-testcases`: 16 Testcases (02 Normal, 05 Boundary, 09 Exception)
+- **Tổng số Testcase**: 88 Testcases (Phân loại: 16 Normal, 25 Boundary, 47 Exception)
+  - `GET /ai/quota`: 09 Testcases (02 Normal, 01 Boundary, 06 Exception)
+  - `GET /ai/provider-status`: 05 Testcases (01 Normal, 01 Boundary, 03 Exception)
+  - `POST /ai/generate-testcases`: 17 Testcases (02 Normal, 05 Boundary, 10 Exception)
   - `POST /ai/review-code`: 15 Testcases (02 Normal, 04 Boundary, 09 Exception)
   - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
-  - `POST /ai/evaluate-web-ui`: 13 Testcases (03 Normal, 02 Boundary, 08 Exception)
+  - `POST /ai/evaluate-web-ui`: 16 Testcases (03 Normal, 05 Boundary, 08 Exception)
+  - `OpenRouterService (AiProvider)`: 12 Testcases (04 Normal, 04 Boundary, 04 Exception)
 
 > **Ghi chú thiết kế (khớp mã nguồn `AiGatewayController`, `AiGatewayService`, `OpenRouterService`, `AiQuotaService`, các DTO)**:
 > - Toàn bộ controller dùng `JwtAuthGuard, RolesGuard, AdaptiveThrottlerGuard` và `@Roles('INSTRUCTOR')`. Vì vậy cả người chưa đăng nhập (401) lẫn tài khoản `ADMIN` (403 `FORBIDDEN_ADMIN_ONLY`) đều không gọi được.
@@ -31,7 +34,9 @@
 > - DTO validation message là **mặc định class-validator (tiếng Anh)**; lỗi lồng trong `failed_testcase` được báo qua `field = "failed_testcase"`.
 > - Lỗi nghiệp vụ AI: `AI_QUOTA_NOT_CONFIGURED` (403), `AI_QUOTA_EXCEEDED` (429), `AI_INVALID_RESPONSE` (502), `AI_IMAGE_INVALID` (400), `AI_PROVIDER_ERROR` (502), `AI_PROVIDER_RATE_LIMITED` (429), `AI_NOT_CONFIGURED` (503).
 > - `AiQuotaService.snapshot` trả `{ daily_limit_tokens, used_tokens_today, remaining_tokens (Math.max 0), reset_at_utc }`; tự reset `usedTokensToday` khi `lastResetDate` cũ hơn hôm nay (UTC).
-> - `AiGatewayService` kiểm tra cấu trúc dữ liệu Gemini trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân.
+> - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân.
+> - `GET /ai/provider-status` có `@Roles('ADMIN')` ghi đè `@Roles('INSTRUCTOR')` của controller: chỉ ADMIN gọi được, giảng viên nhận 403 `FORBIDDEN_ADMIN_ONLY`. Trả về danh sách API key OpenRouter kèm `state` (`READY`/`COOLDOWN`), `cooldown_remaining_seconds`, `accounts_configured`, `structured_outputs_supported`.
+> - `OpenRouterService` xoay vòng nhiều API key; key bị `429`/`401`/`402`/`403` hoặc lỗi tạm thời sẽ bị đưa vào cooldown (rate: `OPENROUTER_KEY_COOLDOWN_MS`; exhausted: 30 phút; transient: 5 giây). Khi không còn key khả dụng vì tất cả đang cooldown, `generateJson` ném 429 `AI_PROVIDER_RATE_LIMITED`; lỗi không thuộc nhóm giới hạn/hết quota ném 502 `AI_PROVIDER_ERROR`. Không cấu hình key nào (`OPENROUTER_API_KEYS` rỗng) ném 503 `AI_NOT_CONFIGURED`.
 
 ---
 
@@ -242,6 +247,66 @@ Boundary
 #### Kết quả kỳ vọng (Expected Result)
 
 - HTTP `200`, `remaining_tokens = 0` (dùng `Math.max(0, ...)` để không trả số âm).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiQuota_TC008: Giảng viên chưa được cấu hình hạn ngạch AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Người dùng chưa có bản ghi `aiQuotaConfig` (hoặc bản ghi đã bị xóa mềm).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `aiQuotaConfig.findFirst` trả `null`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiQuotaService.snapshot(userId)` khi không tìm thấy cấu hình quota.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `403`, `error_code = "AI_QUOTA_NOT_CONFIGURED"`, `message = "Tài khoản chưa được cấu hình hạn ngạch AI."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiQuota_TC009: Tự động đặt lại hạn ngạch khi sang ngày UTC mới
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bản ghi quota có `lastResetDate` là ngày hôm qua (UTC).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `dailyTokenLimit = 50000`, `usedTokensToday = 40000`, `lastResetDate` = hôm qua.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `aiQuotaConfig.findFirst` trả cấu hình cũ; `updateMany` reset; `findUnique` trả cấu hình đã reset; gọi `AiQuotaService.snapshot(userId)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `updateMany` được gọi để reset; HTTP `200` với `used_tokens_today = 0`, `remaining_tokens = 50000`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -565,7 +630,7 @@ Exception
 
 #### Tiền điều kiện (Pre-condition)
 
-- Gemini trả JSON thiếu trường `testcases` hoặc số phần tử không khớp `count`.
+- OpenRouter trả JSON thiếu trường `testcases` hoặc số phần tử không khớp `count`.
 
 #### Dữ liệu kiểm thử (Test Data)
 
@@ -595,11 +660,11 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên đã xác thực, còn hạn ngạch, Gemini trả đúng cấu trúc.
+- Giảng viên đã xác thực, còn hạn ngạch, OpenRouter trả đúng cấu trúc.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Body: `{ problem_description: <chuỗi hợp lệ>, language: "C" }`; Gemini trả 3 testcase hợp lệ.
+- Body: `{ problem_description: <chuỗi hợp lệ>, language: "C" }`; OpenRouter trả 3 testcase hợp lệ.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -629,7 +694,7 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `count = 1`; Gemini trả đúng 1 testcase.
+- `count = 1`; OpenRouter trả đúng 1 testcase.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -659,7 +724,7 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `count = 10`; Gemini trả đúng 10 testcase.
+- `count = 10`; OpenRouter trả đúng 10 testcase.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -694,7 +759,7 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.generateTestcases(userId, dto)` với Gemini trả đúng `count` testcase.
+2. Gọi `AiGatewayService.generateTestcases(userId, dto)` với OpenRouter trả đúng `count` testcase.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -728,7 +793,37 @@ Normal
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Prompt gửi Gemini chứa ngôn ngữ PYTHON và KHÔNG chèn cụm "including boundary cases"; HTTP `200`.
+- Prompt gửi OpenRouter chứa ngôn ngữ PYTHON và KHÔNG chèn cụm "including boundary cases"; HTTP `200`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiGenerateTestcases_TC017: Vượt giới hạn tần suất gọi API AI (Throttle)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã gửi quá 15 yêu cầu POST trong 60 giây.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `AdaptiveThrottlerGuard` với `limit = 15`, `ttl = 60s`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `AdaptiveThrottlerGuard.throwThrottlingException(...)` khi vượt ngưỡng.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `429`, `error_code = "RATE_LIMIT_EXCEEDED"`, `message = "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau."`, `details = { limit: 15, retry_after_seconds: 60 }`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1056,7 +1151,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1082,11 +1177,11 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên đã xác thực, còn hạn ngạch; Gemini trả cấu trúc hợp lệ.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `source_code` C lỗi `for (i = 0; i <= n; i++)`; Gemini trả `suspected_error_line = 4`, các trường chuỗi đầy đủ.
+- `source_code` C lỗi `for (i = 0; i <= n; i++)`; OpenRouter trả `suspected_error_line = 4`, các trường chuỗi đầy đủ.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1116,7 +1211,7 @@ Normal
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini KHÔNG trả `suspected_error_line` (trường tùy chọn).
+- OpenRouter KHÔNG trả `suspected_error_line` (trường tùy chọn).
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1151,7 +1246,7 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.reviewCode(userId, dto)` với Gemini trả dữ liệu hợp lệ.
+2. Gọi `AiGatewayService.reviewCode(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1182,7 +1277,7 @@ Boundary
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi (chuỗi rỗng vẫn hợp lệ do chỉ có `MaxLength`).
-2. Gọi `AiGatewayService.reviewCode(userId, dto)` với Gemini trả dữ liệu hợp lệ.
+2. Gọi `AiGatewayService.reviewCode(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1484,7 +1579,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1510,11 +1605,11 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên đã xác thực, còn hạn ngạch; Gemini trả cấu trúc hợp lệ.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini trả `is_plagiarized = true`, `confidence_percentage = 92`, `cloned_segments` có 1 phần tử.
+- OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 92`, `cloned_segments` có 1 phần tử.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1544,12 +1639,12 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 80`; Gemini trả `is_plagiarized = false`, `confidence_percentage = 30`.
+- `ast_similarity_percentage = 80`; OpenRouter trả `is_plagiarized = false`, `confidence_percentage = 30`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với Gemini trả `is_plagiarized = false`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = false`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1575,12 +1670,12 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 100`; Gemini trả `is_plagiarized = true`, `confidence_percentage = 100`.
+- `ast_similarity_percentage = 100`; OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 100`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với Gemini trả `is_plagiarized = true`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = true`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1882,7 +1977,7 @@ Exception
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
+- OpenRouter ném `BadGatewayException` 502 `AI_PROVIDER_ERROR`.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1908,11 +2003,11 @@ Normal
 
 #### Tiền điều kiện (Pre-condition)
 
-- Giảng viên đã xác thực, còn hạn ngạch; Gemini trả cấu trúc hợp lệ.
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc hợp lệ.
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Ảnh PNG hợp lệ; 3 tiêu chí; Gemini trả điểm `[9, 8, 7]` với verdict PASS/PASS/PARTIAL.
+- Ảnh PNG hợp lệ; 3 tiêu chí; OpenRouter trả điểm `[9, 8, 7]` với verdict PASS/PASS/PARTIAL.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1942,12 +2037,12 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `rubric_requirements` có đúng 1 phần tử; Gemini trả 1 `evaluation_details`.
+- `rubric_requirements` có đúng 1 phần tử; OpenRouter trả 1 `evaluation_details`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với Gemini trả đúng 1 phần tử.
+2. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với OpenRouter trả đúng 1 phần tử.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -1977,7 +2072,7 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với Gemini trả dữ liệu hợp lệ.
+1. Gọi `AiGatewayService.evaluateWebUi(userId, dto)` với OpenRouter trả dữ liệu hợp lệ.
 
 #### Kết quả kỳ vọng (Expected Result)
 
@@ -2003,7 +2098,7 @@ Normal
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- Gemini trả điểm thấp `[2, 3, 1]` với verdict FAIL.
+- OpenRouter trả điểm thấp `[2, 3, 1]` với verdict FAIL.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -2018,3 +2113,618 @@ Normal
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
 |  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC014: rubric_requirements vượt 20 phần tử (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; ảnh hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric_requirements` có 21 phần tử.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và payload 21 tiêu chí.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "rubric_requirements"` với issue `rubric_requirements must contain no more than 20 elements`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC015: Phần tử rubric vượt 500 ký tự (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; ảnh hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric_requirements = ["a" × 501]`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và 1 tiêu chí dài 501 ký tự.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "rubric_requirements"` với issue `each value in rubric_requirements must be shorter than or equal to 500 characters`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC016: screenshot_base64 vượt 7.000.000 ký tự (Biên trên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `screenshot_base64` dài 7.000.001 ký tự.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `createValidationPipe()` với `EvaluateWebUiDto` và ảnh vượt giới hạn.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "screenshot_base64"` với issue `screenshot_base64 must be shorter than or equal to 7000000 characters`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# ==============================================================================
+
+# PHẦN 6: API GET /api/v1/ai/provider-status (TRẠNG THÁI AI HUB OPENROUTER)
+
+# ==============================================================================
+
+# UT03_AiProviderStatus_TC001: Không gửi Header Authorization trong yêu cầu lấy trạng thái AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Hệ thống AI Gateway đang hoạt động bình thường.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Header `Authorization` bỏ trống.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `JwtAuthGuard.handleRequest(null, false, undefined)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_INVALID_TOKEN"`, `message = "Token không hợp lệ."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC002: Bearer Token đã hết hạn (Expired Token)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Token hết hạn được gửi lên.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `handleRequest(null, false, { name: 'TokenExpiredError' })`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `JwtAuthGuard.handleRequest` với lỗi `TokenExpiredError`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `401`, `error_code = "AUTH_TOKEN_EXPIRED"`, `message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC003: Giảng viên (INSTRUCTOR) không có quyền xem trạng thái AI
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Người dùng đã đăng nhập với vai trò `INSTRUCTOR`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `@Roles('ADMIN')` ghi đè; `RolesGuard` với metadata `['ADMIN']`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Xác thực request với user `role = "INSTRUCTOR"` qua `RolesGuard`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `403`, `error_code = "FORBIDDEN_ADMIN_ONLY"`, `message = "Bạn không có quyền thực hiện thao tác này."`, `details = null`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC004: ADMIN lấy trạng thái AI Hub thành công (tất cả key READY)
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Cấu hình 2 API key OpenRouter, không key nào đang cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-a,key-b"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.providerStatus()` với tất cả key đang READY.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`, `data.provider = "openrouter"`, `accounts_configured = 2`, `structured_outputs_supported = true`; mỗi account có `state = "READY"`, `cooldown_remaining_seconds = 0`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProviderStatus_TC005: Trạng thái khi một key đang COOLDOWN (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Một API key vừa gặp lỗi và đang trong thời gian cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 key, `cooldownUntil` đặt trong tương lai.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Giả lập key trong cooldown rồi gọi `OpenRouterService.providerStatus()`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`, account tương ứng có `state = "COOLDOWN"` và `cooldown_remaining_seconds > 0`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# ==============================================================================
+
+# PHẦN 7: DỊCH VỤ NHÀ CUNG CẤP AI (OpenRouterService - XOAY VÒNG NHIỀU API KEY)
+
+# ==============================================================================
+
+# UT03_AiProvider_TC001: Gọi thành công qua tài khoản quay vòng trong pool
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool có 3 API key OpenRouter; `post()` trả nội dung JSON hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2,key-3"`, `schema` kiểu object có `ok`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.generateJson(...)` 3 lần liên tiếp.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Lần lượt dùng `key-1`, `key-2`, `key-3`; body gửi đi có `model = "openrouter/free"`, `temperature = 0.2`, `max_tokens = 100`, 2 message và `response_format.type = "json_schema"`; trả `{ data: { ok: true }, tokensConsumed: 15 }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC002: Token usage từ provider được ghi vết qua settle
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Provider trả `usage` thực tế `{ prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 }`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 API key; `feature = "TESTCASE_GEN"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` và kiểm tra lời gọi `quota.settle`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `tokensConsumed = 200`; `settle` nhận đúng prompt/completion/total tokens; `release` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC003: Tài khoản bị 429 thì tự chuyển sang tài khoản kế tiếp
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool có 2 API key; key đầu trả `429`, key thứ hai thành công.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi key-1 bị 429 và key-2 trả JSON hợp lệ.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `post` được gọi 2 lần theo thứ tự `key-1`, `key-2`; trả kết quả thành công; `settle` gọi 1 lần; `release` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC004: Tất cả tài khoản đều bị giới hạn
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool 3 API key; mọi key đều trả `429`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2,key-3"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi tất cả request đều bị 429.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `429`, `error_code = "AI_PROVIDER_RATE_LIMITED"`; `post` gọi 3 lần; `release` được gọi để hoàn quota; `settle` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC005: Tài khoản đang cooldown bị bỏ qua ở lượt gọi kế tiếp (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Lượt gọi đầu làm toàn bộ key bị 429 và rơi vào cooldown.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` lần 1 (thất bại do 429).
+2. Gọi `generateJson` lần 2 ngay sau đó.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Cả hai lượt đều ném `429`; `post` chỉ được gọi 2 lần ở lượt đầu, lượt hai bỏ qua key đang cooldown (không đốt thêm request).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC006: Model không hỗ trợ response_format thì fallback tự động (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Model trả `400` với thông báo không hỗ trợ `json_schema`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- 1 API key; lỗi `400 "response_format json_schema is not supported for this model"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson`; lần 1 bị 400 do `response_format`, lần 2 retry không kèm `response_format`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `post` gọi 2 lần; body lần 2 không có `response_format` và schema được nhúng vào prompt (`messages[0].content` chứa "JSON Schema"); trả kết quả thành công.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC007: Phản hồi bọc markdown code fence (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Provider trả nội dung ` ```json ... ``` `.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `content = "```json\n{\"ok\":true}\n```"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` với phản hồi bọc code fence.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Bóc tách được code fence và trả `data = { ok: true }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC008: Tính năng chấm UI gửi ảnh kèm prompt (Biên chức năng vision)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `feature = "UI_EVALUATION"` và có ảnh PNG.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `image = { mimeType: "image/png", base64: "QUJD" }`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` kèm `image`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `messages[1].content` gồm 1 phần tử text và 1 phần tử `image_url` với URL `data:image/png;base64,QUJD`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC009: Chưa cấu hình tài khoản AI nào
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- `OPENROUTER_API_KEYS` rỗng.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = ""`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `503`, `error_code = "AI_NOT_CONFIGURED"`; `quota.reserve` và `post` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC010: Nhà cung cấp lỗi tạm thời chỉ có 1 tài khoản
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool chỉ có 1 API key; provider trả `503`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi provider lỗi tạm thời.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_PROVIDER_ERROR"`, `message = "Không thể nhận phản hồi từ dịch vụ AI."`; `post` gọi 1 lần; `release` được gọi; `settle` không được gọi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC011: Tài khoản hết hạn mức credits (402)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Pool 2 API key; provider trả `402` (hết credits).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "key-1,key-2"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `generateJson` khi mọi key bị 402.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `402` được xếp vào nhóm capacity nên trả `429`, `error_code = "AI_PROVIDER_RATE_LIMITED"`; `post` gọi 2 lần và không thử lại key vừa lỗi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiProvider_TC012: Trạng thái pool phục vụ Web Admin
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Cấu hình 2 API key OpenRouter.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `OPENROUTER_API_KEYS = "sk-or-v1-fedcba987654,sk-or-v1-0123456789ab"`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `OpenRouterService.providerStatus()`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `provider = "openrouter"`, `model = "openrouter/free"`, `accounts_configured = 2`; `accounts[0] = { account: "ACC-01", key_hint: "sk-or-v1-…7654", state: "READY", cooldown_remaining_seconds: 0 }`; response không chứa key gốc.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+

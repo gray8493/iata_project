@@ -22,7 +22,7 @@
 > - `LoginDto`: `username` là chuỗi, độ dài `3..50`; `password` là chuỗi, độ dài `6..100`. Mọi thông điệp validation là **mặc định của class-validator (tiếng Anh)**.
 > - `RefreshTokenDto`: chỉ có `refresh_token` với ràng buộc `@IsJWT()`.
 > - Thứ tự kiểm tra trong `login`: tìm user → `bcrypt.compare` → nếu sai ném `AUTH_INVALID_CREDENTIALS` (401) → nếu đúng nhưng `is_active = false` ném `AUTH_ACCOUNT_DISABLED` (403).
-> - `AUTH_ACCESS_EXPIRES_IN` mặc định `15m` ⇒ `expires_in = 900`.
+> - `JWT_ACCESS_EXPIRES_IN` mặc định `15m` ⇒ `expires_in = 900` (refresh dùng `JWT_REFRESH_EXPIRES_IN` mặc định `7d`).
 > - `refresh` dùng chung một mã lỗi `AUTH_INVALID_REFRESH_TOKEN` (401) cho mọi trường hợp thất bại (token sai, hết hạn, đã thu hồi, tài khoản bị xóa/khóa).
 > - Guard lỗi xác thực: thiếu/sai token ⇒ `AUTH_INVALID_TOKEN`; hết hạn ⇒ `AUTH_TOKEN_EXPIRED`; tài khoản không hoạt động ⇒ `AUTH_ACCOUNT_DISABLED`.
 
