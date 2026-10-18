@@ -29,7 +29,7 @@ import { PrismaModule } from './prisma/prisma.module';
         OPENROUTER_BASE_URL: Joi.string().uri().optional(),
         OPENROUTER_TIMEOUT_MS: Joi.number().integer().min(1).optional(),
         OPENROUTER_KEY_COOLDOWN_MS: Joi.number().integer().min(0).optional(),
-        WEB_ADMIN_ORIGINS: Joi.string().default('http://localhost:3001'),
+        CORS_ORIGINS: Joi.string().default('http://localhost:3001'),
       }),
     }),
     PrismaModule,

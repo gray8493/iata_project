@@ -17,9 +17,16 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', config.get<number>('TRUST_PROXY_HOPS', 0));
   app.enableCors({
-    origin: config.getOrThrow<string>('WEB_ADMIN_ORIGINS').split(',').map((origin) => origin.trim()).filter(Boolean),
+    origin: config
+      .getOrThrow<string>('CORS_ORIGINS')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With'],
+    exposedHeaders: ['X-Total-Count'],
+    credentials: true,
+    maxAge: 86400,
   });
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter());
