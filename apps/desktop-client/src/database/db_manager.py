@@ -197,6 +197,7 @@ class DatabaseManager:
         self._ensure_web_submission_columns()
         self._drop_legacy_student_name_column()
         self._ensure_class_columns()
+        self._ensure_submission_unique_mssv()
 
     def _drop_legacy_student_name_column(self):
         """
@@ -234,6 +235,38 @@ class DatabaseManager:
             for column, ddl in additions.items():
                 if column not in existing:
                     cursor.execute(f"ALTER TABLE local_classes ADD COLUMN {column} {ddl}")
+            conn.commit()
+
+    def _ensure_submission_unique_mssv(self):
+        """
+        Chốt trùng MSSV trong một đợt chấm ở mức DB:
+        - Dọn đợt thuộc lịch sử có 2 bài của cùng MSSV (giữ bài cũ nhất, ẩn các bài sau).
+        - Tạo UNIQUE INDEX (class_id, student_mssv) cho các hàng còn hoạt động.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT class_id, student_mssv, COUNT(*) AS n
+                FROM local_student_submissions
+                WHERE is_deleted = 0
+                GROUP BY class_id, student_mssv
+                HAVING n > 1
+            """)
+            for row in cursor.fetchall():
+                cursor.execute("""
+                    UPDATE local_student_submissions
+                    SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
+                    WHERE is_deleted = 0 AND class_id = ? AND student_mssv = ?
+                      AND id > (
+                          SELECT MIN(id) FROM local_student_submissions
+                          WHERE is_deleted = 0 AND class_id = ? AND student_mssv = ?
+                      )
+                """, (row["class_id"], row["student_mssv"], row["class_id"], row["student_mssv"]))
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_class_mssv_active
+                ON local_student_submissions (class_id, student_mssv)
+                WHERE is_deleted = 0
+            """)
             conn.commit()
 
     def _ensure_web_submission_columns(self):
@@ -362,7 +395,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.executemany("""
-                INSERT INTO local_student_submissions (
+                INSERT OR IGNORE INTO local_student_submissions (
                     class_id, student_mssv, source_file_path
                 ) VALUES (?, ?, ?)
             """, submissions)

@@ -19,6 +19,7 @@ from database.db_manager import DatabaseManager
 from core.factories.runner_factory import RunnerFactory
 from core.strategies.context import MatchingContext
 from core.sandbox.runner import SandboxRunner
+from core.app_paths import resolve_python_executable
 
 MIN_WORKERS = 4
 MAX_WORKERS = 8
@@ -51,7 +52,7 @@ def measure_python_startup_baseline() -> float:
     value = 0.0
     try:
         res = SandboxRunner.run_process(
-            command=[sys.executable, "-u", "-c", "pass"],
+            command=[resolve_python_executable(), "-u", "-c", "pass"],
             input_data="",
             time_limit_ms=15000,
             memory_limit_mb=128,

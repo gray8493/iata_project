@@ -10,6 +10,7 @@ from typing import Tuple, Optional
 from .base_runner import BaseRunner
 from core.sandbox.runner import SandboxRunner, SandboxResult
 from core.adapters.compiler_adapter import PythonInterpreterAdapter
+from core.app_paths import resolve_python_executable
 
 
 class PythonRunner(BaseRunner):
@@ -30,7 +31,7 @@ class PythonRunner(BaseRunner):
         memory_limit_mb: int = 128
     ) -> SandboxResult:
         script_path = Path(executable_target)
-        cmd = [sys.executable, "-u", str(script_path)]
+        cmd = [resolve_python_executable(), "-u", str(script_path)]
 
         return SandboxRunner.run_process(
             command=cmd,
