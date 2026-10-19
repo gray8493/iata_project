@@ -25,6 +25,8 @@ tags:
     description: Các API điều phối Trí tuệ nhân tạo AI Hub & Giám sát Token Quota
   - name: Admin Reports
     description: Các API báo cáo thống kê kiểm toán người dùng và hạn ngạch AI (Dành cho Admin)
+  - name: System
+    description: Các API hệ thống phục vụ Auto-Update Desktop Client (Công khai, không cần xác thực)
 
 paths:
   # ============================================================================
@@ -604,6 +606,43 @@ paths:
                     $ref: '#/components/schemas/OverviewReportData'
                   timestamp:
                     type: string
+  /system/version:
+    get:
+      tags:
+        - System
+      summary: Lấy phiên bản mới nhất của Desktop Client (Auto-Update)
+      description: >
+        Endpoint công khai (không cần xác thực) để Desktop Client kiểm tra bản cập nhật.
+        URL tải trỏ tới asset của GitHub Release; artifact_type cho biết bản phát hành là
+        một file .exe (one-file) hay gói .zip (one-folder).
+      responses:
+        '200':
+          description: Lấy thông tin phiên bản thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Lấy thông tin phiên bản thành công
+                  data:
+                    $ref: '#/components/schemas/VersionManifest'
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Dịch vụ hoặc kho rate-limit không khả dụng (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
 
 # ==============================================================================
 # COMPONENTS & SCHEMAS
@@ -680,6 +719,69 @@ components:
           type: string
           format: date-time
           example: '2026-09-30T12:00:00.000Z'
+
+    # --------------------------------------------------------------------------
+    # SCHEMAS CHO SYSTEM (AUTO-UPDATE)
+    # --------------------------------------------------------------------------
+    WindowsArtifact:
+      type: object
+      required:
+        - artifact_type
+        - url
+        - sha256
+        - size_bytes
+        - entrypoint
+      properties:
+        artifact_type:
+          type: string
+          enum: [exe, zip]
+          description: exe = bản one-file; zip = bản one-folder
+          example: zip
+        url:
+          type: string
+          format: uri
+          example: https://github.com/aita/aita/releases/download/v2.5.0/AITA-2.5.0-win64.zip
+        sha256:
+          type: string
+          description: Checksum SHA-256 (hex, 64 ký tự) của artifact
+          example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+        size_bytes:
+          type: integer
+          example: 104857600
+        entrypoint:
+          type: string
+          example: AITA.exe
+
+    VersionManifest:
+      type: object
+      required:
+        - latest_version
+        - min_supported_version
+        - mandatory
+        - notes
+        - published_at
+        - platforms
+      properties:
+        latest_version:
+          type: string
+          example: 2.5.0
+        min_supported_version:
+          type: string
+          example: 2.0.0
+        mandatory:
+          type: boolean
+          example: false
+        notes:
+          type: string
+          example: '- Sửa lỗi chấm bài Java'
+        published_at:
+          type: string
+          example: '2026-10-19T00:00:00Z'
+        platforms:
+          type: object
+          properties:
+            windows:
+              $ref: '#/components/schemas/WindowsArtifact'
 
     # --------------------------------------------------------------------------
     # SCHEMAS CHO AUTH

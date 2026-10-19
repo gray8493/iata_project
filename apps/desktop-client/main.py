@@ -17,6 +17,7 @@ from PyQt6.QtGui import QFont, QIcon
 
 from ui.windows.login_window import LoginWindow
 from ui.windows.main_window import AITAMainWindow
+from ui.dialogs.update_dialog import maybe_prompt_update
 
 
 def main():
@@ -44,7 +45,11 @@ def main():
     # Khởi động màn hình Đăng Nhập
     login_win = LoginWindow()
     login_win.show()
-    
+
+    # Kiểm tra bản cập nhật trong nền (không chặn UI đăng nhập)
+    update_controller = maybe_prompt_update(login_win)
+    _ = update_controller
+
     sys.exit(app.exec())
 
 

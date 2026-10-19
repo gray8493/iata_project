@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { HealthModule } from './modules/health/health.module';
+import { SystemModule } from './modules/system/system.module';
 import { RateLimitModule } from './common/rate-limit.module';
 import { RedisModule } from './common/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -30,6 +31,16 @@ import { PrismaModule } from './prisma/prisma.module';
         OPENROUTER_TIMEOUT_MS: Joi.number().integer().min(1).optional(),
         OPENROUTER_KEY_COOLDOWN_MS: Joi.number().integer().min(0).optional(),
         CORS_ORIGINS: Joi.string().default('http://localhost:3001'),
+        APP_LATEST_VERSION: Joi.string().optional().allow(''),
+        APP_MIN_SUPPORTED_VERSION: Joi.string().optional().allow(''),
+        APP_UPDATE_MANDATORY: Joi.boolean().truthy('true').falsy('false').default(false),
+        APP_UPDATE_NOTES: Joi.string().optional().allow(''),
+        APP_UPDATE_PUBLISHED_AT: Joi.string().optional().allow(''),
+        APP_UPDATE_ARTIFACT_TYPE: Joi.string().valid('exe', 'zip').default('zip'),
+        APP_UPDATE_ENTRYPOINT: Joi.string().optional().allow(''),
+        APP_UPDATE_URL_WINDOWS: Joi.string().uri().optional().allow(''),
+        APP_UPDATE_SHA256_WINDOWS: Joi.string().pattern(/^[a-fA-F0-9]{64}$/).optional().allow(''),
+        APP_UPDATE_SIZE_WINDOWS: Joi.number().integer().min(0).optional().allow(''),
       }),
     }),
     PrismaModule,
@@ -39,6 +50,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AiGatewayModule,
     AuditLogsModule,
     HealthModule,
+    SystemModule,
     RateLimitModule,
   ],
 })

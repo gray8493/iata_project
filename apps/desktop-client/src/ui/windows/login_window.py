@@ -20,6 +20,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from services.auth_service import AuthService
+from core.version import APP_VERSION, APP_BUILD
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_BG, COLOR_SURFACE, COLOR_TEXT_PRIMARY, COLOR_BORDER_DEFAULT,
@@ -303,7 +304,7 @@ class LoginWindow(QMainWindow):
         card_layout.addSpacing(16)
         
         # 5. Dòng phiên bản nhỏ tinh tế ở chân card
-        lbl_version = QLabel("Phiên bản 1.0.0 (Build 2026)", card)
+        lbl_version = QLabel(f"Phiên bản {APP_VERSION} (Build {APP_BUILD})", card)
         lbl_version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_version.setStyleSheet("""
             QLabel {{

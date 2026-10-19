@@ -8,6 +8,8 @@ import os
 from typing import Optional, Dict, Any
 import httpx
 
+from core.version import APP_VERSION
+
 # Default Backend URL on Render
 DEFAULT_BACKEND_URL = "https://iata-project-o4z6.onrender.com/api/v1"
 
@@ -88,7 +90,7 @@ class ApiClient:
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "AITA-Desktop-Client/2.4.0"
+            "User-Agent": f"AITA-Desktop-Client/{APP_VERSION}"
         }
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
