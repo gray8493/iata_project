@@ -2,7 +2,7 @@
 AITA Desktop Client - Submission Detail & Code Review Dialog (PyQt6)
 UC-14: View Submission Result & Execution Logs
 UC-15: Re-grade & Override Scores Manually
-UC-16: Generate On-Demand AI Code Review (WA Only)
+UC-16: Generate On-Demand AI Code Review
 100% Real File & Database Integration - Clean SaaS UI without icons/emojis
 """
 
@@ -474,7 +474,7 @@ class SubmissionDetailDialog(QDialog):
         # TAB 2: Chấm Chất Lượng Bằng AI (Hybrid Rubric 5đ + Sandbox 5đ)
         self.tabs.addTab(self._build_quality_tab(), "Chấm Chất Lượng (AI)")
 
-        # TAB 3: AI Nhận Xét Mã (8. Đổi tên từ 'AI Code Review (WA Only)' thành 'AI Nhận Xét Mã')
+        # TAB 3: AI Nhận Xét Mã
         tab_ai = QWidget()
         ta_layout = QVBoxLayout(tab_ai)
         ta_layout.setSpacing(10)
@@ -503,11 +503,6 @@ class SubmissionDetailDialog(QDialog):
         ta_layout.addWidget(self.txt_ai_feedback)
         
         self.tabs.addTab(tab_ai, "AI Nhận Xét Mã")
-        
-        # 8. Làm mờ (disabled) tab AI khi bài không ở trạng thái WA
-        if self.verdict != "WA":
-            self.tabs.setTabEnabled(2, False)
-            self.tabs.setTabToolTip(2, "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)")
             
         # TAB 3: Ghi Đè Điểm Thủ Công (7. Bỏ icon)
         tab_override = QWidget()
@@ -736,14 +731,6 @@ class SubmissionDetailDialog(QDialog):
         self.btn_open_env.setVisible(False)
         self._refresh_header_badges()
         self._load_real_submission_data()
-
-        # Tab AI chỉ kích hoạt cho bài sinh viên chạy được nhưng sai kết quả (WA)
-        is_wa = (self.verdict == "WA")
-        self.tabs.setTabEnabled(2, is_wa)
-        self.tabs.setTabToolTip(
-            2,
-            "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)" if not is_wa else ""
-        )
 
         QMessageBox.information(
             self,
