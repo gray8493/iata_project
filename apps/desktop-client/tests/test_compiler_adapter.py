@@ -166,7 +166,8 @@ def test_javac_adapter_processed_target_includes_class_name(tmp_path):
     assert res.success is True
     assert res.target == f"{src.parent}:MainErr"
     cmd = mock_run.call_args.args[0]
-    assert cmd[:2] == ["javac", "-encoding"]
+    assert Path(cmd[0]).stem == "javac"
+    assert cmd[1] == "-encoding"
 
 
 def test_javac_adapter_maps_stderr_to_ce(tmp_path):
@@ -202,6 +203,8 @@ def test_find_gcc_executable_returns_none_when_everything_is_missing(tmp_path, m
 def test_find_gcc_executable_scans_winget_packages(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr("core.adapters.compiler_adapter.bundled_toolchains_dir", lambda: None)
+    monkeypatch.setattr("core.adapters.compiler_adapter.load_config", lambda: {})
     winget_bin = tmp_path / "Microsoft" / "WinGet" / "Packages" / "WinLibs" / "bin"
     winget_bin.mkdir(parents=True)
     gcc = winget_bin / "gcc.exe"

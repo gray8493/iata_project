@@ -116,8 +116,9 @@ def measure_python_startup_baseline() -> float:
         return _PY_STARTUP_CACHE
     value = 0.0
     try:
+        python_bin = resolve_python_executable()
         res = SandboxRunner.run_process(
-            command=[resolve_python_executable(), "-u", "-c", "pass"],
+            command=[python_bin, "-u", "-c", "pass"],
             input_data="",
             time_limit_ms=15000,
             memory_limit_mb=128,

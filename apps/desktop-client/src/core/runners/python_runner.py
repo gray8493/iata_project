@@ -31,7 +31,20 @@ class PythonRunner(BaseRunner):
         memory_limit_mb: int = 128
     ) -> SandboxResult:
         script_path = Path(executable_target)
-        cmd = [resolve_python_executable(), "-u", str(script_path)]
+        try:
+            python_bin = resolve_python_executable()
+        except RuntimeError as ex:
+            # Máy giảng viên chưa có Python: báo RE kèm hướng dẫn thay vì làm sập luồng chấm.
+            return SandboxResult(
+                stdout="",
+                stderr=str(ex),
+                return_code=-1,
+                execution_time_ms=0.0,
+                memory_used_mb=0.0,
+                verdict="RE",
+                error_message=str(ex),
+            )
+        cmd = [python_bin, "-u", str(script_path)]
 
         return SandboxRunner.run_process(
             command=cmd,

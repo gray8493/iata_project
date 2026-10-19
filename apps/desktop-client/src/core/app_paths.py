@@ -103,10 +103,10 @@ def save_config(updates: Dict[str, Any]) -> bool:
     """Ghi bổ sung các khóa cấu hình vào `config.json` (giữ khóa cũ)."""
     config = load_config()
     config.update({k: v for k, v in updates.items() if v is not None})
+    path = app_config_path()
     try:
-        app_config_path().write_text(
-            json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
         return True
     except OSError:
         return False

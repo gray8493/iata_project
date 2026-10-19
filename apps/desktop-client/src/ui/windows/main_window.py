@@ -2395,18 +2395,19 @@ class AITAMainWindow(QMainWindow):
         class EnvProbeWorker(QThread):
             probe_done = pyqtSignal(dict)
             def run(self_inner):
-                import shutil
                 tools = []
                 lang_upper = (language or "").upper()
                 if "JAVA" in lang_upper:
-                    tools.append(("javac", bool(shutil.which("javac"))))
+                    from core.adapters.compiler_adapter import find_java_tool
+                    tools.append(("javac", bool(find_java_tool("javac"))))
+                    tools.append(("java", bool(find_java_tool("java"))))
                 if "PY" in lang_upper:
                     try:
                         from core.app_paths import resolve_python_executable
                         from pathlib import Path as _Path
                         tools.append(("python", _Path(resolve_python_executable()).is_file()))
                     except Exception:
-                        tools.append(("python", True))
+                        tools.append(("python", False))
                 # C/C++ mọi ngôn ngữ đều đòi gcc; với PY/JAVA vẫn kiểm để chấm cả 2 lựa chọn
                 try:
                     from core.adapters.compiler_adapter import find_gcc_executable

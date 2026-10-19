@@ -67,6 +67,9 @@ dist/
 *.egg-info/
 .eggs/
 
+# --- 7.1 Toolchains được tải/đóng gói cục bộ ---
+/apps/desktop-client/toolchains/
+
 # --- 8. Cấu Hình IDE & Editor Cá Nhân ---
 .vscode/
 .idea/

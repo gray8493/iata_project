@@ -19,10 +19,10 @@ class DatabaseManager:
     def __init__(self, db_path: Optional[str] = None):
         self._mem_conn = None
         if db_path is None:
-            # Default to local app storage directory
-            data_dir = Path(__file__).resolve().parent.parent.parent / "data"
-            data_dir.mkdir(parents=True, exist_ok=True)
-            self.db_path = str(data_dir / "local_grading.db")
+            # Thư mục dữ liệu ghi được: dev = apps/desktop-client/data,
+            # frozen = %LOCALAPPDATA%/AITA/data (không dùng _MEIPASS vì bị xóa mỗi lần chạy).
+            from core.app_paths import app_data_dir
+            self.db_path = str(app_data_dir() / "local_grading.db")
         else:
             self.db_path = db_path
             if self.db_path == ":memory:":
