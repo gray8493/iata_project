@@ -96,10 +96,12 @@ python -m PyInstaller apps/desktop-client/AITA_Grader_v1.spec --noconfirm
 dist/AITA_Grader_v1/AITA_Grader_v1.exe --selftest
 ```
 
-Kết quả là thư mục `dist/AITA_Grader_v1/` (~590 MB) chứa
-`AITA_Grader_v1.exe`, `assets/` và `toolchains/`; `build.bat` nén sẵn luôn gói
-`dist/AITA_Grader_v1_portable.zip` (~205 MB) để gửi giảng viên hoặc upload lên
-GitHub Release cho tính năng tự cập nhật. Giảng viên chỉ cần giải nén và
+Kết quả là thư mục `dist/AITA_Grader_v1/` (~590 MB) gồm `AITA_Grader_v1.exe`,
+`_internal/` (chứa `assets/` và `toolchains/`) và `aita_selftest.txt`; `build.bat`
+nén sẵn luôn gói `dist/AITA_Grader_v1_portable.zip` (~205 MB) để gửi giảng viên hoặc
+upload lên GitHub Release cho tính năng tự cập nhật. Gói ZIP đặt file **ngay ở gốc**
+(không bọc trong thư mục `AITA_Grader_v1/`) vì client giải nén rồi `robocopy` đè thẳng
+vào thư mục cài đặt. Giảng viên chỉ cần giải nén và
 chạy — không phải cài thêm gì. Nếu máy đã có GCC/JDK/Python riêng, có thể chỉ định
 lại trong **Cấu Hình Môi Trường** (lưu ở `%LOCALAPPDATA%/AITA/data/config.json`).
 
