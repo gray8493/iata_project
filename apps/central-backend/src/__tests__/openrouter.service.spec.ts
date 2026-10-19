@@ -275,4 +275,27 @@ describe('OpenRouterService (Unit AI Provider Rotation Test)', () => {
       expect((service as any).quota.release).toHaveBeenCalledWith(expect.objectContaining({ configId: 'q1' }));
     });
   });
+
+  describe('UT03_AiProvider_TC016: JSON bị cắt cụt do hết token thì tự đóng ngoặc', () => {
+    it('cứu dữ liệu đã hoàn chỉnh thay vì báo sai định dạng', async () => {
+      const service = makeService(['key-1']);
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('{"ok":true,"nested":{"a":1'));
+
+      const result = await service.generateJson<{ ok: boolean; nested: { a: number } }>(args());
+
+      expect(result.data).toEqual({ ok: true, nested: { a: 1 } });
+      expect((service as any).quota.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UT03_AiProvider_TC017: Cắt cụt ngay giữa chuỗi reason thì bỏ phần dở dang', () => {
+    it('lấy giá trị hoàn chỉnh cuối cùng và đóng ngoặc', async () => {
+      const service = makeService(['key-1']);
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('```json\n{"ok":true,"reason":"dang viet do'));
+
+      const result = await service.generateJson<{ ok: boolean }>(args());
+
+      expect(result.data).toEqual({ ok: true });
+    });
+  });
 });

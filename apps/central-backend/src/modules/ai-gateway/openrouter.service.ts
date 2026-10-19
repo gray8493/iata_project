@@ -29,7 +29,7 @@ interface ChatMessagePart { type: 'text' | 'image_url'; text?: string; image_url
 interface ChatMessage { role: 'system' | 'user'; content: string | ChatMessagePart[]; }
 interface ChatCompletionResponse {
   model?: string;
-  choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> | null } }>;
+  choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> | null }; finish_reason?: string }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
@@ -271,7 +271,117 @@ export class OpenRouterService {
       const parsed = this.tryParse(embedded[0].trim());
       if (parsed !== undefined) return parsed;
     }
+
+    // 4. Cứu JSON bị cắt cụt do model hết token (`finish_reason = length`).
+    const repaired = this.repairTruncatedJson(trimmed);
+    if (repaired !== undefined) return repaired;
+
     throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null });
+  }
+
+  /**
+   * Cố gắng dựng lại JSON bị cắt cụt (model hết token giữa chừng).
+   *
+   * Điểm cắt chỉ được chọn sau một giá trị đã hoàn chỉnh (chuỗi/primitive/ngoặc đóng) nằm trong
+   * một cấu trúc đang mở, rồi tự đóng các ngoặc còn thiếu. Nhờ vậy phần lớn phản hồi bị cụt vẫn
+   * đọc được thay vì bị coi là sai định dạng — model free hay gặp lỗi này khi reason dài.
+   */
+  private repairTruncatedJson(text: string): unknown | undefined {
+    const start = text.search(/[[{]/);
+    if (start === -1) return undefined;
+    const source = text.slice(start);
+
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+    let stringIsKey = false;
+    let expect: 'value' | 'key' | 'colon' | 'comma' = 'value';
+    let safeEnd = -1;
+
+    for (let index = 0; index < source.length; index += 1) {
+      const char = source[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') {
+          inString = false;
+          if (stringIsKey) {
+            expect = 'colon';
+          } else {
+            expect = 'comma';
+            if (stack.length > 0) safeEnd = index + 1;
+          }
+        }
+        continue;
+      }
+      if (/\s/.test(char)) continue;
+      if (char === '"') {
+        inString = true;
+        stringIsKey = expect === 'key';
+        continue;
+      }
+      if (char === '{') {
+        stack.push('}');
+        expect = 'key';
+        continue;
+      }
+      if (char === '[') {
+        stack.push(']');
+        expect = 'value';
+        continue;
+      }
+      if (char === '}' || char === ']') {
+        if (stack[stack.length - 1] !== char) return undefined;
+        stack.pop();
+        expect = 'comma';
+        if (stack.length > 0) safeEnd = index + 1;
+        continue;
+      }
+      if (char === ',') {
+        expect = stack[stack.length - 1] === ']' ? 'value' : 'key';
+        continue;
+      }
+      if (char === ':') {
+        expect = 'value';
+        continue;
+      }
+      // Primitive (số / true / false / null): chỉ an toàn khi phía sau là dấu phân cách hoặc hết chuỗi.
+      const next = source[index + 1];
+      const endsToken = next === undefined || next === ',' || next === '}' || next === ']' || /\s/.test(next);
+      if (endsToken) {
+        if (stack.length > 0) safeEnd = index + 1;
+        expect = 'comma';
+      }
+    }
+
+    if (safeEnd <= 0) return undefined;
+    const head = source.slice(0, safeEnd).replace(/[\s,]+$/, '');
+    const closed = this.closeJson(head);
+    if (!closed) return undefined;
+    return this.tryParse(closed);
+  }
+
+  /** Đóng các ngoặc còn thiếu của một JSON bị cắt; trả `''` nếu đang ở giữa chuỗi. */
+  private closeJson(candidate: string): string {
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+    for (const char of candidate) {
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if ((char === '}' || char === ']') && stack[stack.length - 1] === char) stack.pop();
+    }
+    if (inString) return '';
+    let closed = candidate;
+    for (let index = stack.length - 1; index >= 0; index -= 1) closed += stack[index];
+    return closed;
   }
 
   private textContent(content: string | Array<{ type?: string; text?: string }> | null | undefined): string {

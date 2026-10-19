@@ -948,6 +948,96 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
+  describe('UT03_AiEvaluatePeCode_TC010: Model trả tên tiêu chí camelCase và passed dạng chuỗi (Biên)', () => {
+    it('quy đổi cleanCode/PASS về đúng 5 tiêu chí', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          rubric: {
+            cleanCode: { passed: 'PASS', reason: 'ok' },
+            complexity: { passed: 'true', reason: 'ok' },
+            structure: { passed: 'FAIL', reason: 'chưa tách hàm' },
+            format: { passed: 'PASS', reason: 'ok' },
+            documentation: { passed: 'false', reason: 'thiếu comment' },
+          },
+          overall_feedback: 'Cần tách hàm và thêm comment.',
+        },
+        tokensConsumed: 800,
+      });
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      const rubric = (result.data as any).rubric;
+      expect(rubric.clean_code.passed).toBe(true);
+      expect(rubric.structure.passed).toBe(false);
+      expect(rubric.documentation.passed).toBe(false);
+      expect(provider.generateJson).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC011: Model bỏ lớp bao rubric, trả thẳng 5 tiêu chí (Biên)', () => {
+    it('vẫn nhận diện được rubric ở cấp cao nhất', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          clean_code: { passed: true, reason: 'ok' },
+          complexity: { passed: true, reason: 'ok' },
+          structure: { passed: false, reason: 'gộp trong main' },
+          format: { passed: true, reason: 'ok' },
+          documentation: { passed: false, reason: 'thiếu comment' },
+          overall_feedback: 'Cần tách hàm.',
+        },
+        tokensConsumed: 700,
+      });
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      expect((result.data as any).rubric.structure.passed).toBe(false);
+      expect((result.data as any).overall_feedback).toBe('Cần tách hàm.');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC012: Tiêu chí thiếu reason (Biên)', () => {
+    it('vẫn tính passed và để reason rỗng thay vì báo sai định dạng', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          rubric: {
+            clean_code: { passed: true },
+            complexity: { passed: true },
+            structure: { passed: true },
+            format: { passed: true },
+            documentation: { passed: true },
+          },
+        },
+        tokensConsumed: 600,
+      });
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      expect((result.data as any).rubric.clean_code).toEqual({ passed: true, reason: '' });
+      expect((result.data as any).overall_feedback).toBe('Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn.');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC013: Trường rubric bị trả dưới dạng chuỗi JSON (Biên)', () => {
+    it('parse chuỗi đó rồi chấm bình thường', async () => {
+      const rubricString = JSON.stringify({
+        clean_code: { passed: true, reason: 'ok' },
+        complexity: { passed: true, reason: 'ok' },
+        structure: { passed: true, reason: 'ok' },
+        format: { passed: true, reason: 'ok' },
+        documentation: { passed: false, reason: 'thiếu comment' },
+      });
+      provider.generateJson.mockResolvedValue({
+        data: { rubric: rubricString, overall_feedback: 'Thêm comment.' },
+        tokensConsumed: 650,
+      });
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      expect((result.data as any).rubric.documentation.passed).toBe(false);
+      expect((result.data as any).rubric.clean_code.passed).toBe(true);
+    });
+  });
+
   // =========================================================================
   // PHẦN 7: GET /api/v1/ai/provider-status
   // =========================================================================

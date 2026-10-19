@@ -169,7 +169,7 @@ CẤU TRÚC JSON BẮT BUỘC (đúng tên trường, không thêm không bớt)
   },
   "overall_feedback": "Nhận xét tổng thể ngắn gọn bằng tiếng Việt"
 }
-'passed' là boolean (true = đạt tiêu chí), 'reason' là chuỗi tiếng Việt giải thích. 'overall_feedback' là trường BẮT BUỘC.
+'passed' là boolean (true = đạt tiêu chí), 'reason' là chuỗi tiếng Việt giải thích. 'overall_feedback' là trường BẮT BUỘC. Viết ngắn gọn: mỗi 'reason' không quá 20 từ, 'overall_feedback' không quá 40 từ để tránh bị cắt cụt.
 
 TIÊU CHÍ ĐÁNH GIÁ (Mỗi tiêu chí PASS hoặc FAIL):
 1. Clean Code: Tên biến, tên hàm rõ nghĩa, tuân thủ naming convention (ví dụ: camelCase cho Java, snake_case cho Python). Cấm đặt tên vô nghĩa như a, b, c, x, y, temp1.
@@ -184,7 +184,7 @@ Mã nguồn sinh viên:
 ${input.source_code}`;
 
     const request = {
-      userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 1000, schema: peCodeSchema,
+      userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 1500, schema: peCodeSchema,
     };
     let validData: Record<string, unknown> | undefined;
     let tokensConsumed = 0;
@@ -248,22 +248,29 @@ LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một 
   /**
    * Chuẩn hoá phản hồi rubric PE; trả `undefined` khi sai định dạng để service thử lại.
    *
-   * Model (nhất là free route) thường bỏ sót `overall_feedback` dù rubric đã đủ 5 tiêu chí.
-   * Khi đó vẫn dùng được rubric và tự tổng hợp nhận xét, thay vì vứt bỏ cả kết quả chấm —
-   * tránh để sinh viên bị treo ở trạng thái PENDING chỉ vì thiếu một trường phụ.
+   * Chấp nhận các biến thể mà model free hay trả: thiếu lớp bao `rubric` (trả thẳng 5 tiêu chí),
+   * `rubric` là chuỗi JSON, tên tiêu chí camelCase (`cleanCode`) hoặc có khoảng trắng, `passed`
+   * là chuỗi (`"true"`, `"PASS"`) và `reason` bị thiếu. Vẫn yêu cầu đủ 5 tiêu chí để tránh chấm
+   * điểm dựa trên phản hồi dở dang.
    */
   private normalizePeCodeResponse(value: unknown): Record<string, unknown> | undefined {
     if (!this.isRecord(value)) return undefined;
-    const rubric = value.rubric;
-    if (!this.isRecord(rubric)) return undefined;
+
+    let rubricCandidate: unknown = value.rubric;
+    if (typeof rubricCandidate === 'string') rubricCandidate = this.parseJsonText(rubricCandidate);
+    // Một số model bỏ lớp bao `rubric` và trả thẳng 5 tiêu chí ở cấp cao nhất.
+    const rubric: Record<string, unknown> = this.isRecord(rubricCandidate) ? rubricCandidate : value;
+
+    const byName = new Map<string, unknown>();
+    for (const [rawKey, rawValue] of Object.entries(rubric)) byName.set(this.normalizeKey(rawKey), rawValue);
 
     const criteria: Record<string, unknown> = {};
     const failedReasons: string[] = [];
     for (const key of PE_RUBRIC_KEYS) {
-      const criterion = rubric[key];
-      if (!this.isRecord(criterion) || typeof criterion.passed !== 'boolean' || typeof criterion.reason !== 'string') return undefined;
-      criteria[key] = { passed: criterion.passed, reason: criterion.reason };
-      if (!criterion.passed && criterion.reason.trim()) failedReasons.push(criterion.reason.trim());
+      const criterion = this.readCriterion(byName.get(this.normalizeKey(key)));
+      if (!criterion) return undefined;
+      criteria[key] = criterion;
+      if (!criterion.passed && criterion.reason) failedReasons.push(criterion.reason);
     }
 
     const overallFeedback = typeof value.overall_feedback === 'string' && value.overall_feedback.trim()
@@ -273,6 +280,43 @@ LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một 
         : 'Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn.';
 
     return { ...value, rubric: criteria, overall_feedback: overallFeedback };
+  }
+
+  /** Đọc một tiêu chí rubric ở nhiều dạng: object `{passed, reason}`, boolean hoặc chuỗi `"PASS"`. */
+  private readCriterion(raw: unknown): { passed: boolean; reason: string } | undefined {
+    if (this.isRecord(raw)) {
+      const passed = this.coerceBoolean(raw.passed ?? raw.pass ?? raw.result ?? raw.verdict);
+      if (passed === undefined) return undefined;
+      const reason = typeof raw.reason === 'string' ? raw.reason : typeof raw.comment === 'string' ? raw.comment : '';
+      return { passed, reason };
+    }
+    const passed = this.coerceBoolean(raw);
+    return passed === undefined ? undefined : { passed, reason: '' };
+  }
+
+  /** Diễn giải `passed` về boolean; chấp nhận `"true"`, `"PASS"`, `"đạt"`, số 0/1. */
+  private coerceBoolean(value: unknown): boolean | undefined {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['true', 'pass', 'passed', 'yes', 'y', '1', 'ok', 'đạt', 'dat'].includes(normalized)) return true;
+      if (['false', 'fail', 'failed', 'no', 'n', '0', 'chưa đạt', 'không đạt', 'khong dat', 'chua dat'].includes(normalized)) return false;
+    }
+    return undefined;
+  }
+
+  /** Bỏ khác biệt `clean_code` / `cleanCode` / `Clean Code` khi tra tiêu chí. */
+  private normalizeKey(key: string): string {
+    return key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  private parseJsonText(text: string): unknown {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return undefined;
+    }
   }
   private inRange(value: unknown, min: number, max: number): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max; }
   private invalidResponse(): never { throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null }); }

@@ -835,6 +835,9 @@ class SubmissionDetailDialog(QDialog):
 
         criteria = quality.get("criteria", {}) or {}
         keys = [k for k in AI_RUBRIC_CRITERIA]
+        # Khi AI lỗi/hết hạn ngạch, rubric PENDING: không được hiển thị FAIL vì như vậy
+        # trông như sinh viên trượt cả 5 tiêu chí trong khi thực tế chưa hề chấm.
+        rubric_available = bool(quality.get("available"))
         self.table_quality.setRowCount(len(keys))
         for r, key in enumerate(keys):
             item = criteria.get(key, {}) or {}
@@ -846,10 +849,15 @@ class SubmissionDetailDialog(QDialog):
             cell_label.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             self.table_quality.setItem(r, 0, cell_label)
 
-            cell_result = QTableWidgetItem("PASS" if passed else "FAIL")
+            if rubric_available:
+                cell_result = QTableWidgetItem("PASS" if passed else "FAIL")
+                cell_result.setForeground(Qt.GlobalColor.darkGreen if passed else Qt.GlobalColor.red)
+            else:
+                cell_result = QTableWidgetItem("—")
+                cell_result.setForeground(Qt.GlobalColor.gray)
+                reason = "Chưa chấm được bằng AI."
             cell_result.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             cell_result.setFont(QFont("Inter", 9, QFont.Weight.Bold))
-            cell_result.setForeground(Qt.GlobalColor.darkGreen if passed else Qt.GlobalColor.red)
             self.table_quality.setItem(r, 1, cell_result)
 
             cell_reason = QTableWidgetItem(reason)
