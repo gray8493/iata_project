@@ -1156,6 +1156,9 @@ class SubmissionDetailDialog(QDialog):
             for r in range(self.table_tc_results.rowCount()):
                 item_v = self.table_tc_results.item(r, 4)
                 if item_v and item_v.text() in ("WA", "TLE", "MLE", "RE"):
+                    item_in = self.table_tc_results.item(r, 1)
+                    item_exp = self.table_tc_results.item(r, 2)
+                    item_act = self.table_tc_results.item(r, 3)
                     in_txt = item_in.text().strip() if item_in else ""
                     exp_txt = item_exp.text().strip() if item_exp else ""
                     act_txt = item_act.text().strip() if item_act else ""
