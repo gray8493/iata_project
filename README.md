@@ -75,6 +75,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
+#### Đóng gói bản phát hành kèm toolchain (chấm được trên máy chưa cài GCC/JDK/Python)
+
+```bash
+# 1. Tạo thư mục toolchains/ (MinGW + JDK rút gọn + Python embeddable)
+python apps/desktop-client/scripts/build_toolchains.py \
+    --mingw "C:/path/to/mingw64" \
+    --jdk "C:/Program Files/Java/jdk-21" \
+    --smoke-test
+
+# 2. Build thư mục phát hành (onedir)
+python -m PyInstaller apps/desktop-client/AITA_Grader_v1.spec --noconfirm
+
+# 3. Kiểm tra môi trường của bản vừa build
+dist/AITA_Grader_v1/AITA_Grader_v1.exe --selftest
+```
+
+Kết quả là thư mục `dist/AITA_Grader_v1/` (~590 MB, nén ZIP còn ~205 MB) chứa
+`AITA_Grader_v1.exe`, `assets/` và `toolchains/`. Giảng viên chỉ cần giải nén và
+chạy — không phải cài thêm gì. Nếu máy đã có GCC/JDK/Python riêng, có thể chỉ định
+lại trong **Cấu Hình Môi Trường** (lưu ở `%LOCALAPPDATA%/AITA/data/config.json`).
+
 ### ⚙️ Central Backend (AI & Quản lý)
 ```bash
 # Di chuyển vào thư mục backend

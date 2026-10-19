@@ -64,6 +64,7 @@ yarn-error.log*
 build/
 dist/
 *.spec
+!apps/desktop-client/AITA_Grader_v1.spec
 *.egg-info/
 .eggs/
 
