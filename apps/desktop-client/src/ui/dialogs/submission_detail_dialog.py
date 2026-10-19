@@ -61,10 +61,11 @@ class RegradeWorker(QThread):
     """Re-grades this single submission off the UI thread (UC-15)."""
     regrade_finished = pyqtSignal(dict)
 
-    def __init__(self, submission_id: int, enable_ai_quality: bool = True, parent=None):
+    def __init__(self, submission_id: int, enable_ai_quality: bool = False, parent=None):
         super().__init__(parent)
         self.submission_id = submission_id
-        self.enable_ai_quality = enable_ai_quality
+        # Mặc định Sandbox-only: chỉ chấm AI Rubric khi giảng viên đã bật checkbox Hybrid.
+        self.enable_ai_quality = bool(enable_ai_quality)
 
     def run(self):
         from services.grading_service import GradingService
@@ -229,6 +230,7 @@ class SubmissionDetailDialog(QDialog):
         source_file_path: Optional[str] = None,
         verdict: str = "PENDING",
         score: str = "-",
+        enable_ai_quality: bool = False,
         parent=None
     ):
         super().__init__(parent)
@@ -238,6 +240,8 @@ class SubmissionDetailDialog(QDialog):
         self.source_file_path = source_file_path
         self.verdict = verdict
         self.score = score
+        # UC-15: tôn trọng lựa chọn Hybrid của màn hình chính (Sandbox-only vs Sandbox + AI Rubric)
+        self.enable_ai_quality = bool(enable_ai_quality)
         self.db = DatabaseManager()
         self._source_is_placeholder = True
         
@@ -553,6 +557,10 @@ class SubmissionDetailDialog(QDialog):
         self.btn_regrade.setFixedHeight(36)
         self.btn_regrade.setFixedWidth(150)
         self.btn_regrade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_regrade.setToolTip(
+            "Chạy lại sandbox với bộ testcase hiện tại. "
+            "AI Rubric chỉ được chấm nếu đã bật 'Chấm chất lượng mã bằng AI' ở màn hình chính."
+        )
         self.btn_regrade.clicked.connect(self._regrade)
         footer.addWidget(self.btn_regrade)
         footer.addStretch(1)
@@ -678,7 +686,12 @@ class SubmissionDetailDialog(QDialog):
             self,
             "Chấm Lại Bài Nộp",
             f"Chạy lại sandbox chấm bài của sinh viên {self.mssv} với bộ testcase hiện tại?\n"
-            "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ.",
+            + (
+                "Chế độ Hybrid đang bật: AI Rubric (5đ) cũng sẽ được chấm lại và tốn hạn ngạch AI.\n"
+                if self.enable_ai_quality
+                else "Chế độ Sandbox-only: chỉ chấm testcase, không gọi AI Rubric.\n"
+            )
+            + "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -687,7 +700,9 @@ class SubmissionDetailDialog(QDialog):
         self.btn_regrade.setEnabled(False)
         self.btn_regrade.setText("Đang Chạy Sandbox Chấm Lại...")
         start_spinner(self, f"Đang chạy sandbox chấm lại bài của {self.mssv}...")
-        self.regrade_worker = RegradeWorker(self.submission_id, parent=self)
+        self.regrade_worker = RegradeWorker(
+            self.submission_id, enable_ai_quality=self.enable_ai_quality, parent=self
+        )
         self.regrade_worker.regrade_finished.connect(self._on_regrade_finished)
         self.regrade_worker.start()
 
@@ -731,7 +746,17 @@ class SubmissionDetailDialog(QDialog):
             f"• Trạng thái: {self.verdict}\n"
             f"• Điểm số: {self.score}\n"
             f"• Thời gian chạy: {float(result.get('execution_time_ms', 0.0)):.0f}ms | "
-            f"RAM: {float(result.get('memory_used_mb', 0.0)):.1f}MB"
+            f"RAM: {float(result.get('memory_used_mb', 0.0)):.1f}MB\n"
+            f"• AI Rubric: "
+            + (
+                f"{float(result.get('rubric_score', 0.0)):.1f}/{AI_RUBRIC_MAX_SCORE:.0f}"
+                if result.get("rubric_available")
+                else (
+                    "PENDING — AI không chấm được, điểm giữ theo thang 10 của sandbox."
+                    if self.enable_ai_quality
+                    else "Không chấm (chế độ Sandbox-only), điểm theo thang 10."
+                )
+            )
         )
 
 
@@ -799,13 +824,14 @@ class SubmissionDetailDialog(QDialog):
         rubric = float(quality.get("score", 0.0) or 0.0)
         rubric_max = float(quality.get("max", AI_RUBRIC_MAX_SCORE) or AI_RUBRIC_MAX_SCORE)
 
+        total_txt = f"{total_val:.1f}" if total_val is not None else "—"
         if quality.get("pending"):
             summary = (
                 f"Sandbox: {sandbox:.1f}/{sandbox_max:.0f}  |  "
-                f"Rubric AI: PENDING — {quality.get('message', 'chưa chấm được bằng AI.')}"
+                f"Rubric AI: PENDING — {quality.get('message', 'chưa chấm được bằng AI.')}  "
+                f"|  Tổng tạm tính (thang 10): {total_txt}"
             )
         else:
-            total_txt = f"{total_val:.1f}" if total_val is not None else "—"
             summary = (
                 f"Sandbox: {sandbox:.1f}/{sandbox_max:.0f}  +  "
                 f"Rubric AI: {rubric:.1f}/{rubric_max:.0f}  =  Tổng: {total_txt}/10"
@@ -1130,13 +1156,13 @@ class SubmissionDetailDialog(QDialog):
             for r in range(self.table_tc_results.rowCount()):
                 item_v = self.table_tc_results.item(r, 4)
                 if item_v and item_v.text() in ("WA", "TLE", "MLE", "RE"):
-                    item_in = self.table_tc_results.item(r, 1)
-                    item_exp = self.table_tc_results.item(r, 2)
-                    item_act = self.table_tc_results.item(r, 3)
+                    in_txt = item_in.text().strip() if item_in else ""
+                    exp_txt = item_exp.text().strip() if item_exp else ""
+                    act_txt = item_act.text().strip() if item_act else ""
                     failed_tc = {
-                        "input": item_in.text() if item_in else "N/A",
-                        "expected_output": item_exp.text() if item_exp else "N/A",
-                        "actual_output": item_act.text() if item_act else "Sai kết quả"
+                        "input": in_txt if in_txt else "N/A",
+                        "expected_output": exp_txt if exp_txt else "N/A",
+                        "actual_output": act_txt if act_txt else "Sai kết quả đầu ra"
                     }
                     break
 

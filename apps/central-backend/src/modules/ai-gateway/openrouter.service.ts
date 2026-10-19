@@ -111,7 +111,11 @@ export class OpenRouterService {
         }
       }
 
-      const content = response.choices?.[0]?.message?.content ?? '';
+      const message = response.choices?.[0]?.message;
+      let content = message?.content ?? '';
+      if (!content && (message as any)?.reasoning) {
+        content = String((message as any).reasoning);
+      }
       const fallbackPrompt = Math.ceil(args.prompt.length / 4) + (args.image ? 1000 : 0);
       const promptTokens = response.usage?.prompt_tokens ?? fallbackPrompt;
       const completionTokens = response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
@@ -246,14 +250,25 @@ export class OpenRouterService {
   }
 
   private parseJson(content: string): unknown {
-    const trimmed = content.trim();
-    const fenced = /^```[A-Za-z]*\s*([\s\S]*?)\s*```$/.exec(trimmed);
-    const candidate = (fenced ? fenced[1] : trimmed).trim();
-    const direct = this.tryParse(candidate);
+    let trimmed = content.trim();
+    // Loại bỏ khối suy luận <think>...</think> nếu có từ reasoning models
+    trimmed = trimmed.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    // 1. Thử parse trực tiếp nếu toàn bộ chuỗi đã là JSON chuẩn
+    const direct = this.tryParse(trimmed);
     if (direct !== undefined) return direct;
-    const embedded = /[[{][\s\S]*[\]}]/.exec(candidate);
+
+    // 2. Bóc tách khối markdown code block ```json ... ``` hoặc ``` ... ```
+    const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(trimmed);
+    if (fenced) {
+      const parsed = this.tryParse(fenced[1].trim());
+      if (parsed !== undefined) return parsed;
+    }
+
+    // 3. Tìm cặp ngoặc { ... } hoặc [ ... ] bao quanh JSON
+    const embedded = /[[{][\s\S]*[\]}]/.exec(trimmed);
     if (embedded) {
-      const parsed = this.tryParse(embedded[0]);
+      const parsed = this.tryParse(embedded[0].trim());
       if (parsed !== undefined) return parsed;
     }
     throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null });

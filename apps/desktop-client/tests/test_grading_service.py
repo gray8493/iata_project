@@ -7,10 +7,17 @@ ProcessPoolExecutor parallel dispatch (ST01_TC001 batch < 30s) and
 progress callback semantics.
 """
 
+import json
+
 import pytest
 
 from database.db_manager import DatabaseManager
-from services.grading_service import GradingService, grade_single_submission
+from services.grading_service import (
+    GradingService,
+    grade_single_submission,
+    SANDBOX_MAX_SCORE,
+    AI_RUBRIC_MAX_SCORE,
+)
 
 PY_ECHO = "n = int(input())\nprint(n * 2)\n"
 
@@ -223,4 +230,107 @@ def test_worker_exception_is_reported_as_re_not_crashed(db, tmp_path, monkeypatc
     assert results[0]["verdict"] == "RE" and results[0]["score"] == 0.0
     persisted = db.get_submissions_by_class(class_id)
     assert persisted[0]["final_verdict"] == "RE"
+
+
+# ------------------------------------------------------------------------------
+# Hybrid AI rubric — hành vi khi AI khả dụng / lỗi (UC-15 chấm lại)
+# ------------------------------------------------------------------------------
+class _FakeAiService:
+    """Stub `AiService` cho `_enrich_with_ai_quality` (không gọi mạng)."""
+
+    def __init__(self, success: bool, passes: int = 3):
+        self.success = success
+        self.passes = passes
+        self.calls = 0
+
+    def evaluate_code_quality(self, source_code, language, problem_statement=""):
+        self.calls += 1
+        if not self.success:
+            return {"success": False, "message": "Hết hạn ngạch AI.", "error_code": "QUOTA_EXCEEDED"}
+        rubric = {}
+        for idx, key in enumerate(("clean_code", "complexity", "structure", "format", "documentation")):
+            rubric[key] = {"passed": idx < self.passes, "reason": f"lý do {key}"}
+        return {
+            "success": True,
+            "rubric": rubric,
+            "overall_feedback": "Tổng nhận xét.",
+            "tokens_consumed": 123,
+        }
+
+
+def _sandbox_result(ratio: float = 1.0) -> dict:
+    """Kết quả sandbox tối thiểu (giống payload `grade_single_submission`)."""
+    return {
+        "submission_id": 1,
+        "mssv": "SE180001",
+        "verdict": "AC",
+        "score": round(ratio * 10.0, 1),
+        "sandbox_ratio": ratio,
+        "sandbox_score": round(ratio * SANDBOX_MAX_SCORE, 2),
+        "diff_details": None,
+    }
+
+
+def test_hybrid_rubric_adds_ai_half_score(db, tmp_path):
+    src = tmp_path / "SE180001_Q1.py"
+    src.write_text(PY_ECHO, encoding="utf-8")
+
+    result = _sandbox_result(ratio=1.0)  # sandbox 5.0/5.0
+    GradingService(db)._enrich_with_ai_quality(
+        result, str(src), "PYTHON", "", _FakeAiService(True, passes=3)
+    )
+
+    assert result["rubric_available"] is True
+    assert result["rubric_score"] == 3.0
+    assert result["score"] == 8.0  # 5.0 sandbox + 3.0 rubric
+    assert result["rubric_score"] <= AI_RUBRIC_MAX_SCORE
+
+
+def test_hybrid_rubric_ai_failure_keeps_ten_point_scale(db, tmp_path):
+    """AI lỗi/hết quota KHÔNG được kéo điểm xuống 5.0 — giữ nguyên thang 10 của sandbox."""
+    src = tmp_path / "SE180001_Q1.py"
+    src.write_text(PY_ECHO, encoding="utf-8")
+
+    result = _sandbox_result(ratio=1.0)
+    GradingService(db)._enrich_with_ai_quality(
+        result, str(src), "PYTHON", "", _FakeAiService(False)
+    )
+
+    assert result["rubric_available"] is False
+    assert result["rubric_score"] == 0.0
+    assert result["score"] == 10.0  # trước đây bị 5.0
+
+    quality = json.loads(result["diff_details"])["quality"]
+    assert quality["pending"] is True
+    assert quality["sandbox_full_score"] == 10.0
+
+
+def test_hybrid_rubric_unreadable_source_keeps_ten_point_scale(db):
+    """Không đọc được mã nguồn -> rubric PENDING, điểm vẫn theo thang 10."""
+    result = _sandbox_result(ratio=0.6)  # sandbox 3.0/5.0 -> thang 10 là 6.0
+    fake = _FakeAiService(True)
+    GradingService(db)._enrich_with_ai_quality(result, None, "PYTHON", "", fake)
+
+    assert fake.calls == 0  # không gọi AI khi không có source
+    assert result["rubric_available"] is False
+    assert result["score"] == 6.0
+
+
+def test_regrade_submission_without_ai_quality_keeps_sandbox_score(db, tmp_path):
+    """UC-15 mặc định Sandbox-only: không gọi AI, điểm giữ thang 10."""
+    class_id = db.create_class_session("SE1801_REGRADE", "PHP", "PYTHON", str(tmp_path))
+    src = tmp_path / "SE180001_Q1.py"
+    src.write_text(PY_ECHO, encoding="utf-8")
+    db.bulk_insert_submissions([(class_id, "SE180001", str(src))])
+    db.add_testcase(class_id, "5\n", "10", score_weight=1.0, time_limit_ms=1500)
+    sub_id = db.get_submissions_by_class(class_id)[0]["id"]
+
+    result = GradingService(db).regrade_submission(sub_id, enable_ai_quality=False)
+
+    assert result["verdict"] == "AC"
+    assert result["score"] == 10.0
+    assert "rubric_available" not in result
+
+    stored = db.get_submission_result(sub_id)
+    assert stored["calculated_score"] == 10.0
 

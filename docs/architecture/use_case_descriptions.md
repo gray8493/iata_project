@@ -573,6 +573,7 @@ Mỗi Use Case được đặc tả bao gồm:
 1. Trong cửa sổ Chi tiết bài nộp (`UC-14`), Giảng viên lựa chọn một trong hai hành động:
    - **Kịch bản Chấm lại**: Giảng viên bấm **"Chấm lại bài này"**.
      - Hệ thống kích hoạt Sandbox Runner thực thi riêng mã nguồn của sinh viên này với bộ testcase hiện tại.
+     - Nếu Giảng viên đã bật tùy chọn **"Chấm chất lượng mã bằng AI" (Hybrid)** ở màn hình chính, hệ thống gọi thêm AI Rubric (`POST /api/v1/ai/evaluate-pe-code`) và cộng 5 tiêu chí chất lượng (tối đa 5đ) vào điểm Sandbox (tối đa 5đ). Nếu tùy chọn đang tắt, hệ thống chạy **Sandbox-only** và giữ thang điểm 10 như lần chấm hàng loạt.
      - Điểm số và verdict mới được cập nhật lại tự động.
    - **Kịch bản Điều chỉnh điểm thủ công**:
      - Giảng viên bấm nút **"Ghi đè điểm thủ công"**.
@@ -583,6 +584,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **E1 - Nhập điểm ngoài thang điểm hợp lệ**: Tại bước 1, nếu Giảng viên nhập điểm âm hoặc lớn hơn 10.0, hệ thống báo lỗi: "Điểm số phải nằm trong thang điểm từ 0.0 đến 10.0".
+* **E2 - AI Rubric không khả dụng khi chấm lại**: Nếu đã bật Hybrid nhưng AI Gateway lỗi, hết hạn ngạch hoặc không đọc được mã nguồn, hệ thống **không trừ điểm oan**: điểm được giữ theo thang 10 của Sandbox, rubric đánh dấu `PENDING` trong tab "Chấm Chất Lượng (AI)" để Giảng viên chấm lại sau.
 
 ---
 

@@ -107,8 +107,15 @@ ${JSON.stringify(input.failed_testcase)}`,
     });
     const data = result.data;
     if (typeof data.issue_summary !== 'string' || typeof data.pedagogical_feedback !== 'string' || typeof data.bug_category !== 'string') this.invalidResponse();
-    const line = data.suspected_error_line;
-    if (line !== undefined && line !== null && (!Number.isInteger(line) || Number(line) < 1)) this.invalidResponse();
+    let line = data.suspected_error_line;
+    if (typeof line === 'string' && /^\d+$/.test(line.trim())) {
+      line = parseInt(line.trim(), 10);
+    }
+    if (line !== undefined && line !== null && (!Number.isInteger(line) || Number(line) < 1)) {
+      delete (data as Record<string, unknown>).suspected_error_line;
+    } else if (line !== undefined && line !== null) {
+      (data as Record<string, unknown>).suspected_error_line = line;
+    }
     return { message: 'Phân tích mã nguồn bằng AI thành công', data: { tokens_consumed: result.tokensConsumed, ...data } };
   }
 

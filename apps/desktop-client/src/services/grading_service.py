@@ -693,10 +693,19 @@ class GradingService:
             else:
                 quality["message"] = res.get("message", "Không thể chấm chất lượng bằng AI.")
 
+        # Điểm Sandbox quy đổi thang 10 (dùng khi rubric AI không khả dụng) — xem `grade_single_submission`.
+        sandbox_full_score = round(float(result.get("sandbox_ratio", 0.0) or 0.0) * 10.0, 1)
+        quality["sandbox_full_score"] = sandbox_full_score
+
         rubric_score = float(quality["score"]) if quality["available"] else 0.0
         result["rubric_score"] = rubric_score
         result["rubric_available"] = bool(quality["available"])
-        result["score"] = round(sandbox_score + rubric_score, 1)
+        if quality["available"]:
+            result["score"] = round(sandbox_score + rubric_score, 1)
+        else:
+            # AI lỗi/hết hạn ngạch: KHÔNG phạt sinh viên — giữ nguyên thang 10 của sandbox,
+            # rubric được đánh dấu PENDING để giảng viên chấm lại sau.
+            result["score"] = sandbox_full_score
         result["diff_details"] = _attach_quality_payload(result.get("diff_details"), quality)
 
     def _save_result(self, res: Dict[str, Any]) -> None:

@@ -1997,6 +1997,7 @@ class AITAMainWindow(QMainWindow):
             source_file_path=sub_dict.get("source_file_path"),
             verdict=verdict,
             score=score,
+            enable_ai_quality=self.chk_ai_quality.isChecked(),
             parent=self
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -2034,7 +2035,9 @@ class AITAMainWindow(QMainWindow):
             if sid is None:
                 return
             start_spinner(self, f"Đang chấm lại bài của sinh viên {sub.get('student_mssv', '')}...")
-            regrade_worker = RegradeWorker(int(sid), parent=self)
+            regrade_worker = RegradeWorker(
+                int(sid), enable_ai_quality=self.chk_ai_quality.isChecked(), parent=self
+            )
             self._regrade_worker = regrade_worker
             regrade_worker.regrade_finished.connect(self._on_row_regrade_done)
             regrade_worker.start()
