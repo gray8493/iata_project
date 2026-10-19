@@ -245,6 +245,23 @@ describe('OpenRouterService (Unit AI Provider Rotation Test)', () => {
     });
   });
 
+  describe('UT03_AiProvider_TC015: Cấu hình model dự phòng thì gửi mảng models', () => {
+    it('body chứa models gồm model chính + dự phòng và bỏ trường model', async () => {
+      const service = makeService(['key-1'], {
+        OPENROUTER_MODEL: 'google/gemma-4-31b-it:free',
+        OPENROUTER_MODEL_FALLBACKS: 'google/gemma-4-26b-a4b-it:free,openrouter/free',
+      });
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('{"ok":true}'));
+
+      await service.generateJson<{ ok: boolean }>(args());
+
+      const body = (service as any).post.mock.calls[0][1] as any;
+      expect(body.model).toBeUndefined();
+      expect(body.models).toEqual(['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'openrouter/free']);
+      expect(service.providerStatus().fallback_models).toEqual(['google/gemma-4-26b-a4b-it:free', 'openrouter/free']);
+    });
+  });
+
   describe('UT03_AiProvider_TC014: Mọi tài khoản đều trả JSON sai định dạng', () => {
     it('ném 502 AI_INVALID_RESPONSE và hoàn quota đã giữ chỗ', async () => {
       const service = makeService(['key-1']);
