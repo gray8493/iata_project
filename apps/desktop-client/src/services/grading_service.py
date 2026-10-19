@@ -179,16 +179,35 @@ def _resolve_question_file(
     """
     Resolves `Q<nn>.<ext>` inside a student folder from a testcase's question_number.
     Used for multi-question grading when source_file_path points to the student folder.
+    Falls back to a case-insensitive scan so `q1.py` / `Q1.PY` are still recognised
+    (sinh viên hay đặt tên file chữ thường, nhất là với Python).
     """
     match = re.search(r"[Qq]\s*(\d+)", question_number or "")
     if not match:
         return None
     qnum = int(match.group(1))
-    for ext in _allowed_exts(language):
+    exts = _allowed_exts(language)
+    for ext in exts:
         candidate = student_root / f"Q{qnum}{ext}"
         if candidate.is_file():
             return candidate
+
+    try:
+        entries = list(student_root.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.is_file() or entry.suffix.lower() not in exts:
+            continue
+        found = re.search(r"[Qq]\s*(\d+)", entry.stem)
+        if found and int(found.group(1)) == qnum:
+            return entry
     return None
+
+
+# Alias công khai: module quét đạo văn (UC-17) dùng CHUNG cách dò file Q<nn>
+# với lúc chấm điểm, tránh lệch logic giữa 2 tính năng.
+resolve_question_file = _resolve_question_file
 
 
 def grade_single_submission(

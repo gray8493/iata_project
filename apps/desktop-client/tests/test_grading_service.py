@@ -15,6 +15,7 @@ from database.db_manager import DatabaseManager
 from services.grading_service import (
     GradingService,
     grade_single_submission,
+    resolve_question_file,
     SANDBOX_MAX_SCORE,
     AI_RUBRIC_MAX_SCORE,
 )
@@ -158,6 +159,44 @@ def test_multi_question_syntax_error_only_affects_own_question(tmp_path):
 
     assert res["verdict"] == "CE"
     assert res["score"] == round((2 / 3) * 10.0, 1)
+
+
+def test_resolve_question_file_accepts_lowercase_names(tmp_path):
+    student_dir = tmp_path / "SE180010"
+    student_dir.mkdir()
+    (student_dir / "q1.py").write_text(PY_ECHO, encoding="utf-8")
+    (student_dir / "Q2.PY").write_text(PY_ECHO, encoding="utf-8")
+
+    found_q1 = resolve_question_file(student_dir, "Q1", "PYTHON")
+    found_q2 = resolve_question_file(student_dir, "Q2", "PYTHON")
+
+    assert found_q1 is not None and found_q1.read_text(encoding="utf-8") == PY_ECHO
+    assert found_q2 is not None and found_q2.read_text(encoding="utf-8") == PY_ECHO
+    assert resolve_question_file(student_dir, "Q3", "PYTHON") is None
+    assert resolve_question_file(student_dir, "khong-phai-cau", "PYTHON") is None
+
+
+def test_resolve_question_file_falls_back_to_loose_question_names(tmp_path):
+    """Sinh viên đặt tên kiểu 'Q01.py' / 'baiQ2.py' vẫn được nhận diện."""
+    student_dir = tmp_path / "SE180012"
+    student_dir.mkdir()
+    (student_dir / "Q01.py").write_text(PY_ECHO, encoding="utf-8")
+    (student_dir / "baiQ2.py").write_text(PY_FAIL, encoding="utf-8")
+
+    assert resolve_question_file(student_dir, "Q1", "PYTHON").name == "Q01.py"
+    assert resolve_question_file(student_dir, "Q2", "PYTHON").name == "baiQ2.py"
+
+
+def test_multi_question_folder_grades_lowercase_q_file(tmp_path):
+    student_dir = tmp_path / "SE180011"
+    student_dir.mkdir()
+    (student_dir / "q1.py").write_text(PY_ECHO, encoding="utf-8")
+    sub = {"id": 11, "student_mssv": "SE180011", "source_file_path": str(student_dir)}
+
+    res = grade_single_submission(sub, "PYTHON", [_tc("Q1", "5\n", "10")], total_weight=1.0)
+
+    assert res["verdict"] == "AC"
+    assert res["score"] == 10.0
 
 
 # ------------------------------------------------------------------------------

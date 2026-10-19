@@ -379,11 +379,14 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `class_id`              | `INTEGER`     | **FOREIGN KEY** REFERENCES `local_classes(id)` | Thuộc đợt chấm nào.                                        |
 | `student_a_mssv`        | `TEXT`        | **NOT NULL**                                     | MSSV sinh viên thứ nhất.                                     |
 | `student_b_mssv`        | `TEXT`        | **NOT NULL**                                     | MSSV sinh viên thứ hai.                                       |
-| `similarity_percentage` | `REAL`        | **NOT NULL**                                     | Tỷ lệ tương đồng AST từ Vòng 1 (0.00% - 100.00%).       |
+| `similarity_percentage` | `REAL`        | **NOT NULL**                                     | Điểm tương đồng tổng hợp từ Vòng 1 (0.00% - 100.00%) — lấy chỉ số cao hơn giữa Jaccard và độ bao phủ (containment). |
+| `question_key`          | `TEXT`        |                                                        | Câu bị trùng khi quét theo từng câu (`Q1`, `Q2`, ...; `Q1, Q2` nếu trùng nhiều câu). `NULL` với báo cáo của bản cũ chỉ so cả bài. |
 | `ai_evidence_details`   | `TEXT`        |                                                        | Bằng chứng đối sánh ngữ nghĩa từ AI ở Vòng 2 (> 80%). |
 | `is_deleted`            | `INTEGER`     | **DEFAULT 0**                                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                  |
 | `deleted_at`            | `DATETIME`    |                                                        | Thời điểm xóa mềm báo cáo.                               |
 | `checked_at`            | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                    | Thời điểm quét đạo văn.                                  |
+
+> **Ghi chú migration:** Cột `question_key` (và mọi cột mở rộng khác của bảng này) được thêm bằng migration nhẹ `DatabaseManager._ensure_plagiarism_columns()`, nên CSDL cục bộ của bản cũ vẫn nâng cấp tại chỗ khi mở app — không cần xoá `local_grading.db`.
 
 ---
 

@@ -9,8 +9,13 @@ import pytest
 
 from services.plagiarism_engine import (
     PlagiarismEngine,
+    adaptive_gram_size,
+    common_boilerplate,
+    containment_similarity,
+    filter_boilerplate,
     jaccard_similarity,
     normalize_tokens,
+    question_sort_key,
     scan_submissions,
     winnow_fingerprints,
 )
@@ -174,3 +179,176 @@ def test_scan_class_reads_content_from_path(tmp_path):
         threshold=80.0,
     )
     assert report["total_pairs"] == 1 and len(report["matches"]) == 1
+
+
+# ------------------------------------------------------------------------------
+# Per-question units (UC-17): so từng câu thay vì gộp cả gói bài
+# ------------------------------------------------------------------------------
+Q2_FIB = """
+#include <stdio.h>
+int fib(int k) {
+    if (k <= 1) { return k; }
+    return fib(k - 1) + fib(k - 2);
+}
+int main() {
+    int k;
+    scanf("%d", &k);
+    printf("%d\\n", fib(k));
+    return 0;
+}
+"""
+
+
+def test_question_sort_key_orders_questions_numerically():
+    assert sorted(["Q10", "Q2", "Q1"], key=question_sort_key) == ["Q1", "Q2", "Q10"]
+
+
+def test_adaptive_gram_size_shrinks_window_for_short_answers():
+    assert adaptive_gram_size(200) == (5, 4)
+    assert adaptive_gram_size(40) == (3, 3)
+
+
+def test_scan_units_flags_single_copied_question_that_whole_file_comparison_misses():
+    docs = [
+        {"mssv": "SE180001", "units": {"Q1": C_A, "Q2": C_B_DIFFERENT}},
+        {"mssv": "SE180002", "units": {"Q1": C_A_RENAMED, "Q2": Q2_FIB}},
+    ]
+
+    per_question = PlagiarismEngine().scan_class(docs, language="C", threshold=80.0)
+
+    assert per_question["questions"] == ["Q1", "Q2"]
+    assert per_question["total_pairs"] == 2          # 1 cặp × 2 câu
+    assert len(per_question["matches"]) == 1         # chỉ Q1 bị trùng
+    match = per_question["matches"][0]
+    assert {match["sv_a"], match["sv_b"]} == {"SE180001", "SE180002"}
+    assert match["questions"] == ["Q1"]
+    assert match["question"] == "Q1"
+    assert match["sim"] == 100.0
+    assert match["jaccard"] == 100.0 and match["containment"] == 100.0
+    assert match["code_a"] == C_A                    # mã nguồn của câu bị trùng
+    assert set(match["question_scores"]) == {"Q1"}
+
+    # Hành vi cũ (gộp cả gói bài thành 1 chuỗi) bị pha loãng nên BỎ SÓT chính cặp này.
+    whole_file = PlagiarismEngine().scan_class(
+        [{"mssv": d["mssv"], "content": d["units"]["Q1"] + d["units"]["Q2"]} for d in docs],
+        language="C",
+        threshold=80.0,
+    )
+    assert whole_file["matches"] == []
+
+
+def test_scan_units_merges_multiple_matching_questions_into_one_pair_row():
+    docs = [
+        {"mssv": "SE180001", "units": {"Q1": C_A, "Q2": Q2_FIB}},
+        {"mssv": "SE180002", "units": {"Q1": C_A_RENAMED, "Q2": Q2_FIB}},
+    ]
+
+    report = PlagiarismEngine().scan_class(docs, language="C", threshold=80.0)
+
+    assert len(report["matches"]) == 1                # 1 dòng cho 1 cặp sinh viên
+    match = report["matches"][0]
+    assert match["questions"] == ["Q1", "Q2"]         # cả 2 câu đều bị trùng
+    assert set(match["question_scores"]) == {"Q1", "Q2"}
+    assert set(match["question_codes"]) == {"Q1", "Q2"}
+    assert match["sim"] == 100.0
+
+
+def test_scan_units_containment_catches_partial_copy_inside_a_bigger_answer():
+    docs = [
+        {"mssv": "SE180001", "units": {"Q1": C_A}},
+        {"mssv": "SE180002", "units": {"Q1": C_A + "\n" + Q2_FIB}},   # copy nguyên C_A rồi viết thêm
+    ]
+
+    report = PlagiarismEngine().scan_class(docs, language="C", threshold=80.0)
+
+    assert len(report["matches"]) == 1
+    match = report["matches"][0]
+    # Jaccard bị pha loãng vì bài B dài hơn, nhưng độ bao phủ (containment) bắt được.
+    assert match["jaccard"] < 80.0
+    assert match["containment"] >= 80.0
+    assert match["sim"] == match["containment"]
+
+
+def test_scan_units_skips_answers_below_minimum_tokens():
+    stub = "int main() { return 0; }"                 # 9 token -> dưới ngưỡng tối thiểu
+    report = PlagiarismEngine().scan_class(
+        [
+            {"mssv": "SE180001", "units": {"Q1": stub, "Q2": C_A}},
+            {"mssv": "SE180002", "units": {"Q1": stub, "Q2": C_B_DIFFERENT}},
+        ],
+        language="C",
+        threshold=80.0,
+    )
+    assert report["total_pairs"] == 1                 # Q1 bị bỏ, chỉ còn Q2
+    assert report["matches"] == []
+
+
+def test_scan_units_drops_submission_whose_answers_are_all_too_short():
+    report = PlagiarismEngine().scan_class(
+        [
+            {"mssv": "SE180001", "units": {"Q1": "int main() { return 0; }"}},
+            {"mssv": "SE180002", "units": {"Q1": C_A}},
+        ],
+        language="C",
+        threshold=80.0,
+    )
+    assert report["students_compared"] == 1
+    assert report["total_pairs"] == 0 and report["matches"] == []
+
+
+# ------------------------------------------------------------------------------
+# Boilerplate toàn lớp + độ bao phủ (containment)
+# ------------------------------------------------------------------------------
+def test_containment_similarity_is_coverage_of_the_smaller_set():
+    assert containment_similarity({1, 2, 3, 4}, {1, 2}) == 100.0   # tập nhỏ nằm trọn trong tập lớn
+    assert containment_similarity({1, 2}, {3, 4}) == 0.0
+    assert containment_similarity(set(), {1}) == 0.0
+    assert containment_similarity({1, 2, 3}, {2, 3, 4, 5}) == pytest.approx(66.67, abs=0.01)
+
+
+def test_common_boilerplate_keeps_only_grams_shared_by_most_documents():
+    doc_fingerprints = [{1, 2, 3}, {1, 2, 4}, {1, 5, 6}, {1, 5, 7}, {1, 5, 8}]
+    # gram 1: 5/5 bài, gram 5: 3/5 bài (60% > 50%), gram 2: chỉ 2/5 bài
+    assert common_boilerplate(doc_fingerprints, 0.5) == {1, 5}
+
+
+def test_filter_boilerplate_removes_common_grams_from_every_document():
+    filtered = filter_boilerplate([{1, 2, 3}, {1, 5, 6}, {1, 5, 7}, {1, 5, 8}, {1, 5, 9}], 0.5)
+    assert filtered[0] == {2, 3}
+    assert all(1 not in fps and 5 not in fps for fps in filtered)
+
+
+def test_scan_class_applies_boilerplate_filter_when_class_is_large_enough():
+    skeleton = C_A                                     # khung sườn ai cũng viết
+    bodies = [Q2_FIB, C_B_DIFFERENT, "int main() { int a; a = 1; printf(\"%d\", a); return 0; }",
+              "int main() { int b; b = b + 1; printf(\"%d\", b); return 0; }",
+              "int main() { int c; while (c < 2) { c++; } return 0; }"]
+    docs = [
+        {"mssv": f"SE18000{i + 1}", "units": {"Q1": skeleton + "\n" + body}}
+        for i, body in enumerate(bodies)
+    ]
+
+    unfiltered = PlagiarismEngine(boilerplate_filter=False).scan_class(
+        docs, language="C", threshold=0.0
+    )
+    filtered = PlagiarismEngine().scan_class(docs, language="C", threshold=0.0)
+
+    assert unfiltered["boilerplate_filtered"] is False
+    assert filtered["boilerplate_filtered"] is True
+
+    best_before = unfiltered["matches"][0]["sim"]
+    best_after = filtered["matches"][0]["sim"] if filtered["matches"] else 0.0
+    # Loại khung sườn chung -> điểm trùng lặp giảm (hoặc hết cặp nghi vấn).
+    assert best_after < best_before
+    assert best_before >= 60.0
+
+
+def test_scan_class_skips_boilerplate_filter_for_small_classes():
+    docs = [
+        {"mssv": "SE180001", "units": {"Q1": C_A}},
+        {"mssv": "SE180002", "units": {"Q1": C_A_RENAMED}},
+        {"mssv": "SE180003", "units": {"Q1": C_B_DIFFERENT}},
+    ]
+    report = PlagiarismEngine().scan_class(docs, language="C", threshold=80.0)
+    assert report["boilerplate_filtered"] is False
+    assert len(report["matches"]) == 1                 # cặp sao chép vẫn được giữ

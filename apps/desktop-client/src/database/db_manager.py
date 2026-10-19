@@ -141,6 +141,7 @@ class DatabaseManager:
                 student_a_mssv TEXT NOT NULL,
                 student_b_mssv TEXT NOT NULL,
                 similarity_percentage REAL NOT NULL,
+                question_key TEXT,
                 ai_evidence_details TEXT,
                 checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_deleted INTEGER DEFAULT 0,
@@ -188,6 +189,7 @@ class DatabaseManager:
             conn.commit()
 
         self._ensure_web_submission_columns()
+        self._ensure_plagiarism_columns()
         self._drop_legacy_student_name_column()
         self._ensure_class_columns()
         self._ensure_submission_unique_mssv()
@@ -288,6 +290,20 @@ class DatabaseManager:
 
             # Ensure the index is created AFTER the column exists
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_web_subs_session ON local_web_submissions(session_id);")
+            conn.commit()
+
+    def _ensure_plagiarism_columns(self):
+        """
+        Lightweight migration for `local_plagiarism_reports`.
+        - question_key: câu bị trùng (Q1, Q2, ...) khi quét theo từng câu; NULL với
+          bản ghi cũ do đợt quét trước chỉ so cả bài.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(local_plagiarism_reports)")
+            existing = {row[1] for row in cursor.fetchall()}
+            if "question_key" not in existing:
+                cursor.execute("ALTER TABLE local_plagiarism_reports ADD COLUMN question_key TEXT")
             conn.commit()
 
 
@@ -742,7 +758,8 @@ class DatabaseManager:
         student_a_mssv: str,
         student_b_mssv: str,
         similarity_percentage: float,
-        ai_evidence_details: Optional[str] = None
+        ai_evidence_details: Optional[str] = None,
+        question_key: Optional[str] = None
     ) -> int:
         """Persists one flagged plagiarism pair into local_plagiarism_reports."""
         with self.get_connection() as conn:
@@ -750,9 +767,10 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO local_plagiarism_reports (
                     class_id, student_a_mssv, student_b_mssv,
-                    similarity_percentage, ai_evidence_details
-                ) VALUES (?, ?, ?, ?, ?)
-            """, (class_id, student_a_mssv, student_b_mssv, similarity_percentage, ai_evidence_details))
+                    similarity_percentage, question_key, ai_evidence_details
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (class_id, student_a_mssv, student_b_mssv, similarity_percentage,
+                  question_key, ai_evidence_details))
             conn.commit()
             if cursor.lastrowid is None:
                 raise RuntimeError("Failed to retrieve row ID from local_plagiarism_reports.")

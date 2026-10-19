@@ -29,7 +29,12 @@ if str(SRC_DIR) not in sys.path:
 from ui.styles.theme import LIGHT_THEME_QSS
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
-from services.plagiarism_engine import PlagiarismEngine
+from services.grading_service import read_submission_source, resolve_question_file
+from services.plagiarism_engine import (
+    DEFAULT_QUESTION_KEY,
+    PlagiarismEngine,
+    question_sort_key,
+)
 
 
 class AiPlagiarismWorker(QThread):
@@ -378,8 +383,8 @@ class PlagiarismDialog(QDialog):
         l_layout.addWidget(lbl_table_head)
 
         self.table_pairs = QTableWidget(left_widget)
-        self.table_pairs.setColumnCount(4)
-        self.table_pairs.setHorizontalHeaderLabels(["SV A", "SV B", "% Trùng Lặp", "Đánh Giá"])
+        self.table_pairs.setColumnCount(5)
+        self.table_pairs.setHorizontalHeaderLabels(["SV A", "SV B", "% Trùng Lặp", "Câu", "Đánh Giá"])
         self.table_pairs.verticalHeader().setVisible(False)
         self.table_pairs.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table_pairs.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -389,10 +394,12 @@ class PlagiarismDialog(QDialog):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.table_pairs.setColumnWidth(0, 95)
         self.table_pairs.setColumnWidth(1, 95)
         self.table_pairs.setColumnWidth(2, 110)
+        self.table_pairs.setColumnWidth(3, 70)
 
         self.table_pairs.cellClicked.connect(self._on_pair_selected)
         l_layout.addWidget(self.table_pairs)
@@ -611,6 +618,74 @@ class PlagiarismDialog(QDialog):
         if hasattr(self, 'table_pairs'):
             self.lbl_table_empty.setGeometry(self.table_pairs.rect())
 
+    def _class_question_keys(self) -> List[str]:
+        """Danh sách câu (Q1, Q2, ...) của lớp, lấy từ cấu hình testcase."""
+        try:
+            testcases = self.db.get_testcases_by_class(self.class_id)
+        except Exception:
+            return []
+        keys: List[str] = []
+        for tc in testcases or []:
+            key = (tc.get("question_number") or "").strip() or DEFAULT_QUESTION_KEY
+            if key not in keys:
+                keys.append(key)
+        keys.sort(key=question_sort_key)
+        return keys
+
+    def _collect_question_units(
+        self, source_path: Path, question_keys: List[str], language: str
+    ) -> Dict[str, str]:
+        """
+        Trả về {tên câu: mã nguồn} của một bài nộp.
+        - Bài 1 file      -> coi cả file là một câu (Q1).
+        - Bài nộp thư mục -> dò từng `Q<nn>.<ext>` giống hệt lúc chấm điểm
+          (multi-question), nhờ đó chỉ copy câu Q1 vẫn bị phát hiện thay vì bị
+          pha loãng bởi các câu khác. Nếu không dò được thì gộp toàn bộ file.
+        """
+        if source_path.is_file():
+            try:
+                return {
+                    DEFAULT_QUESTION_KEY: source_path.read_text(encoding="utf-8", errors="replace")
+                }
+            except Exception:
+                return {}
+
+        if not source_path.is_dir():
+            return {}
+
+        units: Dict[str, str] = {}
+        for key in question_keys:
+            found = resolve_question_file(source_path, key, language)
+            if not found:
+                continue
+            try:
+                units[key] = found.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+        if units:
+            return units
+
+        fallback = read_submission_source(str(source_path))
+        if fallback and fallback.strip():
+            return {DEFAULT_QUESTION_KEY: fallback}
+        return {}
+
+    @staticmethod
+    def _metrics_tooltip(pair: Dict[str, Any]) -> str:
+        """Tooltip chi tiết Jaccard / độ bao phủ theo từng câu của một cặp bài."""
+        scores = pair.get("question_scores") or {}
+        if not scores:
+            return (
+                f"Jaccard {pair.get('jaccard', pair.get('sim', 0.0)):.1f}% · "
+                f"Bao phủ {pair.get('containment', 0.0):.1f}%"
+            )
+        lines = [
+            f"{key}: trùng {value.get('sim', 0.0):.1f}% "
+            f"(Jaccard {value.get('jaccard', 0.0):.1f}%, bao phủ {value.get('containment', 0.0):.1f}%)"
+            for key, value in scores.items()
+        ]
+        return "Độ trùng lặp theo từng câu:\n" + "\n".join(lines)
+
     def _run_real_plagiarism_scan(self):
         """Scans real student code files using token/Jaccard similarity."""
         selected_class_id = self.combo_class.currentData()
@@ -634,21 +709,23 @@ class PlagiarismDialog(QDialog):
         cls_info = self.db.get_class_by_id(self.class_id)
         language = (cls_info or {}).get("programming_language", "C")
 
-        # Đọc mã nguồn thật từ đĩa
+        # Mỗi bài nộp được tách theo từng câu (Q1, Q2, ...) để so đúng câu với nhau
+        question_keys = self._class_question_keys()
+
+        # Đọc mã nguồn thật từ đĩa (hỗ trợ cả bài 1 file và bài nộp dạng thư mục)
         scan_items = []
         for s in subs:
-            p = Path(s["source_file_path"])
-            if p.is_file():
-                try:
-                    content = p.read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    continue
-                scan_items.append({
-                    "mssv": s["student_mssv"],
-                    "name": s["student_mssv"],
-                    "path": str(p),
-                    "content": content
-                })
+            raw_path = s.get("source_file_path")
+            if not raw_path:
+                continue
+            units = self._collect_question_units(Path(raw_path), question_keys, language)
+            if not units:
+                continue
+            scan_items.append({
+                "mssv": s["student_mssv"],
+                "name": s["student_mssv"],
+                "units": units
+            })
 
         self.progress_bar.setValue(40)
         QApplication.processEvents()
@@ -661,11 +738,12 @@ class PlagiarismDialog(QDialog):
         # Ngưỡng phát hiện do người dùng cấu hình (Cách 1: Lọc triệt để theo ngưỡng đã chọn)
         red_threshold = float(self.spin_thresh.value())
 
-        # Vòng 1: Động cơ bóc tách cấu trúc (AST-style normalization) + Winnowing, chạy 100% offline
+        # Vòng 1: Chuẩn hoá token + Winnowing theo từng câu, chạy 100% offline
         engine = PlagiarismEngine()
         report = engine.scan_class(scan_items, language=language, threshold=red_threshold)
         total_pairs_checked = report["total_pairs"]
         raw_matches = report["matches"]
+        questions_checked = report.get("questions") or []
 
         self.progress_bar.setValue(80)
         QApplication.processEvents()
@@ -674,7 +752,10 @@ class PlagiarismDialog(QDialog):
         try:
             self.db.clear_plagiarism_reports(self.class_id)
             for m in raw_matches:
-                self.db.save_plagiarism_report(self.class_id, m["sv_a"], m["sv_b"], m["sim"])
+                self.db.save_plagiarism_report(
+                    self.class_id, m["sv_a"], m["sv_b"], m["sim"],
+                    question_key=", ".join(m["questions"])
+                )
         except Exception:
             pass
 
@@ -682,26 +763,40 @@ class PlagiarismDialog(QDialog):
             "sv_a": m["sv_a"],
             "sv_b": m["sv_b"],
             "sim": m["sim"],
+            "jaccard": m["jaccard"],
+            "containment": m["containment"],
+            "question": m["question"],
+            "questions": m["questions"],
+            "question_scores": m["question_scores"],
             "verdict": m["verdict"],
             "code_a": m["code_a"],
             "code_b": m["code_b"]
         } for m in raw_matches]
-        v2_red_alert = len(pairs_found)
+        # Vòng 2 (AI) chỉ nhận các cặp đủ điều kiện tối thiểu 80% theo hợp đồng API
+        v2_red_alert = sum(1 for p in pairs_found if p["sim"] >= 80.0)
 
         self.progress_bar.setValue(100)
         QApplication.processEvents()
         self._finish_scan()
 
         self.pairs_data = pairs_found
+        scope = f"{len(questions_checked)} câu" if questions_checked else "1 câu"
+        filter_note = " Đã loại mã khung sườn dùng chung của lớp." if report.get("boilerplate_filtered") else ""
         if pairs_found:
-            self.lbl_status_subtitle.setText(f"Đã đối soát {total_pairs_checked} cặp bài nộp. Phát hiện {len(pairs_found)} cặp vượt ngưỡng {int(red_threshold)}%.")
+            self.lbl_status_subtitle.setText(
+                f"Đã đối soát {total_pairs_checked} lượt so sánh theo {scope}. "
+                f"Phát hiện {len(pairs_found)} cặp vượt ngưỡng {int(red_threshold)}%.{filter_note}"
+            )
             self.lbl_status_subtitle.setStyleSheet("font-size: 13px; font-weight: 500; color: #DC2626; line-height: 1.4;")
         else:
-            self.lbl_status_subtitle.setText(f"Đã đối soát {total_pairs_checked} cặp bài nộp. Không có cặp bài nào vượt ngưỡng {int(red_threshold)}%.")
+            self.lbl_status_subtitle.setText(
+                f"Đã đối soát {total_pairs_checked} lượt so sánh theo {scope}. "
+                f"Không có cặp bài nào vượt ngưỡng {int(red_threshold)}%.{filter_note}"
+            )
             self.lbl_status_subtitle.setStyleSheet("font-size: 13px; font-weight: 500; color: #0284C7; line-height: 1.4;")
 
-        self.lbl_v1.setText(f"Vòng 1 (Nghi vấn): {len(pairs_found)} cặp")
-        self.lbl_v2.setText(f"Vòng 2 (Báo động ≥{int(red_threshold)}%): {v2_red_alert} cặp")
+        self.lbl_v1.setText(f"Vòng 1 (Offline theo từng câu): {len(pairs_found)} cặp nghi vấn")
+        self.lbl_v2.setText(f"Vòng 2 (Đủ điều kiện AI ≥80%): {v2_red_alert} cặp")
 
         # Cập nhật bảng dữ liệu
         self.table_pairs.setSortingEnabled(False)
@@ -712,20 +807,25 @@ class PlagiarismDialog(QDialog):
             item_b = QTableWidgetItem(p["sv_b"])
             # Cột % căn giữa và hỗ trợ sắp xếp số
             item_sim = NumericTableWidgetItem(f"{p['sim']:.1f}%", p["sim"])
+            item_q = QTableWidgetItem(", ".join(p["questions"]))
             item_v = QTableWidgetItem(p["verdict"])
 
             item_a.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_b.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_sim.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_q.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_v.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
 
             item_sim.setForeground(QColor("#DC2626"))
             item_v.setForeground(QColor("#DC2626"))
+            item_q.setForeground(QColor("#B45309"))
+            item_v.setToolTip(self._metrics_tooltip(p))
 
             self.table_pairs.setItem(r, 0, item_a)
             self.table_pairs.setItem(r, 1, item_b)
             self.table_pairs.setItem(r, 2, item_sim)
-            self.table_pairs.setItem(r, 3, item_v)
+            self.table_pairs.setItem(r, 3, item_q)
+            self.table_pairs.setItem(r, 4, item_v)
 
         self.table_pairs.setSortingEnabled(True)
         self.table_pairs.sortItems(2, Qt.SortOrder.DescendingOrder)
@@ -796,15 +896,23 @@ class PlagiarismDialog(QDialog):
         self._highlight_matching_lines(pair["code_a"], pair["code_b"])
 
         sim = pair["sim"]
+        questions = pair.get("questions") or []
+        question_label = ", ".join(questions) if questions else (pair.get("question") or DEFAULT_QUESTION_KEY)
+        metrics_line = (
+            f"Chỉ số: Jaccard {pair.get('jaccard', sim):.1f}% · "
+            f"Độ bao phủ (containment) {pair.get('containment', 0.0):.1f}%."
+        )
         if sim >= float(self.spin_thresh.value()):
             evidence = (
-                f"Phát hiện mức độ trùng lặp cao ({sim:.1f}%) giữa {pair['sv_a']} và {pair['sv_b']}.\n"
+                f"Phát hiện mức độ trùng lặp cao ({sim:.1f}%) giữa {pair['sv_a']} và {pair['sv_b']} ở câu {question_label}.\n"
+                f"{metrics_line}\n"
                 f"Các hàm chính, thứ tự khai báo biến và cấu trúc vòng lặp có độ tương đồng vượt ngưỡng cho phép.\n"
                 f"Bấm nút 'Kích Hoạt AI Thẩm Định Chuyên Sâu' phía trên để gọi AI Gateway thẩm định cấu trúc AST và bằng chứng cụ thể."
             )
         else:
             evidence = (
-                f"Mức độ tương đồng {sim:.1f}% giữa {pair['sv_a']} và {pair['sv_b']}.\n"
+                f"Mức độ tương đồng {sim:.1f}% giữa {pair['sv_a']} và {pair['sv_b']} ở câu {question_label}.\n"
+                f"{metrics_line}\n"
                 f"Nghi vấn sử dụng chung mẫu khung giải thuật cơ bản của đề bài.\n"
                 f"Kiến nghị: Xem xét đánh giá thêm để loại trừ việc trùng template mẫu."
             )
@@ -944,9 +1052,20 @@ class PlagiarismDialog(QDialog):
         try:
             with open(export_path, "w", encoding="utf-8-sig", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["Sinh viên A", "Sinh viên B", "Độ tương đồng (%)", "Kết luận"])
+                writer.writerow([
+                    "Sinh viên A", "Sinh viên B", "Câu trùng", "% Trùng lặp",
+                    "Jaccard (%)", "Bao phủ (%)", "Kết luận"
+                ])
                 for p in self.pairs_data:
-                    writer.writerow([p["sv_a"], p["sv_b"], f"{p['sim']:.1f}%", p["verdict"]])
+                    writer.writerow([
+                        p["sv_a"],
+                        p["sv_b"],
+                        ", ".join(p.get("questions") or []),
+                        f"{p['sim']:.1f}%",
+                        f"{p.get('jaccard', p['sim']):.1f}%",
+                        f"{p.get('containment', 0.0):.1f}%",
+                        p["verdict"]
+                    ])
 
             QMessageBox.information(
                 self, "Xuất Báo Cáo Thành Công",

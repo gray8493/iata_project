@@ -149,6 +149,20 @@ def test_rescan_after_clear_saves_fresh_reports(db, class_id):
     assert [r["similarity_percentage"] for r in reports] == [17.0]
 
 
+def test_save_plagiarism_report_persists_question_key(db, class_id):
+    db.save_plagiarism_report(class_id, "SE180001", "SE180002", 91.5, question_key="Q1, Q2")
+    db.save_plagiarism_report(class_id, "SE180003", "SE180004", 84.0)
+    reports = {r["student_a_mssv"]: r for r in db.get_plagiarism_reports(class_id)}
+    assert reports["SE180001"]["question_key"] == "Q1, Q2"
+    assert reports["SE180003"]["question_key"] is None
+
+
+def test_plagiarism_question_key_column_exists_after_migration(db):
+    with db.get_connection() as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(local_plagiarism_reports)")}
+    assert "question_key" in cols
+
+
 # ------------------------------------------------------------------------------
 # Web submissions (WEB Studio) + lightweight migration
 # ------------------------------------------------------------------------------

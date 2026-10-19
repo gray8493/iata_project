@@ -43,6 +43,9 @@ npm test -- integration.docs.spec.ts
 | IT19_WebRubricGrading_TC002 | WebRubricGrading | Boundary | `WebRubricEngine._weighted_total` / `_verdict` (Desktop) |
 | IT19_WebRubricGrading_TC003 | WebRubricGrading | Exception | `WebRubricEngine.grade` (Desktop) |
 | IT19_FolderRecognition_TC001 | FolderRecognition | Boundary | `WebFolderImportDialog` helpers (Desktop) |
+| IT13_PlagiarismScan_TC001 | PlagiarismScan | Normal | `PlagiarismEngine.scan_class` theo từng câu (Desktop) |
+| IT13_PlagiarismScan_TC002 | PlagiarismScan | Boundary | `PlagiarismEngine.scan_class` (Desktop) |
+| IT13_PlagiarismScan_TC003 | PlagiarismScan | Exception | `PlagiarismEngine.scan_class` (Desktop) |
 
 ---
 
@@ -199,6 +202,7 @@ Các kịch bản tích hợp thuộc phân hệ Desktop Client được tự đ
 - `IT09_JavaFloatingPoint`: Tích hợp máy ảo Java và so khớp sai số thực epsilon $\le 10^{-5}$ (`test_matching_strategies.py`).
 - `IT10_PythonUnorderedTokens`: Tích hợp trình thông dịch Python và so khớp token không phụ thuộc thứ tự (`test_matching_strategies.py`).
 - `IT14_GradebookExport`: Tích hợp dữ liệu chấm điểm và xuất file `results.csv` 7 cột UTF-8 BOM (`test_export_service.py`).
+- `IT13_PlagiarismScan`: Tích hợp tách bài theo từng câu (`Q1` ↔ `Q1`), chỉ số Jaccard + độ bao phủ (containment), lọc mã khung sườn toàn lớp và lưu báo cáo kèm cột `question_key` (`test_plagiarism_engine.py`, `test_plagiarism_dialog.py`, `test_db_manager.py`).
 
 ---
 
@@ -233,4 +237,47 @@ Các kịch bản tích hợp thuộc phân hệ Desktop Client được tự đ
 - **Test Data:** `https://github.com/user/repo.git/tree/main`; `links.txt`+`random.txt`; thư mục không có `.txt`.
 - **Test Steps:** Gọi `classify_url` và `select_link_file`.
 - **Expected Result:** GitHub được chuẩn hóa về `https://github.com/user/repo`; `links.txt` được ưu tiên; không có `.txt` → status `no_txt`; nhiều `.txt` không xác định → `ambiguous`.
+
+---
+
+## 8. Phân hệ Desktop Client — Quét Đạo Văn 2 Vòng (UC-17)
+
+> **Cách chạy:** `pytest apps/desktop-client/tests/test_plagiarism_engine.py apps/desktop-client/tests/test_plagiarism_dialog.py -v`
+
+### IT13_PlagiarismScan_TC001 — Chỉ sao chép 1 câu vẫn bị phát hiện (Normal)
+- **Loại test:** Normal
+- **Pre-condition:** Đề 2 câu; mỗi bài nộp là thư mục chứa `Q1.<ext>` và `Q2.<ext>`; `SE180001` và `SE180002` có `Q1` giống nhau hoàn toàn, `Q2` khác nhau hoàn toàn.
+- **Test Data:** `units = {"Q1": <mã A>, "Q2": <mã khác nhau>}` cho 2 bài.
+- **Test Steps:**
+  1. Gọi `PlagiarismEngine.scan_class(docs, language="C", threshold=80.0)`.
+  2. Đối chiếu với cách so gộp cả gói (`content = Q1 + Q2`).
+- **Expected Result:**
+  - `total_pairs = 2` (1 cặp sinh viên × 2 câu); `matches` có đúng 1 dòng với `questions = ["Q1"]`, `sim = 100.0`.
+  - `code_a`/`code_b` là mã nguồn của câu `Q1` (câu bị trùng).
+  - Cách so gộp cả gói trả về `matches = []` (bị pha loãng dưới ngưỡng 80%) — chứng minh vì sao phải so theo từng câu.
+
+### IT13_PlagiarismScan_TC002 — Ngưỡng, độ bao phủ và lọc khung sườn (Biên)
+- **Loại test:** Boundary
+- **Pre-condition:** Lớp có ≥ 5 bài cùng khung sườn `#include <stdio.h> / int main()`; bài nộp ngắn (< 30 token) và bài chỉ trùng 14 đặc trưng cũng được chuẩn bị.
+- **Test Data:** `threshold = 80.0`; `MIN_UNIT_TOKENS = 30`; `MIN_SHARED_FINGERPRINTS = 15`; `BOILERPLATE_MIN_DOCS = 5`.
+- **Test Steps:**
+  1. So 2 bài mà bài B chứa nguyên bài A rồi viết thêm (`containment` cao, `jaccard` thấp).
+  2. Chạy `scan_class` với `boilerplate_filter=True` và `False` trên cùng dữ liệu.
+  3. Chạy với 1 bài chỉ có `int main() { return 0; }`.
+- **Expected Result:**
+  - Cặp "dán nguyên hàm của bạn" được báo động dù `jaccard < 80` (`sim = containment ≥ 80`).
+  - `common_boilerplate` chỉ giữ gram xuất hiện ở > 50% bài; có lọc thì điểm trùng lặp giảm (`boilerplate_filtered = True`), lớp < 5 bài thì bỏ qua bộ lọc để không xóa mất cặp sao chép.
+  - Câu < 30 token bị bỏ khỏi đối soát; bài chỉ toàn câu ngắn không được tính vào `students_compared`.
+
+### IT13_PlagiarismScan_TC003 — Dò file `Q<nn>` và bài nộp thiếu/hỏng (Ngoại lệ)
+- **Loại test:** Exception
+- **Pre-condition:** Thư mục sinh viên đặt tên linh hoạt (`q1.py`, `Q01.py`, `baiQ2.py`), thiếu câu, hoặc chỉ có file không phải mã nguồn.
+- **Test Data:** `resolve_question_file(folder, "Q1", "PYTHON")`; thư mục chỉ có `readme.txt`; đường dẫn không tồn tại.
+- **Test Steps:**
+  1. Gọi `resolve_question_file` cho từng cách đặt tên.
+  2. Gọi `PlagiarismDialog._collect_question_units` với thư mục thiếu câu / không có mã nguồn / đường dẫn sai.
+  3. Gọi `scan_class` khi một bài nộp thiếu hẳn nội dung.
+- **Expected Result:**
+  - Nhận diện được `q1.py`, `Q01.py`, `baiQ2.py`; `Q3` không tồn tại → `None`.
+  - Thư mục chỉ có `Q2` → chỉ so câu `Q2`; không có file mã nguồn → `{}` và bài đó không được tính vào tổng số cặp (không phát sinh lỗi).
 
