@@ -203,3 +203,12 @@
 }
 ```
 * **Hết hạn ngạch (`success: false`) - HTTP 429**: `error_code = AI_QUOTA_EXCEEDED`.
+* **Phản hồi AI sai định dạng (`success: false`) - HTTP 502**: `error_code = AI_INVALID_RESPONSE`.
+* **Nhà cung cấp AI lỗi (`success: false`) - HTTP 502**: `error_code = AI_PROVIDER_ERROR`.
+* **Nhà cung cấp AI tạm thời bị giới hạn (`success: false`) - HTTP 429**: `error_code = AI_PROVIDER_RATE_LIMITED`.
+
+> **Ghi chú xử lý sai định dạng (khớp mã nguồn `AiGatewayService.evaluatePeCode`)**:
+> - Khi lượt gọi đầu trả về sai cấu trúc rubric, service tự gọi lại **một lần** với prompt hướng dẫn lại cấu trúc JSON (tối đa 2 lượt); chỉ khi cả 2 lượt đều sai mới trả `AI_INVALID_RESPONSE`.
+> - Phản hồi không phải JSON object (kể cả `null`, mảng hoặc chuỗi) đều được quy về `AI_INVALID_RESPONSE` (502) thay vì lỗi hệ thống 500.
+> - Nếu rubric đủ 5 tiêu chí nhưng model bỏ sót `overall_feedback`, service vẫn chấp nhận kết quả và tự tổng hợp `overall_feedback` từ `reason` của các tiêu chí chưa đạt (hoặc câu mặc định khi tất cả đều đạt) — tránh để bài nộp bị treo ở trạng thái PENDING chỉ vì thiếu một trường phụ.
+> - Desktop client giữ nguyên điểm Sandbox (thang 10) và đánh dấu rubric `PENDING` khi nhận 502, nên sinh viên không bị trừ điểm oan khi AI lỗi.

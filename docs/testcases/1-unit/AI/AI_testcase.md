@@ -8,20 +8,22 @@
   - `POST /api/v1/ai/review-code` (Phân tích lỗi và sinh nhận xét sư phạm cho bài WA)
   - `POST /api/v1/ai/verify-plagiarism` (Xác thực ngữ nghĩa nghi vấn đạo văn Vòng 2)
   - `POST /api/v1/ai/evaluate-web-ui` (Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal)
+  - `POST /api/v1/ai/evaluate-pe-code` (Chấm rubric chất lượng mã nguồn PE White-box - 5 tiêu chí)
 - **Người thực hiện (Tester/Dev)**: Kim Chi Ha
 - **Ngày tạo**: 04/10/2026
-- **Cập nhật lần cuối**: 17/10/2026 - 10:00
+- **Cập nhật lần cuối**: 19/10/2026 - 17:30
 - **Tài liệu liên quan**:
   - [Đặc tả API Phân hệ AI (Markdown)](file:///e:/AITA/docs/apis/ai/ai-api.md)
   - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///e:/AITA/docs/apis/ai/ai.yaml)
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
-- **Tổng số Testcase**: 88 Testcases (Phân loại: 16 Normal, 25 Boundary, 47 Exception)
+- **Tổng số Testcase**: 97 Testcases (Phân loại: 18 Normal, 27 Boundary, 52 Exception)
   - `GET /ai/quota`: 09 Testcases (02 Normal, 01 Boundary, 06 Exception)
   - `GET /ai/provider-status`: 05 Testcases (01 Normal, 01 Boundary, 03 Exception)
   - `POST /ai/generate-testcases`: 17 Testcases (02 Normal, 05 Boundary, 10 Exception)
   - `POST /ai/review-code`: 15 Testcases (02 Normal, 04 Boundary, 09 Exception)
   - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
   - `POST /ai/evaluate-web-ui`: 16 Testcases (03 Normal, 05 Boundary, 08 Exception)
+  - `POST /ai/evaluate-pe-code`: 09 Testcases (02 Normal, 02 Boundary, 05 Exception)
   - `OpenRouterService (AiProvider)`: 12 Testcases (04 Normal, 04 Boundary, 04 Exception)
 
 > **Ghi chú thiết kế (khớp mã nguồn `AiGatewayController`, `AiGatewayService`, `OpenRouterService`, `AiQuotaService`, các DTO)**:
@@ -31,10 +33,11 @@
 > - `ReviewCodeDto`: `source_code` chuỗi `10..10000`; `language` ∈ `{C, JAVA, PYTHON, PHP}`; `problem_statement` chuỗi `1..3000`; `failed_testcase` là object lồng gồm `input`, `expected_output`, `actual_output` (mỗi chuỗi ≤ 10000).
 > - `VerifyPlagiarismDto`: `student_a_code`, `student_b_code` chuỗi `10..10000`; `ast_similarity_percentage` số trong `[80, 100]`; `language` ∈ `{C, JAVA, PYTHON, PHP}`.
 > - `EvaluateWebUiDto`: `screenshot_base64` chuỗi ≤ 7.000.000 ký tự; `rubric_requirements` mảng `1..20` phần tử (mỗi chuỗi ≤ 500).
+> - `EvaluatePeCodeDto`: `source_code` chuỗi `10..20000`; `language` ∈ `{C, JAVA, PYTHON, PHP}`; `problem_statement` chuỗi ≤ 5000 (tùy chọn).
 > - DTO validation message là **mặc định class-validator (tiếng Anh)**; lỗi lồng trong `failed_testcase` được báo qua `field = "failed_testcase"`.
 > - Lỗi nghiệp vụ AI: `AI_QUOTA_NOT_CONFIGURED` (403), `AI_QUOTA_EXCEEDED` (429), `AI_INVALID_RESPONSE` (502), `AI_IMAGE_INVALID` (400), `AI_PROVIDER_ERROR` (502), `AI_PROVIDER_RATE_LIMITED` (429), `AI_NOT_CONFIGURED` (503).
 > - `AiQuotaService.snapshot` trả `{ daily_limit_tokens, used_tokens_today, remaining_tokens (Math.max 0), reset_at_utc }`; tự reset `usedTokensToday` khi `lastResetDate` cũ hơn hôm nay (UTC).
-> - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân.
+> - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân. Mọi phản hồi không phải JSON object (kể cả `null`, mảng, chuỗi) đều được quy về `AI_INVALID_RESPONSE` (502) thay vì lỗi `500`. `evaluatePeCode` tự retry 1 lần với prompt hướng dẫn lại khi lượt đầu sai định dạng, và vẫn dùng được rubric khi model bỏ sót `overall_feedback` (tự tổng hợp nhận xét từ `reason` của các tiêu chí chưa đạt).
 > - `GET /ai/provider-status` có `@Roles('ADMIN')` ghi đè `@Roles('INSTRUCTOR')` của controller: chỉ ADMIN gọi được, giảng viên nhận 403 `FORBIDDEN_ADMIN_ONLY`. Trả về danh sách API key OpenRouter kèm `state` (`READY`/`COOLDOWN`), `cooldown_remaining_seconds`, `accounts_configured`, `structured_outputs_supported`.
 > - `OpenRouterService` xoay vòng nhiều API key; key bị `429`/`401`/`402`/`403` hoặc lỗi tạm thời sẽ bị đưa vào cooldown (rate: `OPENROUTER_KEY_COOLDOWN_MS`; exhausted: 30 phút; transient: 5 giây). Khi không còn key khả dụng vì tất cả đang cooldown, `generateJson` ném 429 `AI_PROVIDER_RATE_LIMITED`; lỗi không thuộc nhóm giới hạn/hết quota ném 502 `AI_PROVIDER_ERROR`. Không cấu hình key nào (`OPENROUTER_API_KEYS` rỗng) ném 503 `AI_NOT_CONFIGURED`.
 
@@ -2208,7 +2211,283 @@ Boundary
 
 # ==============================================================================
 
-# PHẦN 6: API GET /api/v1/ai/provider-status (TRẠNG THÁI AI HUB OPENROUTER)
+# PHẦN 6: API POST /api/v1/ai/evaluate-pe-code (CHẤM RUBRIC CHẤT LƯỢNG MÃ PE)
+
+# ==============================================================================
+
+# UT03_AiEvaluatePeCode_TC001: Chấm rubric chất lượng mã PE thành công đủ 5 tiêu chí
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch; OpenRouter trả cấu trúc rubric hợp lệ và có `overall_feedback`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `source_code` C hợp lệ (≥ 10 ký tự); OpenRouter trả `rubric` đủ `clean_code`, `complexity`, `structure`, `format`, `documentation` (mỗi tiêu chí `passed` boolean + `reason` string) và `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả `{ data: { rubric: {...}, overall_feedback: "..." }, tokensConsumed: 900 }`; gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`, `message = "Đánh giá chất lượng code PE thành công"`, `data.rubric.clean_code = { passed: true, reason: "..." }`, `data.overall_feedback` giữ nguyên, `data.tokens_consumed = 900`; `generateJson` chỉ gọi 1 lần.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC002: Model bỏ sót overall_feedback nhưng rubric đủ 5 tiêu chí (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; phản hồi của model thiếu đúng trường phụ `overall_feedback` nhưng rubric đầy đủ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric` đủ 5 tiêu chí, trong đó `structure` và `documentation` có `passed = false` kèm `reason`; không có `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả `{ data: { rubric: {...} }, tokensConsumed: 900 }`; gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200` (không trả `AI_INVALID_RESPONSE`); `data.rubric` giữ đúng điểm đạt/chưa đạt; `data.overall_feedback` được tổng hợp từ `reason` của các tiêu chí chưa đạt (chứa "Toàn bộ logic nằm trong main." và "Thiếu comment giải thích."); `generateJson` chỉ gọi 1 lần.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC003: Bỏ sót overall_feedback và mọi tiêu chí đều đạt (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; phản hồi thiếu `overall_feedback` và không có tiêu chí nào chưa đạt.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric` đủ 5 tiêu chí với `passed = true` toàn bộ; không có `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả `{ data: { rubric: {...} }, tokensConsumed: 500 }`; gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; `data.overall_feedback = "Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn."`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC004: Lượt 1 sai định dạng, lượt 2 hợp lệ (Retry)
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; lượt gọi đầu trả sai định dạng, lượt gọi lại trả rubric hợp lệ.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `generateJson` lần 1 ném `AI_INVALID_RESPONSE`, lần 2 trả rubric đủ 5 tiêu chí + `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` mock `mockRejectedValueOnce` rồi `mockResolvedValueOnce`; gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; `generateJson` gọi đúng 2 lần; `data.tokens_consumed = 900`; prompt lượt 1 chứa `"CẤU TRÚC JSON BẮT BUỘC"` và `overall_feedback`; prompt lượt 2 (hướng dẫn lại) nhắc `overall_feedback`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC005: Cả 2 lượt đều sai định dạng
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; nhà cung cấp AI liên tục ném `AI_INVALID_RESPONSE`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `generateJson` mock `mockRejectedValue(new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE' }))`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"`; `generateJson` gọi đúng 2 lần (đã retry trước khi báo lỗi).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC006: Nhà cung cấp AI trả JSON null
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; model trả về đúng chuỗi `null` (JSON hợp lệ nhưng không phải object).
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `provider.generateJson` trả `{ data: null, tokensConsumed: 10 }`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"` — **không** phải `500 INTERNAL_SERVER_ERROR` (service kiểm tra kiểu object trước khi đọc `rubric`); `generateJson` gọi đúng 2 lần.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC007: Rubric thiếu 1 tiêu chí
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; phản hồi thiếu tiêu chí `documentation`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `rubric` chỉ có 4 tiêu chí (`clean_code`, `complexity`, `structure`, `format`).
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả rubric thiếu tiêu chí; gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"` sau khi đã retry.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC008: Nhà cung cấp AI trả JSON mảng thay vì object
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; model trả về mảng JSON thay vì object.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `provider.generateJson` trả `{ data: [1, 2, 3], tokensConsumed: 10 }`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluatePeCode_TC009: Nhà cung cấp AI vượt hạn ngạch (429)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực; hạn ngạch token hôm nay đã cạn.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `generateJson` mock `mockRejectedValue(new HttpException({ error_code: 'AI_QUOTA_EXCEEDED' }, 429))`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `AiGatewayService.evaluatePeCode(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `429`, `error_code = "AI_QUOTA_EXCEEDED"`; `generateJson` chỉ gọi 1 lần (không retry lỗi hạn ngạch).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# ==============================================================================
+
+# PHẦN 7: API GET /api/v1/ai/provider-status (TRẠNG THÁI AI HUB OPENROUTER)
 
 # ==============================================================================
 
@@ -2364,7 +2643,7 @@ Boundary
 
 # ==============================================================================
 
-# PHẦN 7: DỊCH VỤ NHÀ CUNG CẤP AI (OpenRouterService - XOAY VÒNG NHIỀU API KEY)
+# PHẦN 8: DỊCH VỤ NHÀ CUNG CẤP AI (OpenRouterService - XOAY VÒNG NHIỀU API KEY)
 
 # ==============================================================================
 

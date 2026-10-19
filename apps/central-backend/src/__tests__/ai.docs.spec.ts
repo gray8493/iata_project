@@ -8,6 +8,7 @@ import { GenerateTestcasesDto } from '../modules/ai-gateway/dto/generate-testcas
 import { ReviewCodeDto } from '../modules/ai-gateway/dto/review-code.dto';
 import { VerifyPlagiarismDto } from '../modules/ai-gateway/dto/verify-plagiarism.dto';
 import { EvaluateWebUiDto } from '../modules/ai-gateway/dto/evaluate-web-ui.dto';
+import { EvaluatePeCodeDto } from '../modules/ai-gateway/dto/evaluate-pe-code.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AdaptiveThrottlerGuard } from '../common/guards/adaptive-throttler.guard';
@@ -798,7 +799,157 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   });
 
   // =========================================================================
-  // PHẦN 6: GET /api/v1/ai/provider-status
+  // PHẦN 6: POST /api/v1/ai/evaluate-pe-code (UC-19 - RUBRIC CHẤT LƯỢNG MÃ PE)
+  // =========================================================================
+
+  const validPeCode = {
+    source_code: 'int main(void){int a,b;scanf("%d %d",&a,&b);printf("%d\\n",a+b);return 0;}',
+    language: 'C' as const,
+    problem_statement: 'Tính tổng hai số nguyên.',
+  };
+
+  function peRubricData(overrides: Record<string, unknown> = {}) {
+    return {
+      data: {
+        rubric: {
+          clean_code: { passed: true, reason: 'Tên biến rõ nghĩa.' },
+          complexity: { passed: true, reason: 'Độ phức tạp O(1).' },
+          structure: { passed: false, reason: 'Toàn bộ logic nằm trong main.' },
+          format: { passed: true, reason: 'Thụt lề chuẩn.' },
+          documentation: { passed: false, reason: 'Thiếu comment giải thích.' },
+        },
+        overall_feedback: 'Cần tách hàm và thêm comment.',
+        ...overrides,
+      },
+      tokensConsumed: 900,
+    };
+  }
+
+  function invalidResponseError(): BadGatewayException {
+    return new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null });
+  }
+
+  describe('UT03_AiEvaluatePeCode_TC001: Chấm rubric PE thành công đủ 5 tiêu chí', () => {
+    it('trả rubric, overall_feedback và tokens_consumed', async () => {
+      provider.generateJson.mockResolvedValue(peRubricData());
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+      expect(result.message).toBe('Đánh giá chất lượng code PE thành công');
+      expect((result.data as any).tokens_consumed).toBe(900);
+      expect((result.data as any).rubric.clean_code).toEqual({ passed: true, reason: 'Tên biến rõ nghĩa.' });
+      expect((result.data as any).rubric.structure.passed).toBe(false);
+      expect((result.data as any).overall_feedback).toBe('Cần tách hàm và thêm comment.');
+      expect(provider.generateJson).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC002: Model bỏ sót overall_feedback nhưng rubric đủ 5 tiêu chí (Biên)', () => {
+    it('vẫn dùng rubric và tự tổng hợp nhận xét thay vì báo sai định dạng', async () => {
+      const payload = peRubricData();
+      delete (payload.data as Record<string, unknown>).overall_feedback;
+      provider.generateJson.mockResolvedValue(payload);
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      expect((result.data as any).rubric.clean_code.passed).toBe(true);
+      // Nhận xét được tổng hợp từ lý do của các tiêu chí chưa đạt.
+      expect((result.data as any).overall_feedback).toContain('Toàn bộ logic nằm trong main.');
+      expect((result.data as any).overall_feedback).toContain('Thiếu comment giải thích.');
+      // Không cần gọi lại lần 2 vì rubric đã hợp lệ.
+      expect(provider.generateJson).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC003: Model bỏ sót overall_feedback và mọi tiêu chí đều đạt (Biên)', () => {
+    it('dùng nhận xét mặc định khi không có tiêu chí nào chưa đạt', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          rubric: {
+            clean_code: { passed: true, reason: 'ok' },
+            complexity: { passed: true, reason: 'ok' },
+            structure: { passed: true, reason: 'ok' },
+            format: { passed: true, reason: 'ok' },
+            documentation: { passed: true, reason: 'ok' },
+          },
+        },
+        tokensConsumed: 500,
+      });
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+      expect((result.data as any).overall_feedback).toBe('Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn.');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC004: Lượt 1 sai định dạng, lượt 2 hợp lệ (Retry)', () => {
+    it('hướng dẫn lại prompt và trả kết quả của lượt 2', async () => {
+      provider.generateJson
+        .mockRejectedValueOnce(invalidResponseError())
+        .mockResolvedValueOnce(peRubricData());
+
+      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+      expect((result.data as any).tokens_consumed).toBe(900);
+      const retryPrompt = provider.generateJson.mock.calls[1][0].prompt as string;
+      expect(retryPrompt).toContain('overall_feedback');
+      const firstPrompt = provider.generateJson.mock.calls[0][0].prompt as string;
+      expect(firstPrompt).toContain('CẤU TRÚC JSON BẮT BUỘC');
+      expect(firstPrompt).toContain('overall_feedback');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC005: Cả 2 lượt đều sai định dạng (Exception)', () => {
+    it('trả 502 AI_INVALID_RESPONSE', async () => {
+      provider.generateJson.mockRejectedValue(invalidResponseError());
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error).toBeInstanceOf(BadGatewayException);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC006: Provider trả JSON null (Exception)', () => {
+    it('trả 502 AI_INVALID_RESPONSE chứ không phải 500 INTERNAL_SERVER_ERROR', async () => {
+      provider.generateJson.mockResolvedValue({ data: null, tokensConsumed: 10 });
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error).toBeInstanceOf(BadGatewayException);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC007: Rubric thiếu 1 tiêu chí (Exception)', () => {
+    it('trả 502 AI_INVALID_RESPONSE sau khi đã retry', async () => {
+      const payload = peRubricData();
+      delete (payload.data.rubric as Record<string, unknown>).documentation;
+      provider.generateJson.mockResolvedValue(payload);
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC008: Provider trả JSON mảng thay vì object (Exception)', () => {
+    it('trả 502 AI_INVALID_RESPONSE', async () => {
+      provider.generateJson.mockResolvedValue({ data: [1, 2, 3], tokensConsumed: 10 });
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+    });
+  });
+
+  describe('UT03_AiEvaluatePeCode_TC009: Provider lỗi hạn ngạch (429) (Exception)', () => {
+    it('giữ nguyên 429 AI_QUOTA_EXCEEDED, không retry', async () => {
+      provider.generateJson.mockRejectedValue(quotaExceeded());
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error.getStatus()).toBe(429);
+      expect((error.getResponse() as any).error_code).toBe('AI_QUOTA_EXCEEDED');
+      expect(provider.generateJson).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // =========================================================================
+  // PHẦN 7: GET /api/v1/ai/provider-status
   // =========================================================================
 
   describe('UT03_AiProviderStatus (OpenRouterService.providerStatus)', () => {
