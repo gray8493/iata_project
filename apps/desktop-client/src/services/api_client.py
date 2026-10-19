@@ -98,6 +98,13 @@ class ApiClient:
             headers.update(custom_headers)
         return headers
 
+    def _client_timeout(self, timeout: Optional[float]):
+        """Returns the httpx timeout for a request. A per-call override keeps a short connect
+        timeout (fail fast on a dead host) while allowing a long read timeout for slow AI calls."""
+        if timeout is None:
+            return self.timeout
+        return httpx.Timeout(timeout, connect=min(timeout, 10.0))
+
     def check_health(self) -> Dict[str, Any]:
         """
         Pings /health endpoint to check server availability and cold-start wake up.
@@ -150,11 +157,15 @@ class ApiClient:
         if error_code in ("AUTH_ACCOUNT_DISABLED", "AUTH_INVALID_REFRESH_TOKEN", "AUTH_TOKEN_EXPIRED"):
             self.clear_tokens()
 
-    def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None) -> httpx.Response:
-        """Sends a POST request, transparently refreshing an expired token once on HTTP 401."""
+    def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> httpx.Response:
+        """Sends a POST request, transparently refreshing an expired token once on HTTP 401.
+
+        `timeout` overrides the default per-call; AI endpoints pass a longer value because the
+        backend itself waits up to 60s for OpenRouter (plus Render cold starts).
+        """
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
-        with httpx.Client(timeout=self.timeout) as client:
+        with httpx.Client(timeout=self._client_timeout(timeout)) as client:
             resp = client.post(url, json=data or {}, headers=self.get_headers())
             if resp.status_code == 401 and self.refresh_token and endpoint != "auth/refresh":
                 if self.refresh_access_token():
@@ -162,11 +173,11 @@ class ApiClient:
             self._handle_auth_failure(resp)
             return resp
 
-    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> httpx.Response:
+    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> httpx.Response:
         """Sends a GET request, transparently refreshing an expired token once on HTTP 401."""
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
-        with httpx.Client(timeout=self.timeout) as client:
+        with httpx.Client(timeout=self._client_timeout(timeout)) as client:
             resp = client.get(url, params=params, headers=self.get_headers())
             if resp.status_code == 401 and self.refresh_token and endpoint != "auth/refresh":
                 if self.refresh_access_token():

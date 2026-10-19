@@ -9,9 +9,14 @@ Connects to Central Backend (NestJS / Render / Neon Postgres) for AI features:
 - AI PE Code Quality Evaluation (POST /api/v1/ai/evaluate-pe-code)
 """
 
+import os
 from typing import Dict, Any, Optional, List
 import httpx
 from .api_client import ApiClient
+
+# AI calls are slow (backend waits up to 60s for OpenRouter + Render free-tier cold start),
+# so they need a much longer client timeout than the default 25s for ordinary REST calls.
+AI_REQUEST_TIMEOUT = float(os.getenv("AITA_AI_TIMEOUT", "120"))
 
 
 class AiService:
@@ -85,7 +90,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/generate-testcases", payload)
+            resp = self.api_client.post("ai/generate-testcases", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -143,7 +148,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/review-code", payload)
+            resp = self.api_client.post("ai/review-code", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -195,7 +200,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/verify-plagiarism", payload)
+            resp = self.api_client.post("ai/verify-plagiarism", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -233,7 +238,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/evaluate-web-ui", payload)
+            resp = self.api_client.post("ai/evaluate-web-ui", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -287,7 +292,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/evaluate-pe-code", payload)
+            resp = self.api_client.post("ai/evaluate-pe-code", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
