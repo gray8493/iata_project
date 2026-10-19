@@ -170,23 +170,32 @@ ${input.source_code}`;
     const request = {
       userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 1000, schema: peCodeSchema,
     };
-    let result;
-    try {
-      result = await this.provider.generateJson<Record<string, unknown>>({ ...request, prompt });
-    } catch (error) {
-      // Một số model/free route bỏ qua JSON schema ở lần đầu. Hướng dẫn lại một lần,
-      // giữ nguyên mã nguồn và rubric, trước khi báo PENDING về desktop client.
-      const response = error instanceof HttpException ? error.getResponse() : null;
-      const errorCode = this.isRecord(response) ? response.error_code : undefined;
-      if (errorCode !== 'AI_INVALID_RESPONSE') throw error;
-      result = await this.provider.generateJson<Record<string, unknown>>({
-        ...request,
-        prompt: `${prompt}\n\nLẦN TRƯỚC PHẢN HỒI KHÔNG ĐÚNG ĐỊNH DẠNG. Hãy trả về DUY NHẤT một JSON object hợp lệ đúng schema; không markdown, không văn bản bên ngoài JSON. Mỗi tiêu chí trong rubric phải có passed (boolean) và reason (string).`,
-      });
+    let validData: Record<string, unknown> | undefined;
+    let tokensConsumed = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const retryPrompt = attempt === 0 ? prompt : `${prompt}
+
+LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một JSON object hợp lệ đúng schema; không markdown, không văn bản bên ngoài JSON. rubric phải là object có đủ clean_code, complexity, structure, format, documentation; mỗi tiêu chí phải có passed (boolean) và reason (string).`;
+      let data: Record<string, unknown>;
+      try {
+        const result = await this.provider.generateJson<Record<string, unknown>>({ ...request, prompt: retryPrompt });
+        data = result.data;
+        tokensConsumed = result.tokensConsumed;
+      } catch (error) {
+        const response = error instanceof HttpException ? error.getResponse() : null;
+        const errorCode = this.isRecord(response) ? response.error_code : undefined;
+        if (errorCode !== 'AI_INVALID_RESPONSE') throw error;
+        if (attempt === 1) this.invalidResponse();
+        continue;
+      }
+      if (this.isValidPeCodeResponse(data)) {
+        validData = data;
+        break;
+      }
     }
-    const data = result.data;
-    if (!this.isRecord(data.rubric)) this.invalidResponse();
-    return { message: 'Đánh giá chất lượng code PE thành công', data: { tokens_consumed: result.tokensConsumed, ...data } };
+    if (!validData) this.invalidResponse();
+    const data = validData;
+    return { message: 'Đánh giá chất lượng code PE thành công', data: { tokens_consumed: tokensConsumed, ...data } };
   }
 
   private decodeImage(value: string): { mimeType: string; base64: string } {
@@ -214,6 +223,14 @@ ${input.source_code}`;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+  private isValidPeCodeResponse(data: Record<string, unknown>): boolean {
+    const rubric = data.rubric;
+    if (!this.isRecord(rubric) || typeof data.overall_feedback !== 'string') return false;
+    return ['clean_code', 'complexity', 'structure', 'format', 'documentation'].every((key) => {
+      const criterion = rubric[key];
+      return this.isRecord(criterion) && typeof criterion.passed === 'boolean' && typeof criterion.reason === 'string';
+    });
+  }
   private inRange(value: unknown, min: number, max: number): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max; }
   private invalidResponse(): never { throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null }); }
 }
