@@ -161,7 +161,7 @@ Mã nguồn sinh viên:
 ${input.source_code}`;
 
     const result = await this.provider.generateJson<Record<string, unknown>>({
-      userId, feature: 'PE_CODE_EVAL', maxOutputTokens: 2000, schema: peCodeSchema,
+      userId, feature: 'PE_CODE_EVAL', maxOutputTokens: 1000, schema: peCodeSchema,
       prompt,
     });
     const data = result.data;

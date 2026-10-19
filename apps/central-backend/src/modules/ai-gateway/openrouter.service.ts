@@ -28,6 +28,7 @@ export class ProviderHttpError extends Error {
 interface ChatMessagePart { type: 'text' | 'image_url'; text?: string; image_url?: { url: string }; }
 interface ChatMessage { role: 'system' | 'user'; content: string | ChatMessagePart[]; }
 interface ChatCompletionResponse {
+  model?: string;
   choices?: Array<{ message?: { content?: string | null } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
@@ -53,6 +54,7 @@ export class OpenRouterService {
   private readonly apiKeys: string[];
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly models: string[];
   private readonly timeoutMs: number;
   private readonly keyCooldownMs: number;
   private rotationIndex = 0;
@@ -62,7 +64,13 @@ export class OpenRouterService {
   constructor(private readonly config: ConfigService, private readonly quota: AiQuotaService) {
     this.apiKeys = String(config.get<string>('OPENROUTER_API_KEYS', '')).split(',').map((key) => key.trim()).filter(Boolean);
     this.baseUrl = (config.get<string>('OPENROUTER_BASE_URL') || DEFAULT_BASE_URL).replace(/\/+$/, '');
-    this.model = config.get<string>('OPENROUTER_MODEL') || DEFAULT_MODEL;
+    const primaryModel = config.get<string>('OPENROUTER_MODEL') || DEFAULT_MODEL;
+    const fallbackModels = String(config.get<string>('OPENROUTER_MODEL_FALLBACKS', '') || '')
+      .split(',')
+      .map((model) => model.trim())
+      .filter((model) => Boolean(model) && model !== primaryModel);
+    this.model = primaryModel;
+    this.models = [primaryModel, ...fallbackModels];
     this.timeoutMs = this.readNumber(config.get('OPENROUTER_TIMEOUT_MS'), DEFAULT_TIMEOUT_MS, 1);
     this.keyCooldownMs = this.readNumber(config.get('OPENROUTER_KEY_COOLDOWN_MS'), DEFAULT_KEY_COOLDOWN_MS, 0);
   }
@@ -75,6 +83,7 @@ export class OpenRouterService {
     const reservation = await this.quota.reserve(args.userId, estimatedInput + args.maxOutputTokens);
     let attempted = 0;
     let capacityOnly = true;
+    let sawInvalidResponse = false;
     let lastFailure: ProviderFailure | undefined;
 
     for (const apiKey of this.rotationOrder()) {
@@ -107,17 +116,30 @@ export class OpenRouterService {
       const promptTokens = response.usage?.prompt_tokens ?? fallbackPrompt;
       const completionTokens = response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
       const totalTokens = response.usage?.total_tokens ?? promptTokens + completionTokens;
-      await this.quota.settle(args.userId, reservation, { promptTokens, completionTokens, totalTokens }, args.feature, this.model);
+      await this.quota.settle(args.userId, reservation, { promptTokens, completionTokens, totalTokens }, args.feature, response.model || this.model);
 
+      // Empty or unparseable content is a transient provider hiccup (common on free/auto-router
+      // models): rotate to the next key/model instead of failing the whole request outright.
       if (!content) {
-        throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về nội dung rỗng.', details: null });
+        capacityOnly = false;
+        sawInvalidResponse = true;
+        continue;
       }
-      return { data: this.parseJson(content) as T, tokensConsumed: totalTokens };
+      try {
+        return { data: this.parseJson(content) as T, tokensConsumed: totalTokens };
+      } catch {
+        capacityOnly = false;
+        sawInvalidResponse = true;
+        continue;
+      }
     }
 
     await this.releaseQuietly(reservation);
     if (attempted === 0 || capacityOnly) {
       throw new HttpException({ error_code: 'AI_PROVIDER_RATE_LIMITED', message: 'Dịch vụ AI đang giới hạn số yêu cầu. Vui lòng thử lại sau.', details: null }, 429);
+    }
+    if (sawInvalidResponse) {
+      throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null });
     }
     throw new BadGatewayException({ error_code: 'AI_PROVIDER_ERROR', message: 'Không thể nhận phản hồi từ dịch vụ AI.', details: null });
   }
@@ -137,6 +159,7 @@ export class OpenRouterService {
     return {
       provider: 'openrouter',
       model: this.model,
+      fallback_models: this.models.slice(1),
       accounts_configured: this.apiKeys.length,
       structured_outputs_supported: !this.structuredUnsupported,
       accounts,
@@ -188,7 +211,9 @@ export class OpenRouterService {
           : args.prompt,
       },
     ];
-    const body: Record<string, unknown> = { model: this.model, messages, temperature: 0.2, max_tokens: args.maxOutputTokens };
+    const body: Record<string, unknown> = { messages, temperature: 0.2, max_tokens: args.maxOutputTokens };
+    if (this.models.length > 1) body.models = this.models;
+    else body.model = this.model;
     if (structured) body.response_format = { type: 'json_schema', json_schema: { name: 'aita_response', strict: false, schema: args.schema } };
     return body;
   }

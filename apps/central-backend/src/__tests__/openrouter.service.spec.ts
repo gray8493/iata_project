@@ -226,4 +226,36 @@ describe('OpenRouterService (Unit AI Provider Rotation Test)', () => {
       expect(JSON.stringify(status)).not.toContain('sk-or-v1-0123456789ab');
     });
   });
+
+  describe('UT03_AiProvider_TC013: Nội dung rỗng thì xoay sang tài khoản kế tiếp', () => {
+    it('key đầu trả content rỗng, key thứ hai trả JSON hợp lệ, không hoàn quota', async () => {
+      const service = makeService(['key-1', 'key-2']);
+      const post = (service as any).post = jest.fn()
+        .mockResolvedValueOnce(resolvedCompletion(''))
+        .mockResolvedValueOnce(resolvedCompletion('{"ok":true}'));
+
+      const result = await service.generateJson<{ ok: boolean }>(args());
+
+      expect(result).toEqual(validResult);
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(post.mock.calls[0][0]).toBe('key-1');
+      expect(post.mock.calls[1][0]).toBe('key-2');
+      expect((service as any).quota.settle).toHaveBeenCalledTimes(2);
+      expect((service as any).quota.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UT03_AiProvider_TC014: Mọi tài khoản đều trả JSON sai định dạng', () => {
+    it('ném 502 AI_INVALID_RESPONSE và hoàn quota đã giữ chỗ', async () => {
+      const service = makeService(['key-1']);
+      const post = (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('not-json-at-all'));
+
+      const error = await service.generateJson<{ ok: boolean }>(args()).catch((e) => e);
+
+      expect(error.getStatus()).toBe(502);
+      expect(error.getResponse()).toEqual(expect.objectContaining({ error_code: 'AI_INVALID_RESPONSE' }));
+      expect(post).toHaveBeenCalledTimes(1);
+      expect((service as any).quota.release).toHaveBeenCalledWith(expect.objectContaining({ configId: 'q1' }));
+    });
+  });
 });
