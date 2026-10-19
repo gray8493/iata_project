@@ -780,7 +780,7 @@ components:
         url:
           type: string
           format: uri
-          example: https://github.com/aita/aita/releases/download/v2.5.0/AITA-2.5.0-win64.zip
+          example: https://github.com/aita/aita/releases/download/v1.0.0/AITA-1.0.0-win64.zip
         sha256:
           type: string
           description: Checksum SHA-256 (hex, 64 ký tự) của artifact
@@ -804,10 +804,10 @@ components:
       properties:
         latest_version:
           type: string
-          example: 2.5.0
+          example: 1.0.0
         min_supported_version:
           type: string
-          example: 2.0.0
+          example: 1.0.0
         mandatory:
           type: boolean
           example: false
