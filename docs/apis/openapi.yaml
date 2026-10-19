@@ -790,7 +790,7 @@ components:
           example: 104857600
         entrypoint:
           type: string
-          example: AITA.exe
+          example: AITA_Grader_v1.exe
 
     VersionManifest:
       type: object

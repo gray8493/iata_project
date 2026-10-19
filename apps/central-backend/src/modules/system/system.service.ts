@@ -43,7 +43,7 @@ export class SystemService {
           url: read('APP_UPDATE_URL_WINDOWS'),
           sha256: read('APP_UPDATE_SHA256_WINDOWS').toLowerCase(),
           size_bytes: Number.isFinite(sizeRaw) && sizeRaw > 0 ? Math.floor(sizeRaw) : 0,
-          entrypoint: read('APP_UPDATE_ENTRYPOINT', 'AITA.exe'),
+          entrypoint: read('APP_UPDATE_ENTRYPOINT', 'AITA_Grader_v1.exe'),
         },
       },
     };

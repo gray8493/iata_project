@@ -42,13 +42,13 @@ describe('System Version (docs: docs/testcases/1-unit/System/System_testcase.md)
   });
 
   describe('UT06_System_TC002: Giá trị mặc định khi thiếu cấu hình (biên)', () => {
-    it('trả version 0.0.0, artifact zip và entrypoint AITA.exe', () => {
+    it('trả version 0.0.0, artifact zip và entrypoint AITA_Grader_v1.exe', () => {
       const manifest = makeService({}).getVersionManifest();
       expect(manifest.latest_version).toBe('0.0.0');
       expect(manifest.min_supported_version).toBe('0.0.0');
       expect(manifest.mandatory).toBe(false);
       expect(manifest.platforms.windows.artifact_type).toBe('zip');
-      expect(manifest.platforms.windows.entrypoint).toBe('AITA.exe');
+      expect(manifest.platforms.windows.entrypoint).toBe('AITA_Grader_v1.exe');
       expect(manifest.platforms.windows.size_bytes).toBe(0);
     });
   });

@@ -25,7 +25,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 ```text
 +-------------------------------------------------------------+
 |   Node 1: Instructor Workstation (Windows 10/11 64-bit)     |
-|   - Artifact: AITA.exe (PyQt6 Client)                       |
+|   - Artifact: AITA_Grader_v1.exe (PyQt6 Client)             |
 |   - 3 Design Patterns: Factory Method, Adapter, Strategy    |
 |   - Toolchain: MinGW GCC, OpenJDK, Python & psutil Sandbox  |
 +-------------------------------------------------------------+
@@ -124,7 +124,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 | Artifact Name | Định dạng đóng gói | Nơi triển khai (Deployed Node) | Công nghệ nền tảng | Mục đích sử dụng |
 | :--- | :--- | :--- | :--- | :--- |
-| **`AITA.exe`** | Standalone Executable | Node 1 (Instructor PC) | PyInstaller, Python 3.11, PyQt6 | Ứng dụng Desktop bản địa dành cho Giảng viên |
+| **`AITA_Grader_v1.exe`** | Standalone Executable | Node 1 (Instructor PC) | PyInstaller, Python 3.11, PyQt6 | Ứng dụng Desktop bản địa dành cho Giảng viên |
 | **`local_grading.db`** | SQLite 3 File | Node 1 (Instructor PC) | SQLite Embedded Engine (WAL) | Lưu testcases, bài nộp và kết quả chấm offline |
 | **`Web Admin UI`** | SPA Static Bundle | Node 2 (Admin Browser) | Next.js 14, React, TailwindCSS | Giao diện điều hành hệ thống của Admin |
 | **`central-backend`** | Web Service Artifact | Node 3 (Render.com PaaS) | NestJS 10, Node.js 20, TypeScript | REST API Gateway, Auth RBAC, AI Quota Guard |
@@ -137,10 +137,10 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | Nguồn kết nối (Source) | Đích kết nối (Destination) | Giao thức (Protocol) | Cổng mạng (Port) | Cơ chế bảo mật & Xác thực |
 | :--- | :--- | :--- | :---: | :--- |
 | Admin Web Browser | Central Backend (Render) | **HTTPS (HTTP/2)** | `443` | Mã hóa TLS 1.3, Chứng chỉ SSL Let's Encrypt |
-| Desktop Client (`AITA.exe`) | Central Backend (Render) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
+| Desktop Client (`AITA_Grader_v1.exe`) | Central Backend (Render) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
 | Central Backend (Render) | Neon Serverless Postgres | **PostgreSQL over TLS** | `5432` | TLS 1.3 Encrypted, Prisma Connection Pool (PgBouncer) |
 | Central Backend (Render) | AI Gateway API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ    |
-| Desktop Client (`AITA.exe`) | Local Compiler Toolchain | **OS Standard Streams** | `IPC` | Đường ống Stdin, Stdout, Stderr qua `subprocess` |
+| Desktop Client (`AITA_Grader_v1.exe`) | Local Compiler Toolchain | **OS Standard Streams** | `IPC` | Đường ống Stdin, Stdout, Stderr qua `subprocess` |
 
 ---
 
@@ -201,11 +201,39 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
   npm run start:dev
   ```
 
+### 6.3. Quy Trình Phát Hành Bản Cập Nhật & Cơ Chế Tự Cập Nhật (Release & Auto-Update Runbook)
+
+Desktop Client **không** tự ý tải bản mới: khi khởi động nó hỏi *manifest* tại `GET /api/v1/system/version`,
+rồi so sánh với `APP_VERSION` trong `src/core/version.py` (`services/update_service.py::is_newer`).
+Manifest do backend sinh **hoàn toàn từ biến môi trường** (`system.service.ts`), không đọc từ CSDL.
+
+**Các bước phát hành một bản mới:**
+
+| # | Bước | Chi tiết |
+| :-: | :--- | :--- |
+| 1 | Tăng phiên bản | Sửa `APP_VERSION` (và `APP_BUILD`) trong `apps/desktop-client/src/core/version.py` — nguồn duy nhất cho màn hình đăng nhập, `User-Agent` và phép so sánh cập nhật. |
+| 2 | Chạy kiểm thử | `pytest` (desktop) và `npx jest` (backend). |
+| 3 | Đóng gói | Chạy `build.bat` ở gốc repo → sinh `dist/AITA_Grader_v1/` và `dist/AITA_Grader_v1_portable.zip`, in ra **kích thước (byte)** và **SHA-256** để dùng cho bước 6. |
+| 4 | Kiểm tra gói | `AITA_Grader_v1.exe --selftest` phải báo GCC/JDK/Python đều `OK (3+4=7)`, sau đó mở app chấm thử một bài. Chỉ chạy file trong `dist/`; **không** chạy file trong `build/` (file trung gian, thiếu `_internal/` nên báo lỗi "Failed to load Python DLL"). |
+| 5 | Phát hành | Tạo GitHub Release với **tag mới** và upload gói ZIP:<br>`gh release create v1.0.1 dist/AITA_Grader_v1_portable.zip --target master --title "AITA Grader v1.0.1" --notes-file notes.md --latest` |
+| 6 | Cấu hình backend | Khai báo trên Render: `APP_LATEST_VERSION`, `APP_MIN_SUPPORTED_VERSION`, `APP_UPDATE_ARTIFACT_TYPE=zip`, `APP_UPDATE_ENTRYPOINT=AITA_Grader_v1.exe`, `APP_UPDATE_URL_WINDOWS`, `APP_UPDATE_SHA256_WINDOWS`, `APP_UPDATE_SIZE_WINDOWS`, (tuỳ chọn) `APP_UPDATE_NOTES`, `APP_UPDATE_MANDATORY`. Render tự triển khai lại sau vài phút. |
+| 7 | Nghiệm thu | `curl https://iata-project-o4z6.onrender.com/api/v1/system/version` để xem manifest, rồi mở bản cũ trên máy giảng viên và xác nhận hộp thoại "Cập nhật AITA". |
+
+**Cơ chế tự cập nhật phía client** (`services/update_service.py`, `ui/dialogs/update_dialog.py`):
+
+- Kiểm tra **một lần mỗi 24 giờ** lúc khởi động (khoá `QSettings("AITA", "Updater")`), ghi nhớ `skipped_version` khi giảng viên chọn "Nhắc lại sau"; mọi lỗi mạng/500 đều **im lặng**, không chặn màn hình đăng nhập.
+- Chỉ tải khi URL bắt đầu bằng `https://`, sau đó **đối chiếu SHA-256**; sai lệch là huỷ, không cài.
+- Gói ZIP phải để file **ngay ở gốc** (không bọc thư mục `AITA_Grader_v1/`): client giải nén vào thư mục payload rồi `robocopy /E /XF *.db /XD data` đè thẳng lên thư mục cài đặt, nhờ vậy dữ liệu người dùng (`data/`, `*.db`) luôn được giữ nguyên.
+- Sau khi tải xong, client sinh `update.bat`, tự thoát, chờ tiến trình AITA kết thúc rồi mới thay file và mở lại exe mới.
+- `min_supported_version` đã có trong manifest và được client đọc, nhưng **chưa cưỡng chế**; chỉ cờ `mandatory` có tác dụng thật (ẩn nút "Nhắc lại sau").
+
+> ⚠️ **Lưu ý vận hành**: (1) Repository GitHub phải ở chế độ **public**, nếu để private thì client tải asset ẩn danh sẽ nhận HTTP 404 và tính năng cập nhật im lặng không hoạt động. (2) Phiên bản mới phải **lớn hơn** phiên bản đang chạy — máy còn bản `2.5.0` sẽ coi mọi bản `1.x` là cũ. (3) Nếu repository bật **immutable releases**, tag đã dùng không thể tạo lại nên mỗi lần phát hành phải dùng tag mới.
+
 ---
 
 ## 7. Mối Liên Kết Triển Khai Của 3 Mẫu Thiết Kế (Design Patterns Deployment Context)
 
-Cả **3 Mẫu thiết kế cốt lõi** bắt buộc của đồ án AITA đều được đóng gói trực tiếp bên trong artifact **`AITA.exe`** trên máy trạm của Giảng viên (Node 1):
+Cả **3 Mẫu thiết kế cốt lõi** bắt buộc của đồ án AITA đều được đóng gói trực tiếp bên trong artifact **`AITA_Grader_v1.exe`** trên máy trạm của Giảng viên (Node 1):
 
 1. **`RunnerFactory` (Creational Pattern)**: 
    - Nằm tại module `src/core/factories/`.
