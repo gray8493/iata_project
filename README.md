@@ -77,6 +77,11 @@ python main.py
 
 #### Đóng gói bản phát hành kèm toolchain (chấm được trên máy chưa cài GCC/JDK/Python)
 
+> **Cách nhanh:** nháy đúp `build.bat` ở gốc repo (hoặc chạy `.\build.bat`). Script tự kiểm
+> Python / PyInstaller / `toolchains/`, build onedir, chạy `--selftest`, nén ZIP rồi in ra
+> kích thước (byte) và SHA-256 của gói — dùng ngay cho `APP_UPDATE_SIZE_WINDOWS` và
+> `APP_UPDATE_SHA256_WINDOWS` khi phát hành auto-update. Ba bước dưới đây là bản thủ công.
+
 ```bash
 # 1. Tạo thư mục toolchains/ (MinGW + JDK rút gọn + Python embeddable)
 python apps/desktop-client/scripts/build_toolchains.py \
@@ -91,8 +96,10 @@ python -m PyInstaller apps/desktop-client/AITA_Grader_v1.spec --noconfirm
 dist/AITA_Grader_v1/AITA_Grader_v1.exe --selftest
 ```
 
-Kết quả là thư mục `dist/AITA_Grader_v1/` (~590 MB, nén ZIP còn ~205 MB) chứa
-`AITA_Grader_v1.exe`, `assets/` và `toolchains/`. Giảng viên chỉ cần giải nén và
+Kết quả là thư mục `dist/AITA_Grader_v1/` (~590 MB) chứa
+`AITA_Grader_v1.exe`, `assets/` và `toolchains/`; `build.bat` nén sẵn luôn gói
+`dist/AITA_Grader_v1_portable.zip` (~205 MB) để gửi giảng viên hoặc upload lên
+GitHub Release cho tính năng tự cập nhật. Giảng viên chỉ cần giải nén và
 chạy — không phải cài thêm gì. Nếu máy đã có GCC/JDK/Python riêng, có thể chỉ định
 lại trong **Cấu Hình Môi Trường** (lưu ở `%LOCALAPPDATA%/AITA/data/config.json`).
 
