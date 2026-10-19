@@ -387,12 +387,14 @@ def grade_single_submission(
                 record_diff(match_res.diff_details)
         result["compile_log"] = compile_log
 
-    # Điểm Sandbox (tối đa 5.0) = tỷ lệ testcase PASS * 5.0 (Hybrid: nửa còn lại do AI rubric chấm)
+    # Điểm Sandbox (tối đa 5.0) phục vụ Hybrid; `score` vẫn giữ thang 10 như hành vi cũ
+    # để các luồng Sandbox-only và test hiện hữu không bị thay đổi.
     ratio = (earned_weight / total_weight) if total_weight > 0 else 0.0
+    final_score = round(ratio * 10.0, 1)
     sandbox_score = round(ratio * SANDBOX_MAX_SCORE, 2)
     result.update({
-        "verdict": worst_verdict if ratio < 1.0 else "AC",
-        "score": sandbox_score,
+        "verdict": worst_verdict if final_score < 10.0 else "AC",
+        "score": final_score,
         "sandbox_ratio": ratio,
         "sandbox_score": sandbox_score,
         "language": language,
@@ -544,7 +546,7 @@ class GradingService:
                     }
 
                 # Hybrid (tuỳ chọn): sandbox xong -> gọi AI rubric trong tiến trình cha.
-                # Không bật (hoặc đã yêu cầu hủy): quy đổi sandbox về thang 10 như hành vi cũ.
+                # Không bật (hoặc đã yêu cầu hủy): giữ nguyên score/10 của sandbox như hành vi cũ.
                 if ai_service is not None and not (cancel_event is not None and cancel_event.is_set()):
                     self._enrich_with_ai_quality(
                         res,
@@ -553,8 +555,6 @@ class GradingService:
                         problem_statement,
                         ai_service,
                     )
-                else:
-                    res["score"] = round(float(res.get("sandbox_score", 0.0)) * 2.0, 1)
 
                 # Lưu kết quả bài vừa hoàn tất (kể cả trong phiên hợp lệ khi yêu cầu hủy đã bật)
                 self._save_result(res)
@@ -628,9 +628,8 @@ class GradingService:
                 )
                 self._enrich_with_ai_quality(result, sub.get("source_file_path"), language, problem_statement, AiService())
             except Exception:
-                result["score"] = round(float(result.get("sandbox_score", 0.0)) * 2.0, 1)
-        else:
-            result["score"] = round(float(result.get("sandbox_score", 0.0)) * 2.0, 1)
+                # Giữ nguyên score/10 của sandbox nếu không dựng được AI service.
+                pass
 
         self._save_result(result)
         return result
