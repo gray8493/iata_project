@@ -204,7 +204,7 @@ class UpdateService:
             url=str(windows.get("url") or ""),
             sha256=str(windows.get("sha256") or ""),
             size_bytes=int(windows.get("size_bytes") or 0),
-            entrypoint=str(windows.get("entrypoint") or "AITA.exe"),
+            entrypoint=str(windows.get("entrypoint") or "AITA_Grader_v1.exe"),
         )
         return UpdateInfo(
             latest_version=str(data.get("latest_version") or "0.0.0"),

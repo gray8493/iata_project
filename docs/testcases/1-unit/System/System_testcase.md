@@ -16,7 +16,7 @@
 > **Ghi chú thiết kế (khớp mã nguồn `SystemService`)**:
 > - `SystemService.getVersionManifest()` dựng manifest từ biến môi trường (`APP_LATEST_VERSION`, `APP_UPDATE_URL_WINDOWS`, `APP_UPDATE_SHA256_WINDOWS`...).
 > - `artifact_type` chỉ nhận `exe` hoặc `zip`; giá trị lạ quy về `zip`.
-> - `size_bytes` không hợp lệ/âm quy về `0`; thiếu cấu hình thì mặc định `latest_version = "0.0.0"`, `entrypoint = "AITA.exe"`, `mandatory = false`.
+> - `size_bytes` không hợp lệ/âm quy về `0`; thiếu cấu hình thì mặc định `latest_version = "0.0.0"`, `entrypoint = "AITA_Grader_v1.exe"`, `mandatory = false`.
 > - Controller bọc manifest trong Response Envelope chuẩn: `{ success, status_code, message, data, timestamp }`.
 > - **Bẫy kiểu dữ liệu (đã sửa)**: Joi trong `app.module.ts` ép `APP_UPDATE_MANDATORY` → `boolean` và `APP_UPDATE_SIZE_WINDOWS` → `number`, mà `ConfigService.get()` ưu tiên trả bản đã ép kiểu (trước cả `process.env`). Vì vậy `SystemService` phải `String(...)` trước khi `.trim()`, nếu không `GET /system/version` ném `TypeError` → **500**, khiến Auto-Update ở Desktop Client im lặng không bao giờ chạy.
 
@@ -112,7 +112,7 @@ Boundary
 #### Kết quả kỳ vọng (Expected Result)
 
 - `latest_version = "0.0.0"`, `min_supported_version = "0.0.0"`, `mandatory = false`.
-- `artifact_type = "zip"`, `entrypoint = "AITA.exe"`, `size_bytes = 0`.
+- `artifact_type = "zip"`, `entrypoint = "AITA_Grader_v1.exe"`, `size_bytes = 0`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
