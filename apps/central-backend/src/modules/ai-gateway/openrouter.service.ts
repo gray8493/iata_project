@@ -29,7 +29,7 @@ interface ChatMessagePart { type: 'text' | 'image_url'; text?: string; image_url
 interface ChatMessage { role: 'system' | 'user'; content: string | ChatMessagePart[]; }
 interface ChatCompletionResponse {
   model?: string;
-  choices?: Array<{ message?: { content?: string | null } }>;
+  choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> | null } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
@@ -112,7 +112,7 @@ export class OpenRouterService {
       }
 
       const message = response.choices?.[0]?.message;
-      let content = message?.content ?? '';
+      let content = this.textContent(message?.content);
       if (!content && (message as any)?.reasoning) {
         content = String((message as any).reasoning);
       }
@@ -272,6 +272,15 @@ export class OpenRouterService {
       if (parsed !== undefined) return parsed;
     }
     throw new BadGatewayException({ error_code: 'AI_INVALID_RESPONSE', message: 'Dịch vụ AI trả về dữ liệu không đúng định dạng.', details: null });
+  }
+
+  private textContent(content: string | Array<{ type?: string; text?: string }> | null | undefined): string {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+    return content
+      .filter((part) => part.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text)
+      .join('\n');
   }
 
   private tryParse(text: string): unknown | undefined {

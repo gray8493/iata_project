@@ -188,6 +188,8 @@ def test_find_gcc_executable_returns_none_when_everything_is_missing(tmp_path, m
     # WinGet/common install directory reports an existing gcc.exe.
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "no_such_dir"))
+    monkeypatch.setattr("core.adapters.compiler_adapter.bundled_toolchains_dir", lambda: None)
+    monkeypatch.setattr("core.adapters.compiler_adapter.load_config", lambda: {})
     monkeypatch.setattr(
         "winreg.OpenKey",
         lambda *a, **kw: (_ for _ in ()).throw(OSError("registry sandboxed")),

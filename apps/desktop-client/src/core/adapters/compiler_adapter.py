@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Type
 
+from core.app_paths import bundled_toolchains_dir, load_config
+
 
 @dataclass
 class CompileResult:
@@ -30,8 +32,58 @@ class CompileResult:
         return "OK" if self.success else "CE"
 
 
+def _bundled_tool(name: str, relative_candidates: tuple) -> Optional[str]:
+    """Tìm công cụ trong thư mục `toolchains/` đi kèm bản đóng gói."""
+    root = bundled_toolchains_dir()
+    if not root:
+        return None
+    for rel in relative_candidates:
+        candidate = root / rel
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _configured_tool(config_key: str) -> Optional[str]:
+    """Đường dẫn do giảng viên chọn tay trong "Cấu Hình Môi Trường"."""
+    raw = str(load_config().get(config_key, "") or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    return str(candidate) if candidate.is_file() else None
+
+
+def find_java_tool(name: str) -> Optional[str]:
+    """Tìm `javac.exe` / `java.exe`: toolchain đóng kèm -> config -> JAVA_HOME -> PATH."""
+    bundled = _bundled_tool(name, (f"jdk/bin/{name}.exe", f"java/bin/{name}.exe", f"bin/{name}.exe"))
+    if bundled:
+        return bundled
+
+    configured = _configured_tool(f"{name}_path")
+    if configured:
+        return configured
+
+    java_home = os.environ.get("JAVA_HOME", "").strip()
+    if java_home:
+        candidate = Path(java_home) / "bin" / f"{name}.exe"
+        if candidate.is_file():
+            return str(candidate)
+
+    return shutil.which(name)
+
+
 def find_gcc_executable() -> Optional[str]:
     """Tự động tìm kiếm đường dẫn thực thi của gcc trên hệ thống Windows."""
+    # 1. Toolchain portable đi kèm bản đóng gói (máy giảng viên không cần cài gì).
+    bundled = _bundled_tool("gcc", ("mingw64/bin/gcc.exe", "mingw/bin/gcc.exe", "gcc/bin/gcc.exe"))
+    if bundled:
+        return bundled
+
+    # 2. Đường dẫn giảng viên đã chọn trong "Cấu Hình Môi Trường".
+    configured = _configured_tool("gcc_path")
+    if configured:
+        return configured
+
     cand = shutil.which("gcc")
     if cand:
         return cand
@@ -150,7 +202,16 @@ class JavacCompilerAdapter(CompilerAdapter):
         if not source_path.exists():
             return self._missing_source(source_path)
 
-        cmd = ["javac", "-encoding", "UTF-8", str(source_path)]
+        javac_bin = find_java_tool("javac")
+        if not javac_bin:
+            return CompileResult(
+                False,
+                "Không tìm thấy trình biên dịch 'javac' (JDK)! Vui lòng cài JDK hoặc "
+                "đặt thư mục toolchains/jdk cạnh AITA.exe.",
+                compiler=self.name
+            )
+
+        cmd = [javac_bin, "-encoding", "UTF-8", str(source_path)]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
             if res.returncode != 0:

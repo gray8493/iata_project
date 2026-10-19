@@ -8,7 +8,7 @@ from typing import Tuple, Optional
 
 from .base_runner import BaseRunner
 from core.sandbox.runner import SandboxRunner, SandboxResult
-from core.adapters.compiler_adapter import JavacCompilerAdapter
+from core.adapters.compiler_adapter import JavacCompilerAdapter, find_java_tool
 
 
 class JavaRunner(BaseRunner):
@@ -31,7 +31,18 @@ class JavaRunner(BaseRunner):
         # executable_target format: "classpath:class_name"
         # rsplit để không cắt trúng dấu ':' của ổ đĩa Windows (ví dụ E:\AITA\...)
         classpath, class_name = executable_target.rsplit(":", 1)
-        cmd = ["java", "-cp", classpath, class_name]
+        java_bin = find_java_tool("java")
+        if not java_bin:
+            return SandboxResult(
+                stdout="",
+                stderr="Không tìm thấy 'java' (JRE) để chạy bài! Vui lòng cài JDK/JRE.",
+                return_code=-1,
+                execution_time_ms=0.0,
+                memory_used_mb=0.0,
+                verdict="RE",
+                error_message="Không tìm thấy 'java' (JRE) để chạy bài! Vui lòng cài JDK/JRE."
+            )
+        cmd = [java_bin, "-cp", classpath, class_name]
 
         return SandboxRunner.run_process(
             command=cmd,
