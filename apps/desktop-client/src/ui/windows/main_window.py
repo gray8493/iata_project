@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QProgressBar, QTableWidget,
     QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QDialog,
-    QSizePolicy, QStackedWidget, QFileDialog, QMenu, QScrollArea, QLineEdit
+    QSizePolicy, QStackedWidget, QFileDialog, QMenu, QScrollArea, QLineEdit, QCheckBox
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -165,12 +165,14 @@ class BatchGradingWorker(QThread):
         grading_service: GradingService,
         class_id: int,
         submission_ids: Optional[List[int]] = None,
+        enable_ai_quality: bool = False,
         parent=None,
     ):
         super().__init__(parent)
         self._service = grading_service
         self._class_id = class_id
         self._submission_ids = submission_ids
+        self._enable_ai_quality = enable_ai_quality
         # Pain #2: huỷ chấm giữa đường — cờ thread-safe checked bởi service bên trong
         self._cancel_event = threading.Event()
 
@@ -193,6 +195,7 @@ class BatchGradingWorker(QThread):
                 progress_callback=on_progress,
                 submission_ids=self._submission_ids,
                 cancel_event=self._cancel_event,
+                enable_ai_quality=self._enable_ai_quality,
             )
             elapsed = time.perf_counter() - started
             self.finished_ok.emit(len(results), elapsed)
@@ -809,6 +812,32 @@ class AITAMainWindow(QMainWindow):
         steps_row.addWidget(self.w_step6)
         
         layout.addLayout(steps_row)
+
+        # Hybrid grading toggle: bật AI chấm chất lượng (Rule chất lượng) song song sandbox.
+        ai_row = QHBoxLayout()
+        ai_row.setContentsMargins(0, 0, 0, 0)
+        ai_row.setSpacing(8)
+
+        self.chk_ai_quality = QCheckBox("Chấm chất lượng mã bằng AI (Hybrid: Sandbox 5đ + AI Rubric 5đ)", card)
+        self.chk_ai_quality.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.chk_ai_quality.setToolTip(
+            "Bật để AI Hub chấm thêm 5 tiêu chí chất lượng (Clean Code, Complexity, Structure, "
+            "Format, Documentation). Yêu cầu đăng nhập và tốn hạn ngạch AI. "
+            "Nếu AI lỗi/hết hạn ngạch, điểm Sandbox được giữ nguyên và Rubric đánh dấu PENDING."
+        )
+        self.chk_ai_quality.setStyleSheet("""
+            QCheckBox {
+                font-size: 12px;
+                font-weight: 600;
+                color: #1E293B;
+                background: transparent;
+                spacing: 8px;
+            }
+        """)
+        ai_row.addWidget(self.chk_ai_quality)
+        ai_row.addStretch(1)
+        layout.addLayout(ai_row)
+
         return card
 
     def _apply_step_button_style(self, btn: QPushButton, is_highlighted: bool, is_enabled: bool, tooltip_text: str):
@@ -1968,6 +1997,7 @@ class AITAMainWindow(QMainWindow):
             source_file_path=sub_dict.get("source_file_path"),
             verdict=verdict,
             score=score,
+            enable_ai_quality=self.chk_ai_quality.isChecked(),
             parent=self
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -2005,7 +2035,9 @@ class AITAMainWindow(QMainWindow):
             if sid is None:
                 return
             start_spinner(self, f"Đang chấm lại bài của sinh viên {sub.get('student_mssv', '')}...")
-            regrade_worker = RegradeWorker(int(sid), parent=self)
+            regrade_worker = RegradeWorker(
+                int(sid), enable_ai_quality=self.chk_ai_quality.isChecked(), parent=self
+            )
             self._regrade_worker = regrade_worker
             regrade_worker.regrade_finished.connect(self._on_row_regrade_done)
             regrade_worker.start()
@@ -2073,7 +2105,8 @@ class AITAMainWindow(QMainWindow):
         self.btn_cancel_grade.setEnabled(True)
 
         self._grading_worker = BatchGradingWorker(
-            self.grading_service, class_id, submission_ids=submission_ids, parent=self
+            self.grading_service, class_id, submission_ids=submission_ids,
+            enable_ai_quality=self.chk_ai_quality.isChecked(), parent=self
         )
         self._grading_worker.progress.connect(self._on_batch_grade_progress)
         self._grading_worker.finished_ok.connect(lambda count, secs: self._on_batch_grade_done(class_id, count, secs))
@@ -2362,18 +2395,19 @@ class AITAMainWindow(QMainWindow):
         class EnvProbeWorker(QThread):
             probe_done = pyqtSignal(dict)
             def run(self_inner):
-                import shutil
                 tools = []
                 lang_upper = (language or "").upper()
                 if "JAVA" in lang_upper:
-                    tools.append(("javac", bool(shutil.which("javac"))))
+                    from core.adapters.compiler_adapter import find_java_tool
+                    tools.append(("javac", bool(find_java_tool("javac"))))
+                    tools.append(("java", bool(find_java_tool("java"))))
                 if "PY" in lang_upper:
                     try:
                         from core.app_paths import resolve_python_executable
                         from pathlib import Path as _Path
                         tools.append(("python", _Path(resolve_python_executable()).is_file()))
                     except Exception:
-                        tools.append(("python", True))
+                        tools.append(("python", False))
                 # C/C++ mọi ngôn ngữ đều đòi gcc; với PY/JAVA vẫn kiểm để chấm cả 2 lựa chọn
                 try:
                     from core.adapters.compiler_adapter import find_gcc_executable

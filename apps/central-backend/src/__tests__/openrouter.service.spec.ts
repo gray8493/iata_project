@@ -226,4 +226,76 @@ describe('OpenRouterService (Unit AI Provider Rotation Test)', () => {
       expect(JSON.stringify(status)).not.toContain('sk-or-v1-0123456789ab');
     });
   });
+
+  describe('UT03_AiProvider_TC013: Nội dung rỗng thì xoay sang tài khoản kế tiếp', () => {
+    it('key đầu trả content rỗng, key thứ hai trả JSON hợp lệ, không hoàn quota', async () => {
+      const service = makeService(['key-1', 'key-2']);
+      const post = (service as any).post = jest.fn()
+        .mockResolvedValueOnce(resolvedCompletion(''))
+        .mockResolvedValueOnce(resolvedCompletion('{"ok":true}'));
+
+      const result = await service.generateJson<{ ok: boolean }>(args());
+
+      expect(result).toEqual(validResult);
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(post.mock.calls[0][0]).toBe('key-1');
+      expect(post.mock.calls[1][0]).toBe('key-2');
+      expect((service as any).quota.settle).toHaveBeenCalledTimes(2);
+      expect((service as any).quota.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UT03_AiProvider_TC015: Cấu hình model dự phòng thì gửi mảng models', () => {
+    it('body chứa models gồm model chính + dự phòng và bỏ trường model', async () => {
+      const service = makeService(['key-1'], {
+        OPENROUTER_MODEL: 'google/gemma-4-31b-it:free',
+        OPENROUTER_MODEL_FALLBACKS: 'google/gemma-4-26b-a4b-it:free,openrouter/free',
+      });
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('{"ok":true}'));
+
+      await service.generateJson<{ ok: boolean }>(args());
+
+      const body = (service as any).post.mock.calls[0][1] as any;
+      expect(body.model).toBeUndefined();
+      expect(body.models).toEqual(['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'openrouter/free']);
+      expect(service.providerStatus().fallback_models).toEqual(['google/gemma-4-26b-a4b-it:free', 'openrouter/free']);
+    });
+  });
+
+  describe('UT03_AiProvider_TC014: Mọi tài khoản đều trả JSON sai định dạng', () => {
+    it('ném 502 AI_INVALID_RESPONSE và hoàn quota đã giữ chỗ', async () => {
+      const service = makeService(['key-1']);
+      const post = (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('not-json-at-all'));
+
+      const error = await service.generateJson<{ ok: boolean }>(args()).catch((e) => e);
+
+      expect(error.getStatus()).toBe(502);
+      expect(error.getResponse()).toEqual(expect.objectContaining({ error_code: 'AI_INVALID_RESPONSE' }));
+      expect(post).toHaveBeenCalledTimes(1);
+      expect((service as any).quota.release).toHaveBeenCalledWith(expect.objectContaining({ configId: 'q1' }));
+    });
+  });
+
+  describe('UT03_AiProvider_TC016: JSON bị cắt cụt do hết token thì tự đóng ngoặc', () => {
+    it('cứu dữ liệu đã hoàn chỉnh thay vì báo sai định dạng', async () => {
+      const service = makeService(['key-1']);
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('{"ok":true,"nested":{"a":1'));
+
+      const result = await service.generateJson<{ ok: boolean; nested: { a: number } }>(args());
+
+      expect(result.data).toEqual({ ok: true, nested: { a: 1 } });
+      expect((service as any).quota.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UT03_AiProvider_TC017: Cắt cụt ngay giữa chuỗi reason thì bỏ phần dở dang', () => {
+    it('lấy giá trị hoàn chỉnh cuối cùng và đóng ngoặc', async () => {
+      const service = makeService(['key-1']);
+      (service as any).post = jest.fn().mockResolvedValue(resolvedCompletion('```json\n{"ok":true,"reason":"dang viet do'));
+
+      const result = await service.generateJson<{ ok: boolean }>(args());
+
+      expect(result.data).toEqual({ ok: true });
+    });
+  });
 });

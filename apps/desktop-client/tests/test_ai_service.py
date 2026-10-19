@@ -33,7 +33,7 @@ class FakeApiClient:
             raise self.raises
         return self.response
 
-    def post(self, path, payload=None):
+    def post(self, path, payload=None, timeout=None):
         self.calls.append(("POST", path, payload))
         if self.raises:
             raise self.raises

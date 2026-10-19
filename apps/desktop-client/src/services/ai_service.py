@@ -6,11 +6,17 @@ Connects to Central Backend (NestJS / Render / Neon Postgres) for AI features:
 - AI Code Pedagogical Review (POST /api/v1/ai/review-code)
 - AI Two-Stage Plagiarism Deep Verification (POST /api/v1/ai/verify-plagiarism)
 - AI Web UI Evaluation (POST /api/v1/ai/evaluate-web-ui)
+- AI PE Code Quality Evaluation (POST /api/v1/ai/evaluate-pe-code)
 """
 
+import os
 from typing import Dict, Any, Optional, List
 import httpx
 from .api_client import ApiClient
+
+# AI calls are slow (backend waits up to 60s for OpenRouter + Render free-tier cold start),
+# so they need a much longer client timeout than the default 25s for ordinary REST calls.
+AI_REQUEST_TIMEOUT = float(os.getenv("AITA_AI_TIMEOUT", "120"))
 
 
 class AiService:
@@ -84,7 +90,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/generate-testcases", payload)
+            resp = self.api_client.post("ai/generate-testcases", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -142,7 +148,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/review-code", payload)
+            resp = self.api_client.post("ai/review-code", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -194,7 +200,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/verify-plagiarism", payload)
+            resp = self.api_client.post("ai/verify-plagiarism", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -232,7 +238,7 @@ class AiService:
         }
 
         try:
-            resp = self.api_client.post("ai/evaluate-web-ui", payload)
+            resp = self.api_client.post("ai/evaluate-web-ui", payload, timeout=AI_REQUEST_TIMEOUT)
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
@@ -253,3 +259,58 @@ class AiService:
             }
         except Exception as e:
             return {"success": False, "message": f"Lỗi đánh giá Web UI: {str(e)}", "error_code": "EXCEPTION"}
+
+    def evaluate_code_quality(
+        self,
+        source_code: str,
+        language: str,
+        problem_statement: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Calls Central Backend AI Gateway to grade code quality against the mandatory PE rubric
+        (Clean Code, Complexity, Structure, Format, Documentation) - 1.0 point per criterion.
+        Endpoint: POST /api/v1/ai/evaluate-pe-code
+        """
+        lang_upper = language.upper().strip()
+        if lang_upper not in ["C", "JAVA", "PYTHON", "PHP"]:
+            lang_upper = "C"
+
+        # Đảm bảo đáp ứng ràng buộc DTO: 10 <= len(source_code) <= 20000
+        code = (source_code or "").strip()
+        if len(code) < 10:
+            return {
+                "success": False,
+                "message": "Mã nguồn quá ngắn (< 10 ký tự) để chấm chất lượng.",
+                "error_code": "SOURCE_TOO_SHORT"
+            }
+        code = code[:20000]
+
+        payload = {
+            "source_code": code,
+            "language": lang_upper,
+            "problem_statement": (problem_statement or "")[:5000]
+        }
+
+        try:
+            resp = self.api_client.post("ai/evaluate-pe-code", payload, timeout=AI_REQUEST_TIMEOUT)
+            resp_data = resp.json() if resp.content else {}
+
+            if resp.status_code in (200, 201) and resp_data.get("success"):
+                data = resp_data.get("data", {}) or {}
+                return {
+                    "success": True,
+                    "rubric": data.get("rubric", {}) or {},
+                    "overall_feedback": data.get("overall_feedback", ""),
+                    "tokens_consumed": data.get("tokens_consumed", 0),
+                    "message": resp_data.get("message", "Đánh giá chất lượng mã nguồn thành công!")
+                }
+
+            return {
+                "success": False,
+                "message": resp_data.get("message", "Máy chủ AI không thể đánh giá chất lượng mã nguồn."),
+                "error_code": resp_data.get("error_code", f"HTTP_{resp.status_code}")
+            }
+        except httpx.ConnectTimeout:
+            return {"success": False, "message": "Hết thời gian kết nối khi chấm chất lượng mã.", "error_code": "CONNECT_TIMEOUT"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi chấm chất lượng mã nguồn: {str(e)}", "error_code": "EXCEPTION"}

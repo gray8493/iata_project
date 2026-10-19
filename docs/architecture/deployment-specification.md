@@ -60,13 +60,14 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - *Bộ nhớ trong (RAM)*: Tối thiểu 8 GB DDR4, khuyến nghị 16 GB (đảm bảo đủ dung lượng cấp phát đồng thời cho JVM Java và Python Runtime).
   - *Ổ đĩa lưu trữ (Disk Storage)*: Tối thiểu 20 GB dung lượng trống chuẩn SSD NVMe để đọc/ghi hàng trăm bài nộp sinh viên tốc độ cao.
 - **Môi trường thực thi & Công cụ biên dịch tại chỗ (Local Execution Environment)**:
-  - **Môi trường ảo AITA**: File thực thi `AITA.exe` tích hợp sẵn Python 3.11 Runtime, PyQt6 Native Engine.
-  - **Trình biên dịch C**: MinGW-w64 GCC 13+ (đường dẫn `bin/gcc.exe`).
-  - **Trình biên dịch & Máy ảo Java**: OpenJDK 17 hoặc 21 (đường dẫn `bin/javac.exe`, `bin/java.exe`).
-  - **Trình thông dịch Python**: Python 3.10+ Standard Runtime (`python.exe`).
+  - **Môi trường ảo AITA**: File thực thi `AITA_Grader_v1.exe` tích hợp sẵn Python 3.11 Runtime, PyQt6 Native Engine.
+  - **Toolchain portable đi kèm**: Thư mục `toolchains/` nằm cạnh file chạy (trong `_internal/toolchains/`) chứa MinGW-w64 GCC, OpenJDK rút gọn bằng `jlink` và Python embeddable. App **ưu tiên** dùng bộ này trước, nên máy giảng viên không cần cài đặt gì thêm; nếu giảng viên muốn dùng bản cài riêng thì chỉ định trong **Cấu Hình Môi Trường** (lưu tại `config.json`).
+  - **Trình biên dịch C**: MinGW-w64 GCC 13+ (`toolchains/mingw64/bin/gcc.exe`).
+  - **Trình biên dịch & Máy ảo Java**: OpenJDK 17/21 (`toolchains/jdk/bin/javac.exe`, `toolchains/jdk/bin/java.exe`).
+  - **Trình thông dịch Python**: Python 3.11 embeddable (`toolchains/python/python.exe`) hoặc Python 3.10+ trên máy.
   - **Công cụ bảo vệ HĐH (Sandbox Guard)**: Thư viện `psutil` tích hợp sẵn trong client để giám sát mức chiếm dụng RAM, CPU và tự động cưỡng chế diệt các tiến trình lặp vô hạn.
 - **Lưu trữ cục bộ**: 
-  - Cơ sở dữ liệu SQLite 3 (`apps/desktop-client/data/local_grading.db`, chế độ WAL): Lưu cấu hình đợt chấm, testcase và kết quả chấm offline.
+  - Cơ sở dữ liệu SQLite 3 (`%LOCALAPPDATA%/AITA/data/local_grading.db` khi chạy bản đóng gói; `apps/desktop-client/data/local_grading.db` khi chạy dev — chế độ WAL): Lưu cấu hình đợt chấm, testcase và kết quả chấm offline.
   - Tập tin CSV: `students.csv` (đầu vào: 2 cột `MSSV`, `File`) và `results.csv` (đầu ra: 7 cột hoàn chỉnh).
 
 ---
@@ -166,9 +167,25 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
 ### 6.1. Đóng gói Desktop Client cho Giảng viên
 - **Công cụ**: `PyInstaller 6.x`.
 - **Cấu hình đóng gói**:
-  - Tùy chọn `--onefile` hoặc `--onedir` kết hợp nén tài nguyên giao diện PyQt6, icon, và file cấu hình mẫu.
-  - Bổ sung file `.spec` tối ưu hóa, loại bỏ các package thừa của Python để file chạy nhẹ nhất có thể (~40-60 MB).
-  - Tích hợp bộ MinGW portable và OpenJDK rút gọn nếu giảng viên chưa cài đặt toolchain trên máy tính.
+  - Dùng `--onedir` (thư mục `dist/AITA_Grader_v1/`) thay vì `--onefile`, vì bộ toolchain portable đi kèm nặng ~340 MB; `--onefile` sẽ giải nén lại toàn bộ ra thư mục tạm ở **mỗi lần khởi động**, làm app chậm và tốn RAM/đĩa.
+  - Bổ sung file `.spec` tối ưu hóa, loại bỏ các package thừa của Python (`tkinter`, `matplotlib`, `numpy`…) để phần lõi app chỉ còn ~15 MB.
+  - **Toolchain portable đi kèm** (thư mục `toolchains/` trong `_internal/`, phát hiện qua `core/app_paths.bundled_toolchains_dir()`):
+    - `mingw64/bin/gcc.exe`: MinGW-w64 GCC đã cắt bộ tối thiểu (chỉ giữ `cc1`, `as`, `ld`, `collect2`, các thư viện `libgcc`/`libmingwex`/`crt*.o`), ~277 MB.
+    - `jdk/bin/{javac,java}.exe`: OpenJDK rút gọn bằng `jlink` (`java.base, java.compiler, jdk.compiler, java.logging, jdk.jfr, java.management, jdk.unsupported`), ~44 MB.
+    - `python/python.exe`: Python 3.11 embeddable chính thức của python.org, ~21 MB.
+  - Tạo toolchain bằng script tái lập được (chạy trên máy dev đã cài sẵn GCC/JDK):
+    ```bash
+    python apps/desktop-client/scripts/build_toolchains.py \
+        --mingw "C:/path/to/mingw64" \
+        --jdk "C:/Program Files/Java/jdk-21" \
+        --out apps/desktop-client/toolchains \
+        --smoke-test
+    ```
+  - Build bản phát hành: `python -m PyInstaller apps/desktop-client/AITA_Grader_v1.spec --noconfirm`
+    (kết quả `dist/AITA_Grader_v1/`, tổng ~590 MB, nén ZIP còn ~150 MB).
+  - **Thứ tự dò công cụ** (áp dụng cho cả `gcc`, `javac`, `java`, `python`): toolchain đóng kèm → đường dẫn giảng viên lưu trong `config.json` → `JAVA_HOME` / biến môi trường (`AITA_PYTHON`) → `PATH` → registry / WinGet. Nhờ vậy bản đóng gói chấm được ngay cả khi máy đích **chưa cài** GCC/JDK/Python, mà vẫn ưu tiên bản cài trên máy nếu giảng viên muốn dùng bản mới hơn.
+  - **Tự kiểm tra môi trường**: `AITA_Grader_v1.exe --selftest` chạy thật `gcc`/`javac`+`java`/`python` trên một chương trình `a + b`, in kết quả ra console **và** ghi `aita_selftest.txt` cạnh file exe (tự mở bằng Notepad nếu chạy bằng double-click). Đây là công cụ hỗ trợ từ xa khi giảng viên gặp lỗi môi trường.
+  - **Dữ liệu người dùng**: CSDL SQLite và `config.json` được ghi vào `%LOCALAPPDATA%/AITA/data/` (không ghi vào thư mục tạm của PyInstaller, tránh mất điểm đã chấm sau khi tắt app).
 
 ### 6.2. Triển khai Máy chủ Trung tâm trên Render.com & Neon Cloud
 - **Triển khai Production trên Render.com**:

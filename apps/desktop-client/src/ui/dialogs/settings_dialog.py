@@ -18,6 +18,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ui.styles.theme import LIGHT_THEME_QSS
+from core.app_paths import load_config, save_config, resolve_python_executable
+from core.adapters.compiler_adapter import find_gcc_executable, find_java_tool
 
 
 
@@ -38,6 +40,22 @@ class SettingsDialog(QDialog):
         self.resize(840, 680)
         self.setStyleSheet(LIGHT_THEME_QSS)
         self._init_ui()
+        self._load_saved_paths()
+
+    def _load_saved_paths(self) -> None:
+        """Nạp đường dẫn đã lưu (hoặc toolchain đóng kèm) vào các ô nhập."""
+        config = load_config()
+        gcc = config.get("gcc_path") or find_gcc_executable() or ""
+        javac = config.get("javac_path") or find_java_tool("javac") or ""
+        python_path = config.get("python_path") or ""
+        if not python_path:
+            try:
+                python_path = resolve_python_executable()
+            except RuntimeError:
+                python_path = ""
+        self.txt_gcc.setText(str(gcc))
+        self.txt_java.setText(str(javac))
+        self.txt_py.setText(str(python_path))
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -93,7 +111,6 @@ class SettingsDialog(QDialog):
         self.txt_gcc = QLineEdit(comp_card)
         self.txt_gcc.setFixedHeight(38)
         self.txt_gcc.setPlaceholderText("Chọn đường dẫn đến gcc.exe...")
-        self.txt_gcc.setText("C:/msys64/mingw64/bin/gcc.exe")
         gcc_row.addWidget(self.txt_gcc)
         
         btn_gcc = QPushButton("Duyệt...", comp_card)
@@ -117,7 +134,6 @@ class SettingsDialog(QDialog):
         self.txt_java = QLineEdit(comp_card)
         self.txt_java.setFixedHeight(38)
         self.txt_java.setPlaceholderText("Chọn đường dẫn đến javac.exe...")
-        self.txt_java.setText("C:/Program Files/Java/jdk-17/bin/javac.exe")
         java_row.addWidget(self.txt_java)
         
         btn_java = QPushButton("Duyệt...", comp_card)
@@ -141,7 +157,6 @@ class SettingsDialog(QDialog):
         self.txt_py = QLineEdit(comp_card)
         self.txt_py.setFixedHeight(38)
         self.txt_py.setPlaceholderText("Chọn đường dẫn đến python.exe...")
-        self.txt_py.setText("python.exe")
         py_row.addWidget(self.txt_py)
         
         btn_py = QPushButton("Duyệt...", comp_card)
@@ -262,13 +277,97 @@ class SettingsDialog(QDialog):
         if exe:
             target_line_edit.setText(exe)
 
+    def _probe_tool(self, exe_path: str, version_args: list) -> tuple:
+        """Chạy thử `<exe> --version` và trả (ok, mô tả)."""
+        import subprocess
+
+        path = (exe_path or "").strip()
+        if not path:
+            return False, "chưa cấu hình"
+        if not Path(path).is_file():
+            return False, "không tìm thấy tệp"
+        try:
+            res = subprocess.run(
+                [path] + version_args,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception as ex:
+            return False, f"không chạy được ({ex})"
+        if res.returncode != 0:
+            return False, "trả mã lỗi khi chạy thử"
+        first_line = ((res.stdout or res.stderr or "").strip().splitlines() or ["OK"])[0]
+        return True, first_line[:80]
+
     def _test_environment(self):
+        """Kiểm tra thật: chạy `--version` cho gcc/javac/python và thử biên dịch C."""
+        import subprocess
+        import tempfile
+
+        lines = ["Kết quả kiểm tra môi trường:"]
+        all_ok = True
+
+        gcc_ok, gcc_info = self._probe_tool(self.txt_gcc.text(), ["--version"])
+        all_ok &= gcc_ok
+        lines.append(f"- GCC: {'OK' if gcc_ok else 'LỖI'} ({gcc_info})")
+
+        javac_ok, javac_info = self._probe_tool(self.txt_java.text(), ["-version"])
+        all_ok &= javac_ok
+        lines.append(f"- Javac: {'OK' if javac_ok else 'LỖI'} ({javac_info})")
+
+        py_ok, py_info = self._probe_tool(self.txt_py.text(), ["--version"])
+        all_ok &= py_ok
+        lines.append(f"- Python: {'OK' if py_ok else 'LỖI'} ({py_info})")
+
+        # Biên dịch thử một chương trình C tối giản để chắc chắn toolchain liên kết được.
+        if gcc_ok:
+            try:
+                with tempfile.TemporaryDirectory(prefix="aita_envcheck_") as tmp:
+                    src = Path(tmp) / "probe.c"
+                    out = Path(tmp) / "probe.exe"
+                    src.write_text("int main(void){return 0;}\n", encoding="utf-8")
+                    res = subprocess.run(
+                        [self.txt_gcc.text().strip(), str(src), "-o", str(out)],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    ok = res.returncode == 0 and out.is_file()
+                    all_ok &= ok
+                    lines.append(f"- Biên dịch thử C: {'OK' if ok else 'LỖI'}"
+                                 + ("" if ok else f" ({(res.stderr or '').strip()[:120]})"))
+            except Exception as ex:
+                all_ok = False
+                lines.append(f"- Biên dịch thử C: LỖI ({ex})")
+        else:
+            all_ok = False
+            lines.append("- Biên dịch thử C: BỎ QUA (chưa có GCC)")
+
+        lines.append("")
+        lines.append("Môi trường sẵn sàng chấm bài." if all_ok
+                     else "Còn công cụ lỗi — hãy chọn đúng đường dẫn .exe hoặc dùng bản đóng gói kèm toolchains/.")
         QMessageBox.information(
             self,
-            "Kiểm Tra Môi Trường",
-            "Kết quả kiểm tra môi trường:\n- GCC: Hoạt động tốt (Độ trễ biên dịch: 42ms)\n- Python: 3.11.9 sẵn sàng\n- psutil Sandbox Watcher: Sẵn sàng đo RAM/CPU."
+            "Kiểm Tra Môi Trường" if all_ok else "Môi Trường Chưa Sẵn Sàng",
+            "\n".join(lines),
         )
 
     def _save_settings(self):
+        """Lưu đường dẫn toolchain vào config.json (thực sự được app đọc khi chấm)."""
+        saved = save_config({
+            "gcc_path": self.txt_gcc.text().strip(),
+            "javac_path": self.txt_java.text().strip(),
+            "java_path": str(Path(self.txt_java.text().strip()).with_name("java.exe"))
+            if self.txt_java.text().strip() else "",
+            "python_path": self.txt_py.text().strip(),
+            "default_time_limit_ms": self.sp_tl.value(),
+            "default_memory_limit_mb": self.sp_ml.value(),
+            "parallel_workers": self.sp_cc.value(),
+        })
+        if not saved:
+            QMessageBox.warning(
+                self, "Không Lưu Được Cấu Hình",
+                "Không ghi được tệp config.json. Vui lòng kiểm tra quyền ghi thư mục dữ liệu.",
+            )
+            return
         self.is_saved = True
         self.accept()

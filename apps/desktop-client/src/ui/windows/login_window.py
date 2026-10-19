@@ -21,6 +21,7 @@ if str(SRC_DIR) not in sys.path:
 
 from services.auth_service import AuthService
 from core.version import APP_VERSION, APP_BUILD
+from core.app_paths import app_assets_dir
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_PRIMARY_ACTIVE,
     COLOR_BG, COLOR_SURFACE, COLOR_TEXT_PRIMARY, COLOR_BORDER_DEFAULT,
@@ -83,13 +84,11 @@ class LoginWindow(QMainWindow):
         card_layout.setSpacing(0)
         
         # 1. Header & FPT University Logo (Transparent PNG, height 72px, centered)
+        assets_dir = app_assets_dir()
         candidate_logo_paths = [
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "images" / "fptulogo_transparent.png",
-            Path(__file__).resolve().parents[5] / "assets" / "images" / "fptulogo_transparent.png",
-            Path(r"e:\AITA\assets\images\fptulogo_transparent.png"),
-            Path(r"e:\AITA\apps\desktop-client\assets\images\fptulogo_transparent.png"),
-            Path(r"e:\AITA\assets\images\fptulogo.jpg"),
-            Path(r"C:\Users\admin\Downloads\fptulogo.jpg")
+            assets_dir / "images" / "fptulogo_transparent.png",
+            assets_dir / "images" / "fptulogo.jpg",
+            Path(__file__).resolve().parents[3] / "assets" / "images" / "fptulogo_transparent.png",
         ]
         logo_path = next((p for p in candidate_logo_paths if p.exists()), None)
 
@@ -203,16 +202,14 @@ class LoginWindow(QMainWindow):
         
         # Icon mắt hiện/ẩn mật khẩu ở cuối ô nhập
         eye_candidates = [
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icons" / "eye.svg",
-            Path(r"e:\AITA\assets\icons\eye.svg"),
-            Path(r"e:\AITA\apps\desktop-client\assets\icons\eye.svg")
+            app_assets_dir() / "icons" / "eye.svg",
+            Path(__file__).resolve().parents[3] / "assets" / "icons" / "eye.svg",
         ]
         eye_path = next((p for p in eye_candidates if p.exists()), Path("eye.svg"))
 
         eye_off_candidates = [
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icons" / "eye_off.svg",
-            Path(r"e:\AITA\assets\icons\eye_off.svg"),
-            Path(r"e:\AITA\apps\desktop-client\assets\icons\eye_off.svg")
+            app_assets_dir() / "icons" / "eye_off.svg",
+            Path(__file__).resolve().parents[3] / "assets" / "icons" / "eye_off.svg",
         ]
         eye_off_path = next((p for p in eye_off_candidates if p.exists()), Path("eye_off.svg"))
 
@@ -237,10 +234,8 @@ class LoginWindow(QMainWindow):
         
         # 3. Checkbox Ghi nhớ phiên làm việc (Khung viền rõ nét, bo góc nhẹ, tick xanh)
         check_candidates = [
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icons" / "check_white.svg",
-            Path(__file__).resolve().parents[5] / "assets" / "icons" / "check_white.svg",
-            Path(r"e:\AITA\assets\icons\check_white.svg"),
-            Path(r"e:\AITA\apps\desktop-client\assets\icons\check_white.svg")
+            app_assets_dir() / "icons" / "check_white.svg",
+            Path(__file__).resolve().parents[3] / "assets" / "icons" / "check_white.svg",
         ]
         check_icon_file = next((p for p in check_candidates if p.exists()), None)
         check_icon_path = str(check_icon_file).replace("\\", "/") if check_icon_file else ""

@@ -322,5 +322,5 @@ Normal
 
 ## Ngoài phạm vi (Desktop/pytest) — chưa tự động hóa ở tầng backend
 - `ST01_BatchGradingPipeline_*`: chấm bài hàng loạt, TLE (`psutil`, kill 1000ms), MLE (256MB), CE và quy tắc bỏ qua AI khi lỗi biên dịch.
-- `ST03_PlagiarismDetection_TC001` Vòng 1: quét AST + Winnowing 100% offline dưới 1 giây.
+- `ST03_PlagiarismDetection_TC001` Vòng 1: chuẩn hoá token + Winnowing 100% offline dưới 1 giây, **so theo từng câu** (Q1 ↔ Q1) kèm chỉ số Jaccard + độ bao phủ và lọc mã khung sườn chung của lớp (đã tự động hoá ở tầng Desktop: `test_plagiarism_engine.py` / `test_plagiarism_dialog.py`).
 - Đồng bộ kết quả lên máy chủ trung tâm (`sync/grading-session`) — **tính năng đồng bộ cloud đã được gỡ bỏ**, không còn trong phạm vi hệ thống.

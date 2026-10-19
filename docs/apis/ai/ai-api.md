@@ -5,7 +5,7 @@
 
 ---
 
-## 1. Danh Sách Endpoints (6 APIs)
+## 1. Danh Sách Endpoints (7 APIs)
 
 | Method | Endpoint | Use Case | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -15,6 +15,7 @@
 | `POST` | `/api/v1/ai/review-code` | UC-16 | Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA |
 | `POST` | `/api/v1/ai/verify-plagiarism` | UC-17 | Xác thực ngữ nghĩa nghi vấn đạo văn > 80% (Vòng 2) |
 | `POST` | `/api/v1/ai/evaluate-web-ui` | UC-19 | Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal |
+| `POST` | `/api/v1/ai/evaluate-pe-code` | UC-19 | Chấm chất lượng mã nguồn PE (White-box, 5 tiêu chí Rubric) |
 
 ---
 
@@ -169,3 +170,48 @@
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
 ```
+
+---
+
+### 2.6. `POST /api/v1/ai/evaluate-pe-code` (UC-19 PE White-box)
+- **Mục đích**: Chấm nửa điểm chất lượng (tối đa 5.0) của mô hình Hybrid `Sandbox 5đ + AI Rubric 5đ`.
+- **Ràng buộc đầu vào**:
+  - `source_code`: 10-20000 ký tự, bắt buộc.
+  - `language`: enum `C | JAVA | PYTHON | PHP`, bắt buộc.
+  - `problem_statement`: chuỗi tùy chọn, tối đa 5000 ký tự.
+- **5 tiêu chí Rubric** (mỗi tiêu chí `passed = true` được 1.0 điểm): `clean_code`, `complexity`, `structure`, `format`, `documentation`.
+
+#### Kịch bản phản hồi:
+* **Thành công (`success: true`) - HTTP 200 OK**:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Đánh giá chất lượng code PE thành công",
+  "data": {
+    "tokens_consumed": 950,
+    "rubric": {
+      "clean_code": { "passed": true, "reason": "Tên biến rõ nghĩa, tuân thủ snake_case." },
+      "complexity": { "passed": true, "reason": "Thuật toán O(n), không lặp lồng vô lý." },
+      "structure": { "passed": false, "reason": "Toàn bộ logic dồn vào hàm main." },
+      "format": { "passed": true, "reason": "Thụt lề chuẩn, không có code rác." },
+      "documentation": { "passed": false, "reason": "Thiếu comment giải thích logic chính." }
+    },
+    "overall_feedback": "Code chạy tốt, cần tách hàm và thêm comment để dễ bảo trì."
+  },
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+* **Hết hạn ngạch (`success: false`) - HTTP 429**: `error_code = AI_QUOTA_EXCEEDED`.
+* **Phản hồi AI sai định dạng (`success: false`) - HTTP 502**: `error_code = AI_INVALID_RESPONSE`.
+* **Nhà cung cấp AI lỗi (`success: false`) - HTTP 502**: `error_code = AI_PROVIDER_ERROR`.
+* **Nhà cung cấp AI tạm thời bị giới hạn (`success: false`) - HTTP 429**: `error_code = AI_PROVIDER_RATE_LIMITED`.
+
+> **Ghi chú xử lý sai định dạng (khớp mã nguồn `AiGatewayService.evaluatePeCode` + `OpenRouterService.parseJson`)**:
+> - Khi lượt gọi đầu trả về sai cấu trúc rubric, service tự gọi lại **một lần** với prompt hướng dẫn lại cấu trúc JSON (tối đa 2 lượt); chỉ khi cả 2 lượt đều sai mới trả `AI_INVALID_RESPONSE`.
+> - Phản hồi không phải JSON object (kể cả `null`, mảng hoặc chuỗi) đều được quy về `AI_INVALID_RESPONSE` (502) thay vì lỗi hệ thống 500.
+> - `maxOutputTokens` cho lượt chấm PE là **1500** và prompt yêu cầu `reason` ≤ 20 từ / `overall_feedback` ≤ 40 từ để hạn chế JSON bị cắt cụt.
+> - Nếu JSON vẫn bị cắt cụt (model hết token), `parseJson` sẽ cắt về giá trị hoàn chỉnh cuối cùng rồi tự đóng ngoặc còn thiếu; chỉ khi không cứu được mới coi là sai định dạng.
+> - Service chấp nhận các biến thể trình bày của model free: tên tiêu chí `cleanCode`/`Clean Code`, `passed` là `"true"`/`"PASS"`/`1`, `rubric` là chuỗi JSON, thiếu `reason`, hoặc bỏ lớp bao `rubric`.
+> - Nếu rubric đủ 5 tiêu chí nhưng model bỏ sót `overall_feedback`, service vẫn chấp nhận kết quả và tự tổng hợp `overall_feedback` từ `reason` của các tiêu chí chưa đạt (hoặc câu mặc định khi tất cả đều đạt) — tránh để bài nộp bị treo ở trạng thái PENDING chỉ vì thiếu một trường phụ.
+> - Desktop client giữ nguyên điểm Sandbox (thang 10) và đánh dấu rubric `PENDING` khi nhận 502, nên sinh viên không bị trừ điểm oan khi AI lỗi; riêng bảng tiêu chí hiển thị `—` (chưa chấm) thay vì `FAIL` để không gây hiểu nhầm.

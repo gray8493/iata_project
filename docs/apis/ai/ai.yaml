@@ -111,6 +111,32 @@ paths:
       responses:
         '200':
           description: Thành công
+  /ai/evaluate-pe-code:
+    post:
+      summary: Chấm chất lượng mã nguồn PE theo 5 tiêu chí Rubric (mỗi tiêu chí 1.0 điểm)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_code, language]
+              properties:
+                source_code:
+                  type: string
+                  minLength: 10
+                  maxLength: 20000
+                language:
+                  type: string
+                  enum: [C, JAVA, PYTHON, PHP]
+                problem_statement:
+                  type: string
+                  maxLength: 5000
+      responses:
+        '200':
+          description: Thành công
+        '429':
+          description: Hết quota token
   /ai/provider-status:
     get:
       summary: Trạng thái AI Hub OpenRouter (xoay vòng đa tài khoản, chỉ ADMIN)

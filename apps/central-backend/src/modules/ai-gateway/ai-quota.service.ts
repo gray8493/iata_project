@@ -2,7 +2,7 @@ import { ForbiddenException, HttpException, Injectable, Optional } from '@nestjs
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService, REPORTS_OVERVIEW_CACHE_KEY } from '../../common/redis.service';
 
-export type AiFeature = 'TESTCASE_GEN' | 'CODE_REVIEW' | 'PLAGIARISM' | 'UI_EVALUATION';
+export type AiFeature = 'TESTCASE_GEN' | 'CODE_REVIEW' | 'PLAGIARISM' | 'UI_EVALUATION' | 'PE_CODE_EVAL';
 export interface QuotaReservation { configId: string; reserved: number; date: Date; }
 
 @Injectable()

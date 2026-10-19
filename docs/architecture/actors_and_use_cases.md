@@ -274,7 +274,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tên Use Case**: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (Two-Stage Plagiarism Detection)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: AI Hub (Web Server Backend)
-* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên AI Hub để phân tích ngữ nghĩa và trích xuất bằng chứng sao chép phục vụ lập biên bản.
+* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 chuẩn hoá token + Winnowing 100% offline trên máy trạm, **so theo từng câu** (Q1 ↔ Q1, Q2 ↔ Q2) để một câu bị copy không bị pha loãng bởi các câu khác — đồng thời đo cả Jaccard lẫn độ bao phủ và loại mã khung sườn chung của lớp, tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc các cặp bài có độ tương đồng bất thường ($\ge 80\%$) gửi lên AI Hub để phân tích ngữ nghĩa và trích xuất bằng chứng sao chép phục vụ lập biên bản.
 * **Tiền điều kiện (Preconditions)**:
   1. Đợt chấm có từ hai bài nộp trở lên của cùng một câu hỏi.
 * **Hậu điều kiện (Postconditions)**:
@@ -283,11 +283,12 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 #### Luồng sự kiện chính (Main Flow):
 
-1. Giảng viên chọn đợt chấm cần kiểm tra, thiết lập ngưỡng cảnh báo (mặc định $\ge 80\%$) và nhấn **"Bắt đầu phân tích"**.
-2. **Vòng 1 - Lọc cục bộ 100% Offline (Local AST Scanning)**:
-   - Hệ thống tiền xử lý mã nguồn: loại bỏ comment, chuẩn hóa khoảng trắng, biến đổi mã nguồn thành chuỗi token của cây cú pháp trừu tượng (Abstract Syntax Tree - AST).
-   - Thuật toán Winnowing cục bộ so khớp toàn bộ các cặp bài nộp ($O(N^2)$ xử lý siêu tốc trong 0.5 giây).
-   - Hệ thống tính toán chỉ số tương đồng (%) cho từng cặp bài và kết xuất danh sách hiển thị trên giao diện.
+1. Giảng viên chọn đợt chấm cần kiểm tra, thiết lập ngưỡng cảnh báo (mặc định $70\%$, dải chỉnh $30\% - 95\%$) và nhấn **"Bắt đầu phân tích"**.
+2. **Vòng 1 - Lọc cục bộ 100% Offline (Local Normalization + Winnowing)**:
+   - Hệ thống tiền xử lý mã nguồn: loại bỏ comment, che literal và chuẩn hoá mọi định danh do sinh viên đặt về cùng một placeholder (đổi tên biến/hàm vẫn bị phát hiện).
+   - Hệ thống tách bài nộp theo từng câu (`Q1`, `Q2`, ...) và so **Q1 với Q1, Q2 với Q2** — chỉ sao chép một câu cũng bị phát hiện thay vì bị pha loãng bởi cả gói bài.
+   - Thuật toán Winnowing cục bộ so khớp toàn bộ các cặp bài nộp ($O(N^2)$ xử lý siêu tốc trong 0.5 giây), loại bỏ mã khung sườn dùng chung của lớp và tính **Jaccard + độ bao phủ (containment)** cho từng câu.
+   - Hệ thống kết xuất danh sách hiển thị trên giao diện (kèm cột câu bị trùng) theo thứ tự điểm tương đồng giảm dần.
 3. Nếu không có cặp bài nào vượt ngưỡng $\ge 80\%$, hệ thống thông báo "Không phát hiện nghi vấn sao chép mã nguồn bất thường". Use Case kết thúc.
 4. **Vòng 2 - Xác thực chuyên sâu bằng AI (AI Verification)**:
    - Với 1-3 cặp bài có độ tương đồng vượt ngưỡng $\ge 80\%$, hệ thống cho phép Giảng viên bấm **`[✨ AI Phân tích bằng chứng]`**.

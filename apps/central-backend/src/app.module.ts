@@ -27,6 +27,7 @@ import { PrismaModule } from './prisma/prisma.module';
         JWT_REFRESH_EXPIRES_IN: Joi.string().pattern(/^[1-9]\d*(s|m|h|d)$/).default('7d'),
         OPENROUTER_API_KEYS: Joi.string().allow('').optional(),
         OPENROUTER_MODEL: Joi.string().optional(),
+        OPENROUTER_MODEL_FALLBACKS: Joi.string().allow('').optional(),
         OPENROUTER_BASE_URL: Joi.string().uri().optional(),
         OPENROUTER_TIMEOUT_MS: Joi.number().integer().min(1).optional(),
         OPENROUTER_KEY_COOLDOWN_MS: Joi.number().integer().min(0).optional(),

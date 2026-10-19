@@ -34,6 +34,71 @@ _PY_STARTUP_CACHE: Optional[float] = None
 # Giới hạn mỗi trường bằng chứng lưu vào JSON để DB payload không phình vô hạn
 _EVIDENCE_FIELD_CAP = 4000
 
+# Điểm tối đa cho mỗi nửa của thang 10 (Hybrid: Sandbox 5đ + AI Rubric 5đ)
+SANDBOX_MAX_SCORE = 5.0
+AI_RUBRIC_MAX_SCORE = 5.0
+# 5 tiêu chí chất lượng AI chấm, mỗi tiêu chí PASS = 1.0 điểm
+AI_RUBRIC_CRITERIA: Tuple[str, ...] = ("clean_code", "complexity", "structure", "format", "documentation")
+AI_RUBRIC_LABELS: Dict[str, str] = {
+    "clean_code": "Clean Code (đặt tên biến/hàm)",
+    "complexity": "Complexity (độ phức tạp thuật toán)",
+    "structure": "Structure (chia hàm/module hóa)",
+    "format": "Format (thụt lề, code rác)",
+    "documentation": "Documentation (comment, tiêu đề bài làm)",
+}
+
+# Đuôi mã nguồn nhận diện khi bài nộp là thư mục (dùng để đọc code cho AI)
+_SOURCE_EXTENSIONS = (".py", ".java", ".c", ".cpp", ".cc", ".h", ".hpp", ".cs")
+
+
+def read_submission_source(source_file_path: Optional[str]) -> str:
+    """
+    Reads the student's source code for AI quality grading.
+    - Single-question layout: `source_file_path` is a source file.
+    - Multi-question layout: `source_file_path` is a folder -> concatenate all source files.
+    Returns "" when nothing readable is found.
+    """
+    if not source_file_path:
+        return ""
+    base = Path(source_file_path)
+    if base.is_file():
+        try:
+            return base.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
+    if base.is_dir():
+        parts: List[str] = []
+        for f in sorted(base.iterdir()):
+            if f.is_file() and f.suffix.lower() in _SOURCE_EXTENSIONS:
+                try:
+                    body = f.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    body = ""
+                parts.append(f"// ===== {f.name} =====\n{body}".rstrip())
+        return "\n\n".join(parts)
+    return ""
+
+
+def _attach_quality_payload(diff_details: Any, quality: Dict[str, Any]) -> str:
+    """
+    Merges the AI quality rubric into the per-testcase evidence JSON (cột diff_details).
+    Falls back to a JSON wrapper when diff_details is legacy plain text or empty.
+    """
+    payload: Dict[str, Any]
+    if isinstance(diff_details, str) and diff_details:
+        try:
+            parsed = json.loads(diff_details)
+        except (TypeError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict) and "items" in parsed:
+            payload = parsed
+        else:
+            payload = {"items": [], "legacy_diff": diff_details}
+    else:
+        payload = {"items": [], "legacy_diff": diff_details}
+    payload["quality"] = quality
+    return json.dumps(payload, ensure_ascii=False)
+
 
 def _is_python_language(language: str) -> bool:
     return "PY" in (language or "").strip().upper()
@@ -51,8 +116,9 @@ def measure_python_startup_baseline() -> float:
         return _PY_STARTUP_CACHE
     value = 0.0
     try:
+        python_bin = resolve_python_executable()
         res = SandboxRunner.run_process(
-            command=[resolve_python_executable(), "-u", "-c", "pass"],
+            command=[python_bin, "-u", "-c", "pass"],
             input_data="",
             time_limit_ms=15000,
             memory_limit_mb=128,
@@ -113,16 +179,35 @@ def _resolve_question_file(
     """
     Resolves `Q<nn>.<ext>` inside a student folder from a testcase's question_number.
     Used for multi-question grading when source_file_path points to the student folder.
+    Falls back to a case-insensitive scan so `q1.py` / `Q1.PY` are still recognised
+    (sinh viên hay đặt tên file chữ thường, nhất là với Python).
     """
     match = re.search(r"[Qq]\s*(\d+)", question_number or "")
     if not match:
         return None
     qnum = int(match.group(1))
-    for ext in _allowed_exts(language):
+    exts = _allowed_exts(language)
+    for ext in exts:
         candidate = student_root / f"Q{qnum}{ext}"
         if candidate.is_file():
             return candidate
+
+    try:
+        entries = list(student_root.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.is_file() or entry.suffix.lower() not in exts:
+            continue
+        found = re.search(r"[Qq]\s*(\d+)", entry.stem)
+        if found and int(found.group(1)) == qnum:
+            return entry
     return None
+
+
+# Alias công khai: module quét đạo văn (UC-17) dùng CHUNG cách dò file Q<nn>
+# với lúc chấm điểm, tránh lệch logic giữa 2 tính năng.
+resolve_question_file = _resolve_question_file
 
 
 def grade_single_submission(
@@ -156,6 +241,9 @@ def grade_single_submission(
         "mssv": mssv,
         "verdict": "RE",
         "score": 0.0,
+        "sandbox_score": 0.0,
+        "sandbox_ratio": 0.0,
+        "language": language,
         "execution_time_ms": 0.0,
         "memory_used_mb": 0.0,
         "compile_log": None,
@@ -319,11 +407,17 @@ def grade_single_submission(
                 record_diff(match_res.diff_details)
         result["compile_log"] = compile_log
 
-    # Final 10.0 scaled score
-    final_score = round((earned_weight / total_weight) * 10.0, 1) if total_weight > 0 else 0.0
+    # Điểm Sandbox (tối đa 5.0) phục vụ Hybrid; `score` vẫn giữ thang 10 như hành vi cũ
+    # để các luồng Sandbox-only và test hiện hữu không bị thay đổi.
+    ratio = (earned_weight / total_weight) if total_weight > 0 else 0.0
+    final_score = round(ratio * 10.0, 1)
+    sandbox_score = round(ratio * SANDBOX_MAX_SCORE, 2)
     result.update({
         "verdict": worst_verdict if final_score < 10.0 else "AC",
         "score": final_score,
+        "sandbox_ratio": ratio,
+        "sandbox_score": sandbox_score,
+        "language": language,
         "execution_time_ms": max_exec_time,
         "memory_used_mb": max_mem,
     })
@@ -369,7 +463,8 @@ class GradingService:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         max_workers: Optional[int] = None,
         submission_ids: Optional[List[int]] = None,
-        cancel_event: Optional[threading.Event] = None
+        cancel_event: Optional[threading.Event] = None,
+        enable_ai_quality: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Grades active student submissions for a given class session in parallel.
@@ -410,6 +505,20 @@ class GradingService:
             return []
 
         total_weight = sum(tc.get("score_weight", 1.0) for tc in testcases) or 10.0
+
+        # Hybrid grading (tuỳ chọn): AI rubric chạy trong tiến trình cha vì worker spawn (Windows)
+        # không mang theo JWT/ApiClient. Nếu chưa bật, điểm = sandbox quy đổi thang 10 như cũ.
+        problem_statement = (
+            f"Bài thi thực hành lập trình môn {class_info.get('course_code', '')}"
+            f" - lớp {class_info.get('class_name', '')}."
+        )
+        ai_service = None
+        if enable_ai_quality:
+            try:
+                from services.ai_service import AiService
+                ai_service = AiService()
+            except Exception:
+                ai_service = None
 
         # Fairness (#5): đo baseline khởi động interpreter một lần cho cả batch (Python only)
         python_baseline_ms = measure_python_startup_baseline() if _is_python_language(language) else 0.0
@@ -456,6 +565,17 @@ class GradingService:
                         "matching_strategy": testcases[0].get("matching_strategy", "EXACT_MATCH")
                     }
 
+                # Hybrid (tuỳ chọn): sandbox xong -> gọi AI rubric trong tiến trình cha.
+                # Không bật (hoặc đã yêu cầu hủy): giữ nguyên score/10 của sandbox như hành vi cũ.
+                if ai_service is not None and not (cancel_event is not None and cancel_event.is_set()):
+                    self._enrich_with_ai_quality(
+                        res,
+                        sub.get("source_file_path"),
+                        language,
+                        problem_statement,
+                        ai_service,
+                    )
+
                 # Lưu kết quả bài vừa hoàn tất (kể cả trong phiên hợp lệ khi yêu cầu hủy đã bật)
                 self._save_result(res)
                 results[idx] = {
@@ -495,10 +615,11 @@ class GradingService:
 
         return [r for r in results if r is not None]
 
-    def regrade_submission(self, submission_id: int) -> Dict[str, Any]:
+    def regrade_submission(self, submission_id: int, enable_ai_quality: bool = False) -> Dict[str, Any]:
         """
         Re-grades exactly one submission (UC-15) using the current testcase set:
         compile -> sandbox execute -> strategy compare -> persist fresh result.
+        When `enable_ai_quality` is set, the AI rubric (5đ) is also applied in this process.
         """
         sub = self.db.get_submission_by_id(submission_id)
         if not sub:
@@ -516,8 +637,114 @@ class GradingService:
         total_weight = sum(tc.get("score_weight", 1.0) for tc in testcases) or 10.0
         python_baseline_ms = measure_python_startup_baseline() if _is_python_language(language) else 0.0
         result = grade_single_submission(sub, language, testcases, total_weight, python_baseline_ms)
+
+        if enable_ai_quality:
+            try:
+                from services.ai_service import AiService
+                info = class_info or {}
+                problem_statement = (
+                    f"Bài thi thực hành lập trình môn {info.get('course_code', '')}"
+                    f" - lớp {info.get('class_name', '')}."
+                )
+                self._enrich_with_ai_quality(result, sub.get("source_file_path"), language, problem_statement, AiService())
+            except Exception as exc:
+                # Giữ điểm Sandbox nhưng lưu nguyên nhân để giảng viên biết vì sao Rubric PENDING.
+                sandbox_score = float(result.get("sandbox_score", 0.0) or 0.0)
+                quality = {
+                    "enabled": True,
+                    "available": False,
+                    "pending": True,
+                    "score": 0.0,
+                    "max": AI_RUBRIC_MAX_SCORE,
+                    "sandbox_score": sandbox_score,
+                    "sandbox_max": SANDBOX_MAX_SCORE,
+                    "sandbox_full_score": round(float(result.get("sandbox_ratio", 0.0) or 0.0) * 10.0, 1),
+                    "criteria": {},
+                    "overall_feedback": "",
+                    "tokens_consumed": 0,
+                    "message": f"Không thể khởi chạy AI Rubric: {exc}",
+                }
+                result["rubric_score"] = 0.0
+                result["rubric_available"] = False
+                result["score"] = quality["sandbox_full_score"]
+                result["diff_details"] = _attach_quality_payload(result.get("diff_details"), quality)
+
         self._save_result(result)
         return result
+
+    def _enrich_with_ai_quality(
+        self,
+        result: Dict[str, Any],
+        source_file_path: Optional[str],
+        language: str,
+        problem_statement: str,
+        ai_service: Any
+    ) -> None:
+        """
+        Adds the AI quality rubric (max 5.0) to a sandbox result and recomputes the total.
+        On AI failure the sandbox score is preserved and the rubric is flagged as PENDING,
+        so a student is never silently penalized for infrastructure/quota problems.
+        """
+        sandbox_score = float(result.get("sandbox_score", 0.0) or 0.0)
+        quality: Dict[str, Any] = {
+            "enabled": True,
+            "available": False,
+            "pending": True,
+            "score": 0.0,
+            "max": AI_RUBRIC_MAX_SCORE,
+            "sandbox_score": sandbox_score,
+            "sandbox_max": SANDBOX_MAX_SCORE,
+            "criteria": {},
+            "overall_feedback": "",
+            "tokens_consumed": 0,
+            "message": "Chưa chấm chất lượng bằng AI.",
+        }
+
+        source = read_submission_source(source_file_path)
+        if not source.strip():
+            quality["message"] = "Không đọc được mã nguồn để chấm chất lượng bằng AI."
+        else:
+            res = ai_service.evaluate_code_quality(source, language, problem_statement)
+            if res.get("success"):
+                rubric = res.get("rubric") or {}
+                criteria: Dict[str, Any] = {}
+                passes = 0
+                for key in AI_RUBRIC_CRITERIA:
+                    item = rubric.get(key) or {}
+                    passed = bool(item.get("passed"))
+                    criteria[key] = {
+                        "label": AI_RUBRIC_LABELS.get(key, key),
+                        "passed": passed,
+                        "reason": str(item.get("reason", "") or ""),
+                    }
+                    if passed:
+                        passes += 1
+                quality.update({
+                    "available": True,
+                    "pending": False,
+                    "score": float(passes),
+                    "criteria": criteria,
+                    "overall_feedback": str(res.get("overall_feedback", "") or ""),
+                    "tokens_consumed": int(res.get("tokens_consumed", 0) or 0),
+                    "message": "Đã chấm chất lượng bằng AI.",
+                })
+            else:
+                quality["message"] = res.get("message", "Không thể chấm chất lượng bằng AI.")
+
+        # Điểm Sandbox quy đổi thang 10 (dùng khi rubric AI không khả dụng) — xem `grade_single_submission`.
+        sandbox_full_score = round(float(result.get("sandbox_ratio", 0.0) or 0.0) * 10.0, 1)
+        quality["sandbox_full_score"] = sandbox_full_score
+
+        rubric_score = float(quality["score"]) if quality["available"] else 0.0
+        result["rubric_score"] = rubric_score
+        result["rubric_available"] = bool(quality["available"])
+        if quality["available"]:
+            result["score"] = round(sandbox_score + rubric_score, 1)
+        else:
+            # AI lỗi/hết hạn ngạch: KHÔNG phạt sinh viên — giữ nguyên thang 10 của sandbox,
+            # rubric được đánh dấu PENDING để giảng viên chấm lại sau.
+            result["score"] = sandbox_full_score
+        result["diff_details"] = _attach_quality_payload(result.get("diff_details"), quality)
 
     def _save_result(self, res: Dict[str, Any]) -> None:
         """Persists one graded submission to local SQLite (serialized in the parent process)."""

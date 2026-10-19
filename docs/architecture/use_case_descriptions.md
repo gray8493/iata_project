@@ -573,6 +573,7 @@ Mỗi Use Case được đặc tả bao gồm:
 1. Trong cửa sổ Chi tiết bài nộp (`UC-14`), Giảng viên lựa chọn một trong hai hành động:
    - **Kịch bản Chấm lại**: Giảng viên bấm **"Chấm lại bài này"**.
      - Hệ thống kích hoạt Sandbox Runner thực thi riêng mã nguồn của sinh viên này với bộ testcase hiện tại.
+     - Nếu Giảng viên đã bật tùy chọn **"Chấm chất lượng mã bằng AI" (Hybrid)** ở màn hình chính, hệ thống gọi thêm AI Rubric (`POST /api/v1/ai/evaluate-pe-code`) và cộng 5 tiêu chí chất lượng (tối đa 5đ) vào điểm Sandbox (tối đa 5đ). Nếu tùy chọn đang tắt, hệ thống chạy **Sandbox-only** và giữ thang điểm 10 như lần chấm hàng loạt.
      - Điểm số và verdict mới được cập nhật lại tự động.
    - **Kịch bản Điều chỉnh điểm thủ công**:
      - Giảng viên bấm nút **"Ghi đè điểm thủ công"**.
@@ -583,6 +584,7 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **E1 - Nhập điểm ngoài thang điểm hợp lệ**: Tại bước 1, nếu Giảng viên nhập điểm âm hoặc lớn hơn 10.0, hệ thống báo lỗi: "Điểm số phải nằm trong thang điểm từ 0.0 đến 10.0".
+* **E2 - AI Rubric không khả dụng khi chấm lại**: Nếu đã bật Hybrid nhưng AI Gateway lỗi, hết hạn ngạch hoặc không đọc được mã nguồn, hệ thống **không trừ điểm oan**: điểm được giữ theo thang 10 của Sandbox, rubric đánh dấu `PENDING` trong tab "Chấm Chất Lượng (AI)" để Giảng viên chấm lại sau.
 
 ---
 
@@ -671,7 +673,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Kiểm tra Đạo văn qua Cơ chế Lọc 2 Vòng (Two-Stage Plagiarism Detection)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: AI Hub (cho Vòng 2), AST Parsing Engine cục bộ
-* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 quét cây cú pháp trừu tượng AST / Winnowing 100% offline trên máy trạm để tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc 1-3 cặp bài có độ tương đồng bất thường vượt ngưỡng (> 80%) gửi lên AI Hub để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép phục vụ lập biên bản.
+* **Mô tả tóm tắt**: Hệ thống triển khai quy trình phát hiện sao chép mã nguồn thông minh qua **2 vòng lọc**: Vòng 1 chuẩn hoá token + Winnowing 100% offline trên máy trạm, **so theo từng câu** (Q1 ↔ Q1, Q2 ↔ Q2) nên không bị pha loãng bởi các câu khác, đồng thời đo cả Jaccard lẫn độ bao phủ và loại mã khung sườn chung của lớp — tính toán độ tương đồng giữa toàn bộ các cặp bài nộp trong 0.5 giây mà không tốn token; Vòng 2 chỉ chọn lọc các cặp bài có độ tương đồng bất thường ($\ge 80\%$) gửi lên AI Hub để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép phục vụ lập biên bản.
 * **Tiền điều kiện (Preconditions)**:
   1. Đợt chấm có từ hai bài nộp trở lên của cùng một câu hỏi.
 * **Hậu điều kiện (Postconditions)**:
@@ -680,21 +682,24 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Quét Đạo Văn" (Check Plagiarism)** trên thanh công cụ Desktop App.
 
 ##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên chọn đợt chấm cần kiểm tra, thiết lập ngưỡng cảnh báo (mặc định $\ge 80\%$) và nhấn **"Bắt đầu phân tích"**.
-2. **Vòng 1 - Lọc cục bộ 100% Offline (Local AST Scanning)**:
-   - Hệ thống tiền xử lý mã nguồn của tất cả sinh viên: loại bỏ comment, chuẩn hóa khoảng trắng, đổi tên định danh biến về dạng chuẩn, và biến đổi mã nguồn thành chuỗi token của cây cú pháp trừu tượng (Abstract Syntax Tree - AST).
-   - Thuật toán Winnowing cục bộ so khớp toàn bộ các cặp bài nộp trong lớp ($O(N^2)$ xử lý siêu tốc trong 0.5 giây).
-   - Hệ thống tính toán chỉ số tương đồng (%) cho từng cặp bài và kết xuất danh sách hiển thị trên giao diện theo thứ tự giảm dần.
-3. Nếu không có cặp bài nào vượt ngưỡng $\ge 80\%$, hệ thống thông báo "Không phát hiện nghi vấn sao chép mã nguồn bất thường". Use Case kết thúc.
+1. Giảng viên chọn đợt chấm cần kiểm tra, thiết lập ngưỡng cảnh báo (mặc định $70\%$, chỉnh được trong dải $30\% - 95\%$) và nhấn **"Bắt đầu phân tích"**.
+2. **Vòng 1 - Lọc cục bộ 100% Offline (Local Normalization + Winnowing)**:
+   - Hệ thống tiền xử lý mã nguồn của tất cả sinh viên: loại bỏ comment, che các literal (chuỗi/ký tự/số) và **chuẩn hoá mọi định danh do sinh viên đặt về cùng một placeholder** — nhờ đó thủ thuật đổi tên biến/hàm (`n → m`, `sum → total`) vẫn bị phát hiện; từ khoá và toán tử được giữ nguyên.
+   - **Tách bài theo từng câu**: với đề nhiều câu (bài nộp dạng thư mục `Q1.<ext>`, `Q2.<ext>`, ...), hệ thống dò từng file bằng **cùng logic với lúc chấm điểm** (`Q<nn>`, chấp nhận cả `q1.py` / `Q01.py`) và so **Q1 với Q1, Q2 với Q2**. Nhờ vậy việc chỉ sao chép một câu không bị pha loãng bởi các câu còn lại (nếu gộp cả gói: Q1 giống $100\%$ + Q2 khác $0\%$ chỉ còn $\approx 50\%$ và sẽ lọt dưới ngưỡng).
+   - Thuật toán Winnowing cục bộ băm đặc trưng của từng câu ($k$-gram, với $k$ tự co lại theo bài làm ngắn) rồi so khớp toàn bộ các cặp bài nộp trong lớp ($O(N^2)$ xử lý siêu tốc trong 0.5 giây).
+   - **Loại mã khung sườn dùng chung của lớp**: các gram xuất hiện ở hơn $50\%$ số bài (`#include <stdio.h>`, `int main()`, `Scanner sc = ...`) bị loại khỏi tập đặc trưng để giảm báo động giả trên đề ngắn (chỉ kích hoạt khi lớp có từ 5 bài trở lên).
+   - Hệ thống tính **2 chỉ số tương đồng**: `Jaccard` (phần chung / phần hợp — công bằng khi hai bài dài tương đương) và **độ bao phủ `containment`** (phần chung / bài nhỏ hơn — bắt được kiểu *"dán một hàm của bạn vào bài mình"* mà Jaccard bỏ sót). Điểm hiển thị là chỉ số cao hơn; một cặp chỉ bị báo động khi có tối thiểu 15 đặc trưng trùng nhau (tránh nhiễu với bài cụt).
+   - Danh sách kết quả hiển thị theo thứ tự giảm dần, gộp về **1 dòng cho mỗi cặp sinh viên** kèm cột **"Câu"** cho biết câu nào bị trùng và tooltip chi tiết Jaccard/độ bao phủ của từng câu.
+3. Nếu không có cặp bài nào vượt ngưỡng, hệ thống thông báo "Không phát hiện nghi vấn sao chép mã nguồn bất thường". Use Case kết thúc.
 4. **Vòng 2 - Xác thực chuyên sâu bằng AI (AI Semantic Verification)**:
-   - Với các cặp bài có độ tương đồng vượt ngưỡng $\ge 80\%$ (thường chỉ 1-3 cặp), hệ thống hiển thị cờ cảnh báo đỏ và cho phép Giảng viên bấm **`[✨ AI Phân tích bằng chứng]`**.
+   - Với các cặp bài có độ tương đồng $\ge 80\%$ (thường chỉ 1-3 cặp), hệ thống hiển thị cờ cảnh báo đỏ và cho phép Giảng viên bấm **`[✨ AI Thẩm Định Chuyên Sâu]`**.
    - Desktop App gửi cấu trúc mã nguồn tóm tắt của 2 bài nghi vấn lên AI Hub thông qua Web Backend.
    - AI Hub phân tích các thủ thuật gian lận tinh vi: đổi tên biến, đảo hàm, hoán đổi cấu trúc vòng lặp `for`/`while`, chèn code rác và trả về biên bản tóm tắt bằng chứng sao chép.
 5. Giảng viên bấm vào cặp bài nghi vấn: Desktop App mở giao diện so sánh trực quan song song hai bên (Side-by-side Diff Viewer) với các đoạn code nghi vấn được tô sáng màu đỏ kèm nhận xét bằng chứng từ AI.
 6. Giảng viên xác nhận đánh dấu vi phạm kỷ luật học thuật cho cặp bài nộp. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Tùy chỉnh ngưỡng lọc**: Giảng viên có thể kéo thanh trượt điều chỉnh ngưỡng tương đồng (ví dụ: hạ xuống 70% hoặc nâng lên 90%) để lọc lại danh sách nghi vấn mà không cần quét lại từ đầu.
+* **A1 - Tùy chỉnh ngưỡng lọc**: Giảng viên có thể kéo thanh trượt điều chỉnh ngưỡng tương đồng (ví dụ: hạ xuống 30% hoặc nâng lên 95%) để lọc lại danh sách nghi vấn. Lưu ý: tính năng AI Vòng 2 chỉ nhận cặp bài đạt $\ge 80\%$ theo hợp đồng API của AI Gateway.
 
 ---
 
