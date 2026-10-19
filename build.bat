@@ -119,12 +119,17 @@ if not exist "%ZIP%" (
     goto :fail
 )
 
+rem Exe trong build\ la file trung gian: no KHONG co thu muc _internal\ ben canh nen
+rem chay se bao "Failed to load Python DLL ... python311.dll". Xoa di de khong ai chay nham.
+if exist "%WORK%\AITA_Grader_v1\AITA_Grader_v1.exe" del /q "%WORK%\AITA_Grader_v1\AITA_Grader_v1.exe" >nul 2>&1
+
 echo.
 echo ======================================================================
 echo   BUILD OK
 echo ======================================================================
-echo   Exe folder : %BUNDLE%
 echo   Launcher   : %EXE%
+echo                [ CHI CHAY FILE NAY - thu muc phat hanh co _internal\ ben canh ]
+echo   Exe folder : %BUNDLE%
 echo   Release zip: %ZIP%
 echo   Version    :
 findstr /b "APP_VERSION" "%APP_DIR%\src\core\version.py"
