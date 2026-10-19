@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
     QPlainTextEdit, QTextEdit, QTabWidget, QSplitter, QDoubleSpinBox, QMessageBox,
-    QApplication
+    QApplication, QCheckBox
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -558,8 +558,7 @@ class SubmissionDetailDialog(QDialog):
         self.btn_regrade.setFixedWidth(150)
         self.btn_regrade.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_regrade.setToolTip(
-            "Chạy lại sandbox với bộ testcase hiện tại. "
-            "AI Rubric chỉ được chấm nếu đã bật 'Chấm chất lượng mã bằng AI' ở màn hình chính."
+            "Chạy lại sandbox với bộ testcase hiện tại; có thể chọn chấm kèm AI Rubric trong hộp xác nhận."
         )
         self.btn_regrade.clicked.connect(self._regrade)
         footer.addWidget(self.btn_regrade)
@@ -682,26 +681,32 @@ class SubmissionDetailDialog(QDialog):
             QMessageBox.warning(self, "Không Xác Định", "Không xác định được ID bài nộp để chấm lại!")
             return
 
-        reply = QMessageBox.question(
-            self,
-            "Chấm Lại Bài Nộp",
+        confirm = QMessageBox(self)
+        confirm.setWindowTitle("Chấm Lại Bài Nộp")
+        confirm.setText(
             f"Chạy lại sandbox chấm bài của sinh viên {self.mssv} với bộ testcase hiện tại?\n"
-            + (
-                "Chế độ Hybrid đang bật: AI Rubric (5đ) cũng sẽ được chấm lại và tốn hạn ngạch AI.\n"
-                if self.enable_ai_quality
-                else "Chế độ Sandbox-only: chỉ chấm testcase, không gọi AI Rubric.\n"
-            )
-            + "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ.",
+            "Kết quả và điểm số cũ sẽ bị thay thế trong CSDL cục bộ."
+        )
+        include_rubric = QCheckBox(
+            "Chấm lại AI Rubric (5 điểm; cần đăng nhập và sẽ dùng hạn ngạch AI)", confirm
+        )
+        include_rubric.setChecked(self.enable_ai_quality)
+        confirm.setCheckBox(include_rubric)
+        confirm.setStandardButtons(
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        if reply != QMessageBox.StandardButton.Yes:
+        confirm.setDefaultButton(QMessageBox.StandardButton.Yes)
+        if confirm.exec() != QMessageBox.StandardButton.Yes:
             return
+
+        regrade_with_ai = include_rubric.isChecked()
+        self._last_regrade_included_ai = regrade_with_ai
 
         self.btn_regrade.setEnabled(False)
         self.btn_regrade.setText("Đang Chạy Sandbox Chấm Lại...")
         start_spinner(self, f"Đang chạy sandbox chấm lại bài của {self.mssv}...")
         self.regrade_worker = RegradeWorker(
-            self.submission_id, enable_ai_quality=self.enable_ai_quality, parent=self
+            self.submission_id, enable_ai_quality=regrade_with_ai, parent=self
         )
         self.regrade_worker.regrade_finished.connect(self._on_regrade_finished)
         self.regrade_worker.start()
@@ -720,6 +725,7 @@ class SubmissionDetailDialog(QDialog):
             return
 
         result = res.get("result", {})
+        quality = self._parse_quality_payload(result.get("diff_details"))
         self.verdict = result.get("verdict", self.verdict)
         self.score = f"{result.get('score', 0.0)} / 10"
         try:
@@ -752,8 +758,10 @@ class SubmissionDetailDialog(QDialog):
                 f"{float(result.get('rubric_score', 0.0)):.1f}/{AI_RUBRIC_MAX_SCORE:.0f}"
                 if result.get("rubric_available")
                 else (
-                    "PENDING — AI không chấm được, điểm giữ theo thang 10 của sandbox."
-                    if self.enable_ai_quality
+                    "PENDING — "
+                    f"{(quality or {}).get('message') or 'AI không chấm được.'} "
+                    "Điểm giữ theo thang 10 của sandbox."
+                    if getattr(self, "_last_regrade_included_ai", self.enable_ai_quality)
                     else "Không chấm (chế độ Sandbox-only), điểm theo thang 10."
                 )
             )

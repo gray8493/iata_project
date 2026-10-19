@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { GenerateTestcasesDto } from './dto/generate-testcases.dto';
 import { ReviewCodeDto } from './dto/review-code.dto';
 import { VerifyPlagiarismDto } from './dto/verify-plagiarism.dto';
@@ -167,10 +167,23 @@ Yêu cầu bài toán: ${input.problem_statement || 'Không có mô tả cụ th
 Mã nguồn sinh viên:
 ${input.source_code}`;
 
-    const result = await this.provider.generateJson<Record<string, unknown>>({
-      userId, feature: 'PE_CODE_EVAL', maxOutputTokens: 1000, schema: peCodeSchema,
-      prompt,
-    });
+    const request = {
+      userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 1000, schema: peCodeSchema,
+    };
+    let result;
+    try {
+      result = await this.provider.generateJson<Record<string, unknown>>({ ...request, prompt });
+    } catch (error) {
+      // Một số model/free route bỏ qua JSON schema ở lần đầu. Hướng dẫn lại một lần,
+      // giữ nguyên mã nguồn và rubric, trước khi báo PENDING về desktop client.
+      const response = error instanceof HttpException ? error.getResponse() : null;
+      const errorCode = this.isRecord(response) ? response.error_code : undefined;
+      if (errorCode !== 'AI_INVALID_RESPONSE') throw error;
+      result = await this.provider.generateJson<Record<string, unknown>>({
+        ...request,
+        prompt: `${prompt}\n\nLẦN TRƯỚC PHẢN HỒI KHÔNG ĐÚNG ĐỊNH DẠNG. Hãy trả về DUY NHẤT một JSON object hợp lệ đúng schema; không markdown, không văn bản bên ngoài JSON. Mỗi tiêu chí trong rubric phải có passed (boolean) và reason (string).`,
+      });
+    }
     const data = result.data;
     if (!this.isRecord(data.rubric)) this.invalidResponse();
     return { message: 'Đánh giá chất lượng code PE thành công', data: { tokens_consumed: result.tokensConsumed, ...data } };

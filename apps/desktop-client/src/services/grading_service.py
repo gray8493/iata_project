@@ -628,9 +628,27 @@ class GradingService:
                     f" - lớp {info.get('class_name', '')}."
                 )
                 self._enrich_with_ai_quality(result, sub.get("source_file_path"), language, problem_statement, AiService())
-            except Exception:
-                # Giữ nguyên score/10 của sandbox nếu không dựng được AI service.
-                pass
+            except Exception as exc:
+                # Giữ điểm Sandbox nhưng lưu nguyên nhân để giảng viên biết vì sao Rubric PENDING.
+                sandbox_score = float(result.get("sandbox_score", 0.0) or 0.0)
+                quality = {
+                    "enabled": True,
+                    "available": False,
+                    "pending": True,
+                    "score": 0.0,
+                    "max": AI_RUBRIC_MAX_SCORE,
+                    "sandbox_score": sandbox_score,
+                    "sandbox_max": SANDBOX_MAX_SCORE,
+                    "sandbox_full_score": round(float(result.get("sandbox_ratio", 0.0) or 0.0) * 10.0, 1),
+                    "criteria": {},
+                    "overall_feedback": "",
+                    "tokens_consumed": 0,
+                    "message": f"Không thể khởi chạy AI Rubric: {exc}",
+                }
+                result["rubric_score"] = 0.0
+                result["rubric_available"] = False
+                result["score"] = quality["sandbox_full_score"]
+                result["diff_details"] = _attach_quality_payload(result.get("diff_details"), quality)
 
         self._save_result(result)
         return result
