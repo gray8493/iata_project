@@ -80,6 +80,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 | POST   | /api/v1/ai/review-code               | AI Hub    | Phân tích lỗi sư phạm On-Demand (UC-16)|
 | POST   | /api/v1/ai/verify-plagiarism         | AI Hub    | Xác thực nghi vấn đạo văn >80% (UC-17) |
 | POST   | /api/v1/ai/evaluate-web-ui           | AI Hub    | Đánh giá thẩm mỹ giao diện Web (UC-19) |
+| POST   | /api/v1/ai/evaluate-pe-code          | AI Hub    | Chấm chất lượng code PE White-box (UC-19) |
 +--------+--------------------------------------+-----------+----------------------------------------+
 | GET    | /api/v1/admin/reports/overview       | Reports   | Thống kê kiểm toán người dùng & AI     |
 | GET    | /api/v1/admin/reports/ai-usage       | Reports   | Nhật ký AI có lọc theo User/thời gian  |

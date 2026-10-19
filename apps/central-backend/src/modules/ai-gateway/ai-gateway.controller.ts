@@ -13,6 +13,7 @@ import { EvaluateWebUiDto } from './dto/evaluate-web-ui.dto';
 import { GenerateTestcasesDto } from './dto/generate-testcases.dto';
 import { ReviewCodeDto } from './dto/review-code.dto';
 import { VerifyPlagiarismDto } from './dto/verify-plagiarism.dto';
+import { EvaluatePeCodeDto } from './dto/evaluate-pe-code.dto';
 
 @ApiTags('AI Hub')
 @ApiBearerAuth()
@@ -50,4 +51,8 @@ export class AiGatewayController {
   @Post('evaluate-web-ui')
   @Throttle({ default: { limit: 15, ttl: 60_000 } })
   evaluateWebUi(@CurrentUser() user: AuthUser, @Body() dto: EvaluateWebUiDto) { return this.ai.evaluateWebUi(user.id, dto); }
+
+  @Post('evaluate-pe-code')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  evaluatePeCode(@CurrentUser() user: AuthUser, @Body() dto: EvaluatePeCodeDto) { return this.ai.evaluatePeCode(user.id, dto); }
 }

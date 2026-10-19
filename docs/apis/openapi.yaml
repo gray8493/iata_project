@@ -514,6 +514,46 @@ paths:
                   timestamp:
                     type: string
 
+  /ai/evaluate-pe-code:
+    post:
+      tags:
+        - AI Hub
+      summary: Chấm chất lượng mã nguồn PE theo 5 tiêu chí Rubric (White-box, Hybrid 5đ)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluatePeCodeRequest'
+      responses:
+        '200':
+          description: Chấm chất lượng mã nguồn thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status_code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/PeCodeEvaluationData'
+                  timestamp:
+                    type: string
+        '429':
+          description: Hết hạn ngạch token trong ngày (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
   # ============================================================================
   # 5. ADMIN REPORTS ENDPOINTS
   # ============================================================================
@@ -1284,6 +1324,60 @@ components:
                 type: string
         overall_feedback:
           type: string
+
+    EvaluatePeCodeRequest:
+      type: object
+      required:
+        - source_code
+        - language
+      properties:
+        source_code:
+          type: string
+          minLength: 10
+          maxLength: 20000
+          description: Mã nguồn bài làm của sinh viên
+        language:
+          type: string
+          enum: [C, JAVA, PYTHON, PHP]
+        problem_statement:
+          type: string
+          maxLength: 5000
+          description: Mô tả yêu cầu bài toán (tùy chọn) giúp AI chấm chất lượng chính xác hơn
+
+    PeCodeEvaluationData:
+      type: object
+      properties:
+        tokens_consumed:
+          type: integer
+          example: 950
+        rubric:
+          type: object
+          description: Kết quả 5 tiêu chí, mỗi tiêu chí PASS = 1.0 điểm (tối đa 5.0)
+          properties:
+            clean_code:
+              $ref: '#/components/schemas/PeRubricCriterion'
+            complexity:
+              $ref: '#/components/schemas/PeRubricCriterion'
+            structure:
+              $ref: '#/components/schemas/PeRubricCriterion'
+            format:
+              $ref: '#/components/schemas/PeRubricCriterion'
+            documentation:
+              $ref: '#/components/schemas/PeRubricCriterion'
+        overall_feedback:
+          type: string
+
+    PeRubricCriterion:
+      type: object
+      required:
+        - passed
+        - reason
+      properties:
+        passed:
+          type: boolean
+        reason:
+          type: string
+          description: Giải thích ngắn gọn bằng tiếng Việt vì sao đạt/không đạt tiêu chí
 
     # --------------------------------------------------------------------------
     # SCHEMAS CHO BÁO CÁO ADMIN

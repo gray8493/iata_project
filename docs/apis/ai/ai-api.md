@@ -5,7 +5,7 @@
 
 ---
 
-## 1. Danh Sách Endpoints (6 APIs)
+## 1. Danh Sách Endpoints (7 APIs)
 
 | Method | Endpoint | Use Case | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -15,6 +15,7 @@
 | `POST` | `/api/v1/ai/review-code` | UC-16 | Phân tích lỗi và sinh nhận xét sư phạm On-Demand cho bài WA |
 | `POST` | `/api/v1/ai/verify-plagiarism` | UC-17 | Xác thực ngữ nghĩa nghi vấn đạo văn > 80% (Vòng 2) |
 | `POST` | `/api/v1/ai/evaluate-web-ui` | UC-19 | Đánh giá giao diện Web qua ảnh chụp màn hình Multimodal |
+| `POST` | `/api/v1/ai/evaluate-pe-code` | UC-19 | Chấm chất lượng mã nguồn PE (White-box, 5 tiêu chí Rubric) |
 
 ---
 
@@ -169,3 +170,36 @@
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
 ```
+
+---
+
+### 2.6. `POST /api/v1/ai/evaluate-pe-code` (UC-19 PE White-box)
+- **Mục đích**: Chấm nửa điểm chất lượng (tối đa 5.0) của mô hình Hybrid `Sandbox 5đ + AI Rubric 5đ`.
+- **Ràng buộc đầu vào**:
+  - `source_code`: 10-20000 ký tự, bắt buộc.
+  - `language`: enum `C | JAVA | PYTHON | PHP`, bắt buộc.
+  - `problem_statement`: chuỗi tùy chọn, tối đa 5000 ký tự.
+- **5 tiêu chí Rubric** (mỗi tiêu chí `passed = true` được 1.0 điểm): `clean_code`, `complexity`, `structure`, `format`, `documentation`.
+
+#### Kịch bản phản hồi:
+* **Thành công (`success: true`) - HTTP 200 OK**:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Đánh giá chất lượng code PE thành công",
+  "data": {
+    "tokens_consumed": 950,
+    "rubric": {
+      "clean_code": { "passed": true, "reason": "Tên biến rõ nghĩa, tuân thủ snake_case." },
+      "complexity": { "passed": true, "reason": "Thuật toán O(n), không lặp lồng vô lý." },
+      "structure": { "passed": false, "reason": "Toàn bộ logic dồn vào hàm main." },
+      "format": { "passed": true, "reason": "Thụt lề chuẩn, không có code rác." },
+      "documentation": { "passed": false, "reason": "Thiếu comment giải thích logic chính." }
+    },
+    "overall_feedback": "Code chạy tốt, cần tách hàm và thêm comment để dễ bảo trì."
+  },
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+* **Hết hạn ngạch (`success: false`) - HTTP 429**: `error_code = AI_QUOTA_EXCEEDED`.

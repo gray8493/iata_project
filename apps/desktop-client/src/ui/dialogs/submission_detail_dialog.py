@@ -31,6 +31,9 @@ from ui.styles.theme import LIGHT_THEME_QSS
 from ui.components import start_spinner, stop_spinner
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.grading_service import (
+    AI_RUBRIC_CRITERIA, AI_RUBRIC_LABELS, SANDBOX_MAX_SCORE, AI_RUBRIC_MAX_SCORE
+)
 
 
 class AiReviewWorker(QThread):
@@ -58,14 +61,17 @@ class RegradeWorker(QThread):
     """Re-grades this single submission off the UI thread (UC-15)."""
     regrade_finished = pyqtSignal(dict)
 
-    def __init__(self, submission_id: int, parent=None):
+    def __init__(self, submission_id: int, enable_ai_quality: bool = True, parent=None):
         super().__init__(parent)
         self.submission_id = submission_id
+        self.enable_ai_quality = enable_ai_quality
 
     def run(self):
         from services.grading_service import GradingService
         try:
-            result = GradingService().regrade_submission(self.submission_id)
+            result = GradingService().regrade_submission(
+                self.submission_id, enable_ai_quality=self.enable_ai_quality
+            )
             self.regrade_finished.emit({"success": True, "result": result})
         except Exception as ex:
             self.regrade_finished.emit({"success": False, "message": str(ex)})
@@ -460,8 +466,11 @@ class SubmissionDetailDialog(QDialog):
         
         # 7. Tab 1 không dùng icon
         self.tabs.addTab(tab_tc, "Chi Tiết Testcase")
-        
-        # TAB 2: AI Nhận Xét Mã (8. Đổi tên từ 'AI Code Review (WA Only)' thành 'AI Nhận Xét Mã')
+
+        # TAB 2: Chấm Chất Lượng Bằng AI (Hybrid Rubric 5đ + Sandbox 5đ)
+        self.tabs.addTab(self._build_quality_tab(), "Chấm Chất Lượng (AI)")
+
+        # TAB 3: AI Nhận Xét Mã (8. Đổi tên từ 'AI Code Review (WA Only)' thành 'AI Nhận Xét Mã')
         tab_ai = QWidget()
         ta_layout = QVBoxLayout(tab_ai)
         ta_layout.setSpacing(10)
@@ -493,8 +502,8 @@ class SubmissionDetailDialog(QDialog):
         
         # 8. Làm mờ (disabled) tab AI khi bài không ở trạng thái WA
         if self.verdict != "WA":
-            self.tabs.setTabEnabled(1, False)
-            self.tabs.setTabToolTip(1, "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)")
+            self.tabs.setTabEnabled(2, False)
+            self.tabs.setTabToolTip(2, "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)")
             
         # TAB 3: Ghi Đè Điểm Thủ Công (7. Bỏ icon)
         tab_override = QWidget()
@@ -555,6 +564,65 @@ class SubmissionDetailDialog(QDialog):
         btn_close.clicked.connect(self.accept)
         footer.addWidget(btn_close)
         layout.addLayout(footer)
+
+    def _build_quality_tab(self) -> QWidget:
+        """Tab hiển thị điểm Hybrid: Sandbox (5đ) + AI Rubric (5 tiêu chí x 1đ)."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        self.lbl_quality_summary = QLabel(tab)
+        self.lbl_quality_summary.setWordWrap(True)
+        self.lbl_quality_summary.setText("Chưa có dữ liệu chấm chất lượng cho bài nộp này.")
+        self.lbl_quality_summary.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                font-weight: 700;
+                color: #1E293B;
+                background-color: #F1F5F9;
+                border: 1px solid #E2E8F0;
+                border-radius: 8px;
+                padding: 10px;
+                line-height: 1.4;
+            }
+        """)
+        layout.addWidget(self.lbl_quality_summary)
+
+        self.table_quality = QTableWidget(5, 3, tab)
+        self.table_quality.setHorizontalHeaderLabels(["Tiêu chí (Rubric)", "Kết quả", "Lý do / Nhận xét của AI"])
+        self.table_quality.verticalHeader().setVisible(False)
+        q_header = self.table_quality.horizontalHeader()
+        q_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table_quality.setColumnWidth(0, 250)
+        q_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.table_quality.setColumnWidth(1, 90)
+        q_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table_quality.setMinimumHeight(190)
+        layout.addWidget(self.table_quality)
+
+        lbl_feedback = QLabel("Nhận xét tổng quan từ AI Hub:", tab)
+        lbl_feedback.setStyleSheet("font-weight: 700; font-size: 12px; color: #1E293B;")
+        layout.addWidget(lbl_feedback)
+
+        self.txt_quality_feedback = QTextEdit(tab)
+        self.txt_quality_feedback.setReadOnly(True)
+        self.txt_quality_feedback.setPlaceholderText(
+            "Bật 'Chấm chất lượng mã bằng AI' khi chấm (hoặc bấm 'Chấm Lại Bài Này') để nhận nhận xét tổng quan."
+        )
+        self.txt_quality_feedback.setStyleSheet("""
+            QTextEdit {
+                font-family: 'Inter', sans-serif;
+                font-size: 13px;
+                background-color: #FFFFFF;
+                border: 1px solid #CBD5E1;
+                border-radius: 8px;
+                padding: 12px;
+                line-height: 1.45;
+            }
+        """)
+        layout.addWidget(self.txt_quality_feedback, stretch=1)
+        return tab
 
     def _open_environment_settings(self):
         """Mở cửa sổ cấu hình môi trường biên dịch."""
@@ -650,9 +718,9 @@ class SubmissionDetailDialog(QDialog):
 
         # Tab AI chỉ kích hoạt cho bài sinh viên chạy được nhưng sai kết quả (WA)
         is_wa = (self.verdict == "WA")
-        self.tabs.setTabEnabled(1, is_wa)
+        self.tabs.setTabEnabled(2, is_wa)
         self.tabs.setTabToolTip(
-            1,
+            2,
             "Chỉ áp dụng cho bài chạy được nhưng sai kết quả (WA)" if not is_wa else ""
         )
 
@@ -694,6 +762,81 @@ class SubmissionDetailDialog(QDialog):
         if not isinstance(items, list) or not items:
             return None
         return [it for it in items if isinstance(it, dict)]
+
+    @staticmethod
+    def _parse_quality_payload(raw_details: Any) -> Optional[Dict[str, Any]]:
+        """Đọc khối `quality` (AI rubric) mà GradingService lưu trong cột diff_details."""
+        if not raw_details or not isinstance(raw_details, str):
+            return None
+        try:
+            parsed = json.loads(raw_details)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        quality = parsed.get("quality")
+        return quality if isinstance(quality, dict) else None
+
+    def _render_quality(self, quality: Optional[Dict[str, Any]], result: Dict[str, Any]) -> None:
+        """Hiển thị điểm Sandbox + 5 tiêu chí AI Rubric (nếu có) cho bài nộp này."""
+        total = result.get("calculated_score")
+        try:
+            total_val = float(total) if total is not None else None
+        except (TypeError, ValueError):
+            total_val = None
+
+        if not quality:
+            self.lbl_quality_summary.setText(
+                "Bài này chưa chấm chất lượng bằng AI (chế độ Sandbox-only). "
+                "Tổng điểm được quy đổi toàn bộ từ tỷ lệ testcase PASS."
+            )
+            self.table_quality.setRowCount(0)
+            self.txt_quality_feedback.setPlainText("")
+            return
+
+        sandbox = float(quality.get("sandbox_score", 0.0) or 0.0)
+        sandbox_max = float(quality.get("sandbox_max", SANDBOX_MAX_SCORE) or SANDBOX_MAX_SCORE)
+        rubric = float(quality.get("score", 0.0) or 0.0)
+        rubric_max = float(quality.get("max", AI_RUBRIC_MAX_SCORE) or AI_RUBRIC_MAX_SCORE)
+
+        if quality.get("pending"):
+            summary = (
+                f"Sandbox: {sandbox:.1f}/{sandbox_max:.0f}  |  "
+                f"Rubric AI: PENDING — {quality.get('message', 'chưa chấm được bằng AI.')}"
+            )
+        else:
+            total_txt = f"{total_val:.1f}" if total_val is not None else "—"
+            summary = (
+                f"Sandbox: {sandbox:.1f}/{sandbox_max:.0f}  +  "
+                f"Rubric AI: {rubric:.1f}/{rubric_max:.0f}  =  Tổng: {total_txt}/10"
+            )
+        self.lbl_quality_summary.setText(summary)
+
+        criteria = quality.get("criteria", {}) or {}
+        keys = [k for k in AI_RUBRIC_CRITERIA]
+        self.table_quality.setRowCount(len(keys))
+        for r, key in enumerate(keys):
+            item = criteria.get(key, {}) or {}
+            label = item.get("label") or AI_RUBRIC_LABELS.get(key, key)
+            passed = bool(item.get("passed"))
+            reason = str(item.get("reason", "") or "")
+
+            cell_label = QTableWidgetItem(label)
+            cell_label.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            self.table_quality.setItem(r, 0, cell_label)
+
+            cell_result = QTableWidgetItem("PASS" if passed else "FAIL")
+            cell_result.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            cell_result.setFont(QFont("Inter", 9, QFont.Weight.Bold))
+            cell_result.setForeground(Qt.GlobalColor.darkGreen if passed else Qt.GlobalColor.red)
+            self.table_quality.setItem(r, 1, cell_result)
+
+            cell_reason = QTableWidgetItem(reason)
+            cell_reason.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            cell_reason.setToolTip(reason)
+            self.table_quality.setItem(r, 2, cell_reason)
+
+        self.txt_quality_feedback.setPlainText(str(quality.get("overall_feedback", "") or ""))
 
     @staticmethod
     def _truncate_cell(text: str, limit: int = 35) -> str:
@@ -845,6 +988,9 @@ class SubmissionDetailDialog(QDialog):
 
         # Pain #4: tăng cường bảng bằng chứng lấy output thật theo từng testcase đã chạy
         evidence_items = self._parse_evidence_items(result.get("diff_details"))
+
+        # Hybrid: hiển thị điểm Sandbox + 5 tiêu chí AI Rubric (nếu bài đã chấm bằng AI)
+        self._render_quality(self._parse_quality_payload(result.get("diff_details")), result)
 
         # Nếu có danh sách testcase thật trong CSDL
         if real_testcases:
