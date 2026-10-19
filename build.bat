@@ -111,9 +111,11 @@ if "%SELFTEST_OK%"=="1" (
 )
 
 rem --- 6/6 Package -----------------------------------------------------------
+rem Zip PHAI de file ngay o goc (khong boc trong thu muc AITA_Grader_v1\): client
+rem giai nen payload roi robocopy payload -> install_dir, them 1 cap thu muc se lam hong.
 echo [6/6] Packing %ZIP% ...
 if exist "%ZIP%" del "%ZIP%" >nul 2>&1
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -LiteralPath '%BUNDLE%' -DestinationPath '%ZIP%' -CompressionLevel Optimal -Force"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%BUNDLE%\*' -DestinationPath '%ZIP%' -CompressionLevel Optimal -Force"
 if not exist "%ZIP%" (
     echo [ERROR] Could not create the zip package.
     goto :fail
