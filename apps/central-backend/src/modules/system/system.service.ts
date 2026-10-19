@@ -23,8 +23,10 @@ export class SystemService {
   constructor(private readonly config: ConfigService) {}
 
   getVersionManifest(): VersionManifest {
-    const read = (key: string, fallback = ''): string =>
-      (this.config.get<string>(key) ?? fallback).trim();
+    // Lưu ý: Joi trong `app.module.ts` đã ép kiểu sẵn, nên ConfigService.get() trả về
+    // `boolean` (APP_UPDATE_MANDATORY) hoặc `number` (APP_UPDATE_SIZE_WINDOWS) — không
+    // phải chuỗi. Phải ép về chuỗi trước khi trim, nếu không endpoint sẽ ném TypeError 500.
+    const read = (key: string, fallback = ''): string => String(this.config.get(key) ?? fallback).trim();
 
     const artifactType = read('APP_UPDATE_ARTIFACT_TYPE', 'zip').toLowerCase() === 'exe' ? 'exe' : 'zip';
     const sizeRaw = Number(read('APP_UPDATE_SIZE_WINDOWS', '0'));
