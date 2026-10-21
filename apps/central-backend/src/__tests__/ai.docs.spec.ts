@@ -446,6 +446,40 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
+  describe('UT03_AiGenerateTestcases_TC020: AI đổi tên khoá, bọc lồng hoặc trả số vẫn dùng được', () => {
+    it('nhận key test_cases và các khoá viết tắt expected/stdout/stdin/boundary', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          test_cases: [
+            { input: 5, expected: 15, note: 'tổng 0..5' },
+            { stdin: '3', stdout: '6', boundary: 'true' },
+          ],
+        },
+        tokensConsumed: 250,
+      });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 2 } as GenerateTestcasesDto);
+      expect((result.data as any).testcases).toEqual([
+        { input: '5', expected_output: '15', explanation: 'tổng 0..5', is_boundary: false },
+        { input: '3', expected_output: '6', explanation: '', is_boundary: true },
+      ]);
+    });
+
+    it('nhận mảng bọc trong object lồng nhau', async () => {
+      provider.generateJson.mockResolvedValue({ data: { data: { testcases: makeTestcases(2) } }, tokensConsumed: 120 });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 2 } as GenerateTestcasesDto);
+      expect((result.data as any).testcases).toHaveLength(2);
+    });
+
+    it('nhận dạng object đánh số thay vì mảng', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: { '1': { input: 'a', expected_output: 'A' }, '2': { input: 'b', expected_output: 'B' } },
+        tokensConsumed: 90,
+      });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 2 } as GenerateTestcasesDto);
+      expect((result.data as any).testcases.map((item: any) => item.expected_output)).toEqual(['A', 'B']);
+    });
+  });
+
   // =========================================================================
   // PHẦN 3: POST /api/v1/ai/review-code
   // =========================================================================

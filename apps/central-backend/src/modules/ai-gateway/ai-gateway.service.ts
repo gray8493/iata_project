@@ -109,8 +109,11 @@ ${input.problem_description}`;
       userId, feature: 'TESTCASE_GEN', maxOutputTokens: 4000, schema: testcaseSchema,
       prompt,
     });
-    const testcases = this.collectTestcases(result.data?.testcases, input.count);
-    if (testcases.length === 0) this.invalidResponse();
+    const testcases = this.collectTestcases(result.data, input.count);
+    if (testcases.length === 0) {
+      this.logger.warn(`AI testcase response unusable (dạng dữ liệu: ${this.describeShape(result.data)}).`);
+      this.invalidResponse();
+    }
     if (testcases.length !== input.count) {
       this.logger.warn(`AI trả về ${testcases.length}/${input.count} testcase hợp lệ - dùng phần hợp lệ.`);
     }
@@ -287,32 +290,75 @@ LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một 
    * Chuẩn hoá danh sách testcase AI trả về thay vì bắt lỗi tuyệt đối.
    *
    * Model (nhất là model free của OpenRouter) thường bỏ `is_boundary`/`explanation`
-   * — hai trường mà JSON Schema bắt buộc nhưng trước đây prompt không hề nhắc — hoặc
-   * trả ít/thừa hơn `count`. Mọi sai lệch đó từng bị coi là "phản hồi sai cấu trúc"
-   * nên trả 502 AI_INVALID_RESPONSE, khiến riêng tính năng sinh testcase hỏng trong
-   * khi các tính năng AI khác vẫn chạy. Nay: giữ item dùng được, tối đa `count`,
-   * thiếu trường thì điền mặc định.
+   * — hai trường mà JSON Schema bắt buộc nhưng trước đây prompt không hề nhắc — đổi
+   * tên khoá (`test_cases`, `expected`, `stdout`), bọc thêm một lớp
+   * (`{ data: { testcases: [...] } }`), trả số thay vì chuỗi, hoặc trả ít/thừa hơn
+   * `count`. Mọi sai lệch đó từng bị coi là "phản hồi sai cấu trúc" nên trả 502
+   * AI_INVALID_RESPONSE, khiến riêng tính năng sinh testcase hỏng trong khi các tính
+   * năng AI khác vẫn chạy. Nay: giữ item dùng được, tối đa `count`, thiếu trường thì
+   * điền mặc định.
    */
   private collectTestcases(raw: unknown, count: number): GeneratedTestcase[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
+    const list = this.extractTestcaseArray(raw);
+    if (!list) return [];
+    return list
       .map((item) => this.normalizeTestcase(item))
       .filter((item): item is GeneratedTestcase => item !== null)
       .slice(0, count);
   }
 
+  /** Tìm mảng testcase trong phản hồi bất kể tên khoá hay lớp bọc mà model tự chọn. */
+  private extractTestcaseArray(raw: unknown): unknown[] | null {
+    if (Array.isArray(raw)) return raw;
+    if (!this.isRecord(raw)) return null;
+    for (const key of ['testcases', 'test_cases', 'tests', 'cases', 'testcase', 'danh_sach_testcase']) {
+      const value = raw[key];
+      if (Array.isArray(value)) return value;
+    }
+    for (const value of Object.values(raw)) {
+      const nested = this.extractTestcaseArray(value);
+      if (nested) return nested;
+    }
+    // Dạng {"1": {...}, "2": {...}}: model đánh số thay vì trả mảng.
+    const values = Object.values(raw);
+    if (values.length > 0 && values.every((item) => this.isRecord(item) && ('input' in item || 'expected_output' in item))) return values;
+    return null;
+  }
+
   private normalizeTestcase(value: unknown): GeneratedTestcase | null {
     if (!this.isRecord(value)) return null;
-    const input = typeof value.input === 'string' ? value.input : '';
-    const expectedOutput = typeof value.expected_output === 'string' ? value.expected_output : '';
+    const input = this.pickText(value, ['input', 'stdin', 'input_data', 'dau_vao']);
+    const expectedOutput = this.pickText(value, ['expected_output', 'expected', 'output', 'stdout', 'dau_ra']);
     // Ca không có cả input lẫn output là rác, bỏ; input rỗng vẫn hợp lệ (bài không đọc stdin).
     if (!input.trim() && !expectedOutput.trim()) return null;
+    const boundary = value.is_boundary ?? value.boundary ?? value.la_bien;
     return {
       input,
       expected_output: expectedOutput,
-      explanation: typeof value.explanation === 'string' ? value.explanation : '',
-      is_boundary: value.is_boundary === true || String(value.is_boundary ?? '').toLowerCase() === 'true',
+      explanation: this.pickText(value, ['explanation', 'note', 'reason', 'giai_thich']),
+      is_boundary: boundary === true || (boundary !== undefined && boundary !== null && String(boundary).toLowerCase() === 'true'),
     };
+  }
+
+  /** Mô tả ngắn dạng dữ liệu model trả về để ghi log khi không dùng được testcase nào. */
+  private describeShape(value: unknown): string {
+    try {
+      const text = JSON.stringify(value);
+      if (!text) return String(value);
+      return text.length > 300 ? `${text.slice(0, 300)}...` : text;
+    } catch {
+      return typeof value;
+    }
+  }
+
+  /** Lấy chuỗi đầu tiên có trong object; số/boolean được ép sang chuỗi vì model hay trả `"6"` thành `6`. */
+  private pickText(source: Record<string, unknown>, keys: string[]): string {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    }
+    return '';
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
