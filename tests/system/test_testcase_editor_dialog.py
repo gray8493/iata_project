@@ -91,8 +91,11 @@ def test_st05_testcaseeditor_tc001_lists_testcases_of_question(qapp, db_session)
     assert len(dlg.testcases) == 3
     assert dlg.lbl_totals.text() == "3 testcase, tổng trọng số 4.0"
     assert dlg.list_tc.count() == 3
-    # Testcase 3 có giới hạn riêng -> tự nhận là "ghi đè"
-    assert [tc["override_limits"] for tc in dlg.testcases] == [False, False, True]
+    # Giới hạn thời gian/bộ nhớ không còn nhập trong dialog (đó là cấu hình chung).
+    assert not hasattr(dlg, "sp_q_time") and not hasattr(dlg, "chk_override")
+    # Testcase đã có vẫn giữ nguyên giới hạn đang lưu.
+    assert dlg.testcases[2]["time_limit_ms"] == 1500
+    assert dlg.testcases[2]["memory_limit_mb"] == 256
 
 
 def test_st05_testcaseeditor_tc002_saves_edited_multi_line_content(qapp, db_session, monkeypatch):
@@ -272,25 +275,28 @@ def test_st05_testcaseeditor_tc011_reorder_is_persisted(qapp, db_session, monkey
     assert [tc["input_data"] for tc in reopened.testcases] == expected
 
 
-def test_st05_testcaseeditor_tc012_question_limits_apply_without_override(qapp, db_session, monkeypatch):
-    """ST05_TestcaseEditor_TC012: giới hạn câu hỏi áp cho testcase không ghi đè (biên)."""
+def test_st05_testcaseeditor_tc012_new_testcase_inherits_question_limits(qapp, db_session, monkeypatch):
+    """ST05_TestcaseEditor_TC012: testcase mới kế thừa giới hạn phổ biến của câu (biên)."""
     db, class_id = db_session
     _silence(monkeypatch)
     dlg = TestcaseEditDialog(db=db, class_id=class_id, question_number="Q1")
 
-    dlg.sp_q_time.setValue(2000)
-    dlg.sp_q_mem.setValue(256)
+    # Giới hạn phổ biến nhất của Q1 là 1000 ms / 128 MB (2/3 testcase).
+    assert (dlg.q_time, dlg.q_mem) == (1000, 128)
+    # Testcase đã có giữ nguyên giá trị đang lưu (testcase 3 là 1500 ms / 256 MB).
+    assert dlg.testcases[2]["time_limit_ms"] == 1500
+    assert dlg.testcases[2]["memory_limit_mb"] == 256
 
-    assert dlg.testcases[0]["time_limit_ms"] == 2000 and dlg.testcases[0]["memory_limit_mb"] == 256
-    # Testcase 3 đang ghi đè nên giữ nguyên giá trị riêng
-    assert dlg.testcases[2]["time_limit_ms"] == 1500 and dlg.testcases[2]["memory_limit_mb"] == 256
+    dlg._add_testcase()
+    assert dlg.testcases[-1]["time_limit_ms"] == 1000
+    assert dlg.testcases[-1]["memory_limit_mb"] == 128
 
-    dlg.list_tc.setCurrentRow(2)
-    assert dlg.chk_override.isChecked() is True
-
+    _type(dlg.f_input, "10")
+    _type(dlg.f_output, "20")
     assert dlg._save(keep_open=False) is True
+
     rows = {row["input_data"]: row for row in _q1_rows(db, class_id)}
-    assert rows["1 2"]["time_limit_ms"] == 2000
+    assert rows["10"]["time_limit_ms"] == 1000
     assert rows["7"]["time_limit_ms"] == 1500
 
 

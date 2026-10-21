@@ -186,7 +186,7 @@ Normal
 
 #### Kết quả kỳ vọng (Expected Result)
 - Trả về `message = "Phân tích bằng chứng đạo văn thành công"`.
-- `data` gồm `is_plagiarized`, `confidence_percentage` trong [0,100], `evidence_summary`, và `cloned_segments` đúng cấu trúc.
+- `data` gồm `ket_luan` (string tiếng Việt), `do_tin_cay` trong [0,100], `bang_chung` (mảng `{mo_ta, dong_a[2], dong_b[2]}`), `khac_biet`, `de_xuat` đúng cấu trúc.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
@@ -331,7 +331,7 @@ Normal
 #### Tiền điều kiện (Pre-condition)
 
 - Đợt chấm có 3 testcase thuộc câu `Q1` (trọng số 1.0, 2.0, 1.0) và 1 testcase thuộc `Q2`.
-- Testcase thứ 3 của `Q1` có giới hạn riêng (1500 ms, 256 MB) khác mặc định câu hỏi.
+- Testcase thứ 3 của `Q1` có giới hạn riêng (1500 ms, 256 MB), hai testcase còn lại 1000 ms / 128 MB.
 
 #### Các bước thực hiện (Test Steps)
 
@@ -342,7 +342,7 @@ Normal
 
 - Cột trái hiển thị đúng 3 testcase của `Q1`, không lẫn testcase của `Q2`.
 - Nhãn tổng hiển thị `3 testcase, tổng trọng số 4.0`.
-- Testcase có giới hạn riêng tự bật sẵn tuỳ chọn **Ghi đè giới hạn**.
+- Form chi tiết chỉ có **Câu Hỏi** và **Trọng Số Điểm**; không còn ô giới hạn thời gian/bộ nhớ (đó là cấu hình chung của ứng dụng).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -639,7 +639,7 @@ Boundary
 
 ---
 
-# ST05_TestcaseEditor_TC012: Giới hạn của câu hỏi áp cho testcase không ghi đè
+# ST05_TestcaseEditor_TC012: Testcase mới kế thừa giới hạn phổ biến của câu hỏi
 
 #### Loại test
 
@@ -647,25 +647,25 @@ Boundary
 
 #### Tiền điều kiện (Pre-condition)
 
-- `Q1` có 3 testcase; mặc định câu hỏi là 1000 ms / 128 MB; testcase 3 ghi đè 1500 ms / 256 MB.
+- `Q1` có 3 testcase đã lưu: testcase 1–2 dùng 1000 ms / 128 MB, testcase 3 dùng 1500 ms / 256 MB.
 
 #### Các bước thực hiện (Test Steps)
 
-1. Đổi **Giới Hạn Thời Gian (ms)** của câu hỏi thành `2000`, **Giới Hạn Bộ Nhớ (MB)** thành `256`.
-2. Chọn testcase 3 để kiểm tra tuỳ chọn ghi đè.
+1. Mở hộp thoại testcase của `Q1` (không có ô nhập giới hạn thời gian/bộ nhớ).
+2. Bấm **Thêm Testcase**, nhập stdin `10`, stdout `20`.
 3. Bấm **Lưu**.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Testcase 1, 2 nhận 2000 ms / 256 MB.
-- Testcase 3 giữ 1500 ms (đang ghi đè) và vẫn bật **Ghi đè giới hạn**.
-- CSDL lưu đúng hai nhóm giá trị trên.
+- Testcase mới nhận giới hạn phổ biến nhất của câu: 1000 ms / 128 MB.
+- Testcase 3 giữ nguyên 1500 ms / 256 MB (không bị đổi ngầm).
+- CSDL lưu đúng các giá trị trên.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :---: | :---: | :--- | :--- | :---: | :---: | :--- |
-| Lần 1 | 21/10/2026 | Pytest Runner | Nhóm không ghi đè nhận 2000 ms, nhóm ghi đè giữ 1500 ms | 16 ms | ✅ PASSED |  |
+| Lần 1 | 21/10/2026 | Pytest Runner | Testcase mới 1000 ms / 128 MB, testcase 3 giữ 1500 ms | 16 ms | ✅ PASSED | Không đổi schema |
 
 ---
 

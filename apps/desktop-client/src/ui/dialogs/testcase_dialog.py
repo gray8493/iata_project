@@ -148,9 +148,11 @@ class TestcaseEditDialog(QDialog):
     - Chân: Hủy / Lưu và Thêm Tiếp / Lưu.
 
     Kiểu lưu CSDL KHÔNG đổi: mỗi testcase vẫn là cặp chuỗi `input_data` /
-    `expected_output` với các dòng nối bằng "\\n"; giới hạn thời gian/bộ nhớ vẫn
-    lưu trên từng testcase như trước (testcase không ghi đè thì lưu đúng giá trị
-    mặc định của câu hỏi).
+    `expected_output` với các dòng nối bằng "\\n".
+
+    Giới hạn thời gian/bộ nhớ không nhập trong hộp thoại này (đó là cấu hình chung
+    của ứng dụng); mỗi testcase vẫn lưu `time_limit_ms` / `memory_limit_mb` như trước,
+    testcase mới kế thừa giới hạn phổ biến nhất của các testcase trong cùng câu.
     """
 
     def __init__(self, parent=None, testcase: Optional[Dict[str, Any]] = None,
@@ -332,18 +334,20 @@ class TestcaseEditDialog(QDialog):
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(6)
-        titles = [
-            "Câu Hỏi:", "Trọng Số Điểm:", "Giới Hạn Thời Gian (ms):", "Giới Hạn Bộ Nhớ (MB):",
-        ]
+        titles = ["Câu Hỏi:", "Trọng Số Điểm:"]
         for column, title in enumerate(titles):
             label = _field_label(title, page)
             label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             grid.addWidget(label, 0, column)
-            grid.setColumnStretch(column, 1)
+            grid.setColumnStretch(column, 0)
+        # Cột 3 để trống: giữ 2 ô nhập không bị kéo dãn hết chiều ngang.
+        grid.setColumnStretch(2, 1)
 
         self.cb_q = QComboBox(page)
         self.cb_q.setEditable(True)
         self.cb_q.setMinimumHeight(38)
+        self.cb_q.setMinimumWidth(150)
+        self.cb_q.setMaximumWidth(220)
         self.cb_q.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
         self.cb_q.setStyleSheet(
             f"QComboBox {{ min-height: 36px; padding: 4px 10px; font-size: 13px;"
@@ -356,71 +360,13 @@ class TestcaseEditDialog(QDialog):
         self.sp_weight.setRange(0.1, 10.0)
         self.sp_weight.setSingleStep(0.5)
         self.sp_weight.setDecimals(1)
+        self.sp_weight.setMinimumWidth(150)
+        self.sp_weight.setMaximumWidth(220)
         _style_spinbox(self.sp_weight)
         self.sp_weight.valueChanged.connect(self._on_field_changed)
         grid.addWidget(self.sp_weight, 1, 1)
 
-        self.sp_q_time = QSpinBox(page)
-        self.sp_q_time.setRange(100, 60000)
-        self.sp_q_time.setSingleStep(100)
-        _style_spinbox(self.sp_q_time)
-        self.sp_q_time.setToolTip(
-            "Giới hạn thời gian mặc định của câu hỏi.\n"
-            "Áp dụng cho mọi testcase không bật \"Ghi đè giới hạn\"."
-        )
-        self.sp_q_time.valueChanged.connect(self._on_question_limits_changed)
-        grid.addWidget(self.sp_q_time, 1, 2)
-
-        self.sp_q_mem = QSpinBox(page)
-        self.sp_q_mem.setRange(16, 4096)
-        self.sp_q_mem.setSingleStep(32)
-        _style_spinbox(self.sp_q_mem)
-        self.sp_q_mem.setToolTip(
-            "Giới hạn bộ nhớ mặc định của câu hỏi.\n"
-            "Áp dụng cho mọi testcase không bật \"Ghi đè giới hạn\"."
-        )
-        self.sp_q_mem.valueChanged.connect(self._on_question_limits_changed)
-        grid.addWidget(self.sp_q_mem, 1, 3)
-
         layout.addLayout(grid)
-
-        override_row = QHBoxLayout()
-        override_row.setSpacing(10)
-        self.chk_override = QCheckBox("Ghi đè giới hạn", page)
-        self.chk_override.setStyleSheet(
-            f"font-size: 12px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};"
-        )
-        self.chk_override.toggled.connect(self._on_override_toggled)
-        override_row.addWidget(self.chk_override)
-
-        self.lbl_case_time = QLabel("Thời gian:", page)
-        self.lbl_case_time.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
-        override_row.addWidget(self.lbl_case_time)
-
-        self.sp_time = QSpinBox(page)
-        self.sp_time.setRange(100, 60000)
-        self.sp_time.setSingleStep(100)
-        self.sp_time.setSuffix(" ms")
-        self.sp_time.setMinimumWidth(118)
-        _style_spinbox(self.sp_time)
-        self.sp_time.valueChanged.connect(self._on_field_changed)
-        override_row.addWidget(self.sp_time)
-
-        self.lbl_case_mem = QLabel("Bộ nhớ:", page)
-        self.lbl_case_mem.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
-        override_row.addWidget(self.lbl_case_mem)
-
-        self.sp_mem = QSpinBox(page)
-        self.sp_mem.setRange(16, 4096)
-        self.sp_mem.setSingleStep(32)
-        self.sp_mem.setSuffix(" MB")
-        self.sp_mem.setMinimumWidth(118)
-        _style_spinbox(self.sp_mem)
-        self.sp_mem.valueChanged.connect(self._on_field_changed)
-        override_row.addWidget(self.sp_mem)
-
-        override_row.addStretch(1)
-        layout.addLayout(override_row)
 
         data_row = QHBoxLayout()
         data_row.setSpacing(16)
@@ -544,7 +490,6 @@ class TestcaseEditDialog(QDialog):
             "score_weight": float(row.get("score_weight") or 1.0),
             "time_limit_ms": int(row.get("time_limit_ms") or DEFAULT_TIME_LIMIT_MS),
             "memory_limit_mb": int(row.get("memory_limit_mb") or DEFAULT_MEMORY_LIMIT_MB),
-            "override_limits": False,
             "matching_strategy": row.get("matching_strategy") or self.matching_strategy,
             "is_hidden": int(row.get("is_hidden") or 0),
         }
@@ -559,7 +504,6 @@ class TestcaseEditDialog(QDialog):
             "score_weight": 1.0,
             "time_limit_ms": self.q_time,
             "memory_limit_mb": self.q_mem,
-            "override_limits": False,
             "matching_strategy": self.matching_strategy,
             "is_hidden": 0,
         }
@@ -576,11 +520,6 @@ class TestcaseEditDialog(QDialog):
             loaded = [self._from_row(initial)]
 
         self.q_time, self.q_mem = self._detect_defaults(loaded)
-        for testcase in loaded:
-            testcase["override_limits"] = (
-                testcase["time_limit_ms"] != self.q_time
-                or testcase["memory_limit_mb"] != self.q_mem
-            )
 
         self.testcases = loaded
         if start_new or not self.testcases:
@@ -589,18 +528,10 @@ class TestcaseEditDialog(QDialog):
         self._loading = True
         try:
             self.cb_q.setEditText(self.question_number)
-            self.sp_q_time.setValue(self.q_time)
-            self.sp_q_mem.setValue(self.q_mem)
         finally:
             self._loading = False
 
         self._refresh_list(select=len(self.testcases) - 1 if start_new else 0)
-
-    @staticmethod
-    def _is_placeholder(testcase: Dict[str, Any]) -> bool:
-        """Testcase trống hoàn toàn (chưa nhập gì) chỉ là chỗ chờ, không lưu/báo lỗi."""
-        return not (testcase.get("input_data") or "").strip() \
-            and not (testcase.get("expected_output") or "").strip()
 
     @staticmethod
     def _detect_defaults(rows: List[Dict[str, Any]]) -> tuple:
@@ -610,6 +541,12 @@ class TestcaseEditDialog(QDialog):
         times = [row["time_limit_ms"] for row in rows]
         mems = [row["memory_limit_mb"] for row in rows]
         return max(set(times), key=times.count), max(set(mems), key=mems.count)
+
+    @staticmethod
+    def _is_placeholder(testcase: Dict[str, Any]) -> bool:
+        """Testcase trống hoàn toàn (chưa nhập gì) chỉ là chỗ chờ, không lưu/báo lỗi."""
+        return not (testcase.get("input_data") or "").strip() \
+            and not (testcase.get("expected_output") or "").strip()
 
     # ================================================================== danh sách
     def _build_list_row(self, index: int, testcase: Dict[str, Any]) -> QWidget:
@@ -744,39 +681,14 @@ class TestcaseEditDialog(QDialog):
         testcase = self._current_testcase()
         self._loading = True
         try:
-            for widget in (self.cb_q, self.sp_weight, self.chk_override,
-                           self.f_input, self.f_output):
+            for widget in (self.cb_q, self.sp_weight, self.f_input, self.f_output):
                 widget.setEnabled(testcase is not None)
             if testcase is not None:
                 self.sp_weight.setValue(float(testcase["score_weight"]))
-                self.chk_override.setChecked(bool(testcase["override_limits"]))
-                self.sp_time.setValue(int(testcase["time_limit_ms"]))
-                self.sp_mem.setValue(int(testcase["memory_limit_mb"]))
                 self.f_input.set_text(testcase["input_data"])
                 self.f_output.set_text(testcase["expected_output"])
         finally:
             self._loading = False
-        self._refresh_override_state()
-
-    def _refresh_override_state(self):
-        testcase = self._current_testcase()
-        enabled = bool(testcase and testcase.get("override_limits"))
-        self.sp_time.setEnabled(enabled)
-        self.sp_mem.setEnabled(enabled)
-        self.lbl_case_time.setEnabled(enabled)
-        self.lbl_case_mem.setEnabled(enabled)
-        if testcase is not None and not enabled:
-            self._loading = True
-            try:
-                self.sp_time.setValue(self.q_time)
-                self.sp_mem.setValue(self.q_mem)
-            finally:
-                self._loading = False
-
-    def _on_override_toggled(self, checked: bool):
-        if self._loading:
-            return
-        self._on_field_changed()
 
     def _on_question_changed(self, text: str):
         if self._loading:
@@ -787,31 +699,12 @@ class TestcaseEditDialog(QDialog):
             testcase["question_number"] = value
         self._mark_dirty()
 
-    def _on_question_limits_changed(self):
-        if self._loading:
-            return
-        self.q_time = int(self.sp_q_time.value())
-        self.q_mem = int(self.sp_q_mem.value())
-        for testcase in self.testcases:
-            if not testcase["override_limits"]:
-                testcase["time_limit_ms"] = self.q_time
-                testcase["memory_limit_mb"] = self.q_mem
-        self._mark_dirty()
-        self._refresh_override_state()
-
     def _on_field_changed(self):
         if self._loading:
             return
         testcase = self._current_testcase()
         if testcase is None:
             return
-        testcase["override_limits"] = self.chk_override.isChecked()
-        if testcase["override_limits"]:
-            testcase["time_limit_ms"] = int(self.sp_time.value())
-            testcase["memory_limit_mb"] = int(self.sp_mem.value())
-        else:
-            testcase["time_limit_ms"] = self.q_time
-            testcase["memory_limit_mb"] = self.q_mem
         testcase["score_weight"] = float(self.sp_weight.value())
         testcase["question_number"] = self.question_number
         testcase["input_data"] = self.f_input.text()
@@ -819,7 +712,6 @@ class TestcaseEditDialog(QDialog):
         self._mark_dirty()
         self._refresh_current_row()
         self._refresh_totals()
-        self._refresh_override_state()
 
     # ================================================================== thao tác
     def _mark_dirty(self):
@@ -1025,13 +917,6 @@ class TestcaseEditDialog(QDialog):
         testcase["input_data"] = self.f_input.text()
         testcase["expected_output"] = self.f_output.text()
         testcase["score_weight"] = float(self.sp_weight.value())
-        testcase["override_limits"] = self.chk_override.isChecked()
-        if testcase["override_limits"]:
-            testcase["time_limit_ms"] = int(self.sp_time.value())
-            testcase["memory_limit_mb"] = int(self.sp_mem.value())
-        else:
-            testcase["time_limit_ms"] = int(self.q_time)
-            testcase["memory_limit_mb"] = int(self.q_mem)
 
     def _persist(self):
         for testcase_id in self._deleted_ids:
