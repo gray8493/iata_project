@@ -44,23 +44,7 @@ from ui.styles.theme import (
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG,
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
-
-
-# ==============================================================================
-# SHARED UI HELPERS (rule 21: action column built by a shared helper)
-# ==============================================================================
-def make_action_cell(buttons: List[QPushButton], parent: QWidget) -> QWidget:
-    """Wraps row action buttons in a vertically-centered container with a uniform 8px gap."""
-    cell = QWidget(parent)
-    cell.setStyleSheet("background: transparent;")
-    layout = QHBoxLayout(cell)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(8)
-    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    for btn in buttons:
-        btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        layout.addWidget(btn)
-    return cell
+from ui.components.table_actions import make_action_cell
 
 
 # ==============================================================================

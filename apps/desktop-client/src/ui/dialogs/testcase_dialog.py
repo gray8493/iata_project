@@ -10,12 +10,13 @@ import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QCursor, QGuiApplication, QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
+from PyQt6.QtGui import QCursor, QGuiApplication, QFont, QColor
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QCheckBox, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox, QFileDialog
+    QFrame, QTextEdit, QSpinBox, QDoubleSpinBox, QTabWidget, QMessageBox, QFileDialog,
+    QSplitter, QListWidget, QListWidgetItem, QStackedWidget, QAbstractItemView, QScrollArea
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -25,10 +26,17 @@ if str(SRC_DIR) not in sys.path:
 from ui.styles.theme import (
     LIGHT_THEME_QSS, COLOR_PRIMARY, COLOR_PRIMARY_BG,
     COLOR_BORDER_DEFAULT, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_ERROR, COLOR_ERROR_BG
+    COLOR_ERROR, COLOR_ERROR_BG, COLOR_SUCCESS, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_MUTED
+)
+from ui.components.code_editor import CodeEditor
+from ui.components.multiline_field import MultiLineField
+from ui.components.table_actions import (
+    make_action_cell, make_row_button, preview_multiline, preview_tooltip, text_color_for_value
 )
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.testcase_paste_parser import parse_testcase_text
 from services.document_reader import (
     MAX_PROBLEM_CHARS, DocumentReadError, read_document_text
 )
@@ -61,209 +69,1071 @@ class AiTestcaseWorker(QThread):
 
 
 # ==============================================================================
-# 1. HỘP THOẠI THÊM / CHỈNH SỬA TESTCASE THỦ CÔNG
+# 1. HỘP THOẠI THÊM / CHỈNH SỬA BỘ TESTCASE CỦA MỘT CÂU HỎI
 # ==============================================================================
+DEFAULT_TIME_LIMIT_MS = 1000
+DEFAULT_MEMORY_LIMIT_MB = 128
+MAX_DATA_BYTES = 256 * 1024
+LIST_ROW_HEIGHT = 54
+
+
+def _style_spinbox(widget: QWidget):
+    """Áp style chung cho QSpinBox/QDoubleSpinBox.
+
+    Chiều cao 38px + chừa 24px bên phải để hai nút mũi tên không bị cắt mép.
+    """
+    widget.setMinimumHeight(38)
+    widget.setMinimumWidth(140)
+    widget.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    widget.setStyleSheet(f"""
+        QSpinBox, QDoubleSpinBox {{
+            min-height: 36px;
+            padding: 4px 4px 4px 10px;
+            border: 1px solid {COLOR_BORDER_DEFAULT};
+            border-radius: 8px;
+            background-color: #FFFFFF;
+            font-size: 13px;
+        }}
+        QSpinBox:focus, QDoubleSpinBox:focus {{
+            border: 1px solid {COLOR_PRIMARY};
+        }}
+        QSpinBox:disabled, QDoubleSpinBox:disabled {{
+            color: {COLOR_TEXT_MUTED};
+            background-color: {COLOR_SURFACE_SECONDARY};
+        }}
+        QSpinBox::up-button, QDoubleSpinBox::up-button {{
+            subcontrol-origin: border;
+            subcontrol-position: top right;
+            width: 22px;
+            height: 18px;
+            border-left: 1px solid {COLOR_BORDER_DEFAULT};
+            border-top-right-radius: 8px;
+            background-color: {COLOR_SURFACE_SECONDARY};
+        }}
+        QSpinBox::down-button, QDoubleSpinBox::down-button {{
+            subcontrol-origin: border;
+            subcontrol-position: bottom right;
+            width: 22px;
+            height: 18px;
+            border-left: 1px solid {COLOR_BORDER_DEFAULT};
+            border-bottom-right-radius: 8px;
+            background-color: {COLOR_SURFACE_SECONDARY};
+        }}
+        QSpinBox::up-arrow, QDoubleSpinBox::up-arrow,
+        QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+            width: 7px;
+            height: 7px;
+        }}
+        QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+        QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+            background-color: {COLOR_PRIMARY_BG};
+        }}
+    """)
+
+
+def _field_label(text: str, parent: QWidget) -> QLabel:
+    label = QLabel(text, parent)
+    label.setStyleSheet(
+        f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};"
+    )
+    label.setContentsMargins(0, 0, 0, 0)
+    return label
+
+
 class TestcaseEditDialog(QDialog):
-    """Hộp thoại thêm hoặc sửa một ca kiểm thử."""
+    """Thêm/sửa bộ testcase của một câu hỏi (nhiều testcase trong cùng cửa sổ).
 
-    def __init__(self, parent=None, testcase: Optional[Dict[str, Any]] = None):
+    - Cột trái: danh sách testcase (Thêm Testcase / Nhân Bản / Xóa, kéo thả đổi thứ tự).
+    - Cột phải: tab "Chi Tiết Testcase" và tab "Dán Nhiều Testcase".
+    - Chân: Hủy / Lưu và Thêm Tiếp / Lưu.
+
+    Kiểu lưu CSDL KHÔNG đổi: mỗi testcase vẫn là cặp chuỗi `input_data` /
+    `expected_output` với các dòng nối bằng "\\n"; giới hạn thời gian/bộ nhớ vẫn
+    lưu trên từng testcase như trước (testcase không ghi đè thì lưu đúng giá trị
+    mặc định của câu hỏi).
+    """
+
+    def __init__(self, parent=None, testcase: Optional[Dict[str, Any]] = None,
+                 db: Optional[DatabaseManager] = None, class_id: Optional[int] = None,
+                 question_number: Optional[str] = None,
+                 matching_strategy: str = "EXACT_MATCH",
+                 start_new: bool = False):
         super().__init__(parent)
-        self.tc = testcase or {}
-        self.is_edit = testcase is not None
-        self.setWindowTitle("Chỉnh Sửa Testcase" if self.is_edit else "Thêm Testcase Mới")
-        self.setMinimumSize(540, 520)
-        self.resize(600, 560)
-        self.setStyleSheet(LIGHT_THEME_QSS)
-        self.testcase_data: Dict[str, Any] = {}
-        self._init_ui()
+        self.db = db
+        self.class_id = class_id
+        self.matching_strategy = matching_strategy or "EXACT_MATCH"
+        self._legacy_single = db is None
 
+        self.testcases: List[Dict[str, Any]] = []
+        self.testcase_data: Dict[str, Any] = {}
+        self.saved_count = 0
+
+        self._deleted_ids: List[int] = []
+        self._uid_counter = 0
+        self._dirty = False
+        self._loading = False
+        self._current = -1
+        self._paste_rows: List[Any] = []
+
+        initial = testcase or {}
+        self.question_number = (question_number or initial.get("question_number") or "Q1").strip() or "Q1"
+        self.q_time = DEFAULT_TIME_LIMIT_MS
+        self.q_mem = DEFAULT_MEMORY_LIMIT_MB
+
+        self.setWindowTitle("Thêm Testcase" if start_new or not initial else "Chỉnh Sửa Testcase")
+        self.setStyleSheet(LIGHT_THEME_QSS)
+        self.setMinimumSize(960, 640)
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            target_w = min(1180, avail.width() - 40)
+            target_h = min(800, avail.height() - 24)
+            self.resize(target_w, target_h)
+            self.move(avail.x() + (avail.width() - target_w) // 2,
+                      avail.y() + (avail.height() - target_h) // 2)
+        else:
+            self.resize(1120, 720)
+
+        self._init_ui()
+        self._load_testcases(initial, start_new)
+
+    # ================================================================== khởi tạo
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
 
-        # Hàng 1: Câu hỏi & Trọng số điểm
-        row1 = QHBoxLayout()
-        row1.setSpacing(16)
+        lbl_title = QLabel("Bộ Testcase Của Câu Hỏi", self)
+        lbl_title.setStyleSheet(
+            f"font-size: 17px; font-weight: 700; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};"
+        )
+        layout.addWidget(lbl_title)
 
-        v_q = QVBoxLayout()
-        v_q.setSpacing(8)
-        lbl_q = QLabel("Câu Hỏi:", self)
-        lbl_q.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_q.addWidget(lbl_q)
+        lbl_sub = QLabel(
+            "Chọn testcase ở cột trái để sửa nội dung, hoặc dán hàng loạt ở tab bên cạnh.",
+            self,
+        )
+        lbl_sub.setWordWrap(True)
+        lbl_sub.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+        layout.addWidget(lbl_sub)
 
-        self.cb_q = QComboBox(self)
-        self.cb_q.setFixedHeight(36)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.addWidget(self._build_left_panel())
+        self.splitter.addWidget(self._build_right_panel())
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 7)
+        self.splitter.setSizes([300, 720])
+        layout.addWidget(self.splitter, 1)
+
+        layout.addLayout(self._build_footer())
+
+    def _build_left_panel(self) -> QWidget:
+        panel = QWidget(self)
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 12, 0)
+        layout.setSpacing(8)
+
+        lbl = QLabel("Danh Sách Testcase", panel)
+        lbl.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
+        layout.addWidget(lbl)
+
+        self.list_tc = QListWidget(panel)
+        self.list_tc.setMinimumWidth(260)
+        self.list_tc.setMinimumHeight(240)
+        self.list_tc.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.list_tc.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.list_tc.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.list_tc.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {COLOR_BORDER_DEFAULT}; border-radius: 10px;
+                background-color: #FFFFFF; padding: 4px;
+            }}
+            QListWidget::item {{ border-bottom: 1px solid #F1F5F9; }}
+            QListWidget::item:selected {{ background-color: {COLOR_PRIMARY_BG}; }}
+        """)
+        self.list_tc.currentRowChanged.connect(self._on_row_changed)
+        self.list_tc.model().rowsMoved.connect(self._on_rows_moved)
+        layout.addWidget(self.list_tc, 1)
+
+        self.lbl_totals = QLabel("0 testcase, tổng trọng số 0.0", panel)
+        self.lbl_totals.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        layout.addWidget(self.lbl_totals)
+
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+
+        self.btn_add = QPushButton("Thêm Testcase", panel)
+        self.btn_add.setProperty("class", "PrimaryBtn")
+        self.btn_add.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_add.clicked.connect(self._add_testcase)
+        buttons.addWidget(self.btn_add)
+
+        self.btn_duplicate = QPushButton("Nhân Bản", panel)
+        self.btn_duplicate.setProperty("class", "SecondaryBtn")
+        self.btn_duplicate.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_duplicate.clicked.connect(self._duplicate_testcase)
+        buttons.addWidget(self.btn_duplicate)
+
+        self.btn_delete = QPushButton("Xóa", panel)
+        self.btn_delete.setProperty("class", "SecondaryBtn")
+        self.btn_delete.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_delete.setStyleSheet(
+            f"QPushButton {{ color: {COLOR_ERROR}; border: 1px solid {COLOR_ERROR}55;"
+            " background-color: #FFFFFF; border-radius: 8px; font-weight: 600; }}"
+            f"QPushButton:hover {{ background-color: {COLOR_ERROR_BG};"
+            f" border: 1px solid {COLOR_ERROR}; }}"
+        )
+        self.btn_delete.clicked.connect(self._delete_testcase)
+        buttons.addWidget(self.btn_delete)
+
+        layout.addLayout(buttons)
+        return panel
+
+    def _build_right_panel(self) -> QWidget:
+        self.tabs = QTabWidget(self)
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {COLOR_BORDER_DEFAULT}; border-radius: 10px;
+                background-color: #FFFFFF; top: -1px;
+            }}
+            QTabBar::tab {{
+                font-size: 13px; font-weight: 600; padding: 8px 16px; margin-right: 4px;
+                color: {COLOR_TEXT_SECONDARY}; border: 1px solid transparent;
+                border-top-left-radius: 8px; border-top-right-radius: 8px;
+            }}
+            QTabBar::tab:selected {{
+                color: {COLOR_PRIMARY}; background-color: #FFFFFF;
+                border: 1px solid {COLOR_BORDER_DEFAULT}; border-bottom: 2px solid {COLOR_PRIMARY};
+            }}
+            QTabBar::tab:hover:!selected {{ color: {COLOR_TEXT_PRIMARY}; background-color: #F8FAFC; }}
+        """)
+        self.tabs.addTab(self._scrollable(self._build_detail_tab()), "Chi Tiết Testcase")
+        self.tabs.addTab(self._build_paste_tab(), "Dán Nhiều Testcase")
+        return self.tabs
+
+    def _scrollable(self, page: QWidget) -> QScrollArea:
+        """Bọc tab Chi Tiết trong vùng cuộn: cửa sổ thấp (scale 150%) vẫn đủ 200px cho ô dữ liệu."""
+        area = QScrollArea(self)
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.setWidget(page)
+        area.setStyleSheet("QScrollArea { background-color: #FFFFFF; border: none; }")
+        page.setStyleSheet("background-color: #FFFFFF;")
+        return area
+
+    def _build_detail_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(6)
+        titles = [
+            "Câu Hỏi:", "Trọng Số Điểm:", "Giới Hạn Thời Gian (ms):", "Giới Hạn Bộ Nhớ (MB):",
+        ]
+        for column, title in enumerate(titles):
+            label = _field_label(title, page)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            grid.addWidget(label, 0, column)
+            grid.setColumnStretch(column, 1)
+
+        self.cb_q = QComboBox(page)
         self.cb_q.setEditable(True)
+        self.cb_q.setMinimumHeight(38)
         self.cb_q.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
-        cur_q = self.tc.get("question_number", "Q1")
-        idx_q = self.cb_q.findText(cur_q)
-        if idx_q >= 0:
-            self.cb_q.setCurrentIndex(idx_q)
-        else:
-            self.cb_q.setEditText(cur_q)
-        v_q.addWidget(self.cb_q)
-        row1.addLayout(v_q, stretch=1)
+        self.cb_q.setStyleSheet(
+            f"QComboBox {{ min-height: 36px; padding: 4px 10px; font-size: 13px;"
+            f" border: 1px solid {COLOR_BORDER_DEFAULT}; border-radius: 8px; background-color: #FFFFFF; }}"
+        )
+        self.cb_q.currentTextChanged.connect(self._on_question_changed)
+        grid.addWidget(self.cb_q, 1, 0)
 
-        v_w = QVBoxLayout()
-        v_w.setSpacing(8)
-        lbl_w = QLabel("Trọng Số Điểm:", self)
-        lbl_w.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_w.addWidget(lbl_w)
-
-        self.sp_weight = QDoubleSpinBox(self)
-        self.sp_weight.setFixedHeight(36)
+        self.sp_weight = QDoubleSpinBox(page)
         self.sp_weight.setRange(0.1, 10.0)
         self.sp_weight.setSingleStep(0.5)
-        self.sp_weight.setValue(float(self.tc.get("score_weight", 1.0)))
-        self.sp_weight.setStyleSheet("QDoubleSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
-        v_w.addWidget(self.sp_weight)
-        row1.addLayout(v_w, stretch=1)
+        self.sp_weight.setDecimals(1)
+        _style_spinbox(self.sp_weight)
+        self.sp_weight.valueChanged.connect(self._on_field_changed)
+        grid.addWidget(self.sp_weight, 1, 1)
 
-        layout.addLayout(row1)
+        self.sp_q_time = QSpinBox(page)
+        self.sp_q_time.setRange(100, 60000)
+        self.sp_q_time.setSingleStep(100)
+        _style_spinbox(self.sp_q_time)
+        self.sp_q_time.setToolTip(
+            "Giới hạn thời gian mặc định của câu hỏi.\n"
+            "Áp dụng cho mọi testcase không bật \"Ghi đè giới hạn\"."
+        )
+        self.sp_q_time.valueChanged.connect(self._on_question_limits_changed)
+        grid.addWidget(self.sp_q_time, 1, 2)
 
-        # Hàng 2: Dữ liệu nhập (INPUT stdin)
-        v_inp = QVBoxLayout()
-        v_inp.setSpacing(8)
-        lbl_inp = QLabel("Dữ Liệu Đầu Vào (stdin) - Để trống nếu không yêu cầu:", self)
-        lbl_inp.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_inp.addWidget(lbl_inp)
+        self.sp_q_mem = QSpinBox(page)
+        self.sp_q_mem.setRange(16, 4096)
+        self.sp_q_mem.setSingleStep(32)
+        _style_spinbox(self.sp_q_mem)
+        self.sp_q_mem.setToolTip(
+            "Giới hạn bộ nhớ mặc định của câu hỏi.\n"
+            "Áp dụng cho mọi testcase không bật \"Ghi đè giới hạn\"."
+        )
+        self.sp_q_mem.valueChanged.connect(self._on_question_limits_changed)
+        grid.addWidget(self.sp_q_mem, 1, 3)
 
-        self.txt_input = QTextEdit(self)
-        self.txt_input.setFixedHeight(95)
-        self.txt_input.setPlaceholderText("Nhập các giá trị đầu vào...")
-        self.txt_input.setStyleSheet("""
-            QTextEdit {
-                font-family: Consolas, monospace;
-                font-size: 13px;
-                line-height: 1.4;
-                padding: 8px;
-            }
-        """)
-        self.txt_input.setPlainText(self.tc.get("input_data", ""))
-        v_inp.addWidget(self.txt_input)
-        layout.addLayout(v_inp)
+        layout.addLayout(grid)
 
-        # Hàng 3: Kết quả kỳ vọng (OUTPUT stdout)
-        v_out = QVBoxLayout()
-        v_out.setSpacing(8)
-        lbl_out = QLabel("Kết Quả Kỳ Vọng (stdout) - Bắt buộc:", self)
-        lbl_out.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_out.addWidget(lbl_out)
+        override_row = QHBoxLayout()
+        override_row.setSpacing(10)
+        self.chk_override = QCheckBox("Ghi đè giới hạn", page)
+        self.chk_override.setStyleSheet(
+            f"font-size: 12px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};"
+        )
+        self.chk_override.toggled.connect(self._on_override_toggled)
+        override_row.addWidget(self.chk_override)
 
-        self.txt_output = QTextEdit(self)
-        self.txt_output.setFixedHeight(95)
-        self.txt_output.setPlaceholderText("Nhập kết quả mong đợi chương trình in ra...")
-        self.txt_output.setStyleSheet("""
-            QTextEdit {
-                font-family: Consolas, monospace;
-                font-size: 13px;
-                line-height: 1.4;
-                padding: 8px;
-            }
-        """)
-        self.txt_output.setPlainText(self.tc.get("expected_output", ""))
-        v_out.addWidget(self.txt_output)
-        layout.addLayout(v_out)
+        self.lbl_case_time = QLabel("Thời gian:", page)
+        self.lbl_case_time.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        override_row.addWidget(self.lbl_case_time)
 
-        # Hàng 4: Giới hạn thời gian (ms) & Bộ nhớ (MB)
-        row2 = QHBoxLayout()
-        row2.setSpacing(16)
-
-        v_t = QVBoxLayout()
-        v_t.setSpacing(8)
-        lbl_t = QLabel("Giới Hạn Thời Gian (ms):", self)
-        lbl_t.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_t.addWidget(lbl_t)
-
-        self.sp_time = QSpinBox(self)
-        self.sp_time.setFixedHeight(36)
-        self.sp_time.setRange(100, 10000)
+        self.sp_time = QSpinBox(page)
+        self.sp_time.setRange(100, 60000)
         self.sp_time.setSingleStep(100)
-        self.sp_time.setValue(int(self.tc.get("time_limit_ms", 1000)))
-        self.sp_time.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
-        v_t.addWidget(self.sp_time)
-        row2.addLayout(v_t, stretch=1)
+        self.sp_time.setSuffix(" ms")
+        self.sp_time.setMinimumWidth(118)
+        _style_spinbox(self.sp_time)
+        self.sp_time.valueChanged.connect(self._on_field_changed)
+        override_row.addWidget(self.sp_time)
 
-        v_m = QVBoxLayout()
-        v_m.setSpacing(8)
-        lbl_m = QLabel("Giới Hạn Bộ Nhớ (MB):", self)
-        lbl_m.setStyleSheet(f"font-weight: 600; font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
-        v_m.addWidget(lbl_m)
+        self.lbl_case_mem = QLabel("Bộ nhớ:", page)
+        self.lbl_case_mem.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        override_row.addWidget(self.lbl_case_mem)
 
-        self.sp_mem = QSpinBox(self)
-        self.sp_mem.setFixedHeight(36)
-        self.sp_mem.setRange(16, 1024)
+        self.sp_mem = QSpinBox(page)
+        self.sp_mem.setRange(16, 4096)
         self.sp_mem.setSingleStep(32)
-        self.sp_mem.setValue(int(self.tc.get("memory_limit_mb", 128)))
-        self.sp_mem.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
-        v_m.addWidget(self.sp_mem)
-        row2.addLayout(v_m, stretch=1)
+        self.sp_mem.setSuffix(" MB")
+        self.sp_mem.setMinimumWidth(118)
+        _style_spinbox(self.sp_mem)
+        self.sp_mem.valueChanged.connect(self._on_field_changed)
+        override_row.addWidget(self.sp_mem)
 
-        layout.addLayout(row2)
-        layout.addStretch(1)
+        override_row.addStretch(1)
+        layout.addLayout(override_row)
 
-        # Footer Buttons
+        data_row = QHBoxLayout()
+        data_row.setSpacing(16)
+
+        self.f_input = MultiLineField(
+            "Đầu Vào (stdin)",
+            "Dữ liệu đưa vào chương trình (để trống nếu bài không đọc stdin)",
+            page, required=False, min_height=200,
+        )
+        self.f_input.changed.connect(self._on_field_changed)
+        data_row.addWidget(self.f_input, 1)
+
+        self.f_output = MultiLineField(
+            "Kết Quả Kỳ Vọng (stdout)",
+            "Kết quả đúng mà chương trình phải in ra",
+            page, required=True, min_height=200,
+        )
+        self.f_output.changed.connect(self._on_field_changed)
+        data_row.addWidget(self.f_output, 1)
+
+        layout.addLayout(data_row, 1)
+        return page
+
+    def _build_paste_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        lbl_hint = QLabel(
+            "Dán JSON: [{\"input\": \"...\", \"output\": \"...\"}, ...] — hoặc dán khối văn bản: "
+            "phần input, một dòng \"===\", phần output; các testcase cách nhau bằng dòng \"---\".",
+            page,
+        )
+        lbl_hint.setWordWrap(True)
+        lbl_hint.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; line-height: 1.4;")
+        layout.addWidget(lbl_hint)
+
+        self.txt_paste = CodeEditor(page, read_only=False, min_height=170)
+        self.txt_paste.setPlaceholderText(
+            "5\n4 -3 7 2 11\n===\nTong = 21\nMax = 11\nMin = -3\nSo nguyen to = 3\n"
+            "---\n1\n7\n===\nTong = 7\nMax = 7\nMin = 7\nSo nguyen to = 1"
+        )
+        layout.addWidget(self.txt_paste, 1)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(12)
+        self.btn_preview = QPushButton("Xem Trước", page)
+        self.btn_preview.setProperty("class", "SecondaryBtn")
+        self.btn_preview.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_preview.clicked.connect(self._preview_paste)
+        action_row.addWidget(self.btn_preview)
+
+        self.lbl_paste_result = QLabel("", page)
+        self.lbl_paste_result.setWordWrap(True)
+        self.lbl_paste_result.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        action_row.addWidget(self.lbl_paste_result, 1)
+
+        self.btn_add_all = QPushButton("Thêm Tất Cả", page)
+        self.btn_add_all.setProperty("class", "PrimaryBtn")
+        self.btn_add_all.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_add_all.setEnabled(False)
+        self.btn_add_all.clicked.connect(self._add_all_pasted)
+        action_row.addWidget(self.btn_add_all)
+        layout.addLayout(action_row)
+
+        self.table_paste = QTableWidget(0, 4, page)
+        self.table_paste.setHorizontalHeaderLabels(
+            ["#", "Đầu Vào (dòng đầu)", "Kết Quả Kỳ Vọng (dòng đầu)", "Trạng thái"]
+        )
+        header = self.table_paste.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table_paste.setColumnWidth(0, 46)
+        self.table_paste.verticalHeader().setVisible(False)
+        self.table_paste.setMinimumHeight(180)
+        layout.addWidget(self.table_paste, 1)
+        return page
+
+    def _build_footer(self) -> QHBoxLayout:
         footer = QHBoxLayout()
         footer.setSpacing(12)
         footer.addStretch(1)
 
-        btn_cancel = QPushButton("Hủy Bỏ", self)
-        btn_cancel.setProperty("class", "SecondaryBtn")
-        btn_cancel.setFixedHeight(36)
-        btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_cancel.clicked.connect(self.reject)
-        footer.addWidget(btn_cancel)
+        self.btn_cancel = QPushButton("Hủy", self)
+        self.btn_cancel.setProperty("class", "SecondaryBtn")
+        self.btn_cancel.setMinimumWidth(96)
+        self.btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_cancel.clicked.connect(self.reject)
+        footer.addWidget(self.btn_cancel)
 
-        btn_save = QPushButton("Lưu Testcase", self)
-        btn_save.setProperty("class", "PrimaryBtn")
-        btn_save.setFixedHeight(36)
-        btn_save.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_save.clicked.connect(self._validate_and_save)
-        footer.addWidget(btn_save)
+        self.btn_save_more = QPushButton("Lưu và Thêm Tiếp", self)
+        self.btn_save_more.setProperty("class", "SecondaryBtn")
+        self.btn_save_more.setMinimumWidth(150)
+        self.btn_save_more.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_save_more.clicked.connect(lambda: self._save(keep_open=True))
+        footer.addWidget(self.btn_save_more)
 
-        layout.addLayout(footer)
+        self.btn_save = QPushButton("Lưu", self)
+        self.btn_save.setProperty("class", "PrimaryBtn")
+        self.btn_save.setMinimumWidth(120)
+        self.btn_save.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_save.clicked.connect(lambda: self._save(keep_open=False))
+        footer.addWidget(self.btn_save)
+        return footer
 
-    def _validate_and_save(self):
-        # IT06: validate the manual black-box testcase before persisting to LOCAL_TESTCASES
-        question_number = self.cb_q.currentText().strip() or "Q1"
-        input_data = self.txt_input.toPlainText()
-        output = self.txt_output.toPlainText()
-        score_weight = float(self.sp_weight.value())
-        time_limit_ms = int(self.sp_time.value())
-        memory_limit_mb = int(self.sp_mem.value())
+    # ================================================================== nạp dữ liệu
+    def _next_uid(self) -> int:
+        self._uid_counter += 1
+        return self._uid_counter
 
-        errors = []
-        if not output.strip():
-            errors.append("Kết quả mong đợi (stdout) không được để trống.")
-        if score_weight <= 0:
-            errors.append("Trọng số điểm phải lớn hơn 0.")
-        if time_limit_ms <= 0:
-            errors.append("Giới hạn thời gian phải lớn hơn 0 ms.")
-        if memory_limit_mb <= 0:
-            errors.append("Giới hạn bộ nhớ phải lớn hơn 0 MB.")
-        if len(input_data.encode("utf-8")) > 256 * 1024:
-            errors.append("Dữ liệu đầu vào (stdin) vượt quá giới hạn 256 KB.")
-        if len(output.encode("utf-8")) > 256 * 1024:
-            errors.append("Kết quả mong đợi (stdout) vượt quá giới hạn 256 KB.")
+    def _from_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "uid": self._next_uid(),
+            "id": row.get("id"),
+            "question_number": str(row.get("question_number") or self.question_number),
+            "input_data": row.get("input_data") or "",
+            "expected_output": row.get("expected_output") or "",
+            "score_weight": float(row.get("score_weight") or 1.0),
+            "time_limit_ms": int(row.get("time_limit_ms") or DEFAULT_TIME_LIMIT_MS),
+            "memory_limit_mb": int(row.get("memory_limit_mb") or DEFAULT_MEMORY_LIMIT_MB),
+            "override_limits": False,
+            "matching_strategy": row.get("matching_strategy") or self.matching_strategy,
+            "is_hidden": int(row.get("is_hidden") or 0),
+        }
 
-        if errors:
+    def _blank_testcase(self) -> Dict[str, Any]:
+        return {
+            "uid": self._next_uid(),
+            "id": None,
+            "question_number": self.question_number,
+            "input_data": "",
+            "expected_output": "",
+            "score_weight": 1.0,
+            "time_limit_ms": self.q_time,
+            "memory_limit_mb": self.q_mem,
+            "override_limits": False,
+            "matching_strategy": self.matching_strategy,
+            "is_hidden": 0,
+        }
+
+    def _load_testcases(self, initial: Dict[str, Any], start_new: bool):
+        loaded: List[Dict[str, Any]] = []
+        if self.db is not None and self.class_id:
+            rows = [
+                row for row in self.db.get_testcases_by_class(self.class_id)
+                if str(row.get("question_number", "")).upper() == self.question_number.upper()
+            ]
+            loaded = [self._from_row(row) for row in rows]
+        elif initial:
+            loaded = [self._from_row(initial)]
+
+        self.q_time, self.q_mem = self._detect_defaults(loaded)
+        for testcase in loaded:
+            testcase["override_limits"] = (
+                testcase["time_limit_ms"] != self.q_time
+                or testcase["memory_limit_mb"] != self.q_mem
+            )
+
+        self.testcases = loaded
+        if start_new or not self.testcases:
+            self.testcases.append(self._blank_testcase())
+
+        self._loading = True
+        try:
+            self.cb_q.setEditText(self.question_number)
+            self.sp_q_time.setValue(self.q_time)
+            self.sp_q_mem.setValue(self.q_mem)
+        finally:
+            self._loading = False
+
+        self._refresh_list(select=len(self.testcases) - 1 if start_new else 0)
+
+    @staticmethod
+    def _is_placeholder(testcase: Dict[str, Any]) -> bool:
+        """Testcase trống hoàn toàn (chưa nhập gì) chỉ là chỗ chờ, không lưu/báo lỗi."""
+        return not (testcase.get("input_data") or "").strip() \
+            and not (testcase.get("expected_output") or "").strip()
+
+    @staticmethod
+    def _detect_defaults(rows: List[Dict[str, Any]]) -> tuple:
+        """Giới hạn của câu hỏi = giá trị xuất hiện nhiều nhất trong các testcase đã có."""
+        if not rows:
+            return DEFAULT_TIME_LIMIT_MS, DEFAULT_MEMORY_LIMIT_MB
+        times = [row["time_limit_ms"] for row in rows]
+        mems = [row["memory_limit_mb"] for row in rows]
+        return max(set(times), key=times.count), max(set(mems), key=mems.count)
+
+    # ================================================================== danh sách
+    def _build_list_row(self, index: int, testcase: Dict[str, Any]) -> QWidget:
+        row = QWidget(self.list_tc)
+        row.setStyleSheet("background: transparent;")
+        row.setFixedHeight(LIST_ROW_HEIGHT)
+        layout = QVBoxLayout(row)
+        layout.setContentsMargins(8, 5, 8, 5)
+        layout.setSpacing(2)
+
+        head = QHBoxLayout()
+        head.setSpacing(6)
+        lbl_title = QLabel(row)
+        lbl_title.setStyleSheet(
+            f"font-weight: 600; font-size: 13px; color: {COLOR_TEXT_PRIMARY};"
+        )
+        head.addWidget(lbl_title)
+        head.addStretch(1)
+        lbl_missing = QLabel("Thiếu kết quả", row)
+        lbl_missing.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {COLOR_ERROR};")
+        head.addWidget(lbl_missing)
+        layout.addLayout(head)
+
+        lbl_summary = QLabel(row)
+        lbl_summary.setStyleSheet(f"font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
+        layout.addWidget(lbl_summary)
+
+        # Giữ tham chiếu để cập nhật tại chỗ (tránh tạo lại widget mỗi lần gõ phím).
+        row.title_label = lbl_title
+        row.missing_label = lbl_missing
+        row.summary_label = lbl_summary
+        self._apply_row_texts(row, index, testcase)
+        return row
+
+    def _apply_row_texts(self, row: QWidget, index: int, testcase: Dict[str, Any]):
+        row.title_label.setText(f"Testcase {index + 1}")
+        row.missing_label.setVisible(not (testcase.get("expected_output") or "").strip())
+
+        summary = preview_multiline(testcase.get("input_data") or "", 46)
+        if summary == "(trống)":
+            summary = "(stdin trống)"
+        row.summary_label.setText(summary)
+
+    def _refresh_list(self, select: Optional[int] = None):
+        target = self._current if select is None else select
+        self.list_tc.blockSignals(True)
+        try:
+            for index in reversed(range(self.list_tc.count())):
+                old_widget = self.list_tc.itemWidget(self.list_tc.item(index))
+                if old_widget is not None:
+                    old_widget.setParent(None)
+                    old_widget.deleteLater()
+            self.list_tc.clear()
+            for index, testcase in enumerate(self.testcases):
+                item = QListWidgetItem()
+                item.setFlags(
+                    Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsDragEnabled
+                )
+                item.setData(Qt.ItemDataRole.UserRole, testcase["uid"])
+                self.list_tc.addItem(item)
+                widget = self._build_list_row(index, testcase)
+                item.setSizeHint(QSize(0, LIST_ROW_HEIGHT))
+                self.list_tc.setItemWidget(item, widget)
+        finally:
+            self.list_tc.blockSignals(False)
+
+        if self.testcases:
+            target = max(0, min(target if target >= 0 else 0, len(self.testcases) - 1))
+            self.list_tc.setCurrentRow(target)
+        self._current = self.list_tc.currentRow()
+        self._show_current_testcase()
+        self._refresh_totals()
+
+    def _refresh_totals(self):
+        total_weight = sum(float(tc.get("score_weight") or 0.0) for tc in self.testcases)
+        self.lbl_totals.setText(
+            f"{len(self.testcases)} testcase, tổng trọng số {total_weight:.1f}"
+        )
+
+    def _refresh_current_row(self):
+        if not (0 <= self._current < len(self.testcases)):
+            return
+        item = self.list_tc.item(self._current)
+        if item is None:
+            return
+        widget = self.list_tc.itemWidget(item)
+        if widget is not None and hasattr(widget, "summary_label"):
+            self._apply_row_texts(widget, self._current, self.testcases[self._current])
+            return
+        widget = self._build_list_row(self._current, self.testcases[self._current])
+        item.setSizeHint(QSize(0, LIST_ROW_HEIGHT))
+        self.list_tc.setItemWidget(item, widget)
+
+    def _on_rows_moved(self, *_args):
+        QTimer.singleShot(0, self._apply_new_order)
+
+    def _apply_new_order(self):
+        """Đọc lại thứ tự sau khi người dùng kéo thả item trong danh sách."""
+        order = []
+        for index in range(self.list_tc.count()):
+            item = self.list_tc.item(index)
+            order.append(item.data(Qt.ItemDataRole.UserRole))
+        by_uid = {testcase["uid"]: testcase for testcase in self.testcases}
+        if len(order) != len(self.testcases) or any(uid not in by_uid for uid in order):
+            self._refresh_list()
+            return
+        current_uid = (
+            self.testcases[self._current]["uid"]
+            if 0 <= self._current < len(self.testcases) else None
+        )
+        self.testcases = [by_uid[uid] for uid in order]
+        new_index = next(
+            (i for i, tc in enumerate(self.testcases) if tc["uid"] == current_uid), 0
+        )
+        self._mark_dirty()
+        self._refresh_list(select=new_index)
+
+    # ================================================================== form
+    def _current_testcase(self) -> Optional[Dict[str, Any]]:
+        if 0 <= self._current < len(self.testcases):
+            return self.testcases[self._current]
+        return None
+
+    def _on_row_changed(self, row: int):
+        if self._loading:
+            return
+        self._current = row
+        self._show_current_testcase()
+
+    def _show_current_testcase(self):
+        testcase = self._current_testcase()
+        self._loading = True
+        try:
+            for widget in (self.cb_q, self.sp_weight, self.chk_override,
+                           self.f_input, self.f_output):
+                widget.setEnabled(testcase is not None)
+            if testcase is not None:
+                self.sp_weight.setValue(float(testcase["score_weight"]))
+                self.chk_override.setChecked(bool(testcase["override_limits"]))
+                self.sp_time.setValue(int(testcase["time_limit_ms"]))
+                self.sp_mem.setValue(int(testcase["memory_limit_mb"]))
+                self.f_input.set_text(testcase["input_data"])
+                self.f_output.set_text(testcase["expected_output"])
+        finally:
+            self._loading = False
+        self._refresh_override_state()
+
+    def _refresh_override_state(self):
+        testcase = self._current_testcase()
+        enabled = bool(testcase and testcase.get("override_limits"))
+        self.sp_time.setEnabled(enabled)
+        self.sp_mem.setEnabled(enabled)
+        self.lbl_case_time.setEnabled(enabled)
+        self.lbl_case_mem.setEnabled(enabled)
+        if testcase is not None and not enabled:
+            self._loading = True
+            try:
+                self.sp_time.setValue(self.q_time)
+                self.sp_mem.setValue(self.q_mem)
+            finally:
+                self._loading = False
+
+    def _on_override_toggled(self, checked: bool):
+        if self._loading:
+            return
+        self._on_field_changed()
+
+    def _on_question_changed(self, text: str):
+        if self._loading:
+            return
+        value = (text or "").strip() or "Q1"
+        self.question_number = value
+        for testcase in self.testcases:
+            testcase["question_number"] = value
+        self._mark_dirty()
+
+    def _on_question_limits_changed(self):
+        if self._loading:
+            return
+        self.q_time = int(self.sp_q_time.value())
+        self.q_mem = int(self.sp_q_mem.value())
+        for testcase in self.testcases:
+            if not testcase["override_limits"]:
+                testcase["time_limit_ms"] = self.q_time
+                testcase["memory_limit_mb"] = self.q_mem
+        self._mark_dirty()
+        self._refresh_override_state()
+
+    def _on_field_changed(self):
+        if self._loading:
+            return
+        testcase = self._current_testcase()
+        if testcase is None:
+            return
+        testcase["override_limits"] = self.chk_override.isChecked()
+        if testcase["override_limits"]:
+            testcase["time_limit_ms"] = int(self.sp_time.value())
+            testcase["memory_limit_mb"] = int(self.sp_mem.value())
+        else:
+            testcase["time_limit_ms"] = self.q_time
+            testcase["memory_limit_mb"] = self.q_mem
+        testcase["score_weight"] = float(self.sp_weight.value())
+        testcase["question_number"] = self.question_number
+        testcase["input_data"] = self.f_input.text()
+        testcase["expected_output"] = self.f_output.text()
+        self._mark_dirty()
+        self._refresh_current_row()
+        self._refresh_totals()
+        self._refresh_override_state()
+
+    # ================================================================== thao tác
+    def _mark_dirty(self):
+        self._dirty = True
+
+    def _add_testcase(self):
+        self.testcases.append(self._blank_testcase())
+        self.tabs.setCurrentIndex(0)
+        self._refresh_list(select=len(self.testcases) - 1)
+        self.f_input.setFocus()
+
+    def _duplicate_testcase(self):
+        testcase = self._current_testcase()
+        if testcase is None:
+            return
+        clone = dict(testcase)
+        clone["uid"] = self._next_uid()
+        clone["id"] = None
+        position = self._current + 1
+        self.testcases.insert(position, clone)
+        self.tabs.setCurrentIndex(0)
+        self._refresh_list(select=position)
+
+    def _delete_testcase(self):
+        testcase = self._current_testcase()
+        if testcase is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Xác Nhận Xóa Testcase",
+            f"Bạn có chắc chắn muốn xóa Testcase {self._current + 1}?\n\n"
+            f"- INPUT: {preview_multiline(testcase['input_data'], 60)}\n"
+            f"- OUTPUT: {preview_multiline(testcase['expected_output'], 60)}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        if testcase.get("id"):
+            self._deleted_ids.append(int(testcase["id"]))
+        position = self._current
+        del self.testcases[position]
+        if not self.testcases:
+            self.testcases.append(self._blank_testcase())
+            position = 0
+        self._mark_dirty()
+        self._refresh_list(select=min(position, len(self.testcases) - 1))
+
+    # ================================================================== dán nhiều
+    def _preview_paste(self):
+        rows = parse_testcase_text(self.txt_paste.toPlainText())
+        self._paste_rows = rows
+        valid = sum(1 for row in rows if row.is_valid)
+        invalid = len(rows) - valid
+
+        self.table_paste.setRowCount(len(rows))
+        for index, row in enumerate(rows):
+            self.table_paste.setRowHeight(index, 40)
+            first = QTableWidgetItem(str(row.index))
+            first.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table_paste.setItem(index, 0, first)
+
+            input_item = QTableWidgetItem(preview_multiline(row.input_data, 50))
+            input_item.setToolTip(preview_tooltip(row.input_data))
+            self.table_paste.setItem(index, 1, input_item)
+
+            output_item = QTableWidgetItem(preview_multiline(row.expected_output, 50))
+            output_item.setToolTip(preview_tooltip(row.expected_output))
+            self.table_paste.setItem(index, 2, output_item)
+
+            status_item = QTableWidgetItem("Hợp lệ" if row.is_valid else row.error)
+            status_item.setToolTip(row.error or "Có thể dùng ngay.")
+            self.table_paste.setItem(index, 3, status_item)
+
+            if not row.is_valid:
+                for column in range(4):
+                    cell = self.table_paste.item(index, column)
+                    if cell is not None:
+                        cell.setBackground(QColor(COLOR_ERROR_BG))
+                        cell.setForeground(QColor(COLOR_ERROR))
+
+        self.lbl_paste_result.setText(
+            f"{valid} testcase hợp lệ, {invalid} dòng lỗi." if rows else "Chưa có dữ liệu."
+        )
+        self.lbl_paste_result.setStyleSheet(
+            f"font-size: 12px; color: {COLOR_ERROR if invalid else COLOR_SUCCESS};"
+        )
+        self.btn_add_all.setEnabled(valid > 0)
+
+    def _add_all_pasted(self):
+        valid_rows = [row for row in self._paste_rows if row.is_valid]
+        if not valid_rows:
             QMessageBox.warning(
-                self,
-                "Dữ Liệu Không Hợp Lệ",
-                "Vui lòng kiểm tra lại cấu hình testcase:\n\n• " + "\n• ".join(errors)
+                self, "Không Có Testcase Hợp Lệ",
+                "Chưa có testcase hợp lệ nào. Bấm \"Xem Trước\" và sửa các dòng báo lỗi trước.",
             )
             return
+        for row in valid_rows:
+            testcase = self._blank_testcase()
+            testcase["input_data"] = row.input_data
+            testcase["expected_output"] = row.expected_output
+            self.testcases.append(testcase)
+        skipped = len(self._paste_rows) - len(valid_rows)
+        self._mark_dirty()
+        self.tabs.setCurrentIndex(0)
+        self._refresh_list(select=len(self.testcases) - len(valid_rows))
+        message = f"Đã thêm {len(valid_rows)} testcase."
+        if skipped:
+            message += (f"\nBỏ qua {skipped} dòng lỗi — xem lại bảng ở tab "
+                        "\"Dán Nhiều Testcase\".")
+        QMessageBox.information(self, "Đã Thêm Testcase", message)
+        self.txt_paste.setPlainText("")
+        self.table_paste.setRowCount(0)
+        self._paste_rows = []
+        self.btn_add_all.setEnabled(False)
+        self.lbl_paste_result.setText("")
 
-        self.testcase_data = {
-            "question_number": question_number,
-            "input_data": input_data,
-            "expected_output": output,
-            "score_weight": score_weight,
-            "time_limit_ms": time_limit_ms,
-            "memory_limit_mb": memory_limit_mb
-        }
+    # ================================================================== lưu
+    def _validate(self):
+        errors: List[str] = []
+        first_invalid = -1
+        saveable = [(i, tc) for i, tc in enumerate(self.testcases) if not self._is_placeholder(tc)]
+        if not saveable:
+            return ["Chưa có testcase nào — hãy nhập đầu vào/kết quả kỳ vọng trước khi lưu."], 0
+        for index, testcase in saveable:
+            prefix = f"Testcase {index + 1}"
+            if not (testcase["expected_output"] or "").strip():
+                errors.append(f"{prefix}: Kết quả kỳ vọng (stdout) không được để trống.")
+                if first_invalid < 0:
+                    first_invalid = index
+            if float(testcase["score_weight"]) <= 0:
+                errors.append(f"{prefix}: Trọng số điểm phải lớn hơn 0.")
+                if first_invalid < 0:
+                    first_invalid = index
+            for key, label in (("time_limit_ms", "Giới hạn thời gian"),
+                               ("memory_limit_mb", "Giới hạn bộ nhớ")):
+                if int(testcase[key]) <= 0:
+                    errors.append(f"{prefix}: {label} phải lớn hơn 0.")
+                    if first_invalid < 0:
+                        first_invalid = index
+            for key, label in (("input_data", "Dữ liệu đầu vào"),
+                               ("expected_output", "Kết quả kỳ vọng")):
+                if len((testcase[key] or "").encode("utf-8")) > MAX_DATA_BYTES:
+                    errors.append(f"{prefix}: {label} vượt quá giới hạn 256 KB.")
+                    if first_invalid < 0:
+                        first_invalid = index
+        return errors, first_invalid
+
+    def _save(self, keep_open: bool) -> bool:
+        errors, first_invalid = self._validate()
+        if errors:
+            if first_invalid >= 0:
+                self._refresh_list(select=first_invalid)
+            shown = errors[:10]
+            if len(errors) > len(shown):
+                shown.append(f"... và {len(errors) - len(shown)} lỗi khác.")
+            QMessageBox.warning(
+                self, "Dữ Liệu Không Hợp Lệ",
+                "Vui lòng kiểm tra lại cấu hình testcase:\n\n• " + "\n• ".join(shown),
+            )
+            return False
+
+        self._remember_current()
+
+        if self._legacy_single:
+            testcase = self.testcases[0]
+            self.testcase_data = {
+                "question_number": self.question_number,
+                "input_data": testcase["input_data"],
+                "expected_output": testcase["expected_output"],
+                "score_weight": float(testcase["score_weight"]),
+                "time_limit_ms": int(testcase["time_limit_ms"]),
+                "memory_limit_mb": int(testcase["memory_limit_mb"]),
+            }
+            self._dirty = False
+            self.accept()
+            return True
+
+        try:
+            self._persist()
+        except Exception as ex:  # pragma: no cover - phụ thuộc SQLite
+            logger.error("Lỗi lưu testcase: %s", ex)
+            QMessageBox.critical(self, "Lỗi Lưu CSDL", f"Không thể lưu testcase:\n{ex}")
+            return False
+
+        self._dirty = False
+        self.saved_count = len(self._saveable_testcases())
+        if self.testcases:
+            self.testcase_data = dict(self.testcases[0])
+        if keep_open:
+            self.testcases.append(self._blank_testcase())
+            self._refresh_list(select=len(self.testcases) - 1)
+            self.f_input.setFocus()
+            return True
         self.accept()
+        return True
+
+    def _remember_current(self):
+        """Đồng bộ testcase đang chọn lần cuối trước khi ghi CSDL."""
+        testcase = self._current_testcase()
+        if testcase is None:
+            return
+        testcase["input_data"] = self.f_input.text()
+        testcase["expected_output"] = self.f_output.text()
+        testcase["score_weight"] = float(self.sp_weight.value())
+        testcase["override_limits"] = self.chk_override.isChecked()
+        if testcase["override_limits"]:
+            testcase["time_limit_ms"] = int(self.sp_time.value())
+            testcase["memory_limit_mb"] = int(self.sp_mem.value())
+        else:
+            testcase["time_limit_ms"] = int(self.q_time)
+            testcase["memory_limit_mb"] = int(self.q_mem)
+
+    def _persist(self):
+        for testcase_id in self._deleted_ids:
+            self.db.delete_testcase(testcase_id)
+        self._deleted_ids = []
+
+        for testcase in self._saveable_testcases():
+            if testcase.get("id"):
+                self.db.update_testcase(
+                    testcase_id=int(testcase["id"]),
+                    question_number=self.question_number,
+                    input_data=testcase["input_data"],
+                    expected_output=testcase["expected_output"],
+                    score_weight=float(testcase["score_weight"]),
+                    time_limit_ms=int(testcase["time_limit_ms"]),
+                    memory_limit_mb=int(testcase["memory_limit_mb"]),
+                )
+            else:
+                testcase["id"] = self.db.add_testcase(
+                    class_id=self.class_id,
+                    input_data=testcase["input_data"],
+                    expected_output=testcase["expected_output"],
+                    score_weight=float(testcase["score_weight"]),
+                    time_limit_ms=int(testcase["time_limit_ms"]),
+                    memory_limit_mb=int(testcase["memory_limit_mb"]),
+                    matching_strategy=self.matching_strategy,
+                    question_number=self.question_number,
+                )
+        self._apply_display_order()
+
+    def _saveable_testcases(self) -> List[Dict[str, Any]]:
+        return [testcase for testcase in self.testcases if not self._is_placeholder(testcase)]
+
+    def _apply_display_order(self):
+        """Ghi lại thứ tự hiển thị vào CSDL mà KHÔNG thêm cột mới.
+
+        Bảng `local_test_cases` không có cột thứ tự và `get_testcases_by_class`
+        sắp theo id, nên nếu người dùng kéo thả đổi thứ tự, ta ghi nội dung theo
+        đúng dãy id hiện có của câu hỏi; số bản ghi không đổi nên không ảnh
+        hưởng dữ liệu khác.
+        """
+        saveable = self._saveable_testcases()
+        rows = [
+            row for row in self.db.get_testcases_by_class(self.class_id)
+            if str(row.get("question_number", "")).upper() == self.question_number.upper()
+        ]
+        ids = [int(row["id"]) for row in rows]
+        if len(ids) != len(saveable):
+            return
+        if ids == [int(tc["id"]) for tc in saveable if tc.get("id")]:
+            return
+
+        current = {int(row["id"]): row for row in rows}
+        for row_id, testcase in zip(ids, saveable):
+            if not self._same_content(current.get(row_id, {}), testcase):
+                self.db.update_testcase(
+                    testcase_id=row_id,
+                    question_number=self.question_number,
+                    input_data=testcase["input_data"],
+                    expected_output=testcase["expected_output"],
+                    score_weight=float(testcase["score_weight"]),
+                    time_limit_ms=int(testcase["time_limit_ms"]),
+                    memory_limit_mb=int(testcase["memory_limit_mb"]),
+                )
+            testcase["id"] = row_id
+
+    def _same_content(self, row: Dict[str, Any], testcase: Dict[str, Any]) -> bool:
+        """So sánh nhanh một bản ghi CSDL với testcase trong bộ nhớ."""
+        if not row:
+            return False
+        return (
+            str(row.get("question_number", "")).upper() == self.question_number.upper()
+            and (row.get("input_data") or "") == testcase["input_data"]
+            and (row.get("expected_output") or "") == testcase["expected_output"]
+            and float(row.get("score_weight") or 0.0) == float(testcase["score_weight"])
+            and int(row.get("time_limit_ms") or 0) == int(testcase["time_limit_ms"])
+            and int(row.get("memory_limit_mb") or 0) == int(testcase["memory_limit_mb"])
+        )
+
+    # ================================================================== đóng
+    def _confirm_discard(self) -> bool:
+        if not self._dirty:
+            return True
+        answer = QMessageBox.question(
+            self,
+            "Thay Đổi Chưa Lưu",
+            "Bạn có thay đổi chưa lưu trong bộ testcase này.\n\n"
+            "Chọn \"Yes\" để thoát và bỏ các thay đổi, \"No\" để quay lại lưu tiếp.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
+    def reject(self):  # noqa: D401 - Qt API
+        if self._confirm_discard():
+            super().reject()
+
+    def closeEvent(self, event):  # noqa: N802 - Qt API
+        if self._confirm_discard():
+            event.accept()
+        else:
+            event.ignore()
 
 
 # ==============================================================================
@@ -1229,17 +2099,19 @@ class TestcaseDialog(QDialog):
             it_q.setFont(QFont("Inter", 10, QFont.Weight.Bold))
             self.table_tc.setItem(r, 1, it_q)
 
-            # 2: INPUT
-            inp_str = tc.get("input_data", "")
-            it_inp = QTableWidgetItem(inp_str.replace("\n", " / ") if inp_str else "(trống)")
-            it_inp.setToolTip(f"INPUT:\n{inp_str}")
+            # 2: INPUT (dòng đầu + "(+N dòng)", tooltip đầy đủ)
+            inp_str = tc.get("input_data", "") or ""
+            it_inp = QTableWidgetItem(preview_multiline(inp_str, 60))
+            it_inp.setToolTip(f"INPUT:\n{preview_tooltip(inp_str)}")
+            it_inp.setForeground(QColor(text_color_for_value(inp_str)))
             it_inp.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.table_tc.setItem(r, 2, it_inp)
 
-            # 3: OUTPUT
-            out_str = tc.get("expected_output", "")
-            it_out = QTableWidgetItem(out_str.replace("\n", " / ") if out_str else "(trống)")
-            it_out.setToolTip(f"OUTPUT:\n{out_str}")
+            # 3: OUTPUT (dòng đầu + "(+N dòng)", tooltip đầy đủ)
+            out_str = tc.get("expected_output", "") or ""
+            it_out = QTableWidgetItem(preview_multiline(out_str, 60))
+            it_out.setToolTip(f"OUTPUT:\n{preview_tooltip(out_str)}")
+            it_out.setForeground(QColor(text_color_for_value(out_str)))
             it_out.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.table_tc.setItem(r, 3, it_out)
 
@@ -1264,112 +2136,49 @@ class TestcaseDialog(QDialog):
             it_strat.setFont(QFont("Inter", 9))
             self.table_tc.setItem(r, 7, it_strat)
 
-            # 8: Thao Tác (Nút Sửa & Nút Xóa) - căn giữa tuyệt đối theo chiều dọc và ngang
-            act_widget = QWidget()
-            act_widget.setStyleSheet("background: transparent; border: none;")
-            act_layout = QHBoxLayout(act_widget)
-            act_layout.setContentsMargins(0, 0, 0, 0)
-            act_layout.setSpacing(8)
-            act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            btn_edit = QPushButton("Sửa", act_widget)
-            btn_edit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            btn_edit.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FFFFFF;
-                    color: {COLOR_PRIMARY};
-                    border: 1px solid {COLOR_PRIMARY};
-                    border-radius: 6px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    min-height: 26px;
-                    max-height: 26px;
-                    height: 26px;
-                    min-width: 50px;
-                    max-width: 50px;
-                    width: 50px;
-                    padding: 0;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_PRIMARY_BG};
-                }}
-            """)
+            # 8: Thao Tác - dựng bằng helper dùng chung make_action_cell
+            btn_edit = make_row_button("Sửa", COLOR_PRIMARY, self.table_tc)
             btn_edit.clicked.connect(lambda _, item=tc: self._edit_testcase(item))
-            act_layout.addWidget(btn_edit)
 
-            btn_del = QPushButton("Xóa", act_widget)
-            btn_del.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            btn_del.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FFFFFF;
-                    color: {COLOR_ERROR};
-                    border: 1px solid {COLOR_ERROR}55;
-                    border-radius: 6px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    min-height: 26px;
-                    max-height: 26px;
-                    height: 26px;
-                    min-width: 50px;
-                    max-width: 50px;
-                    width: 50px;
-                    padding: 0;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_ERROR_BG};
-                    border-color: {COLOR_ERROR};
-                }}
-            """)
+            btn_del = make_row_button("Xóa", COLOR_ERROR, self.table_tc)
             btn_del.clicked.connect(lambda _, item=tc: self._delete_testcase(item))
-            act_layout.addWidget(btn_del)
 
-            self.table_tc.setCellWidget(r, 8, act_widget)
+            self.table_tc.setCellWidget(r, 8, make_action_cell([btn_edit, btn_del], self.table_tc))
+
+    def _current_question_filter(self) -> str:
+        """Câu hỏi đang lọc ở cửa sổ quản lý (mặc định Q1 khi đang xem tất cả)."""
+        question = self.cb_question.currentText().strip()
+        if not question or question == "Tất cả câu hỏi":
+            return "Q1"
+        return question
 
     def _add_testcase(self):
         if not self.class_id:
             QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại.")
             return
 
-        dlg = TestcaseEditDialog(self)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.testcase_data:
-            d = dlg.testcase_data
-            strat = self._get_selected_strategy_code()
-            try:
-                self.db.add_testcase(
-                    class_id=self.class_id,
-                    input_data=d["input_data"],
-                    expected_output=d["expected_output"],
-                    score_weight=d["score_weight"],
-                    time_limit_ms=d["time_limit_ms"],
-                    memory_limit_mb=d["memory_limit_mb"],
-                    matching_strategy=strat,
-                    question_number=d["question_number"]
-                )
-                self._load_testcases_from_db()
-                QMessageBox.information(self, "Thành Công", "Đã thêm testcase mới thành công.")
-            except Exception as ex:
-                QMessageBox.critical(self, "Lỗi Lưu CSDL", f"Không thể lưu testcase:\n{str(ex)}")
+        dlg = TestcaseEditDialog(
+            self,
+            db=self.db,
+            class_id=self.class_id,
+            question_number=self._current_question_filter(),
+            matching_strategy=self._get_selected_strategy_code(),
+            start_new=True,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._load_testcases_from_db()
 
     def _edit_testcase(self, tc: Dict[str, Any]):
-        dlg = TestcaseEditDialog(self, testcase=tc)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.testcase_data:
-            d = dlg.testcase_data
-            tc_id = tc.get("id")
-            if tc_id:
-                try:
-                    self.db.update_testcase(
-                        testcase_id=tc_id,
-                        question_number=d["question_number"],
-                        input_data=d["input_data"],
-                        expected_output=d["expected_output"],
-                        score_weight=d["score_weight"],
-                        time_limit_ms=d["time_limit_ms"],
-                        memory_limit_mb=d["memory_limit_mb"]
-                    )
-                    self._load_testcases_from_db()
-                    QMessageBox.information(self, "Thành Công", "Đã cập nhật thông tin testcase thành công.")
-                except Exception as ex:
-                    QMessageBox.critical(self, "Lỗi Cập Nhật", f"Không thể cập nhật testcase:\n{str(ex)}")
+        dlg = TestcaseEditDialog(
+            self,
+            testcase=tc,
+            db=self.db,
+            class_id=self.class_id,
+            question_number=tc.get("question_number") or "Q1",
+            matching_strategy=self._get_selected_strategy_code(),
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._load_testcases_from_db()
 
     def _delete_testcase(self, tc: Dict[str, Any]):
         tc_id = tc.get("id")
@@ -1378,8 +2187,8 @@ class TestcaseDialog(QDialog):
             self,
             "Xác Nhận Xóa Testcase",
             f"Bạn có chắc chắn muốn xóa testcase này của câu {q_num}?\n\n"
-            f"- INPUT: {tc.get('input_data', '')[:40] or '(trống)'}\n"
-            f"- OUTPUT: {tc.get('expected_output', '')[:40]}\n\n"
+            f"- INPUT: {preview_multiline(tc.get('input_data', ''), 60)}\n"
+            f"- OUTPUT: {preview_multiline(tc.get('expected_output', ''), 60)}\n\n"
             f"Hành động này sẽ xóa testcase khỏi cơ sở dữ liệu.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No

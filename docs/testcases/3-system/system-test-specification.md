@@ -2,10 +2,10 @@
 
 - **Cấp độ kiểm thử**: System Test
 - **Người thực hiện (Tester/Dev)**: Đinh Thành Nam
-- **Cập nhật lần cuối**: 18/10/2026
+- **Cập nhật lần cuối**: 21/10/2026
 - **Tài liệu liên quan**: `rules/testcase-rules.md`, `docs/architecture/`
-- **Tổng số Testcase**: 13 Testcases (06 Normal, 04 Boundary, 03 Exception)
-  - Phân hệ Desktop Client (ST01, ST04): 09 Testcases (03 Normal, 03 Boundary, 03 Exception)
+- **Tổng số Testcase**: 30 Testcases (12 Normal, 13 Boundary, 05 Exception)
+  - Phân hệ Desktop Client (ST01, ST04, ST05): 26 Testcases (09 Normal, 12 Boundary, 05 Exception)
   - Phân hệ Central Backend (ST02 - ST03): 04 Testcases (02 Normal, 01 Boundary, 01 Exception)
 
 ---
@@ -320,6 +320,499 @@ Normal
 
 ---
 
+---
+
+# ST05_TestcaseEditor_TC001: Mở hộp thoại Thêm/Sửa Testcase nạp đúng bộ testcase của câu hỏi
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Đợt chấm có 3 testcase thuộc câu `Q1` (trọng số 1.0, 2.0, 1.0) và 1 testcase thuộc `Q2`.
+- Testcase thứ 3 của `Q1` có giới hạn riêng (1500 ms, 256 MB) khác mặc định câu hỏi.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Mở cửa sổ **Quản Lý Bộ Testcase**, chọn câu `Q1`.
+2. Bấm **Thêm Testcase** (hoặc **Sửa** ở một dòng bất kỳ).
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Cột trái hiển thị đúng 3 testcase của `Q1`, không lẫn testcase của `Q2`.
+- Nhãn tổng hiển thị `3 testcase, tổng trọng số 4.0`.
+- Testcase có giới hạn riêng tự bật sẵn tuỳ chọn **Ghi đè giới hạn**.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Nạp đủ 3 testcase Q1, tổng trọng số 4.0 | 12 ms | ✅ PASSED | PyQt6 Offscreen + SQLite in-memory |
+
+---
+
+# ST05_TestcaseEditor_TC002: Lưu nội dung nhiều dòng của testcase đã sửa
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Hộp thoại đang mở bộ testcase của `Q1`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Chọn testcase 1.
+2. Nhập ô **Đầu Vào (stdin)** 3 dòng: `1`, `2`, `3`.
+3. Nhập ô **Kết Quả Kỳ Vọng (stdout)** là `6`.
+4. Đổi **Trọng Số Điểm** thành `2.5`.
+5. Bấm **Lưu**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- CSDL ghi `input_data = "1\n2\n3"` (các dòng nối bằng `\n`), `expected_output = "6"`.
+- `score_weight = 2.5`; kiểu lưu chuỗi của CSDL không thay đổi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Lưu đúng chuỗi 3 dòng và trọng số 2.5 | 14 ms | ✅ PASSED | Không đổi schema |
+
+---
+
+# ST05_TestcaseEditor_TC003: Thêm testcase mới vào câu hỏi
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bộ testcase của `Q1` đang có 3 testcase.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Bấm **Thêm Testcase** (danh sách tăng lên 4, dòng mới được chọn).
+2. Nhập stdin `10`, stdout `20`.
+3. Bấm **Lưu**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- CSDL có thêm 1 bản ghi thuộc `Q1` với nội dung vừa nhập.
+- Danh sách và nhãn tổng trọng số cập nhật theo số testcase mới.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Thêm đúng 1 bản ghi Q1 | 11 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC004: Xóa testcase khỏi câu hỏi
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Bộ testcase của `Q1` có 3 testcase.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Chọn testcase 2.
+2. Bấm **Xóa**, xác nhận **Yes** ở hộp thoại cảnh báo.
+3. Bấm **Lưu**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Danh sách còn 2 testcase.
+- CSDL xóa mềm bản ghi vừa chọn (`is_deleted = 1`), các bản ghi khác giữ nguyên.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Còn 2 testcase, bản ghi bị xóa mềm | 13 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC005: Lưu và Thêm Tiếp giữ cửa sổ mở để nhập testcase kế tiếp
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Đang sửa testcase 1 của `Q1`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Sửa stdout thành `3`.
+2. Bấm **Lưu và Thêm Tiếp**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Thay đổi được ghi vào CSDL ngay.
+- Cửa sổ không đóng, tự thêm một testcase trống và chuyển vùng chọn xuống dòng mới.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Ghi CSDL, thêm dòng trống và chọn dòng mới | 15 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC006: Chuyển qua lại giữa chế độ Văn bản và Theo dòng không mất dữ liệu
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Ô **Đầu Vào (stdin)** đang ở chế độ **Văn bản** với nội dung `5\n4 -3 7 2 11`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Bấm công tắc **Theo dòng**.
+2. Quan sát danh sách dòng (phải có 2 dòng).
+3. Bấm lại **Văn bản**.
+4. Lặp lại 3 lần.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Nội dung chuỗi giữ nguyên `5\n4 -3 7 2 11` ở cả hai chế độ và sau nhiều lần chuyển.
+- Không mất dòng, không thêm ký tự lạ.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Dữ liệu giữ nguyên sau 3 lần chuyển | 9 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC007: Chế độ Theo dòng nối các dòng bằng ký tự xuống dòng
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Ô stdin đang ở chế độ **Theo dòng** với 1 dòng nội dung `1`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Bấm **Thêm dòng**.
+2. Gõ `2` vào dòng thứ hai.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Chuỗi lưu là `1\n2` (dòng trống mới thêm tạo `1\n` trước khi gõ).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Ghép đúng `1\n2` | 7 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC008: Hiện ký tự ẩn chỉ để xem, không làm đổi dữ liệu
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Ô stdin có nội dung `a  \nb` (2 khoảng trắng cuối dòng 1).
+
+#### Các bước thực hiện (Test Steps)
+
+1. Bật **Hiện ký tự ẩn**.
+2. Quan sát ô dữ liệu.
+3. Tắt **Hiện ký tự ẩn**.
+
+#### Khi bật, ô dữ liệu hiển thị `a··↵` (khoảng trắng = dấu chấm, cuối dòng = mũi tên) và chuyển sang chỉ đọc; giá trị lưu vẫn là `a  \nb`. Tắt đi thì sửa được như cũ.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Ký tự ẩn hiển thị đúng, dữ liệu không đổi | 8 ms | ✅ PASSED | Không dùng icon ảnh |
+
+---
+
+# ST05_TestcaseEditor_TC009: Dán nhiều testcase, dòng lỗi không được nạp im lặng
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Hộp thoại đang mở tab **Dán Nhiều Testcase**.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Dán 3 khối: khối 1 và 2 hợp lệ, khối 3 thiếu dòng `===`.
+2. Bấm **Xem Trước**.
+3. Bấm **Thêm Tất Cả**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Bảng xem trước có 3 dòng; dòng lỗi tô đỏ kèm lý do thiếu `===`.
+- Nhãn kết quả: `2 testcase hợp lệ, 1 dòng lỗi.`
+- Chỉ 2 testcase hợp lệ được thêm; hộp thông báo nêu rõ số dòng bị bỏ qua.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Thêm 2 testcase, báo 1 dòng lỗi | 18 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC010: Dán toàn dòng lỗi thì không cho thêm
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Tab **Dán Nhiều Testcase** đang mở.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Dán JSON thiếu khoá `output`.
+2. Bấm **Xem Trước**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Nhãn kết quả: `0 testcase hợp lệ, 1 dòng lỗi.`
+- Nút **Thêm Tất Cả** bị vô hiệu, danh sách testcase không thay đổi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Nút thêm bị vô hiệu | 6 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC011: Kéo thả đổi thứ tự testcase được lưu lại
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `Q1` có 3 testcase với stdin lần lượt `1 2`, `4\n5`, `7`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Kéo thả đảo thứ tự danh sách (hoặc gọi sự kiện đổi thứ tự tương đương).
+2. Bấm **Lưu**.
+3. Mở lại hộp thoại cho `Q1`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Thứ tự hiển thị sau khi lưu là `7`, `4\n5`, `1 2`.
+- Mở lại thấy đúng thứ tự đó (không thêm cột `order_index` vào CSDL).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Thứ tự được giữ sau khi lưu | 22 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC012: Giới hạn của câu hỏi áp cho testcase không ghi đè
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- `Q1` có 3 testcase; mặc định câu hỏi là 1000 ms / 128 MB; testcase 3 ghi đè 1500 ms / 256 MB.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Đổi **Giới Hạn Thời Gian (ms)** của câu hỏi thành `2000`, **Giới Hạn Bộ Nhớ (MB)** thành `256`.
+2. Chọn testcase 3 để kiểm tra tuỳ chọn ghi đè.
+3. Bấm **Lưu**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Testcase 1, 2 nhận 2000 ms / 256 MB.
+- Testcase 3 giữ 1500 ms (đang ghi đè) và vẫn bật **Ghi đè giới hạn**.
+- CSDL lưu đúng hai nhóm giá trị trên.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Nhóm không ghi đè nhận 2000 ms, nhóm ghi đè giữ 1500 ms | 16 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC013: Thống kê dòng/ký tự và cảnh báo không chặn lưu
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Hàm thuần `line_stats`, `text_warnings`, `visualize_hidden_chars` của module `ui.components.multiline_field`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `line_stats` với `""`, `"a"`, `"a\nb\n"`.
+2. Gọi `text_warnings` với `"a"`, `"a  \n"`, `"a\n"`.
+3. Gọi `visualize_hidden_chars` với `"a  \nb"`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `line_stats` trả `(0, 0)`, `(1, 1)`, `(2, 4)`.
+- `"a"` cảnh báo thiếu xuống dòng cuối; `"a  \n"` cảnh báo khoảng trắng thừa; `"a\n"` không cảnh báo.
+- `visualize_hidden_chars` trả `a··↵\nb↵`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Đúng toàn bộ giá trị kỳ vọng | 3 ms | ✅ PASSED | Cảnh báo chỉ hiển thị, không chặn lưu |
+
+---
+
+# ST05_TestcaseEditor_TC014: Bảng quản lý hiển thị dòng đầu và số dòng còn lại của INPUT/OUTPUT
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Testcase có expected output 3 dòng `Tong = 21`, `Max = 11`, `Min = -3`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Mở cửa sổ **Quản Lý Bộ Testcase**.
+2. Quan sát cột OUTPUT, sau đó rê chuột lên ô.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Ô hiển thị `Tong = 21  (+2 dòng)`.
+- Tooltip hiển thị đầy đủ 3 dòng; ô rỗng hiển thị `(trống)` màu xám.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Đúng định dạng dòng đầu + (+N dòng) | 2 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC015: Chặn lưu khi Kết Quả Kỳ Vọng (stdout) đang trống
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Testcase 1 của `Q1` có stdout `3` trong CSDL.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Chọn testcase 1, xoá trắng ô stdout.
+2. Bấm **Lưu**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Hộp thoại **Dữ Liệu Không Hợp Lệ** nêu rõ testcase 1 thiếu stdout.
+- Cửa sổ không đóng, CSDL không đổi (stdout vẫn là `3`).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Chặn lưu, CSDL giữ nguyên | 12 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC016: Cảnh báo khi đóng cửa sổ mà chưa lưu thay đổi
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Đã sửa nội dung testcase nhưng chưa bấm Lưu.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Sửa ô stdin.
+2. Bấm **Hủy** (hoặc phím Esc).
+3. Chọn **No** ở hộp thoại xác nhận.
+4. Lặp lại và chọn **Yes**.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Bước 3: cửa sổ vẫn mở, thay đổi còn nguyên.
+- Bước 4: cửa sổ đóng, thay đổi bị bỏ (CSDL không đổi).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Hỏi xác nhận đúng, No giữ cửa sổ, Yes đóng | 7 ms | ✅ PASSED |  |
+
+---
+
+# ST05_TestcaseEditor_TC017: Nút Sửa/Xóa trong bảng không bị cắt mép dưới
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Áp theme `LIGHT_THEME_QSS` (theme đặt `QPushButton` cao 40px).
+
+#### Các bước thực hiện (Test Steps)
+
+1. Tạo cột thao tác bằng `make_row_button("Sửa"/"Xóa", height=26)` và `make_action_cell`.
+2. Hiển thị widget và xử lý sự kiện vẽ.
+3. Đo kích thước nút.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Nút đúng 54 × 26 px (không bị theme kéo lên 42 px), không bị cắt viền dưới.
+- Ô thao tác cao không quá 34 px.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :---: | :---: | :--- | :--- | :---: | :---: | :--- |
+| Lần 1 | 21/10/2026 | Pytest Runner | Nút 54 × 26 px, hiển thị đầy đủ viền | 5 ms | ✅ PASSED | Hồi quy lỗi lệch UI cột Thao Tác |
+
+---
 ## Ngoài phạm vi (Desktop/pytest) — chưa tự động hóa ở tầng backend
 - `ST01_BatchGradingPipeline_*`: chấm bài hàng loạt, TLE (`psutil`, kill 1000ms), MLE (256MB), CE và quy tắc bỏ qua AI khi lỗi biên dịch.
 - `ST03_PlagiarismDetection_TC001` Vòng 1: chuẩn hoá token + Winnowing 100% offline dưới 1 giây, **so theo từng câu** (Q1 ↔ Q1) kèm chỉ số Jaccard + độ bao phủ và lọc mã khung sườn chung của lớp (đã tự động hoá ở tầng Desktop: `test_plagiarism_engine.py` / `test_plagiarism_dialog.py`).
