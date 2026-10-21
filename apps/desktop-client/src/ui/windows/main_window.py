@@ -1870,7 +1870,7 @@ class AITAMainWindow(QMainWindow):
         valid = []
         invalid = []
         duplicates = []
-        seen_mssv = set()
+        valid_index_by_mssv = {}
 
         ext_map = {
             "C": [".c"],
@@ -1906,15 +1906,16 @@ class AITAMainWindow(QMainWindow):
                         invalid.append({"name": raw_name, "reason": f"Không tìm thấy file mã nguồn {programming_language} ({', '.join(valid_exts)})"})
                         continue
 
-                    if mssv in seen_mssv:
+                    if mssv in valid_index_by_mssv:
                         duplicates.append({"name": raw_name, "mssv": mssv})
+                        valid[valid_index_by_mssv[mssv]]["source_file_path"] = str(source_file)
                         continue
-                    seen_mssv.add(mssv)
 
                     valid.append({
                         "student_mssv": mssv,
                         "source_file_path": str(source_file)
                     })
+                    valid_index_by_mssv[mssv] = len(valid) - 1
 
                 elif entry.is_file():
                     raw_stem = entry.stem
@@ -1930,15 +1931,16 @@ class AITAMainWindow(QMainWindow):
 
                     mssv = match.group(1).upper()
 
-                    if mssv in seen_mssv:
+                    if mssv in valid_index_by_mssv:
                         duplicates.append({"name": entry.name, "mssv": mssv})
+                        valid[valid_index_by_mssv[mssv]]["source_file_path"] = str(entry)
                         continue
-                    seen_mssv.add(mssv)
 
                     valid.append({
                         "student_mssv": mssv,
                         "source_file_path": str(entry)
                     })
+                    valid_index_by_mssv[mssv] = len(valid) - 1
         except Exception as ex:
             invalid.append({"name": "Thư mục", "reason": f"Lỗi đọc thư mục: {str(ex)}"})
 
