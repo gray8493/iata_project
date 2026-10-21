@@ -205,7 +205,13 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
 
 Desktop Client **không** tự ý tải bản mới: khi khởi động nó hỏi *manifest* tại `GET /api/v1/system/version`,
 rồi so sánh với `APP_VERSION` trong `src/core/version.py` (`services/update_service.py::is_newer`).
-Manifest do backend sinh **hoàn toàn từ biến môi trường** (`system.service.ts`), không đọc từ CSDL.
+Manifest **không** đọc từ CSDL. Nguồn ưu tiên là **release mới nhất trên GitHub**: `GitHubReleaseService`
+gọi `GET https://api.github.com/repos/{APP_UPDATE_GITHUB_REPO}/releases/latest` (bật/tắt bằng
+`APP_UPDATE_SOURCE=github|env`, mặc định `github`), backend tự suy ra `latest_version` từ tag
+(`v1.1.0-portable` → `1.1.0`), `url`, `sha256` (từ `digest` của asset ZIP) và `size_bytes`, cache trong
+`APP_UPDATE_GITHUB_TTL_SECONDS` (mặc định 300 giây). Khi tắt nguồn GitHub, chưa cấu hình repo, hoặc GitHub
+lỗi (401/404/rate-limit/timeout) thì manifest rơi về các biến `APP_UPDATE_*`; nhờ vậy `/system/version`
+**không bao giờ trả 500 chỉ vì GitHub**.
 
 **Các bước phát hành một bản mới:**
 
@@ -213,10 +219,10 @@ Manifest do backend sinh **hoàn toàn từ biến môi trường** (`system.ser
 | :-: | :--- | :--- |
 | 1 | Tăng phiên bản | Sửa `APP_VERSION` (và `APP_BUILD`) trong `apps/desktop-client/src/core/version.py` — nguồn duy nhất cho màn hình đăng nhập, `User-Agent` và phép so sánh cập nhật. |
 | 2 | Chạy kiểm thử | `pytest` (desktop) và `npx jest` (backend). |
-| 3 | Đóng gói | Chạy `build.bat` ở gốc repo → sinh `dist/AITA_Grader_v1/` và `dist/AITA_Grader_v1_portable.zip`, in ra **kích thước (byte)** và **SHA-256** để dùng cho bước 6. |
+| 3 | Đóng gói | Chạy `build.bat` ở gốc repo → sinh `dist/AITA_Grader_v1/` và `dist/AITA_Grader_v1_portable.zip`, in ra **kích thước (byte)** và **SHA-256** (dùng để đối chiếu thủ công khi cần). |
 | 4 | Kiểm tra gói | `AITA_Grader_v1.exe --selftest` phải báo GCC/JDK/Python đều `OK (3+4=7)`, sau đó mở app chấm thử một bài. Chỉ chạy file trong `dist/`; **không** chạy file trong `build/` (file trung gian, thiếu `_internal/` nên báo lỗi "Failed to load Python DLL"). |
 | 5 | Phát hành | Tạo GitHub Release với **tag mới** và upload gói ZIP:<br>`gh release create v1.0.1 dist/AITA_Grader_v1_portable.zip --target master --title "AITA Grader v1.0.1" --notes-file notes.md --latest` |
-| 6 | Cấu hình backend | Khai báo trên Render: `APP_LATEST_VERSION`, `APP_MIN_SUPPORTED_VERSION`, `APP_UPDATE_ARTIFACT_TYPE=zip`, `APP_UPDATE_ENTRYPOINT=AITA_Grader_v1.exe`, `APP_UPDATE_URL_WINDOWS`, `APP_UPDATE_SHA256_WINDOWS`, `APP_UPDATE_SIZE_WINDOWS`, (tuỳ chọn) `APP_UPDATE_NOTES`, `APP_UPDATE_MANDATORY`. Render tự triển khai lại sau vài phút. |
+| 6 | Cấu hình backend (chỉ làm **một lần**) | Khai báo trên Render: `APP_UPDATE_SOURCE=github`, `APP_UPDATE_GITHUB_REPO=<owner>/<repo>`, `GITHUB_TOKEN` (chỉ cần khi repo **private** — fine-grained PAT có quyền `Contents: Read-only`), `APP_MIN_SUPPORTED_VERSION`, `APP_UPDATE_ENTRYPOINT=AITA_Grader_v1.exe`, `APP_UPDATE_ARTIFACT_TYPE=zip`, (tuỳ chọn) `APP_UPDATE_MANDATORY`. **Không phải sửa `APP_LATEST_VERSION` / `APP_UPDATE_URL_WINDOWS` / `APP_UPDATE_SHA256_WINDOWS` / `APP_UPDATE_SIZE_WINDOWS` mỗi bản** — backend tự lấy từ release. Chỉ dùng nhóm biến đó khi muốn tắt nguồn GitHub (`APP_UPDATE_SOURCE=env`). |
 | 7 | Nghiệm thu | `curl https://iata-project-o4z6.onrender.com/api/v1/system/version` để xem manifest, rồi mở bản cũ trên máy giảng viên và xác nhận hộp thoại "Cập nhật AITA". |
 
 **Cơ chế tự cập nhật phía client** (`services/update_service.py`, `ui/dialogs/update_dialog.py`):
@@ -227,7 +233,7 @@ Manifest do backend sinh **hoàn toàn từ biến môi trường** (`system.ser
 - Sau khi tải xong, client sinh `update.bat`, tự thoát, chờ tiến trình AITA kết thúc rồi mới thay file và mở lại exe mới.
 - `min_supported_version` đã có trong manifest và được client đọc, nhưng **chưa cưỡng chế**; chỉ cờ `mandatory` có tác dụng thật (ẩn nút "Nhắc lại sau").
 
-> ⚠️ **Lưu ý vận hành**: (1) Repository GitHub phải ở chế độ **public**, nếu để private thì client tải asset ẩn danh sẽ nhận HTTP 404 và tính năng cập nhật im lặng không hoạt động. (2) Phiên bản mới phải **lớn hơn** phiên bản đang chạy — máy còn bản `2.5.0` sẽ coi mọi bản `1.x` là cũ. (3) Nếu repository bật **immutable releases**, tag đã dùng không thể tạo lại nên mỗi lần phát hành phải dùng tag mới.
+> ⚠️ **Lưu ý vận hành**: (1) Với repo **private**, client tải asset ẩn danh sẽ nhận HTTP 404 (auto-update im lặng không chạy) và backend **bắt buộc** có `GITHUB_TOKEN` mới đọc được release — cách gọn nhất là chuyển repo sang **public** khi phát hành cho giảng viên. (2) Phiên bản mới phải **lớn hơn** phiên bản đang chạy — máy còn bản `2.5.0` sẽ coi mọi bản `1.x` là cũ. (3) Nếu repository bật **immutable releases**, tag đã dùng không thể tạo lại nên mỗi lần phát hành phải dùng tag mới. (4) Ghi chú cập nhật hiển thị cho giảng viên lấy từ **tên release** (hoặc `APP_UPDATE_NOTES` nếu có khai báo).
 
 ---
 

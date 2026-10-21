@@ -653,8 +653,11 @@ paths:
       summary: Lấy phiên bản mới nhất của Desktop Client (Auto-Update)
       description: >
         Endpoint công khai (không cần xác thực) để Desktop Client kiểm tra bản cập nhật.
-        URL tải trỏ tới asset của GitHub Release; artifact_type cho biết bản phát hành là
-        một file .exe (one-file) hay gói .zip (one-folder).
+        Manifest được backend tự dựng từ release mới nhất trên GitHub
+        (`APP_UPDATE_SOURCE=github`: lấy tag -> version, asset ZIP -> url/size/sha256), có cache
+        `APP_UPDATE_GITHUB_TTL_SECONDS`; nếu tắt nguồn GitHub hoặc gọi GitHub lỗi thì rơi về các
+        biến môi trường `APP_UPDATE_*`. URL tải trỏ tới asset của GitHub Release; artifact_type
+        cho biết bản phát hành là một file .exe (one-file) hay gói .zip (one-folder).
       responses:
         '200':
           description: Lấy thông tin phiên bản thành công (success = true)
