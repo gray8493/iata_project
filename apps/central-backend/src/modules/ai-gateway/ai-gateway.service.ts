@@ -166,12 +166,13 @@ ${input.student_b_code}`;
       try {
         const result = await this.provider.generateJson<Record<string, unknown>>({ ...request, prompt: retryPrompt });
         tokensConsumed = result.tokensConsumed;
-        if (this.isValidPlagiarismResponse(
+        const normalized = this.normalizePlagiarismResponse(
           result.data,
           input.student_a_code.split(/\r?\n/).length,
           input.student_b_code.split(/\r?\n/).length,
-        )) {
-          validData = result.data;
+        );
+        if (normalized) {
+          validData = normalized;
           break;
         }
         this.logger.warn(`AI plagiarism response failed schema validation (attempt ${attempt + 1}/2).`);
@@ -369,15 +370,40 @@ LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một 
 
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
-  private isValidPlagiarismResponse(data: unknown, lineCountA: number, lineCountB: number): data is Record<string, unknown> {
-    if (!this.isRecord(data) || typeof data.ket_luan !== 'string'
-      || !this.inRange(data.do_tin_cay, 0, 100) || !Array.isArray(data.bang_chung)
-      || !Array.isArray(data.khac_biet) || !data.khac_biet.every((item) => typeof item === 'string')
-      || !Array.isArray(data.de_xuat) || !data.de_xuat.every((item) => typeof item === 'string')) return false;
-    return data.bang_chung.every((item) => this.isRecord(item)
-      && typeof item.mo_ta === 'string'
-      && this.validLineRange(item.dong_a, lineCountA)
-      && this.validLineRange(item.dong_b, lineCountB));
+  private normalizePlagiarismResponse(
+    value: unknown,
+    lineCountA: number,
+    lineCountB: number,
+  ): Record<string, unknown> | undefined {
+    if (!this.isRecord(value) || typeof value.ket_luan !== 'string' || !value.ket_luan.trim()) return undefined;
+    const confidence = typeof value.do_tin_cay === 'number'
+      ? value.do_tin_cay
+      : typeof value.do_tin_cay === 'string' && value.do_tin_cay.trim() !== ''
+        ? Number(value.do_tin_cay)
+        : NaN;
+    if (!this.inRange(confidence, 0, 100)) return undefined;
+
+    // A malformed citation should not discard the whole review. Keep only line ranges
+    // that can be navigated safely in both source panes.
+    const evidence = Array.isArray(value.bang_chung)
+      ? value.bang_chung.filter((item): item is Record<string, unknown> => this.isRecord(item))
+        .flatMap((item) => {
+          const description = typeof item.mo_ta === 'string' ? item.mo_ta.trim() : '';
+          if (!description || !this.validLineRange(item.dong_a, lineCountA) || !this.validLineRange(item.dong_b, lineCountB)) return [];
+          return [{ mo_ta: description, dong_a: item.dong_a, dong_b: item.dong_b }];
+        })
+      : [];
+    const textList = (items: unknown): string[] => Array.isArray(items)
+      ? items.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
+      : [];
+
+    return {
+      ket_luan: value.ket_luan.trim(),
+      do_tin_cay: confidence,
+      bang_chung: evidence,
+      khac_biet: textList(value.khac_biet),
+      de_xuat: textList(value.de_xuat),
+    };
   }
 
   private validLineRange(value: unknown, lineCount: number): value is [number, number] {
