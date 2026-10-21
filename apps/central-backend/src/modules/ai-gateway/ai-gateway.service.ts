@@ -357,6 +357,12 @@ LẦN TRƯỚC PHẢN HỒI KHÔNG HỢP LỆ. Hãy trả về DUY NHẤT một 
       const value = source[key];
       if (typeof value === 'string') return value;
       if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      // Model hay trả stdin/stdout dạng mảng dòng: ["5", "4 -3 7 2 11"] -> nối bằng xuống dòng.
+      if (Array.isArray(value)) {
+        const lines = value.map((item) => (typeof item === 'string' ? item : typeof item === 'number' || typeof item === 'boolean' ? String(item) : ''));
+        const text = lines.filter((line) => line !== '').join('\n');
+        if (text) return text;
+      }
     }
     return '';
   }

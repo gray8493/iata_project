@@ -1816,7 +1816,8 @@ class AITAMainWindow(QMainWindow):
         show_toast(
             self,
             f"Đã cập nhật bài nộp từ thư mục: {len(valid_items)} bài hợp lệ "
-            f"({added} mới, {existing} giữ nguyên điểm).",
+            f"({added} mới, {existing} giữ nguyên điểm). "
+            + (f"Đã bỏ qua {len(scanned['duplicates'])} mục trùng MSSV." if scanned["duplicates"] else ""),
             kind="success",
         )
 
@@ -1906,7 +1907,8 @@ class AITAMainWindow(QMainWindow):
                         continue
 
                     if mssv in seen_mssv:
-                        pass # Cho phép trùng, xử lý update ở tầng DB
+                        duplicates.append({"name": raw_name, "mssv": mssv})
+                        continue
                     seen_mssv.add(mssv)
 
                     valid.append({
@@ -1929,7 +1931,8 @@ class AITAMainWindow(QMainWindow):
                     mssv = match.group(1).upper()
 
                     if mssv in seen_mssv:
-                        pass # Cho phép trùng, xử lý update ở tầng DB
+                        duplicates.append({"name": entry.name, "mssv": mssv})
+                        continue
                     seen_mssv.add(mssv)
 
                     valid.append({

@@ -193,6 +193,7 @@ class DatabaseManager:
         self._drop_legacy_student_name_column()
         self._ensure_class_columns()
         self._ensure_submission_unique_mssv()
+        self._ensure_single_active_grading_result()
 
     def _drop_legacy_student_name_column(self):
         """
@@ -236,30 +237,52 @@ class DatabaseManager:
         """
         Chốt trùng MSSV trong một đợt chấm ở mức DB:
         - Dọn đợt thuộc lịch sử có 2 bài của cùng MSSV (giữ bài cũ nhất, ẩn các bài sau).
-        - Tạo UNIQUE INDEX (class_id, student_mssv) cho các hàng còn hoạt động.
+        - Tạo UNIQUE INDEX (class_id, MSSV chuẩn hóa) cho các hàng còn hoạt động.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT class_id, student_mssv, COUNT(*) AS n
+                SELECT class_id, UPPER(TRIM(student_mssv)) AS normalized_mssv, COUNT(*) AS n
                 FROM local_student_submissions
                 WHERE is_deleted = 0
-                GROUP BY class_id, student_mssv
+                GROUP BY class_id, UPPER(TRIM(student_mssv))
                 HAVING n > 1
             """)
             for row in cursor.fetchall():
                 cursor.execute("""
                     UPDATE local_student_submissions
                     SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
-                    WHERE is_deleted = 0 AND class_id = ? AND student_mssv = ?
+                    WHERE is_deleted = 0 AND class_id = ? AND UPPER(TRIM(student_mssv)) = ?
                       AND id > (
                           SELECT MIN(id) FROM local_student_submissions
-                          WHERE is_deleted = 0 AND class_id = ? AND student_mssv = ?
+                          WHERE is_deleted = 0 AND class_id = ? AND UPPER(TRIM(student_mssv)) = ?
                       )
-                """, (row["class_id"], row["student_mssv"], row["class_id"], row["student_mssv"]))
+                """, (row["class_id"], row["normalized_mssv"], row["class_id"], row["normalized_mssv"]))
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_class_mssv_active
-                ON local_student_submissions (class_id, student_mssv)
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_class_mssv_normalized_active
+                ON local_student_submissions (class_id, UPPER(TRIM(student_mssv)))
+                WHERE is_deleted = 0
+            """)
+            conn.commit()
+
+    def _ensure_single_active_grading_result(self):
+        """Giữ một kết quả đang hiệu lực cho mỗi bài nộp, bảo toàn bản cũ dưới dạng đã ẩn."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE local_grading_results
+                SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
+                WHERE is_deleted = 0
+                  AND id NOT IN (
+                      SELECT MAX(id)
+                      FROM local_grading_results
+                      WHERE is_deleted = 0
+                      GROUP BY submission_id
+                  )
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_grading_results_submission_active
+                ON local_grading_results (submission_id)
                 WHERE is_deleted = 0
             """)
             conn.commit()
@@ -459,21 +482,25 @@ class DatabaseManager:
                 SELECT id, student_mssv FROM local_student_submissions
                 WHERE class_id = ? AND is_deleted = 0
             """, (class_id,))
-            existing_map = {row["student_mssv"]: row["id"] for row in cursor.fetchall()}
+            existing_map = {str(row["student_mssv"]).strip().upper(): row["id"] for row in cursor.fetchall()}
 
             added_count = 0
             existing_count = 0
+            seen_in_scan = set()
 
             for item in scanned_submissions:
-                mssv = str(item.get("student_mssv", "")).strip()
+                mssv = str(item.get("student_mssv", "")).strip().upper()
+                if not mssv or mssv in seen_in_scan:
+                    continue
+                seen_in_scan.add(mssv)
                 filepath = str(item.get("source_file_path", ""))
                 if mssv in existing_map:
                     # Đã tồn tại: giữ nguyên điểm số, chỉ cập nhật đường dẫn file nếu thay đổi
                     cursor.execute("""
                         UPDATE local_student_submissions
-                        SET source_file_path = ?
+                        SET student_mssv = ?, source_file_path = ?
                         WHERE id = ?
-                    """, (filepath, existing_map[mssv]))
+                    """, (mssv, filepath, existing_map[mssv]))
                     existing_count += 1
                 else:
                     # Bài nộp mới: thêm mới với trạng thái PENDING
@@ -483,6 +510,7 @@ class DatabaseManager:
                         ) VALUES (?, ?, ?, 'PENDING')
                     """, (class_id, mssv, filepath))
                     added_count += 1
+                    existing_map[mssv] = cursor.lastrowid
 
             # Cập nhật tổng số bài nộp trong local_classes
             cursor.execute("""
@@ -679,6 +707,11 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
+                UPDATE local_grading_results
+                SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
+                WHERE submission_id = ? AND is_deleted = 0
+            """, (submission_id,))
+            cursor.execute("""
                 INSERT INTO local_grading_results (
                     submission_id, matching_strategy, calculated_score, final_verdict,
                     execution_time_ms, memory_used_mb, compile_log, diff_details, ai_feedback
@@ -707,7 +740,7 @@ class DatabaseManager:
                 cursor.execute("""
                     UPDATE local_grading_results 
                     SET calculated_score = ?, manual_override_score = ?, manual_override_reason = ?
-                    WHERE submission_id = ?
+                    WHERE submission_id = ? AND is_deleted = 0
                 """, (new_score, new_score, reason, submission_id))
             else:
                 cursor.execute("""
