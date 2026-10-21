@@ -632,15 +632,42 @@ class AiTestcaseDialog(QDialog):
             err_detail = result.get("message", "")
             logger.warning("Lỗi dịch vụ AI sinh testcase: code=%s, detail=%s", err_code, err_detail)
 
-            # Thông báo lỗi thông thường, không lộ mã nội bộ
+            # Nói rõ nguyên nhân thay vì câu chung "không kết nối được": trước đây mọi
+            # lỗi (hết hạn mức, server thiếu API key, token hết hạn...) đều hiện cùng
+            # một câu nên giảng viên không biết phải làm gì.
             self.lbl_status.setVisible(True)
-            self.lbl_status.setText("Không kết nối được dịch vụ AI. Thử lại sau.")
+            self.lbl_status.setText(self._ai_error_message(result))
             self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #b91c1c;")
 
             self.btn_retry.setVisible(True)
             self.btn_add_selected.setEnabled(False)
             self.btn_select_all.setEnabled(False)
             self.btn_deselect_all.setEnabled(False)
+
+    # Mã lỗi backend -> lời giải thích cho giảng viên (kèm cách xử lý).
+    _AI_ERROR_HINTS = {
+        "AI_NOT_CONFIGURED": "Máy chủ chưa cấu hình API key AI (OPENROUTER_API_KEYS). Báo quản trị viên backend.",
+        "AI_QUOTA_NOT_CONFIGURED": "Tài khoản chưa được cấp hạn mức AI. Báo quản trị viên cấu hình quota.",
+        "AI_QUOTA_EXCEEDED": "Đã dùng hết hạn mức token AI trong ngày. Thử lại vào ngày mai hoặc nhập testcase thủ công.",
+        "AI_PROVIDER_RATE_LIMITED": "Nhà cung cấp AI đang giới hạn số yêu cầu. Chờ 1-2 phút rồi thử lại.",
+        "AI_PROVIDER_ERROR": "Nhà cung cấp AI không phản hồi (model có thể đang quá tải). Thử lại hoặc đổi model.",
+        "AI_INVALID_RESPONSE": "AI trả về dữ liệu không đúng định dạng. Thử lại với đề bài rõ ràng hơn.",
+        "CONNECT_ERROR": "Không kết nối được máy chủ backend. Kiểm tra mạng, hoặc server đang khởi động lại.",
+        "CONNECT_TIMEOUT": "Máy chủ backend phản hồi quá chậm (server có thể đang ngủ). Thử lại sau ~30 giây.",
+        "AUTH_INVALID_TOKEN": "Phiên đăng nhập đã hết hạn. Đăng nhập lại rồi thử lại.",
+        "AUTH_TOKEN_EXPIRED": "Phiên đăng nhập đã hết hạn. Đăng nhập lại rồi thử lại.",
+        "VALIDATION_FAILED": "Đề bài chưa đủ dài hoặc sai định dạng yêu cầu.",
+        "TOO_MANY_REQUESTS": "Bạn thao tác quá nhanh. Chờ vài giây rồi thử lại.",
+    }
+
+    @classmethod
+    def _ai_error_message(cls, result: Dict[str, Any]) -> str:
+        """Dịch kết quả lỗi của backend thành câu tiếng Việt chỉ rõ nguyên nhân."""
+        code = str(result.get("error_code", "") or "").strip().upper()
+        hint = cls._AI_ERROR_HINTS.get(code)
+        if not hint:
+            hint = str(result.get("message", "") or "").strip() or "Không rõ nguyên nhân."
+        return f"Không sinh được testcase: {hint} (mã lỗi: {code or 'UNKNOWN'})"
 
     def _render_results_table(self, testcases: List[Dict[str, Any]]):
         self.table_result.setRowCount(len(testcases))
