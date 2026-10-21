@@ -136,7 +136,12 @@
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e4...",
     "token_type": "Bearer",
-    "expires_in": 900
+    "expires_in": 900,
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "username": "teacher_hung",
+      "role": "INSTRUCTOR"
+    }
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }

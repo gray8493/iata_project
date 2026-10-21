@@ -119,6 +119,7 @@
   - `student_a_code`: string.
   - `student_b_code`: string.
   - `ast_similarity_percentage`: float từ 80.0 đến 100.0.
+  - `language`: enum `C | JAVA | PYTHON | PHP`, bắt buộc.
 
 #### Kịch bản phản hồi:
 * **Thành công (`success: true`) - HTTP 200 OK**:
@@ -126,15 +127,16 @@
 {
   "success": true,
   "status_code": 200,
-  "message": "Phân tích bằng chứng đạo văn thành công",
+  "message": "Đối soát đạo văn bằng AI hoàn tất",
   "data": {
     "tokens_consumed": 510,
-    "is_plagiarized": true,
-    "confidence_percentage": 94.8,
-    "evidence_summary": "Đổi tên biến và hoán vị câu lệnh if độc lập",
-    "cloned_segments": [
-      { "student_a_lines": "5-9", "student_b_lines": "6-10", "technique": "VARIABLE_RENAMING" }
-    ]
+    "ket_luan": "Hai đoạn mã có nhiều dấu hiệu sao chép có chủ đích.",
+    "do_tin_cay": 94.8,
+    "bang_chung": [
+      { "mo_ta": "Đổi tên biến và hoán vị câu lệnh if độc lập", "dong_a": [5, 9], "dong_b": [6, 10] }
+    ],
+    "khac_biet": ["Phần xử lý lỗi đầu vào khác nhau."],
+    "de_xuat": ["Yêu cầu sinh viên trình bày lại thuật toán."]
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
@@ -162,7 +164,8 @@
         "criterion": "Bố cục cân đối có thanh điều hướng navbar",
         "score": 10.0,
         "verdict": "PASS",
-        "comment": "Navbar thiết kế chuẩn mực."
+        "comment": "Navbar thiết kế chuẩn mực.",
+        "bounding_box": [0, 0, 1280, 64]
       }
     ],
     "overall_feedback": "Trang web thiết kế gọn gàng, độ tương phản tốt."

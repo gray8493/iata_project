@@ -22,7 +22,7 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 +------------------------------------+       +------------------------------------+
 | WEB ADMIN DASHBOARD (Next.js FE)   |       | DESKTOP APP CLIENT (PyQt6 / Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
-|  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài Offline, 7 chế độ so   |
+|  - Quản lý User, Quota AI, Báo cáo |       |  - Chấm bài Offline, 7 chế độ so   |
 |  - Báo cáo thống kê toàn trường    |       |  - Đa tiến trình qua hàm main()    |
 +------------------------------------+       +------------------------------------+
                   │                                             │

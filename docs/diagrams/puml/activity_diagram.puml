@@ -49,10 +49,10 @@ start
 :Hiển thị Màn hình Điều khiển Chấm bài;
 
 |Giảng viên (Instructor)|
-:Chọn Loại bài thi (Console C/Java/Python hoặc Web HTML/CSS/JS/PHP) & Nạp file **students.csv** (UC-08);
+:Chọn Loại bài thi (Console C/Java/Python hoặc Web HTML/CSS/JS/PHP) & Nạp **thư mục bài nộp** (UC-08);
 
 |Desktop App UI (PyQt6 Client)|
-:Đọc và thẩm định file CSV (chuẩn 2 cột: MSSV, File/Thư mục bài làm);
+:Quét thư mục bài nộp (tách MSSV/họ tên bằng regex, gắn cờ mục không hợp lệ/trùng);
 :Hiển thị bảng danh sách sinh viên;
 
 |Giảng viên (Instructor)|

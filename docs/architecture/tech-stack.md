@@ -94,7 +94,7 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 | **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý AI Quota.     |
 | **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Fetch API`, `SWR` | Dashboard quản trị dành riêng cho System Admin: User, Quota AI, Báo cáo kiểm toán. |
 | **Desktop App** | **Python (PyQt6)** | `playwright`, `beautifulsoup4`, `tinycss2`, `psutil`, `subprocess`, `csv`, `httpx` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, chấm Web tự động, 7 chế độ so khớp, xuất CSV. |
-| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / Prisma Migrate | Lưu trữ danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký AI. |
+| **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / Prisma Migrate | Lưu trữ tài khoản, cấu hình hạn ngạch và nhật ký AI. |
 | **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase, kết quả chấm điểm và ảnh web trên máy tính giảng viên. |
 | **AI Cloud Hub** | **OpenRouter** | REST API `https://openrouter.ai/api/v1` (gọi qua `fetch` trên NestJS Backend) | Cấu hình qua biến môi trường `OPENROUTER_API_KEYS` / `OPENROUTER_MODEL`; sinh testcase, phân tích lỗi, kiểm tra đạo văn, đánh giá giao diện & rubric chấm PE.                |
 

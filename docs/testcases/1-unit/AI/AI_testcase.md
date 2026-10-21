@@ -1722,7 +1722,7 @@ Normal
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 92`, `cloned_segments` có 1 phần tử.
+- OpenRouter trả `ket_luan = "Hai đoạn mã có cấu trúc vòng lặp tương đồng cao."`, `do_tin_cay = 92`, `bang_chung` có 1 phần tử (`mo_ta`, `dong_a`, `dong_b`).
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1730,7 +1730,7 @@ Normal
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP `200`, `message = "Phân tích bằng chứng đạo văn thành công"`, `data.is_plagiarized = true`, `data.confidence_percentage = 92`.
+- HTTP `200`, `message = "Đối soát đạo văn bằng AI hoàn tất"`, `data.ket_luan` không rỗng, `data.do_tin_cay = 92`, `data.bang_chung` có 1 phần tử.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1752,16 +1752,16 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 80`; OpenRouter trả `is_plagiarized = false`, `confidence_percentage = 30`.
+- `ast_similarity_percentage = 80`; OpenRouter trả `do_tin_cay = 30`, `bang_chung = []`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = false`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `do_tin_cay = 30`, `bang_chung = []`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Hợp lệ, HTTP `200`, `data.is_plagiarized = false` (kết luận trùng hợp ngẫu nhiên).
+- Hợp lệ, HTTP `200`, `data.do_tin_cay = 30` (kết luận trùng hợp ngẫu nhiên), `data.bang_chung = []`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1783,16 +1783,16 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 100`; OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 100`.
+- `ast_similarity_percentage = 100`; OpenRouter trả `do_tin_cay = 100`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = true`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `do_tin_cay = 100`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Hợp lệ, HTTP `200`, `data.confidence_percentage = 100`.
+- Hợp lệ, HTTP `200`, `data.do_tin_cay = 100`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1818,11 +1818,11 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `provider.generateJson` trả `cloned_segments` = `[]` nhưng `is_plagiarized = true`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
+1. `provider.generateJson` trả `bang_chung = []` nhưng `do_tin_cay = 90`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP `200`, `data.cloned_segments = []` vẫn hợp lệ (mảng rỗng được chấp nhận).
+- HTTP `200`, `data.bang_chung = []` vẫn hợp lệ (mảng rỗng được chấp nhận, `normalizePlagiarismResponse` giữ nguyên).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 

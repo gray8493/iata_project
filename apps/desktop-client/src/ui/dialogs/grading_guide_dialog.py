@@ -197,7 +197,7 @@ class GradingGuideDialog(QDialog):
             ("5. Biểu thức chính quy (Regex Pattern)",
              "Đầu ra kỳ vọng là một mẫu biểu thức chính quy (Regex) để kiểm tra cấu trúc chuỗi định dạng đặc biệt (ví dụ ngày tháng DD/MM/YYYY hoặc địa chỉ email)."),
             ("6. Trình kiểm tra tùy biến (Special Judge)",
-             "Dành cho bài toán có nhiều nghiệm thỏa mãn, hệ thống kiểm tra tính hợp lệ qua kịch bản thẩm định chuyên biệt."),
+             "Dành cho bài có nhiều đáp án: hiện hệ thống chấp nhận nếu kết quả thực tế chứa đủ các dòng kỳ vọng. Ứng dụng chưa hỗ trợ cấu hình script chấm riêng."),
             ("7. Khớp chính xác tuyệt đối (Exact Match)",
              "Bỏ tick toàn bộ các tiêu chí nới lỏng để bắt buộc đầu ra thực tế phải trùng khớp 100% từng ký tự so với kết quả kỳ vọng.")
         ]

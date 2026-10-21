@@ -13,8 +13,8 @@ info:
 servers:
   - url: http://localhost:3000/api/v1
     description: Máy chủ phát triển cục bộ (Local Development)
-  - url: https://api.aita.edu.vn/api/v1
-    description: Máy chủ chính thức (Production Server)
+  - url: https://iata-project-o4z6.onrender.com/api/v1
+    description: Máy chủ chính thức (Production Server trên Render.com)
 
 tags:
   - name: Auth
@@ -29,6 +29,39 @@ tags:
     description: Các API hệ thống phục vụ Auto-Update Desktop Client (Công khai, không cần xác thực)
 
 paths:
+  # ============================================================================
+  # 0. HEALTH & SYSTEM ENDPOINTS (Công khai, không cần xác thực)
+  # ============================================================================
+  /health:
+    get:
+      tags:
+        - System
+      summary: Kiểm tra trạng thái API, PostgreSQL & kho rate-limit
+      responses:
+        '200':
+          description: Dịch vụ đang hoạt động (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  status_code: { type: integer, example: 200 }
+                  message: { type: string, example: Dịch vụ đang hoạt động }
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string, example: ok }
+                      database: { type: string, example: ok }
+                      rate_limit_storage: { type: string, enum: [memory, redis] }
+                  timestamp: { type: string, format: date-time }
+        '503':
+          description: CSDL hoặc kho rate-limit không khả dụng (error_code RATE_LIMIT_STORAGE_UNAVAILABLE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+
   # ============================================================================
   # 1. AUTHENTICATION ENDPOINTS
   # ============================================================================
@@ -349,6 +382,52 @@ paths:
                     $ref: '#/components/schemas/AIQuotaData'
                   timestamp:
                     type: string
+
+  /ai/provider-status:
+    get:
+      tags:
+        - AI Hub
+      summary: Xem trạng thái AI Hub/OpenRouter (chỉ ADMIN)
+      description: Liệt kê các account key đang cấu hình, model chính/model dự phòng và thời gian cooldown còn lại của từng key.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lấy trạng thái AI Hub thành công (success = true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  status_code: { type: integer, example: 200 }
+                  message: { type: string, example: Lấy trạng thái AI Hub thành công }
+                  data:
+                    type: object
+                    properties:
+                      provider: { type: string, example: openrouter }
+                      model: { type: string, example: google/gemma-4-31b-it:free }
+                      fallback_models:
+                        type: array
+                        items: { type: string }
+                      accounts_configured: { type: integer, example: 3 }
+                      structured_outputs_supported: { type: boolean, example: true }
+                      accounts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            account: { type: string, example: ACC-01 }
+                            key_hint: { type: string, example: 'sk-or-v1…ab12' }
+                            state: { type: string, enum: [READY, COOLDOWN] }
+                            cooldown_remaining_seconds: { type: integer, example: 0 }
+                  timestamp: { type: string, format: date-time }
+        '403':
+          description: Không có quyền Admin (success = false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
 
   /ai/generate-testcases:
     post:
@@ -906,6 +985,8 @@ components:
             expires_in:
               type: integer
               example: 900
+            user:
+              $ref: '#/components/schemas/UserData'
         timestamp:
           type: string
 
@@ -933,6 +1014,14 @@ components:
         is_active:
           type: boolean
           example: true
+        daily_token_quota:
+          type: integer
+          description: Trần Token AI mỗi ngày (UTC) của tài khoản
+          example: 50000
+        used_tokens_today:
+          type: integer
+          description: Số token đã tiêu thụ trong ngày hiện tại
+          example: 0
         created_at:
           type: string
           format: date-time
@@ -992,8 +1081,7 @@ components:
           example: INSTRUCTOR
         daily_token_quota:
           type: integer
-          minimum: 1000
-          maximum: 1000000
+          minimum: 0
           default: 50000
 
     UpdateUserRequest:
@@ -1022,8 +1110,7 @@ components:
           type: boolean
         daily_token_quota:
           type: integer
-          minimum: 1000
-          maximum: 1000000
+          minimum: 0
 
     UserListResponse:
       type: object
@@ -1062,64 +1149,6 @@ components:
         timestamp:
           type: string
 
-    CreateCourseRequest:
-      type: object
-      required: [code, name]
-      properties:
-        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$', example: PRF }
-        name: { type: string, minLength: 2, maxLength: 100, example: Programming Fundamentals }
-        description: { type: string, nullable: true, maxLength: 1000 }
-        is_active: { type: boolean, default: true }
-
-    UpdateCourseRequest:
-      type: object
-      properties:
-        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$' }
-        name: { type: string, minLength: 2, maxLength: 100 }
-        description: { type: string, nullable: true, maxLength: 1000 }
-        is_active: { type: boolean }
-
-    CourseData:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        code: { type: string, example: PRF }
-        name: { type: string, example: Programming Fundamentals }
-        description: { type: string, nullable: true }
-        is_active: { type: boolean, example: true }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-
-    CourseResponse:
-      type: object
-      properties:
-        success: { type: boolean, example: true }
-        status_code: { type: integer, example: 200 }
-        message: { type: string }
-        data: { $ref: '#/components/schemas/CourseData' }
-        timestamp: { type: string, format: date-time }
-
-    CourseListResponse:
-      type: object
-      properties:
-        success: { type: boolean, example: true }
-        status_code: { type: integer, example: 200 }
-        message: { type: string }
-        data:
-          type: object
-          properties:
-            items:
-              type: array
-              items: { $ref: '#/components/schemas/CourseData' }
-            pagination:
-              type: object
-              properties:
-                page: { type: integer }
-                page_size: { type: integer }
-                total_items: { type: integer }
-                total_pages: { type: integer }
-        timestamp: { type: string, format: date-time }
-
     # --------------------------------------------------------------------------
     # SCHEMAS CHO AI HUB
     # --------------------------------------------------------------------------
@@ -1135,13 +1164,10 @@ components:
         remaining_tokens:
           type: integer
           example: 37550
-        percentage_used:
-          type: number
-          format: float
-          example: 24.9
         reset_at_utc:
           type: string
           format: date-time
+          description: Thời điểm tự động reset hạn ngạch về 0 (00:00 UTC)
 
     GenerateTestcasesRequest:
       type: object
@@ -1255,36 +1281,54 @@ components:
           example: 92.5
         language:
           type: string
+          enum: [C, JAVA, PYTHON, PHP]
           example: C
 
     PlagiarismVerificationData:
       type: object
+      description: Kết quả đối soát đạo văn bằng AI (Vòng 2) — phản hồi bằng tiếng Việt
+      required: [ket_luan, do_tin_cay, bang_chung, khac_biet, de_xuat]
       properties:
         tokens_consumed:
           type: integer
           example: 510
-        is_plagiarized:
-          type: boolean
-          example: true
-        confidence_percentage:
-          type: number
-          example: 94.8
-        evidence_summary:
+        ket_luan:
           type: string
-        cloned_segments:
+          example: Hai đoạn mã có nhiều dấu hiệu sao chép có chủ đích.
+        do_tin_cay:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 94.8
+        bang_chung:
           type: array
           items:
             type: object
+            required: [mo_ta, dong_a, dong_b]
             properties:
-              student_a_lines:
+              mo_ta:
                 type: string
-                example: '5-9'
-              student_b_lines:
-                type: string
-                example: '6-10'
-              technique:
-                type: string
-                example: VARIABLE_RENAMING
+                example: Cùng biến đổi vòng lặp với tên biến đổi tên ở cả hai đoạn.
+              dong_a:
+                type: array
+                items: { type: integer, minimum: 1 }
+                minItems: 2
+                maxItems: 2
+                example: [5, 9]
+              dong_b:
+                type: array
+                items: { type: integer, minimum: 1 }
+                minItems: 2
+                maxItems: 2
+                example: [6, 10]
+        khac_biet:
+          type: array
+          items:
+            type: string
+        de_xuat:
+          type: array
+          items:
+            type: string
 
     EvaluateWebUIRequest:
       type: object
@@ -1325,6 +1369,14 @@ components:
                 enum: [PASS, PARTIAL, FAIL]
               comment:
                 type: string
+              bounding_box:
+                type: array
+                description: Toạ độ vùng lỗi trên ảnh chụp màn hình [x, y, w, h] (px)
+                items:
+                  type: number
+                minItems: 4
+                maxItems: 4
+                example: [120, 240, 480, 96]
         overall_feedback:
           type: string
 
@@ -1403,5 +1455,5 @@ components:
             top_consuming_feature:
               type: string
               nullable: true
-              enum: [TESTCASE_GEN, CODE_REVIEW, PLAGIARISM, UI_EVALUATION]
+              enum: [TESTCASE_GEN, CODE_REVIEW, PLAGIARISM, UI_EVALUATION, PE_CODE_EVAL]
               example: TESTCASE_GEN

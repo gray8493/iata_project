@@ -65,7 +65,7 @@ rectangle "Hệ Sinh Thái Phần Mềm Toàn Diện AITA (AITA Ecosystem Bounda
         package "1. Cấu hình & Quản lý Đợt Chấm" {
             usecase "UC-06: Cấu hình Môi trường Biên dịch & Sandbox Cục bộ" as UC06
             usecase "UC-07: Quản lý Đợt Chấm & Lớp học" as UC07
-            usecase "UC-08: Nạp Danh sách Sinh viên từ File CSV (students.csv)" as UC08
+            usecase "UC-08: Nạp Danh sách Bài nộp từ Thư mục Cục bộ (MSSV)" as UC08
         }
 
         package "2. Quản lý Testcase & Chiến lược So khớp" {
