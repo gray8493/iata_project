@@ -926,7 +926,8 @@ Exception
 1. `{ test_cases: [ { input: 5, expected: 15, note: "tổng 0..5" }, { stdin: "3", stdout: "6", boundary: "true" } ] }`
 2. `{ data: { testcases: [2 phần tử hợp lệ] } }`
 3. `{ "1": { input: "a", expected_output: "A" }, "2": { input: "b", expected_output: "B" } }`
-- Body: `count = 2`.
+4. `{ testcases: [ { input: ["5", "4 -3 7 2 11"], expected_output: ["Tong = 21", "Max = 11", "Min = -3", "So nguyen to = 3"] } ] }`
+- Body: `count = 2` (riêng dạng 4 dùng `count = 1`).
 
 #### Các bước thực hiện (Test Steps)
 
@@ -934,7 +935,7 @@ Exception
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Cả 3 dạng đều trả `200`: khoá `test_cases`/`tests`/`cases` và các khoá viết tắt `stdin`/`stdout`/`expected`/`note`/`boundary` được ánh xạ về `input`/`expected_output`/`explanation`/`is_boundary`; số `5` được ép thành chuỗi `"5"`; mảng nằm trong object lồng vẫn tìm thấy; object đánh số `"1"`, `"2"` được coi là danh sách.
+- Cả 3 dạng đều trả `200`: khoá `test_cases`/`tests`/`cases` và các khoá viết tắt `stdin`/`stdout`/`expected`/`note`/`boundary` được ánh xạ về `input`/`expected_output`/`explanation`/`is_boundary`; số `5` được ép thành chuỗi `"5"`; mảng nằm trong object lồng vẫn tìm thấy; object đánh số `"1"`, `"2"` được coi là danh sách; mảng dòng (`["5", "4 -3 7 2 11"]`) được nối bằng ký tự xuống dòng thành `"5\n4 -3 7 2 11"`.
 - Chỉ khi **không** tìm được mảng testcase nào hoặc tất cả phần tử đều rỗng thì mới trả `502 AI_INVALID_RESPONSE` (kèm `warn` log mô tả dạng dữ liệu nhận được).
 
 #### Bảng kết quả kiểm thử (Execution Result)

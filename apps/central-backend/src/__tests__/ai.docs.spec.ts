@@ -478,6 +478,17 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
       const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 2 } as GenerateTestcasesDto);
       expect((result.data as any).testcases.map((item: any) => item.expected_output)).toEqual(['A', 'B']);
     });
+
+    it('nối mảng dòng stdin/stdout thành chuỗi nhiều dòng', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: { testcases: [{ input: ['5', '4 -3 7 2 11'], expected_output: ['Tong = 21', 'Max = 11', 'Min = -3', 'So nguyen to = 3'] }] },
+        tokensConsumed: 80,
+      });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 1 } as GenerateTestcasesDto);
+      const testcase = (result.data as any).testcases[0];
+      expect(testcase.input).toBe('5\n4 -3 7 2 11');
+      expect(testcase.expected_output).toBe('Tong = 21\nMax = 11\nMin = -3\nSo nguyen to = 3');
+    });
   });
 
   // =========================================================================
