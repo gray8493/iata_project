@@ -304,6 +304,8 @@ class DatabaseManager:
             existing = {row[1] for row in cursor.fetchall()}
             if "question_key" not in existing:
                 cursor.execute("ALTER TABLE local_plagiarism_reports ADD COLUMN question_key TEXT")
+            if "ai_evidence_json" not in existing:
+                cursor.execute("ALTER TABLE local_plagiarism_reports ADD COLUMN ai_evidence_json TEXT")
             conn.commit()
 
 
@@ -759,7 +761,8 @@ class DatabaseManager:
         student_b_mssv: str,
         similarity_percentage: float,
         ai_evidence_details: Optional[str] = None,
-        question_key: Optional[str] = None
+        question_key: Optional[str] = None,
+        ai_evidence_json: Optional[str] = None
     ) -> int:
         """Persists one flagged plagiarism pair into local_plagiarism_reports."""
         with self.get_connection() as conn:
@@ -767,10 +770,10 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO local_plagiarism_reports (
                     class_id, student_a_mssv, student_b_mssv,
-                    similarity_percentage, question_key, ai_evidence_details
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    similarity_percentage, question_key, ai_evidence_details, ai_evidence_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (class_id, student_a_mssv, student_b_mssv, similarity_percentage,
-                  question_key, ai_evidence_details))
+                  question_key, ai_evidence_details, ai_evidence_json))
             conn.commit()
             if cursor.lastrowid is None:
                 raise RuntimeError("Failed to retrieve row ID from local_plagiarism_reports.")
@@ -781,18 +784,20 @@ class DatabaseManager:
         class_id: int,
         student_a_mssv: str,
         student_b_mssv: str,
-        ai_evidence_details: str
+        ai_evidence_details: str,
+        ai_evidence_json: Optional[str] = None
     ) -> bool:
         """Attaches Stage-2 AI verification evidence to an existing report row."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE local_plagiarism_reports
-                SET ai_evidence_details = ?
+                SET ai_evidence_details = ?, ai_evidence_json = COALESCE(?, ai_evidence_json)
                 WHERE class_id = ? AND is_deleted = 0
                   AND ((student_a_mssv = ? AND student_b_mssv = ?)
                     OR (student_a_mssv = ? AND student_b_mssv = ?))
-            """, (ai_evidence_details, class_id, student_a_mssv, student_b_mssv, student_b_mssv, student_a_mssv))
+            """, (ai_evidence_details, ai_evidence_json, class_id,
+                  student_a_mssv, student_b_mssv, student_b_mssv, student_a_mssv))
             conn.commit()
             return cursor.rowcount > 0
 

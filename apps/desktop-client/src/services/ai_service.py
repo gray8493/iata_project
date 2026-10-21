@@ -204,24 +204,40 @@ class AiService:
             resp_data = resp.json() if resp.content else {}
 
             if resp.status_code in (200, 201) and resp_data.get("success"):
-                data = resp_data.get("data", {})
+                data = resp_data.get("data", {}) or {}
+                evidence = data.get("bang_chung", [])
+                differences = data.get("khac_biet", [])
+                suggestions = data.get("de_xuat", [])
+                if (
+                    not isinstance(data.get("ket_luan"), str)
+                    or not isinstance(data.get("do_tin_cay"), (int, float))
+                    or not isinstance(evidence, list)
+                    or not isinstance(differences, list)
+                    or not isinstance(suggestions, list)
+                ):
+                    return {
+                        "success": False,
+                        "message": "Không lấy được nhận xét từ AI. Thử lại.",
+                        "error_code": "AI_INVALID_RESPONSE",
+                    }
                 return {
                     "success": True,
-                    "is_plagiarized": data.get("is_plagiarized", False),
-                    "confidence_percentage": data.get("confidence_percentage", 0.0),
-                    "evidence_summary": data.get("evidence_summary", ""),
-                    "cloned_segments": data.get("cloned_segments", []),
+                    "ket_luan": data["ket_luan"],
+                    "do_tin_cay": max(0.0, min(100.0, float(data["do_tin_cay"]))),
+                    "bang_chung": evidence,
+                    "khac_biet": differences,
+                    "de_xuat": suggestions,
                     "tokens_consumed": data.get("tokens_consumed", 0),
                     "message": resp_data.get("message", "Thẩm định đạo văn thành công!")
                 }
 
             return {
                 "success": False,
-                "message": resp_data.get("message", "Không thể thẩm định đạo văn qua AI."),
+                "message": "Không lấy được nhận xét từ AI. Thử lại.",
                 "error_code": resp_data.get("error_code", f"HTTP_{resp.status_code}")
             }
         except Exception as e:
-            return {"success": False, "message": f"Lỗi thẩm định AI: {str(e)}", "error_code": "EXCEPTION"}
+            return {"success": False, "message": "Không lấy được nhận xét từ AI. Thử lại.", "error_code": "EXCEPTION"}
 
     def evaluate_web_ui(
         self,

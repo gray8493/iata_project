@@ -11,15 +11,15 @@
   - `POST /api/v1/ai/evaluate-pe-code` (Chấm rubric chất lượng mã nguồn PE White-box - 5 tiêu chí)
 - **Người thực hiện (Tester/Dev)**: Kim Chi Ha
 - **Ngày tạo**: 04/10/2026
-- **Cập nhật lần cuối**: 19/10/2026 - 17:30
+- **Cập nhật lần cuối**: 21/10/2026 - 10:20
 - **Tài liệu liên quan**:
   - [Đặc tả API Phân hệ AI (Markdown)](file:///e:/AITA/docs/apis/ai/ai-api.md)
   - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///e:/AITA/docs/apis/ai/ai.yaml)
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
-- **Tổng số Testcase**: 103 Testcases (Phân loại: 18 Normal, 33 Boundary, 52 Exception)
+- **Tổng số Testcase**: 105 Testcases (Phân loại: 18 Normal, 33 Boundary, 54 Exception)
   - `GET /ai/quota`: 09 Testcases (02 Normal, 01 Boundary, 06 Exception)
   - `GET /ai/provider-status`: 05 Testcases (01 Normal, 01 Boundary, 03 Exception)
-  - `POST /ai/generate-testcases`: 17 Testcases (02 Normal, 05 Boundary, 10 Exception)
+  - `POST /ai/generate-testcases`: 19 Testcases (02 Normal, 05 Boundary, 12 Exception)
   - `POST /ai/review-code`: 15 Testcases (02 Normal, 04 Boundary, 09 Exception)
   - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
   - `POST /ai/evaluate-web-ui`: 16 Testcases (03 Normal, 05 Boundary, 08 Exception)
@@ -39,6 +39,7 @@
 > - `AiQuotaService.snapshot` trả `{ daily_limit_tokens, used_tokens_today, remaining_tokens (Math.max 0), reset_at_utc }`; tự reset `usedTokensToday` khi `lastResetDate` cũ hơn hôm nay (UTC).
 > - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân. Mọi phản hồi không phải JSON object (kể cả `null`, mảng, chuỗi) đều được quy về `AI_INVALID_RESPONSE` (502) thay vì lỗi `500`. `evaluatePeCode` tự retry 1 lần với prompt hướng dẫn lại khi lượt đầu sai định dạng; chấp nhận biến thể hợp lý (tên tiêu chí camelCase, `passed` dạng chuỗi, `rubric` là chuỗi JSON, thiếu `reason`, thiếu lớp bao `rubric`) và tự tổng hợp `overall_feedback` khi model bỏ sót — tránh chấm oan hoặc treo PENDING vì lỗi trình bày.
 > - `OpenRouterService.parseJson` xử lý 4 lớp: JSON trực tiếp → code fence markdown → khối JSON nhúng → **cứu JSON bị cắt cụt** do model hết token (`finish_reason = length`) bằng cách cắt về giá trị hoàn chỉnh cuối cùng rồi tự đóng ngoặc còn thiếu.
+> - `generateTestcases` **chuẩn hoá** thay vì bắt lỗi tuyệt đối: giữ các phần tử `testcases` dùng được, cắt bớt nếu AI trả nhiều hơn `count`, giữ nguyên nếu trả ít hơn (chỉ trả `502 AI_INVALID_RESPONSE` khi không còn phần tử nào hợp lệ). Thiếu `explanation` thì điền chuỗi rỗng, thiếu/không phải boolean `is_boundary` thì suy ra `false` (chuỗi `"true"` vẫn hiểu là `true`). Lý do: model free của OpenRouter thường bỏ `explanation`/`is_boundary` — hai trường JSON Schema bắt buộc — nên trước đây riêng tính năng sinh testcase trả 502 trong khi các tính năng AI khác vẫn chạy.
 > - `GET /ai/provider-status` có `@Roles('ADMIN')` ghi đè `@Roles('INSTRUCTOR')` của controller: chỉ ADMIN gọi được, giảng viên nhận 403 `FORBIDDEN_ADMIN_ONLY`. Trả về danh sách API key OpenRouter kèm `state` (`READY`/`COOLDOWN`), `cooldown_remaining_seconds`, `accounts_configured`, `structured_outputs_supported`.
 > - `OpenRouterService` xoay vòng nhiều API key; key bị `429`/`401`/`402`/`403` hoặc lỗi tạm thời sẽ bị đưa vào cooldown (rate: `OPENROUTER_KEY_COOLDOWN_MS`; exhausted: 30 phút; transient: 5 giây). Khi không còn key khả dụng vì tất cả đang cooldown, `generateJson` ném 429 `AI_PROVIDER_RATE_LIMITED`; lỗi không thuộc nhóm giới hạn/hết quota ném 502 `AI_PROVIDER_ERROR`. Không cấu hình key nào (`OPENROUTER_API_KEYS` rỗng) ném 503 `AI_NOT_CONFIGURED`.
 
@@ -828,6 +829,78 @@ Exception
 #### Kết quả kỳ vọng (Expected Result)
 
 - HTTP `429`, `error_code = "RATE_LIMIT_EXCEEDED"`, `message = "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau."`, `details = { limit: 15, retry_after_seconds: 60 }`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiGenerateTestcases_TC018: AI trả về sai số lượng testcase so với `count` vẫn dùng được
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã đăng nhập, còn hạn ngạch token.
+- Nhà cung cấp AI (mock `OpenRouterService.generateJson`) trả về mảng `testcases` có 5 phần tử.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Body: `problem_description` dài ≥ 20 ký tự, `language = "C"`, `count = 3`, `include_boundary = true`.
+- Mock: `{ data: { testcases: [5 phần tử hợp lệ] }, tokensConsumed: 500 }`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ai.generateTestcases(instructorId, { ...body, count: 3 })`.
+2. Kiểm tra số lượng phần tử trong `data.testcases`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Không ném `502 AI_INVALID_RESPONSE`; trả `200` với `data.testcases` gồm đúng **3** phần tử (cắt phần thừa).
+- Trường hợp AI trả ít hơn `count` (ví dụ `count = 4`, AI trả 2) thì trả về đúng 2 phần tử hiện có và ghi `warn` vào log.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiGenerateTestcases_TC019: AI bỏ trường `explanation`/`is_boundary` vẫn chuẩn hoá được
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã đăng nhập, còn hạn ngạch token.
+- Nhà cung cấp AI (mock) trả về 3 phần tử: một phần tử chỉ có `input` + `expected_output`, một phần tử rỗng hoàn toàn, một phần tử có `is_boundary` dạng chuỗi `"true"`.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Mock `testcases`:
+  1. `{ input: "5\n1 2 3", expected_output: "6" }` (thiếu `explanation`, `is_boundary`).
+  2. `{ input: "", expected_output: "" }` (rác, phải bị loại).
+  3. `{ input: "1\n2", expected_output: "2", explanation: "biên dưới", is_boundary: "true" }`.
+- Body: `count = 2`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Gọi `ai.generateTestcases(instructorId, { ...body, count: 2 })`.
+2. Kiểm tra nội dung `data.testcases`.
+3. Kiểm tra `prompt` gửi cho nhà cung cấp AI có liệt kê đủ 4 khoá.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- `data.testcases` có 2 phần tử: phần tử 1 được điền mặc định `explanation = ""`, `is_boundary = false`; phần tử rỗng bị loại; phần tử 3 có `is_boundary = true` (chuỗi `"true"` được hiểu là boolean).
+- `prompt` chứa `is_boundary` và `expected_output` để model biết phải trả đủ trường.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
