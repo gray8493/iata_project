@@ -402,6 +402,50 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
+  describe('UT03_AiGenerateTestcases_TC018: AI trả thiếu/thừa số lượng testcase vẫn dùng được', () => {
+    it('cắt phần thừa thay vì trả 502', async () => {
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(5) }, tokensConsumed: 500 });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 3 } as GenerateTestcasesDto);
+      expect((result.data as any).testcases).toHaveLength(3);
+    });
+
+    it('AI trả ít hơn yêu cầu thì trả về số hiện có', async () => {
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(2) }, tokensConsumed: 300 });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 4 } as GenerateTestcasesDto);
+      expect((result.data as any).testcases).toHaveLength(2);
+    });
+  });
+
+  describe('UT03_AiGenerateTestcases_TC019: Thiếu is_boundary/explanation vẫn chuẩn hoá được', () => {
+    // Lỗi thật: JSON Schema bắt buộc `is_boundary` nhưng prompt không nhắc, model free
+    // bỏ trường này -> 502 AI_INVALID_RESPONSE dù các tính năng AI khác vẫn chạy.
+    it('điền mặc định và bỏ item rỗng hoàn toàn', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          testcases: [
+            { input: '5\n1 2 3', expected_output: '6' },
+            { input: '', expected_output: '' },
+            { input: '1\n2', expected_output: '2', explanation: 'biên dưới', is_boundary: 'true' },
+          ],
+        },
+        tokensConsumed: 400,
+      });
+      const result = await ai.generateTestcases(instructorId, { ...validGenerate, count: 2 } as GenerateTestcasesDto);
+      const testcases = (result.data as any).testcases;
+      expect(testcases).toHaveLength(2);
+      expect(testcases[0]).toEqual({ input: '5\n1 2 3', expected_output: '6', explanation: '', is_boundary: false });
+      expect(testcases[1].is_boundary).toBe(true);
+    });
+
+    it('prompt liệt kê đủ 4 khoá để model không bỏ trường', async () => {
+      provider.generateJson.mockResolvedValue({ data: { testcases: makeTestcases(3) }, tokensConsumed: 100 });
+      await ai.generateTestcases(instructorId, { ...validGenerate } as GenerateTestcasesDto);
+      const prompt: string = provider.generateJson.mock.calls[0][0].prompt;
+      expect(prompt).toContain('is_boundary');
+      expect(prompt).toContain('expected_output');
+    });
+  });
+
   // =========================================================================
   // PHẦN 3: POST /api/v1/ai/review-code
   // =========================================================================
