@@ -958,17 +958,17 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
       provider.generateJson.mockResolvedValue({
         data: {
           rubric: {
-            clean_code: { passed: true, reason: 'ok' },
-            complexity: { passed: true, reason: 'ok' },
-            structure: { passed: true, reason: 'ok' },
-            format: { passed: true, reason: 'ok' },
-            documentation: { passed: true, reason: 'ok' },
+            clean_code: { passed: true, reason: 'Tên sum_two mô tả đúng phép cộng.' },
+            complexity: { passed: true, reason: 'Hàm tính tổng chạy trong thời gian hằng số.' },
+            structure: { passed: true, reason: 'Phép tính được tách khỏi hàm main.' },
+            format: { passed: true, reason: 'Các khối lệnh được thụt lề nhất quán.' },
+            documentation: { passed: true, reason: 'Tiêu đề tệp xác định bài và người làm.' },
           },
         },
         tokensConsumed: 500,
       });
       const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
-      expect((result.data as any).overall_feedback).toBe('Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn.');
+      expect((result.data as any).overall_feedback).toContain('Tên sum_two');
     });
   });
 
@@ -985,7 +985,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
       const retryPrompt = provider.generateJson.mock.calls[1][0].prompt as string;
       expect(retryPrompt).toContain('overall_feedback');
       const firstPrompt = provider.generateJson.mock.calls[0][0].prompt as string;
-      expect(firstPrompt).toContain('CẤU TRÚC JSON BẮT BUỘC');
+      expect(firstPrompt).toContain('SCHEMA JSON BẮT BUỘC');
       expect(firstPrompt).toContain('overall_feedback');
     });
   });
@@ -1090,7 +1090,7 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   });
 
   describe('UT03_AiEvaluatePeCode_TC012: Tiêu chí thiếu reason (Biên)', () => {
-    it('vẫn tính passed và để reason rỗng thay vì báo sai định dạng', async () => {
+    it('retry rồi từ chối rubric thiếu nhận xét thay vì lưu PASS không có căn cứ', async () => {
       provider.generateJson.mockResolvedValue({
         data: {
           rubric: {
@@ -1104,10 +1104,32 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
         tokensConsumed: 600,
       });
 
-      const result = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto);
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error).toBeInstanceOf(BadGatewayException);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
 
-      expect((result.data as any).rubric.clean_code).toEqual({ passed: true, reason: '' });
-      expect((result.data as any).overall_feedback).toBe('Đạt đầy đủ 5 tiêu chí chất lượng mã nguồn.');
+  describe('UT03_AiEvaluatePeCode_TC014: Model trả nguyên văn placeholder trong hướng dẫn', () => {
+    it('retry rồi từ chối nhận xét mẫu và điểm PASS không có căn cứ', async () => {
+      provider.generateJson.mockResolvedValue({
+        data: {
+          rubric: {
+            clean_code: { passed: true, reason: '...' },
+            complexity: { passed: true, reason: '...' },
+            structure: { passed: true, reason: '...' },
+            format: { passed: true, reason: '...' },
+            documentation: { passed: true, reason: '...' },
+          },
+          overall_feedback: 'Nhận xét tổng thể ngắn gọn bằng tiếng Việt',
+        },
+        tokensConsumed: 500,
+      });
+      const error = await ai.evaluatePeCode(instructorId, { ...validPeCode } as EvaluatePeCodeDto).catch((e) => e);
+      expect(error).toBeInstanceOf(BadGatewayException);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
     });
   });
 
