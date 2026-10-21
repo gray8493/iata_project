@@ -16,10 +16,10 @@
   - [Đặc tả API Phân hệ AI (Markdown)](file:///e:/AITA/docs/apis/ai/ai-api.md)
   - [Đặc tả OpenAPI Phân hệ AI (YAML)](file:///e:/AITA/docs/apis/ai/ai.yaml)
   - [Quy tắc kiểm thử Testcase](file:///e:/AITA/rules/testcase-rules.md)
-- **Tổng số Testcase**: 105 Testcases (Phân loại: 18 Normal, 33 Boundary, 54 Exception)
+- **Tổng số Testcase**: 106 Testcases (Phân loại: 18 Normal, 33 Boundary, 55 Exception)
   - `GET /ai/quota`: 09 Testcases (02 Normal, 01 Boundary, 06 Exception)
   - `GET /ai/provider-status`: 05 Testcases (01 Normal, 01 Boundary, 03 Exception)
-  - `POST /ai/generate-testcases`: 19 Testcases (02 Normal, 05 Boundary, 12 Exception)
+  - `POST /ai/generate-testcases`: 20 Testcases (02 Normal, 05 Boundary, 13 Exception)
   - `POST /ai/review-code`: 15 Testcases (02 Normal, 04 Boundary, 09 Exception)
   - `POST /ai/verify-plagiarism`: 14 Testcases (02 Normal, 05 Boundary, 07 Exception)
   - `POST /ai/evaluate-web-ui`: 16 Testcases (03 Normal, 05 Boundary, 08 Exception)
@@ -39,7 +39,7 @@
 > - `AiQuotaService.snapshot` trả `{ daily_limit_tokens, used_tokens_today, remaining_tokens (Math.max 0), reset_at_utc }`; tự reset `usedTokensToday` khi `lastResetDate` cũ hơn hôm nay (UTC).
 > - `AiGatewayService` kiểm tra cấu trúc dữ liệu nhà cung cấp AI (OpenRouter) trả về và ném `AI_INVALID_RESPONSE` khi sai; `evaluateWebUi` tính lại `ui_score` = trung bình cộng các điểm, làm tròn 1 chữ số thập phân. Mọi phản hồi không phải JSON object (kể cả `null`, mảng, chuỗi) đều được quy về `AI_INVALID_RESPONSE` (502) thay vì lỗi `500`. `evaluatePeCode` tự retry 1 lần với prompt hướng dẫn lại khi lượt đầu sai định dạng; chấp nhận biến thể hợp lý (tên tiêu chí camelCase, `passed` dạng chuỗi, `rubric` là chuỗi JSON, thiếu `reason`, thiếu lớp bao `rubric`) và tự tổng hợp `overall_feedback` khi model bỏ sót — tránh chấm oan hoặc treo PENDING vì lỗi trình bày.
 > - `OpenRouterService.parseJson` xử lý 4 lớp: JSON trực tiếp → code fence markdown → khối JSON nhúng → **cứu JSON bị cắt cụt** do model hết token (`finish_reason = length`) bằng cách cắt về giá trị hoàn chỉnh cuối cùng rồi tự đóng ngoặc còn thiếu.
-> - `generateTestcases` **chuẩn hoá** thay vì bắt lỗi tuyệt đối: giữ các phần tử `testcases` dùng được, cắt bớt nếu AI trả nhiều hơn `count`, giữ nguyên nếu trả ít hơn (chỉ trả `502 AI_INVALID_RESPONSE` khi không còn phần tử nào hợp lệ). Thiếu `explanation` thì điền chuỗi rỗng, thiếu/không phải boolean `is_boundary` thì suy ra `false` (chuỗi `"true"` vẫn hiểu là `true`). Lý do: model free của OpenRouter thường bỏ `explanation`/`is_boundary` — hai trường JSON Schema bắt buộc — nên trước đây riêng tính năng sinh testcase trả 502 trong khi các tính năng AI khác vẫn chạy.
+> - `generateTestcases` **chuẩn hoá** thay vì bắt lỗi tuyệt đối: giữ các phần tử `testcases` dùng được, cắt bớt nếu AI trả nhiều hơn `count`, giữ nguyên nếu trả ít hơn (chỉ trả `502 AI_INVALID_RESPONSE` khi không còn phần tử nào hợp lệ). Thiếu `explanation` thì điền chuỗi rỗng, thiếu/không phải boolean `is_boundary` thì suy ra `false` (chuỗi `"true"` vẫn hiểu là `true`). Lý do: model free của OpenRouter thường bỏ `explanation`/`is_boundary` — hai trường JSON Schema bắt buộc — nên trước đây riêng tính năng sinh testcase trả 502 trong khi các tính năng AI khác vẫn chạy. Ngoài ra còn ánh xạ các biến thể tên khoá (`test_cases`/`tests`/`cases`, `stdin`/`stdout`/`expected`/`note`/`boundary`), ép số/boolean sang chuỗi, tìm mảng lồng trong object và chấp nhận object đánh số `{"1": {...}}`.
 > - `GET /ai/provider-status` có `@Roles('ADMIN')` ghi đè `@Roles('INSTRUCTOR')` của controller: chỉ ADMIN gọi được, giảng viên nhận 403 `FORBIDDEN_ADMIN_ONLY`. Trả về danh sách API key OpenRouter kèm `state` (`READY`/`COOLDOWN`), `cooldown_remaining_seconds`, `accounts_configured`, `structured_outputs_supported`.
 > - `OpenRouterService` xoay vòng nhiều API key; key bị `429`/`401`/`402`/`403` hoặc lỗi tạm thời sẽ bị đưa vào cooldown (rate: `OPENROUTER_KEY_COOLDOWN_MS`; exhausted: 30 phút; transient: 5 giây). Khi không còn key khả dụng vì tất cả đang cooldown, `generateJson` ném 429 `AI_PROVIDER_RATE_LIMITED`; lỗi không thuộc nhóm giới hạn/hết quota ném 502 `AI_PROVIDER_ERROR`. Không cấu hình key nào (`OPENROUTER_API_KEYS` rỗng) ném 503 `AI_NOT_CONFIGURED`.
 
@@ -901,6 +901,41 @@ Exception
 
 - `data.testcases` có 2 phần tử: phần tử 1 được điền mặc định `explanation = ""`, `is_boundary = false`; phần tử rỗng bị loại; phần tử 3 có `is_boundary = true` (chuỗi `"true"` được hiểu là boolean).
 - `prompt` chứa `is_boundary` và `expected_output` để model biết phải trả đủ trường.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiGenerateTestcases_TC020: AI đổi tên khoá, bọc lồng hoặc trả số thay vì chuỗi vẫn dùng được
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã đăng nhập, còn hạn ngạch token.
+- Nhà cung cấp AI (mock) trả về JSON lệch schema ở phần "vỏ": tên khoá khác, bọc thêm lớp, hoặc giá trị là số.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+1. `{ test_cases: [ { input: 5, expected: 15, note: "tổng 0..5" }, { stdin: "3", stdout: "6", boundary: "true" } ] }`
+2. `{ data: { testcases: [2 phần tử hợp lệ] } }`
+3. `{ "1": { input: "a", expected_output: "A" }, "2": { input: "b", expected_output: "B" } }`
+- Body: `count = 2`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. Lần lượt mock 3 dạng dữ liệu trên và gọi `ai.generateTestcases(instructorId, { ...body, count: 2 })`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- Cả 3 dạng đều trả `200`: khoá `test_cases`/`tests`/`cases` và các khoá viết tắt `stdin`/`stdout`/`expected`/`note`/`boundary` được ánh xạ về `input`/`expected_output`/`explanation`/`is_boundary`; số `5` được ép thành chuỗi `"5"`; mảng nằm trong object lồng vẫn tìm thấy; object đánh số `"1"`, `"2"` được coi là danh sách.
+- Chỉ khi **không** tìm được mảng testcase nào hoặc tất cả phần tử đều rỗng thì mới trả `502 AI_INVALID_RESPONSE` (kèm `warn` log mô tả dạng dữ liệu nhận được).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
