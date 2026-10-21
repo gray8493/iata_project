@@ -10,6 +10,7 @@ Connects to Central Backend (NestJS / Render / Neon Postgres) for AI features:
 """
 
 import os
+import logging
 from typing import Dict, Any, Optional, List
 import httpx
 from .api_client import ApiClient
@@ -215,6 +216,10 @@ class AiService:
                     or not isinstance(differences, list)
                     or not isinstance(suggestions, list)
                 ):
+                    logging.error(
+                        "Plagiarism AI endpoint returned an unexpected response schema (keys=%s)",
+                        sorted(data.keys()),
+                    )
                     return {
                         "success": False,
                         "message": "Không lấy được nhận xét từ AI. Thử lại.",
@@ -231,12 +236,21 @@ class AiService:
                     "message": resp_data.get("message", "Thẩm định đạo văn thành công!")
                 }
 
+            logging.warning(
+                "Plagiarism AI endpoint returned HTTP %s (error_code=%s)",
+                resp.status_code,
+                resp_data.get("error_code", "UNKNOWN"),
+            )
             return {
                 "success": False,
                 "message": "Không lấy được nhận xét từ AI. Thử lại.",
                 "error_code": resp_data.get("error_code", f"HTTP_{resp.status_code}")
             }
-        except Exception as e:
+        except httpx.TimeoutException:
+            logging.exception("Plagiarism AI request timed out")
+            return {"success": False, "message": "Không lấy được nhận xét từ AI. Thử lại.", "error_code": "TIMEOUT"}
+        except Exception:
+            logging.exception("Plagiarism AI request failed")
             return {"success": False, "message": "Không lấy được nhận xét từ AI. Thử lại.", "error_code": "EXCEPTION"}
 
     def evaluate_web_ui(

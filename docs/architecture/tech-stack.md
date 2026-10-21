@@ -58,8 +58,8 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 
 - **Mục đích**: **Dành riêng cho Quản trị viên (Admin)** quản lý toàn bộ hệ thống (không phải web portal dành cho học sinh).
 - **Công nghệ Frontend**: **Next.js 14+ (App Router), React 18+, TypeScript**
-  - **Giao diện & UI**: **TailwindCSS**, kết hợp bộ icon **Lucide-react** và các thư viện component hiện đại (Shadcn/UI).
-  - **Giao tiếp API**: Sử dụng **Axios** hoặc **Fetch API** kết hợp Interceptor tự động gán Bearer Token.
+  - **Giao diện & UI**: **TailwindCSS** kết hợp bộ icon **Lucide-react** (không dùng thư viện component ngoài).
+  - **Giao tiếp API**: Sử dụng **Fetch API** bọc trong module `src/lib/api.ts` (tự động gán Bearer Token, tự logout khi nhận `401`) kết hợp **SWR** để lấy/cập nhật dữ liệu caching phía client.
 - **Chức năng trọng tâm của Web Admin Dashboard**:
   1. **Quản lý tài khoản Giảng viên & Phân quyền**: Tạo mới, chỉnh sửa thông tin, khóa tài khoản và gán Role (`admin`, `instructor`).
   2. **Giám sát hạn ngạch AI (AI Quota Management)**: Thiết lập trần Token Quota hàng ngày cho từng giảng viên và theo dõi số token tiêu thụ. AI API key do vận hành cấu hình qua biến môi trường máy chủ, không nhập trong Web Admin.
@@ -70,8 +70,9 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 - **Giao diện Desktop (GUI Framework)**: **PyQt6 (>= 6.5.0)**
   - Thiết kế chuẩn Desktop Native, hỗ trợ kéo thả file, đa tiến trình qua `QThread` đảm bảo giao diện không bao giờ bị treo đơ trong lúc chấm bài số lượng lớn.
 - **Xử lý dữ liệu nạp & kết xuất**:
-  - Nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (tự động phân tích MSSV làm định danh duy nhất — không lưu họ tên) hoặc nạp qua file danh sách `students.csv` (2 cột: `MSSV`, `File`).
-  - Module chuẩn **`csv`**: Xử lý đọc danh sách bài nộp và xuất file kết quả `results.csv` (7 cột).
+  - Chế độ Console: nạp bài nộp trực tiếp từ thư mục mã nguồn bài làm (mỗi thư mục con / file là một sinh viên, tự động phân tích MSSV bằng regex làm định danh duy nhất — không lưu họ tên; không còn nạp qua file `students.csv`).
+  - Chế độ Web: nạp bài nộp từ thư mục liên kết, thêm/dán thủ công nhiều link, hoặc nhập file CSV theo chế độ chấm (`MSSV` + URL Live/GitHub).
+  - Module chuẩn **`csv`**: Xử lý nhập danh sách bài nộp Web và xuất file kết quả `results.csv` (7 cột).
 - **Bộ máy thực thi & Sandbox bảo mật**:
   - **`subprocess`**: Khởi chạy tiến trình con cô lập để gọi trình biên dịch `gcc` (C), `javac/java` (Java), và `python` (Python).
   - **`psutil` (>= 5.9.0)**: Giám sát tài nguyên RAM (bắt lỗi `MLE`), CPU và kill tiến trình khi bị vòng lặp vô hạn (bắt lỗi `TLE`).
@@ -91,11 +92,11 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 | Phân hệ | Công nghệ cốt lõi | Các thư viện / Công cụ chính | Vai trò trong hệ thống AITA |
 | :--- | :--- | :--- | :--- |
 | **Web Backend** | **NestJS (Node.js)** | `@nestjs/jwt`, `passport`, `prisma`, `class-validator`, `@nestjs/swagger` | Cung cấp REST API trung tâm, xác thực JWT RBAC, Gateway quản lý AI Quota.     |
-| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Axios` | Dashboard quản trị dành riêng cho System Admin: User, Quota AI, Báo cáo kiểm toán. |
+| **Web Admin** | **Next.js (React)** | `TypeScript`, `TailwindCSS`, `Lucide-react`, `Fetch API`, `SWR` | Dashboard quản trị dành riêng cho System Admin: User, Quota AI, Báo cáo kiểm toán. |
 | **Desktop App** | **Python (PyQt6)** | `playwright`, `beautifulsoup4`, `tinycss2`, `psutil`, `subprocess`, `csv`, `httpx` | Client chấm thi offline-first của Giảng viên: Sandbox, hàm `main()`, chấm Web tự động, 7 chế độ so khớp, xuất CSV. |
 | **CSDL Trung tâm**| **PostgreSQL (Neon)**| Prisma Client / Prisma Migrate | Lưu trữ danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký AI. |
 | **CSDL Cục bộ** | **SQLite3** | Native SQLite Driver | Lưu trữ 100% dữ liệu lớp học, bài nộp, testcase, kết quả chấm điểm và ảnh web trên máy tính giảng viên. |
-| **AI Cloud Hub** | **AI Hub** | `@google/genai` (trên NestJS Backend) | AI Model mặc định, cấu hình được qua môi trường; sinh testcase, phân tích lỗi, kiểm tra đạo văn, đánh giá giao diện.                |
+| **AI Cloud Hub** | **OpenRouter** | REST API `https://openrouter.ai/api/v1` (gọi qua `fetch` trên NestJS Backend) | Cấu hình qua biến môi trường `OPENROUTER_API_KEYS` / `OPENROUTER_MODEL`; sinh testcase, phân tích lỗi, kiểm tra đạo văn, đánh giá giao diện & rubric chấm PE.                |
 
 ---
 
@@ -104,13 +105,14 @@ Tài liệu này quy định toàn bộ ngăn xếp công nghệ (Tech Stack), c
 1. **`User`**: Tài khoản người dùng (`id`, `username`, `password_hash`, `full_name`, `email`, `role`, `is_active`, `is_deleted`, `deleted_at`, `created_at`, `updated_at`).
 2. **`AiQuotaConfig`**: Cấu hình trần hạn ngạch Token Quota hàng ngày cho từng Giảng viên (`id`, `user_id`, `daily_token_limit`, `used_tokens_today`, `last_reset_date`, `is_deleted`, `deleted_at`).
 3. **`AiQuotaLog`**: Nhật ký sử dụng AI (`id`, `user_id`, `feature_type`, `model_name`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `is_deleted`, `deleted_at`, `created_at`).
+4. **`RefreshToken`**: Luân phiên Refresh Token (`id`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `replaced_by_id`, `created_at`).
 
 ---
 
 ## 5. Trí Tuệ Nhân Tạo: AI Gateway
 
 - **Cơ chế điều phối qua NestJS Backend**:
-  - NestJS Server đóng vai trò Gateway quản lý hạn ngạch (Quota Guard), lưu trữ API Key bí mật trong `AI_API_KEY`, không để lộ khóa API ra Desktop App. Model mặc định là `gemini-3.8-flash`, cấu hình bằng `AI_MODEL`.
+  - NestJS Server đóng vai trò Gateway quản lý hạn ngạch (Quota Guard), lưu trữ một **danh sách nhiều API Key bí mật** của OpenRouter trong biến `OPENROUTER_API_KEYS` (phân tách dấu phẩy, tự xoay vòng khi key bị rate-limit), không để lộ khóa API ra Desktop App. Model chính cấu hình bằng `OPENROUTER_MODEL` (ví dụ `google/gemma-4-31b-it:free`), danh sách model dự phòng qua `OPENROUTER_MODEL_FALLBACKS`, endpoint qua `OPENROUTER_BASE_URL` (mặc định `https://openrouter.ai/api/v1`).
 - Rate limit: 80 request/phút/User cho API đã xác thực thông thường; 15 request/phút/User cho nhóm API tạo nội dung AI; login 10/phút/IP và refresh 30/phút/IP. Dùng In-Memory Throttler mặc định trên Render.com Web Service; hỗ trợ mở rộng kết nối Redis khi cấu hình biến môi trường `REDIS_URL`.
 - **Chiến lược tối ưu hóa lượt gọi AI (Smart Resource Strategy)**:
   - *Sinh Testcase*: Gọi 1 lần duy nhất cho mỗi đề bài để sinh cả bộ 5-10 testcase `(Input, Output)` cho cả lớp.

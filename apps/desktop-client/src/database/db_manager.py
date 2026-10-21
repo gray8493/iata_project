@@ -236,7 +236,7 @@ class DatabaseManager:
     def _ensure_submission_unique_mssv(self):
         """
         Chốt trùng MSSV trong một đợt chấm ở mức DB:
-        - Dọn đợt thuộc lịch sử có 2 bài của cùng MSSV (giữ bài cũ nhất, ẩn các bài sau).
+        - Dọn đợt thuộc lịch sử có 2 bài của cùng MSSV (giữ bản ghi mới nhất).
         - Tạo UNIQUE INDEX (class_id, MSSV chuẩn hóa) cho các hàng còn hoạt động.
         """
         with self.get_connection() as conn:
@@ -253,8 +253,8 @@ class DatabaseManager:
                     UPDATE local_student_submissions
                     SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
                     WHERE is_deleted = 0 AND class_id = ? AND UPPER(TRIM(student_mssv)) = ?
-                      AND id > (
-                          SELECT MIN(id) FROM local_student_submissions
+                      AND id < (
+                          SELECT MAX(id) FROM local_student_submissions
                           WHERE is_deleted = 0 AND class_id = ? AND UPPER(TRIM(student_mssv)) = ?
                       )
                 """, (row["class_id"], row["normalized_mssv"], row["class_id"], row["normalized_mssv"]))
@@ -484,15 +484,17 @@ class DatabaseManager:
             """, (class_id,))
             existing_map = {str(row["student_mssv"]).strip().upper(): row["id"] for row in cursor.fetchall()}
 
-            added_count = 0
-            existing_count = 0
-            seen_in_scan = set()
-
+            # Nếu đầu vào có MSSV trùng, giữ đường dẫn của mục xuất hiện sau cùng.
+            latest_by_mssv = {}
             for item in scanned_submissions:
                 mssv = str(item.get("student_mssv", "")).strip().upper()
-                if not mssv or mssv in seen_in_scan:
-                    continue
-                seen_in_scan.add(mssv)
+                if mssv:
+                    latest_by_mssv[mssv] = item
+
+            added_count = 0
+            existing_count = 0
+
+            for mssv, item in latest_by_mssv.items():
                 filepath = str(item.get("source_file_path", ""))
                 if mssv in existing_map:
                     # Đã tồn tại: giữ nguyên điểm số, chỉ cập nhật đường dẫn file nếu thay đổi

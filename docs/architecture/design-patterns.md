@@ -32,7 +32,7 @@ Trong môi trường đào tạo đại học, sinh viên nộp bài thực hàn
 - Môn **PRO / DSA (Java & Cấu trúc dữ liệu)**: Nộp file `.java`, yêu cầu máy ảo JVM.
 - Môn **PHP / PRO (Python)**: Nộp script `.py`, chạy trực tiếp qua trình thông dịch Python.
 
-Nếu bộ điều khiển chấm bài (`GradingController`) sử dụng các cấu trúc rẽ nhánh cứng:
+Nếu tầng điều phối chấm bài (`GradingService` / `BatchGradingWorker`) sử dụng các cấu trúc rẽ nhánh cứng:
 ```python
 # ANTI-PATTERN: Vi phạm nguyên lý Open/Closed (OCP)
 if file.endswith(".c"):
@@ -46,7 +46,7 @@ Khi muốn mở rộng thêm môn học mới (ví dụ môn C++ `.cpp` hoặc W
 
 ### 2.2. Giải pháp kiến trúc Factory Method
 AITA áp dụng mẫu **Factory Method**:
-- **Product (Sản phẩm trừu tượng)**: `BaseRunner` định nghĩa các phương thức chuẩn mực: `compile()`, `execute_main()`, `monitor_resources()`.
+- **Product (Sản phẩm trừu tượng)**: `BaseRunner` định nghĩa các phương thức chuẩn mực: `compile(source_path) -> (success, compile_log, target)` và `execute(executable_target, input_data, time_limit_ms, memory_limit_mb) -> SandboxResult` (theo dõi tài nguyên giao cho `SandboxRunner` + `psutil`).
 - **Concrete Products (Sản phẩm cụ thể)**: `CRunner`, `JavaRunner`, `PythonRunner` (kết hợp dịch vụ chấm bài Web chuyên biệt `WebRubricEngine` ở tầng Services).
 - **Creator (Nhà máy khởi tạo)**: `RunnerFactory` cung cấp phương thức `get_runner(language)` và `register_runner(language_key, runner_cls)`.
 
@@ -62,16 +62,12 @@ AITA áp dụng mẫu **Factory Method**:
                                   │ <<creates>>
                                   ▼
 +-------------------------------------------------------------------+
-|                         <<abstract>>                              |
-|                          BaseRunner                               |
+|                          <<abstract>>                              |
+|                           BaseRunner                               |
 +-------------------------------------------------------------------+
-| # source_path: Path                                               |
-| # time_limit_ms: int                                              |
-| # memory_limit_mb: int                                            |
-+-------------------------------------------------------------------+
-| + compile(): CompileResult                                        |
-| + execute_main(stdin_data: str): ExecutionResult                  |
-| # monitor_resources(pid: int): ResourceUsage                      |
+| + {abstract} compile(source_path: Path): Tuple[bool, str, Opt[str]] |
+| + {abstract} execute(target, input_data, time_limit_ms,           |
+|                      memory_limit_mb): SandboxResult              |
 +-------------------------------------------------------------------+
         ▲                          ▲                          ▲
         │                          │                          │
@@ -81,62 +77,80 @@ AITA áp dụng mẫu **Factory Method**:
 | + compile()   |          | + compile()    |          | + compile()      |
 | + execute()   |          | + execute()    |          | + execute()      |
 +---------------+          +----------------+          +------------------+
+
+(Kết quả thực thi trả về `SandboxResult(stdout, stderr, return_code,
+execution_time_ms, memory_used_mb, verdict: OK|TLE|MLE|RE, error_message)
+— định nghĩa tại core/sandbox/runner.py)
 ```
 
 ### 2.3. Cấu trúc mã nguồn thiết kế mẫu
 ```python
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Type
+from typing import Dict, Optional, Tuple, Type
+
+from core.sandbox.runner import SandboxRunner, SandboxResult
 
 class BaseRunner(ABC):
     """Product Interface: Khung giao diện chuẩn cho mọi bộ thực thi bài nộp."""
-    def __init__(self, source_path: Path, time_limit_ms: int = 2000, memory_limit_mb: int = 128):
-        self.source_path = source_path
-        self.time_limit_ms = time_limit_ms
-        self.memory_limit_mb = memory_limit_mb
 
     @abstractmethod
-    def compile(self) -> "CompileResult":
-        """Biên dịch mã nguồn (nếu cần)."""
+    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
+        """Biên dịch mã nguồn. Trả về (success, compile_log, target_path)."""
         pass
 
     @abstractmethod
-    def execute_main(self, stdin_input: str) -> "ExecutionResult":
-        """Nạp stdin vào hàm main() và hứng stdout."""
+    def execute(
+        self,
+        executable_target: str,
+        input_data: str = "",
+        time_limit_ms: int = 1000,
+        memory_limit_mb: int = 128,
+    ) -> SandboxResult:
+        """Nạp input_data vào stdin của hàm main() và hứng stdout qua SandboxRunner."""
         pass
 
 
 class CRunner(BaseRunner):
     """Concrete Product cho ngôn ngữ C (Môn PRF)."""
-    def compile(self) -> "CompileResult":
+    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
         # Ủy thác cho GccCompilerAdapter biên dịch qua MinGW gcc
-        return self.compiler_adapter.compile(self.source_path)
+        result = self.compiler_adapter.compile(source_path)
+        return result.success, result.log, result.target
 
-    def execute_main(self, stdin_input: str) -> "ExecutionResult":
+    def execute(self, executable_target, input_data="", time_limit_ms=1000, memory_limit_mb=128) -> SandboxResult:
         # Chạy file .exe đã build trong môi trường sandbox cô lập
-        pass
+        return SandboxRunner.run_process(
+            [executable_target], input_data, time_limit_ms, memory_limit_mb
+        )
 
 
 class JavaRunner(BaseRunner):
     """Concrete Product cho ngôn ngữ Java (Môn PRO/DSA)."""
-    def compile(self) -> "CompileResult":
-        return self.compiler_adapter.compile(self.source_path)
+    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
+        result = self.compiler_adapter.compile(source_path)
+        return result.success, result.log, result.target
 
-    def execute_main(self, stdin_input: str) -> "ExecutionResult":
+    def execute(self, executable_target, input_data="", time_limit_ms=1000, memory_limit_mb=128) -> SandboxResult:
         # Chạy máy ảo java.exe với classpath trỏ tới thư mục tạm
-        pass
+        return SandboxRunner.run_process(
+            ["java", "-cp", str(source_path.parent), source_path.stem],
+            input_data, time_limit_ms, memory_limit_mb,
+        )
 
 
 class PythonRunner(BaseRunner):
     """Concrete Product cho ngôn ngữ Python (Môn PHP/PRO)."""
-    def compile(self) -> "CompileResult":
-        # Python là ngôn ngữ thông dịch, kiểm tra cú pháp qua AST / py_compile
-        return CompileResult(is_success=True)
+    def compile(self, source_path: Path) -> Tuple[bool, str, Optional[str]]:
+        # Python là ngôn ngữ thông dịch, kiểm tra cú pháp qua py_compile (PythonInterpreterAdapter)
+        result = self.compiler_adapter.compile(source_path)
+        return result.success, result.log, result.target
 
-    def execute_main(self, stdin_input: str) -> "ExecutionResult":
+    def execute(self, executable_target, input_data="", time_limit_ms=1000, memory_limit_mb=128) -> SandboxResult:
         # Chạy python.exe với giới hạn tài nguyên
-        pass
+        return SandboxRunner.run_process(
+            [sys.executable, executable_target], input_data, time_limit_ms, memory_limit_mb
+        )
 
 
 class RunnerFactory:
@@ -175,7 +189,7 @@ class RunnerFactory:
 
 ## 3. Structural Pattern: Adapter Pattern (`CompilerAdapter`)
 
-### 2.1. Bối cảnh & Vấn đề kỹ thuật (Problem Context)
+### 3.1. Bối cảnh & Vấn đề kỹ thuật (Problem Context)
 Mỗi trình biên dịch trên hệ điều hành có cách thức vận hành và cú pháp dòng lệnh (CLI parameters) hoàn toàn khác biệt:
 - **MinGW GCC (`gcc.exe`)**: Biên dịch từ `.c` sang file thực thi nhị phân `.exe` bằng lệnh:
   `gcc -O2 source.c -o out.exe`
@@ -187,12 +201,12 @@ Mỗi trình biên dịch trên hệ điều hành có cách thức vận hành 
 
 Nếu các Runner tự viết lệnh gọi `subprocess.Popen` riêng lẻ, hệ thống sẽ bị trùng lặp mã nguồn (code duplication), khó quản lý cờ biên dịch và không thể thống nhất mã lỗi trả về cho bảng điểm (`CE` - Compile Error).
 
-### 2.2. Giải pháp kiến trúc Adapter Pattern
+### 3.2. Giải pháp kiến trúc Adapter Pattern
 AITA sử dụng mẫu **Adapter Pattern (Object Adapter)**:
 - **Target Interface**: `CompilerAdapter` định nghĩa phương thức thống nhất `compile(source_path) -> CompileResult`.
 - **Adaptees (Các công cụ thực tế)**: Công cụ dòng lệnh `gcc.exe`, `javac.exe`, và `py_compile`.
 - **Adapters (Lớp bao bọc)**: `GccCompilerAdapter`, `JavacCompilerAdapter`, `PythonInterpreterAdapter` (đặt tại `core/adapters/compiler_adapter.py`).
-- **Client**: `CRunner`, `JavaRunner` và `PythonRunner` giữ một tham chiếu đến `CompilerAdapter` và tương tác thông qua Target Interface; `CompilerAdapterFactory` tra cứu Adapter phù hợp theo ngôn ngữ intelec của đợt chấm.
+- **Client**: `CRunner`, `JavaRunner` và `PythonRunner` giữ một tham chiếu đến `CompilerAdapter` và tương tác thông qua Target Interface; `CompilerAdapterFactory` tra cứu Adapter phù hợp theo ngôn ngữ của đợt chấm.
 
 ```text
 +--------------------------------------------------------------------+
@@ -219,7 +233,7 @@ AITA sử dụng mẫu **Adapter Pattern (Object Adapter)**:
          không sinh tệp nhị phân — trả về target = nguồn .py gốc)
 ```
 
-### 2.3. Cấu trúc mã nguồn thiết kế mẫu
+### 3.3. Cấu trúc mã nguồn thiết kế mẫu
 ```python
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -311,7 +325,7 @@ class CompilerAdapterFactory:
         return GccCompilerAdapter(timeout=timeout)
 ```
 
-### 2.4. Phân tích Nguyên lý Thiết kế (Design Principles Justification)
+### 3.4. Phân tích Nguyên lý Thiết kế (Design Principles Justification)
 - **Single Responsibility Principle (SRP)**: Lớp Adapter đảm nhiệm một trách nhiệm duy nhất là chuyển đổi và thông dịch các tham số và kết quả của trình biên dịch ngoại vi thành cấu trúc dữ liệu chuẩn của phần mềm.
 - **Interface Segregation Principle (ISP)**: Giao diện `CompilerAdapter` rất tinh gọn, chỉ chứa duy nhất hàm `compile()`, không áp đặt các phương thức thừa lên các trình biên dịch không cần thiết.
 - **Dễ dàng kiểm thử độc lập (Testability)**: Nhờ có Adapter Interface, nhóm phát triển có thể tạo ra `MockCompilerAdapter` để viết Unit Test tự động cho tầng chấm bài mà không cần phải cài đặt sẵn GCC hay Java trên máy chạy CI/CD.
@@ -469,7 +483,12 @@ class MatchingContext:
     STRATEGY_REGISTRY: Dict[str, Type[IMatchingStrategy]] = {
         "EXACT_MATCH": ExactMatchStrategy,
         "IGNORE_WHITESPACE": IgnoreWhitespaceStrategy,
-        "FLEXIBLE": FlexibleMatchingStrategy
+        "CASE_INSENSITIVE": CaseInsensitiveStrategy,
+        "FLOAT_TOLERANCE": FloatingPointToleranceStrategy,
+        "UNORDERED_TOKENS": UnorderedTokensStrategy,
+        "REGEX_PATTERN": RegexPatternStrategy,
+        "SPECIAL_JUDGE": SpecialJudgeStrategy,
+        "FLEXIBLE": FlexibleMatchingStrategy,
     }
 
     def __init__(self, strategy: Optional[IMatchingStrategy] = None):
@@ -479,8 +498,23 @@ class MatchingContext:
         self._strategy = strategy
 
     def set_strategy_by_name(self, strategy_name: str, **kwargs) -> None:
-        if strategy_name in self.STRATEGY_REGISTRY:
-            self._strategy = self.STRATEGY_REGISTRY[strategy_name](**kwargs)
+        raw = (strategy_name or "").strip().upper()
+        # Chuỗi kết hợp nhiều cờ (VD: 'IGNORE_WHITESPACE+CASE_INSENSITIVE')
+        # hoặc 'FLEXIBLE' -> ủy quyền cho FlexibleMatchingStrategy
+        if "+" in raw or "," in raw or raw.startswith("FLAG_") or raw == "FLEXIBLE":
+            flags = set(raw.replace(",", "+").split("+"))
+            self._strategy = FlexibleMatchingStrategy(
+                ignore_whitespace="IGNORE_WHITESPACE" in flags,
+                case_insensitive="CASE_INSENSITIVE" in flags,
+                floating_tolerance="FLOAT_TOLERANCE" in flags,
+                unordered_tokens="UNORDERED_TOKENS" in flags,
+                regex_pattern="REGEX_PATTERN" in flags,
+                special_judge="SPECIAL_JUDGE" in flags,
+                **kwargs,
+            )
+            return
+        # Tra cứu trực tiếp theo tên chiến lược đơn (không thấy -> ExactMatch)
+        self._strategy = self.STRATEGY_REGISTRY.get(raw, ExactMatchStrategy)(**kwargs)
 
     def compare(self, actual: str, expected: str) -> MatchResult:
         return self._strategy.compare(actual, expected)

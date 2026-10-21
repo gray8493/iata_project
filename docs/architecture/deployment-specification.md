@@ -42,10 +42,10 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
          │ PostgreSQL over TLS (Port 5432)            │ HTTPS / TLS 1.3 (Port 443)
          ▼                                            ▼
 +------------------------------------+       +------------------------------------+
-| Node 4: Neon Serverless Postgres   |       | Node 5: Google Cloud Platform      |
+| Node 4: Neon Serverless Postgres   |       | Node 5: OpenRouter AI Service      |
 | (Managed Cloud Database)           |       | (Managed AI Infrastructure)        |
-| - Lakebase PostgreSQL 16 Engine    |       | - AI Model API                     |
-| - aita_central_db (Pooled/Direct)  |       | - generativelanguage.googleapis.com|
+| - Lakebase PostgreSQL 16 Engine    |       | - Model Aggregator API             |
+| - aita_central_db (Pooled/Direct)  |       | - openrouter.ai/api/v1             |
 +------------------------------------+       +------------------------------------+
 ```
 
@@ -68,7 +68,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
   - **Công cụ bảo vệ HĐH (Sandbox Guard)**: Thư viện `psutil` tích hợp sẵn trong client để giám sát mức chiếm dụng RAM, CPU và tự động cưỡng chế diệt các tiến trình lặp vô hạn.
 - **Lưu trữ cục bộ**: 
   - Cơ sở dữ liệu SQLite 3 (`%LOCALAPPDATA%/AITA/data/local_grading.db` khi chạy bản đóng gói; `apps/desktop-client/data/local_grading.db` khi chạy dev — chế độ WAL): Lưu cấu hình đợt chấm, testcase và kết quả chấm offline.
-  - Tập tin CSV: `students.csv` (đầu vào: 2 cột `MSSV`, `File`) và `results.csv` (đầu ra: 7 cột hoàn chỉnh).
+  - Tập tin CSV: `results.csv` (đầu ra: 7 cột hoàn chỉnh) — đầu vào là thư mục bài nộp (mỗi thư mục con = 1 MSSV, không còn nạp `students.csv`).
 
 ---
 
@@ -90,12 +90,13 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 - **Cấu hình & Quản lý lưu lượng**:
   - **Tự động quản lý SSL/TLS 1.3**: Nền tảng Render tự động cung cấp chứng chỉ SSL/TLS 1.3 Let's Encrypt, hỗ trợ HTTP/2 và cơ chế phòng chống DDoS tầng mạng.
   - **In-Memory Rate Limiting**: Sử dụng bộ lưu trữ bộ nhớ trong (In-Memory Sliding Window Storage) thông qua `@nestjs/throttler` để kiểm soát tần suất request (mặc định 80 requests/phút). Hỗ trợ mở rộng kết nối biến `REDIS_URL` khi triển khai cụm phân tán mà không bắt buộc phụ thuộc Redis.
-  - **5 Modules Kiến trúc Cốt lõi**:
+  - **6 Modules Kiến trúc Cốt lõi**:
     1. `AuthModule`: Xác thực đăng nhập qua JWT Bearer, mã hóa mật khẩu Bcrypt, cấp và thu hồi Refresh Token.
     2. `UsersModule`: Quản lý danh sách tài khoản giảng viên, phân quyền RBAC (`ADMIN`, `INSTRUCTOR`).
-    3. `AiGatewayModule`: Proxy an toàn gọi AI Gateway API, tích hợp cơ chế đếm token tiêu thụ và khóa gọi khi vượt hạn ngạch ngày.
-    4. `AuditLogsModule`: Ghi nhận và truy vấn nhật ký gọi AI theo người dùng, môn học và tính năng.
+    3. `AiGatewayModule`: Proxy an toàn gọi OpenRouter API, tích hợp cơ chế đếm token tiêu thụ và khóa gọi khi vượt hạn ngạch ngày.
+    4. `AuditLogsModule`: Ghi nhận và truy vấn nhật ký gọi AI theo người dùng, khoảng thời gian và tính năng.
     5. `HealthModule`: Cung cấp endpoint kiểm tra tình trạng dịch vụ (`/health`).
+    6. `SystemModule`: Cung cấp manifest cập nhật desktop (`/system/version`) từ GitHub Release hoặc biến môi trường.
 
 ---
 
@@ -111,12 +112,12 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 ---
 
-### 2.5. Node 5: Dịch Vụ Trí Tuệ Nhân Tạo Đám Mây (Google Cloud Platform AI Service)
+### 2.5. Node 5: Dịch Vụ Trí Tuệ Nhân Tạo Đám Mây (OpenRouter AI Service)
 
-- **Vai trò**: Cung cấp mô hình ngôn ngữ lớn (LLM) hỗ trợ tự động sinh testcase biên, phân tích lỗi code và đối chứng gian lận học thuật.
-- **Nền tảng**: Google Cloud Platform (PaaS) – Google AI Studio / Vertex AI Foundation Models.
-- **Endpoint**: `https://generativelanguage.googleapis.com` (Giao tiếp qua REST API & gRPC).
-- **Mô hình triển khai**: Model AI được cấu hình bằng biến `AI_MODEL` (mặc định `gemini-3.8-flash`); API key chỉ được lưu trong secret môi trường của backend.
+- **Vai trò**: Cung cấp mô hình ngôn ngữ lớn (LLM) hỗ trợ tự động sinh testcase biên, phân tích lỗi code, đối chứng gian lận học thuật, đánh giá giao diện Web (AI Vision) và rubric chấm bài thực hành (PE).
+- **Nền tảng**: **OpenRouter** (nền tảng tổng hợp nhiều LLM — tổng hợp truy cập nhiều model qua một API duy nhất).
+- **Endpoint**: `https://openrouter.ai/api/v1` (giao tiếp qua REST API HTTPS).
+- **Mô hình triển khai**: Model AI chính cấu hình bằng biến `OPENROUTER_MODEL` (Ví dụ mẫu `google/gemma-4-31b-it:free`), model dự phòng qua `OPENROUTER_MODEL_FALLBACKS`; backend giữ danh sách nhiều API key trong secret `OPENROUTER_API_KEYS` (xoay vòng tự động khi key bị giới hạn) — key chỉ nằm trong secret môi trường của backend, không bao giờ lộ ra client.
 
 ---
 
@@ -139,7 +140,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 | Admin Web Browser | Central Backend (Render) | **HTTPS (HTTP/2)** | `443` | Mã hóa TLS 1.3, Chứng chỉ SSL Let's Encrypt |
 | Desktop Client (`AITA_Grader_v1.exe`) | Central Backend (Render) | **HTTPS REST** | `443` | JSON Web Token (JWT Bearer Authorization) |
 | Central Backend (Render) | Neon Serverless Postgres | **PostgreSQL over TLS** | `5432` | TLS 1.3 Encrypted, Prisma Connection Pool (PgBouncer) |
-| Central Backend (Render) | AI Gateway API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ    |
+| Central Backend (Render) | OpenRouter AI API | **HTTPS / REST** | `443` | TLS 1.3, Secure API Key trong Header máy chủ (`Authorization: Bearer sk-or-...`) |
 | Desktop Client (`AITA_Grader_v1.exe`) | Local Compiler Toolchain | **OS Standard Streams** | `IPC` | Đường ống Stdin, Stdout, Stderr qua `subprocess` |
 
 ---
@@ -192,7 +193,7 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
   - Kết nối repository Git trực tiếp với Render Web Service.
   - Thiết lập Build Command: `npm install && npm run build && npm run db:generate`
   - Thiết lập Start Command: `npm run start:prod`
-  - Khai báo các Environment Secrets: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AI_API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`.
+  - Khai báo các Environment Secrets: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `OPENROUTER_API_KEYS`, `OPENROUTER_MODEL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGINS` (xem `.env.example`).
 - **Khởi chạy môi trường phát triển cục bộ (Local Development)**:
   ```bash
   cd apps/central-backend

@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QCursor
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView
+    QPushButton, QFrame, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy
 )
 
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -81,6 +81,7 @@ class GradingGuideDialog(QDialog):
         # ----------------------------------------------------------------------
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setStyleSheet("""
             QScrollArea {
                 border: none;
@@ -245,11 +246,14 @@ class GradingGuideDialog(QDialog):
         table_verdicts.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         table_verdicts.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table_verdicts.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        table_verdicts.setWordWrap(True)
+        table_verdicts.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table_verdicts.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table_verdicts.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table_verdicts.setStyleSheet("""
             QTableWidget {
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-                gridline-color: #F1F5F9;
+                border: none;
+                gridline-color: #E2E8F0;
                 background-color: #FFFFFF;
             }
             QHeaderView::section {
@@ -257,65 +261,84 @@ class GradingGuideDialog(QDialog):
                 color: #0F172A;
                 font-weight: 700;
                 font-size: 13px;
-                padding: 10px 12px;
+                padding: 12px 16px;
                 border: none;
                 border-bottom: 1px solid #E2E8F0;
+                text-align: left;
             }
             QTableWidget::item {
-                padding: 10px 12px;
-                border-bottom: 1px solid #F1F5F9;
+                padding: 12px 16px;
+                border: none;
+                border-bottom: 1px solid #E2E8F0;
             }
         """)
 
         header_v = table_verdicts.horizontalHeader()
         if header_v is not None:
-            header_v.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+            header_v.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            header_v.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
             header_v.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        table_verdicts.setColumnWidth(0, 240)
+        table_verdicts.setColumnWidth(0, 200)
 
         verdicts_data = [
-            ("[AC] ACCEPTED — ĐẠT CHUẨN",
-             "Mã nguồn chạy đúng 100% testcase và tuân thủ đầy đủ các giới hạn thời gian, bộ nhớ được cấu hình.",
+            ("AC", "Đạt chuẩn",
+             "Mã nguồn vượt qua toàn bộ testcase và đáp ứng giới hạn thời gian, bộ nhớ theo cấu hình trong Cấu Hình Môi Trường.",
              "#16A34A"),
-            ("[WA] WRONG ANSWER — SAI KẾT QUẢ",
+            ("WA", "Sai kết quả",
              "Chương trình thực thi thành công nhưng kết quả in ra màn hình khác với kết quả kỳ vọng.",
              "#DC2626"),
-            ("[CE] COMPILE ERROR — LỖI BIÊN DỊCH",
+            ("CE", "Lỗi biên dịch",
              "Lỗi cú pháp mã nguồn hoặc thiếu thư viện liên kết. Hệ thống tự động ghi nhận 0 điểm và cung cấp nhật ký biên dịch chi tiết.",
-             "#BE123C"),
-            ("[TLE] TIME LIMIT EXCEEDED — QUÁ THỜI GIAN",
-             "Chương trình chạy vượt quá giới hạn thời gian quy định (mặc định 1000ms), thường do vòng lặp vô tận hoặc thuật toán chưa tối ưu.",
-             "#D97706"),
-            ("[MLE] MEMORY LIMIT EXCEEDED — QUÁ BỘ NHỚ",
-             "Chương trình cấp phát bộ nhớ RAM vượt quá hạn mức cho phép (mặc định 256MB hoặc theo cấu hình trong Cấu Hình Môi Trường).",
              "#7E22CE"),
-            ("[RE] RUNTIME ERROR — LỖI THỰC THI",
+            ("TLE", "Quá thời gian",
+             "Chương trình vượt quá giới hạn thời gian theo cấu hình trong Cấu Hình Môi Trường; có thể do vòng lặp không dừng hoặc thuật toán chưa tối ưu.",
+             "#D97706"),
+            ("MLE", "Quá bộ nhớ",
+             "Chương trình sử dụng RAM vượt quá giới hạn theo cấu hình trong Cấu Hình Môi Trường.",
+             "#7E22CE"),
+            ("RE", "Lỗi khi chạy",
              "Chương trình bị dừng đột ngột khi đang chạy (chia cho 0, truy cập mảng ngoài giới hạn vùng nhớ, lỗi phân đoạn segfault).",
-             "#9A3412")
+             "#475569")
         ]
 
-        table_verdicts.setFixedHeight(340)
+        table_verdicts.setShowGrid(False)
+        table_verdicts.setFrameShape(QFrame.Shape.NoFrame)
+        for row_idx, (v_code, v_name, v_explanation, v_color) in enumerate(verdicts_data):
+            # Keep an empty item for the flat row separator; the cell widget owns the text.
+            code_item = QTableWidgetItem("")
+            code_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            desc_item = QTableWidgetItem("")
+            desc_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            table_verdicts.setItem(row_idx, 0, code_item)
+            table_verdicts.setItem(row_idx, 1, desc_item)
 
-        for row_idx, (v_tag, v_explanation, v_color) in enumerate(verdicts_data):
-            item_tag = QTableWidgetItem(v_tag)
-            item_tag.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            font_tag = QFont()
-            font_tag.setBold(True)
-            font_tag.setPointSize(10)
-            item_tag.setFont(font_tag)
-            item_tag.setForeground(Qt.GlobalColor.black)
-            # Dùng màu chuyên biệt cho từng loại phán quyết
-
-            # Đặt widget label để có màu và wrap text hoàn hảo
-            lbl_tag_cell = QLabel(v_tag, table_verdicts)
-            lbl_tag_cell.setStyleSheet(f"color: {v_color}; font-weight: 700; font-size: 13px; padding-left: 6px;")
+            lbl_tag_cell = QLabel(table_verdicts)
+            lbl_tag_cell.setTextFormat(Qt.TextFormat.RichText)
+            lbl_tag_cell.setText(
+                f"<span style='color:{v_color}; font-size:14px;'><b>{v_code}</b></span>"
+                f"<span style='color:#334155; font-size:14px;'> - {v_name}</span>"
+            )
+            lbl_tag_cell.setContentsMargins(16, 12, 16, 12)
+            lbl_tag_cell.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            lbl_tag_cell.setStyleSheet("background: transparent; border: none;")
             table_verdicts.setCellWidget(row_idx, 0, lbl_tag_cell)
 
-            lbl_desc_cell = QLabel(v_explanation, table_verdicts)
-            lbl_desc_cell.setStyleSheet("color: #475569; font-size: 14px; line-height: 1.45;")
+            lbl_desc_cell = QLabel(table_verdicts)
+            lbl_desc_cell.setTextFormat(Qt.TextFormat.RichText)
+            lbl_desc_cell.setText(f"<div style='color:#334155; font-size:14px; line-height:150%;'>{v_explanation}</div>")
             lbl_desc_cell.setWordWrap(True)
+            lbl_desc_cell.setMinimumWidth(0)
+            lbl_desc_cell.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
+            )
+            lbl_desc_cell.setContentsMargins(16, 12, 16, 12)
+            lbl_desc_cell.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            lbl_desc_cell.setStyleSheet("background: transparent; border: none;")
             table_verdicts.setCellWidget(row_idx, 1, lbl_desc_cell)
-            table_verdicts.setRowHeight(row_idx, 52)
+
+        self._verdict_table = table_verdicts
+        QTimer.singleShot(0, self._resize_verdict_table)
 
         cv_layout.addWidget(table_verdicts)
         c_layout.addWidget(card_verd)
@@ -358,3 +381,22 @@ class GradingGuideDialog(QDialog):
         footer.addWidget(btn_close)
 
         main_layout.addLayout(footer)
+
+    def _resize_verdict_table(self):
+        """Fit all verdict rows in the outer guide scroll area at the current scale/width."""
+        table = getattr(self, "_verdict_table", None)
+        if table is None:
+            return
+        for row in range(table.rowCount()):
+            tag = table.cellWidget(row, 0)
+            description = table.cellWidget(row, 1)
+            tag_height = tag.heightForWidth(max(1, table.columnWidth(0))) if tag else 0
+            description_height = description.heightForWidth(max(1, table.columnWidth(1))) if description else 0
+            table.setRowHeight(row, max(48, tag_height, description_height))
+        required_height = table.horizontalHeader().sizeHint().height()
+        required_height += sum(table.rowHeight(row) for row in range(table.rowCount())) + 2
+        table.setMinimumHeight(required_height)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._resize_verdict_table)

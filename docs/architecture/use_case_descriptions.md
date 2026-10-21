@@ -38,7 +38,7 @@ Mỗi Use Case được đặc tả bao gồm:
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)** | | | | |
 | **UC-06** | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ | Giảng viên | Desktop App Client | Sandbox Execution Runner |
 | **UC-07** | Quản lý Đợt Chấm & Lớp học | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
-| **UC-08** | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV | Giảng viên | Desktop App Client | *(Tương tác File System)* |
+| **UC-08** | Nạp Danh Sách Bài Nộp Từ Thư Mục Cục Bộ | Giảng viên | Desktop App Client | *(Tương tác File System)* |
 | **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)** | | | | |
 | **UC-09** | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công | Giảng viên | Desktop App Client | *(Tương tác Local DB)* |
 | **UC-10** | Tự động Sinh Testcase Biên bằng AI | Giảng viên | Desktop App Client | AI Hub        |
@@ -142,10 +142,10 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Quản lý hạn ngạch và giám sát sử dụng AI
 * **Tác nhân chính**: Quản trị viên (Admin)
 * **Tác nhân hỗ trợ ngoài**: Web Server Backend, AI Hub
-* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. AI Gateway API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `AI_API_KEY` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
+* **Mô tả tóm tắt**: Quản trị viên cấu hình quota token/ngày cho từng giảng viên và theo dõi báo cáo sử dụng AI. AI Gateway API key chỉ được cấu hình bởi vận hành viên trong biến môi trường `OPENROUTER_API_KEYS` của backend; Web Admin không nhận, lưu hoặc hiển thị key.
 * **Tiền điều kiện (Preconditions)**:
   1. Quản trị viên đã đăng nhập tài khoản quyền Admin trên Web Admin.
-  2. Backend đã được cấu hình `AI_API_KEY` trong môi trường máy chủ.
+  2. Backend đã được cấu hình `OPENROUTER_API_KEYS` trong môi trường máy chủ.
 * **Hậu điều kiện (Postconditions)**:
   1. Quota ngày của giảng viên được lưu và áp dụng tại backend.
   2. Nhật ký và báo cáo sử dụng AI có thể được tra cứu từ Web Admin.
@@ -261,38 +261,37 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ---
 
-#### 3.2.3. UC-08: Nạp Danh Sách Sinh Viên & Bài Nộp Từ File CSV (Import Submissions via `students.csv`)
+#### 3.2.3. UC-08: Nạp Danh Sách Bài Nộp Từ Thư Mục Cục Bộ (Import Submissions from Local Folder)
 
 * **Mã Use Case**: `UC-08`
-* **Tên Use Case**: Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV (Import Submissions via `students.csv`)
+* **Tên Use Case**: Nạp Danh Sách Bài Nộp từ Thư Mục Cục Bộ (Import Submissions from Local Folder)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Hệ thống tệp tin cục bộ (Local File System)
-* **Mô tả tóm tắt**: Giảng viên nạp danh sách sinh viên dự thi thông qua file CSV chuẩn hóa tinh gọn gồm **đúng 2 cột: `MSSV,File`** (ví dụ: `students.csv`). Hệ thống tự động phân tích cú pháp CSV, đối chiếu với thư mục bài nộp trên máy để kiểm tra sự tồn tại của các file bài làm, và lập bảng danh sách bài nộp sẵn sàng cho quá trình chấm tự động.
+* **Mô tả tóm tắt**: Giảng viên chọn thư mục bài nộp của lớp; hệ thống tự động quét từng mục (mỗi thư mục con hoặc file trong thư mục gốc là một sinh viên), tách **MSSV** và họ tên bằng mẫu regex (`2-4 ký tự chữ + 4-8 ký tự số`, ví dụ `SE180001`), tự gắn cờ mục không nhận diện được hoặc trùng MSSV, và lập bảng danh sách bài nộp sẵn sàng cho quá trình chấm tự động. **Bản đặc tả cũ (nạp qua file `students.csv` bằng hộp thoại chọn tệp) đã bị loại bỏ khỏi giao diện.**
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã tạo hoặc mở một đợt chấm bài (`UC-07`).
-  2. Giảng viên đã chuẩn bị file `students.csv` và thư mục chứa các file bài nộp của sinh viên.
+  2. Giảng viên đã chuẩn bị thư mục chứa các file/thư mục bài nộp của sinh viên.
 * **Hậu điều kiện (Postconditions)**:
-  1. Toàn bộ danh sách sinh viên cùng đường dẫn bài nộp hợp lệ được nạp vào bộ nhớ và lưu vào bảng `submissions` trong SQLite cục bộ.
-  2. Bảng danh sách bài nộp trên giao diện Desktop App hiển thị đầy đủ thông tin với trạng thái ban đầu là `Pending`.
-* **Tác nhân kích hoạt (Trigger)**: Giảng viên nhấn nút **"Nạp File Sinh Viên (students.csv)"** trên màn hình Desktop App.
+  1. Toàn bộ bài nộp hợp lệ (chỉ MSSV + đường dẫn, không lưu họ tên) được lưu vào bảng `local_student_submissions` trong SQLite cục bộ.
+  2. Bảng duyệt trước trên hộp thoại hiển thị đầy đủ thông tin với trạng thái ban đầu là `Pending`.
+* **Tác nhân kích hoạt (Trigger)**: Giảng viên mở hộp thoại **"Khởi Tạo Đợt Chấm & Nạp Thư Mục Bài Nộp"** (Bước 1/3) và bấm **"Duyệt Thư Mục..."**.
 
 ##### Luồng sự kiện chính (Main Flow):
-1. Giảng viên nhấn nút **"Nạp Danh Sách (students.csv)"**.
-2. Hộp thoại chọn tệp tin của hệ điều hành xuất hiện. Giảng viên chọn file `students.csv` từ máy tính.
-3. Desktop App đọc file sử dụng module chuẩn `csv` của Python, tiến hành phân tích và kiểm tra tính hợp lệ của cấu trúc file:
-   - Kiểm tra dòng tiêu đề (Header): Bắt buộc chứa 2 trường `MSSV` và `File`.
-   - Đọc từng dòng dữ liệu: Trích xuất mã số sinh viên (ví dụ: `SE180001`) và tên file bài nộp (ví dụ: `SE180001_Lab1.c` hoặc tên thư mục câu hỏi `SE180001/`).
-4. Hệ thống thực hiện kiểm tra đối chiếu (Cross-check Validation) giữa danh sách CSV và thư mục bài nộp:
-   - Với mỗi dòng, kiểm tra xem file/thư mục tương ứng có thực sự tồn tại trong thư mục bài làm hay không.
-   - Nếu tồn tại: Đánh dấu trạng thái `Ready`.
-   - Nếu không tìm thấy file: Đánh dấu cảnh báo `File Missing` (Thiếu file).
-5. Hệ thống hiển thị bảng duyệt trước (Preview Table) kèm tổng kết: "Đã nạp thành công X sinh viên (Y hợp lệ, Z thiếu bài)".
-6. Giảng viên xem lại danh sách và bấm **"Xác nhận nạp"**.
-7. Dữ liệu được lưu vào SQLite cục bộ và bảng danh sách chính trên giao diện được làm mới với đầy đủ các cột: MSSV, Tên bài nộp, Trạng thái (`Pending`). Use Case kết thúc.
+1. Giảng viên mở hộp thoại tạo đợt chấm (Bước 1/3), nhập tên lớp, chọn ngôn ngữ lập trình và bấm **"Duyệt Thư Mục..."** chọn thư mục bài nộp gốc.
+2. Hệ thống tự động quét thư mục: mỗi thư mục con hoặc file trực tiếp trong thư mục gốc ứng với một sinh viên.
+3. Với từng mục, hệ thống tách MSSV và họ tên bằng regex chuẩn (`parse_student_entry`):
+   - Khớp mẫu mã sinh viên → hợp lệ (Ví dụ: `SE180001`, `SE180001-NguyenVanA`).
+   - Không khớp mẫu → đánh dấu **không hợp lệ**; trùng MSSV → đánh dấu **trùng lặp**.
+4. Hệ thống hiển thị bảng duyệt trước (Preview Table) kèm tổng kết: "Nhận diện được X bài nộp hợp lệ | Y mục không hợp lệ".
+5. Giảng viên xem lại danh sách (có thể lọc/bỏ các mục lỗi) và bấm **"Tiếp Tục: Cấu Hình Môi Trường (Bước 2/3)"**.
+6. Dữ liệu hợp lệ được lưu vào SQLite cục bộ và bảng danh sách chính trên giao diện được làm mới với các cột: MSSV, Tên thư mục, Trạng thái (`Pending`). Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Kéo thả trực tiếp (Drag & Drop)**: Giảng viên có thể kéo thả trực tiếp file `students.csv` từ Windows Explorer vào vùng làm việc của ứng dụng. Hệ thống tự động kích hoạt tiến trình đọc file từ bước 3.
-* **E1 - Sai định dạng file CSV (Invalid CSV Structure)**: Tại bước 3, nếu file thiếu một trong 2 cột chuẩn (`MSSV` hoặc `File`), hoặc file bị lỗi bảng mã (không phải UTF-8), hệ thống hiển thị hộp thoại lỗi: "Cấu trúc file CSV không hợp lệ. File bắt buộc phải có 2 cột tiêu đề: MSSV,File. Vui lòng kiểm tra lại".
+* **A1 - Tạo giống đợt có sẵn**: Giảng viên có thể bật tùy chọn "Tạo giống đợt có sẵn" để sao chép cấu hình (testcase, chiến lược so khớp) từ một đợt chấm trước đó, không phải nhập lại mỗi buổi chấm.
+* **E1 - Không nhận diện được mục nào**: Tại bước 3, nếu không có mục nào khớp mẫu MSSV, hệ thống hiển thị cảnh báo "Chưa tìm thấy bài nộp nào trong thư mục đã chọn" và yêu cầu giảng viên chọn lại thư mục.
+* **E2 - Thư mục không tồn tại / không có quyền truy cập**: Hệ thống hiển thị hộp thoại lỗi tiếng Việt và không tiến hành quét.
+
+> *Ghi chú (Chế độ Chấm Web)*: Với phân hệ Chấm Web, giảng viên nạp bài nộp bằng cách chọn thư mục liên kết, thêm/dán thủ công nhiều link, hoặc nhập file CSV theo chế độ chấm (`MSSV` + URL) — xem UC-19. Dạng CSV này **không** phải `students.csv` 2 cột của bản đặc tả cũ.
 
 ---
 
@@ -316,15 +315,19 @@ Mỗi Use Case được đặc tả bao gồm:
 ##### Luồng sự kiện chính (Main Flow):
 1. Giảng viên mở cửa sổ Quản Lý Bộ Testcase & Chiến Lược So Khớp (mặc định mở tab **"Testcase"**).
 2. Hệ thống hiển thị thanh công cụ lọc câu hỏi (`Q1`..`Q5` hoặc "Tất cả câu hỏi"), nút viền "Sinh Testcase Bằng AI" và nút viền **"Thêm Testcase"**.
-3. Bảng testcase hiển thị danh sách các ca kiểm thử hiện có gồm 9 cột: `#`, `Câu Hỏi`, `INPUT (stdin)`, `OUTPUT (stdout)`, `Trọng Số`, `Giới Hạn (ms)`, `RAM (MB)`, `Chiến Lược`, và cột `Thao Tác` (chứa nút viền Sửa và Xóa được căn giữa dòng).
-4. Giảng viên bấm nút viền **"Thêm Testcase"**: Hệ thống hiển thị hộp thoại `TestcaseEditDialog` cho phép nhập Câu hỏi, Trọng số điểm, Dữ liệu đầu vào (stdin), Kết quả kỳ vọng (stdout), Giới hạn thời gian (ms) và Giới hạn bộ nhớ (MB).
-5. Giảng viên nhập đầy đủ dữ liệu và bấm **"Lưu Testcase"**.
-6. Hệ thống thẩm định dữ liệu không được bỏ trống `OUTPUT (stdout)`, lưu testcase mới vào bảng `local_test_cases` trong SQLite và làm mới bảng hiển thị.
-7. Tại chân cửa sổ, Giảng viên bấm nút chính **"Lưu"** để hoàn tất cấu hình. Use Case kết thúc.
+3. Bảng testcase hiển thị danh sách các ca kiểm thử hiện có gồm 9 cột: `#`, `Câu Hỏi`, `INPUT (stdin)`, `OUTPUT (stdout)`, `Trọng Số`, `Giới Hạn (ms)`, `RAM (MB)`, `Chiến Lược`, và cột `Thao Tác` (chứa nút viền Sửa và Xóa được căn giữa dòng). Hai cột `INPUT`/`OUTPUT` chỉ hiển thị dòng đầu kèm hậu tố `(+N dòng)`, di chuột vào ô xem đầy đủ nội dung.
+4. Giảng viên bấm nút viền **"Thêm Testcase"**: Hệ thống mở hộp thoại `TestcaseEditDialog` cho **toàn bộ testcase của một câu hỏi**, chia hai cột:
+   * **Cột trái (30%)**: danh sách testcase của câu hỏi, có nút **Thêm Testcase**, **Nhân Bản**, **Xóa** (có hộp thoại xác nhận), kéo thả để đổi thứ tự; dòng thiếu `stdout` được đánh dấu *"Thiếu kết quả"*; cuối danh sách hiển thị `N testcase, tổng trọng số X`.
+   * **Cột phải**: tab **Chi Tiết Testcase** gồm Câu Hỏi, Trọng Số Điểm, Giới Hạn Thời Gian (ms), Giới Hạn Bộ Nhớ (MB) — hai giới hạn này là **mặc định của câu hỏi**, mỗi testcase có tuỳ chọn **Ghi đè giới hạn** (mặc định tắt); ô **Đầu Vào (stdin)** và **Kết Quả Kỳ Vọng (stdout)** nằm cạnh nhau, hỗ trợ hai chế độ **Văn bản** (mặc định) và **Theo dòng** (mỗi dòng một ô nhập, thêm/xóa/kéo thả dòng), tuỳ chọn **Hiện ký tự ẩn** (khoảng trắng thừa hiển thị thành dấu chấm, cuối dòng thành mũi tên), thống kê `N dòng, M ký tự` và cảnh báo vàng không chặn lưu (khoảng trắng thừa, thiếu xuống dòng cuối). Tab **Dán Nhiều Testcase** nhận JSON hoặc các khối ngăn bằng `---`/`===`, có **Xem Trước** (dòng lỗi tô đỏ kèm lý do) và **Thêm Tất Cả**.
+5. Giảng viên nhập dữ liệu (hoặc dán hàng loạt) rồi bấm **"Lưu"** ở chân hộp thoại; nút **"Lưu và Thêm Tiếp"** ghi CSDL nhưng giữ hộp thoại mở để nhập testcase kế tiếp, **"Hủy"** đóng mà không ghi (hỏi xác nhận nếu có thay đổi chưa lưu).
+6. Hệ thống thẩm định không được bỏ trống `OUTPUT (stdout)` của từng testcase, lưu các testcase vào bảng `local_test_cases` trong SQLite (nội dung vẫn là hai chuỗi, các dòng nối bằng `\n`) và làm mới bảng hiển thị.
+7. Tại chân cửa sổ quản lý, Giảng viên bấm nút chính **"Lưu"** để hoàn tất cấu hình. Use Case kết thúc.
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
-* **A1 - Chỉnh sửa / Xóa testcase**: Tại bước 3, Giảng viên có thể bấm nút "Sửa" trên từng dòng để mở form cập nhật thông số, hoặc bấm nút "Xóa" kèm hộp thoại xác nhận để loại bỏ testcase khỏi CSDL.
-* **E1 - Bỏ trống dữ liệu kỳ vọng**: Tại bước 5, nếu trường `OUTPUT` bị bỏ trống, hệ thống hiển thị cảnh báo: *"Kết quả mong đợi (stdout) không được để trống."* và ngăn chặn lưu.
+* **A1 - Chỉnh sửa / Xóa testcase**: Tại bước 3, Giảng viên có thể bấm nút "Sửa" trên từng dòng để mở lại hộp thoại với testcase đó được chọn sẵn, hoặc bấm nút "Xóa" kèm hộp thoại xác nhận (hiển thị trước nội dung testcase) để loại bỏ testcase khỏi CSDL.
+* **A2 - Đổi thứ tự testcase**: Trong hộp thoại, Giảng viên kéo thả dòng ở cột trái; thứ tự được ghi lại khi bấm Lưu (dùng lại dãy `id` sẵn có của câu hỏi, không thêm cột CSDL).
+* **E1 - Bỏ trống dữ liệu kỳ vọng**: Tại bước 5, nếu trường `OUTPUT` của một testcase bị bỏ trống, hệ thống hiển thị cảnh báo: *"Testcase N: Kết quả kỳ vọng (stdout) không được để trống."* và ngăn chặn lưu.
+* **E2 - Dữ liệu dán không hợp lệ**: Tại bước 4 (tab Dán Nhiều Testcase), khối thiếu dòng `===`, JSON sai cú pháp hoặc thiếu khoá `output` được hiển thị thành dòng đỏ kèm lý do ở bảng xem trước, **không** được nạp im lặng; nếu tất cả dòng đều lỗi thì nút **Thêm Tất Cả** bị vô hiệu.
 
 ---
 
@@ -457,9 +460,9 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Tên Use Case**: Thực thi Chấm điểm Tự động Hàng loạt (Batch Automated Grading Pipeline)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Sandbox Execution Runner (GCC/MinGW, Javac, Python Runtime, psutil)
-* **Mô tả tóm tắt**: Hệ thống tự động duyệt qua toàn bộ bài nộp trong danh sách `students.csv` (chuẩn 2 cột: `MSSV,File`), kích hoạt luồng xử lý nền đa tiến trình song song (Parallel Subprocesses: 4-8 bài đồng thời). Với mỗi câu hỏi là một file độc lập có hàm `main()`, hệ thống nạp `INPUT` qua `stdin`, hứng `OUTPUT thực tế` qua `stdout` để so khớp với `OUTPUT kỳ vọng`, tính điểm từng câu và cộng dồn thành tổng điểm bài thi mà **hoàn toàn không gọi AI trong lúc chấm** để đạt tốc độ tối đa (15-30 giây cho 40-50 sinh viên).
+* **Mô tả tóm tắt**: Hệ thống tự động duyệt qua toàn bộ bài nộp trong đợt chấm đã nạp từ thư mục bài thi (`UC-08`), kích hoạt luồng xử lý nền đa tiến trình song song (Parallel Subprocesses: 4-8 bài đồng thời). Với mỗi câu hỏi là một file độc lập có hàm `main()`, hệ thống nạp `INPUT` qua `stdin`, hứng `OUTPUT thực tế` qua `stdout` để so khớp với `OUTPUT kỳ vọng`, tính điểm từng câu và cộng dồn thành tổng điểm bài thi mà **hoàn toàn không gọi AI trong lúc chấm** để đạt tốc độ tối đa (15-30 giây cho 40-50 sinh viên).
 * **Tiền điều kiện (Preconditions)**:
-  1. Đợt chấm đã nạp file `students.csv` (`UC-08`).
+  1. Đợt chấm đã nạp danh sách bài nộp từ thư mục bài thi (`UC-08`).
   2. Đợt chấm đã có ít nhất một cặp `INPUT` / `OUTPUT kỳ vọng` (`UC-09` hoặc `UC-10`).
   3. Đường dẫn trình biên dịch môi trường đã được cấu hình sẵn sàng (`UC-06`).
   4. Đã lựa chọn một chiến lược so khớp đầu ra (`UC-11`).
@@ -723,7 +726,7 @@ Mỗi Use Case được đặc tả bao gồm:
 ##### Luồng sự kiện chính (Main Flow):
 1. Giảng viên nhấn nút **"Xuất Báo Cáo"** trên màn hình kết quả của Desktop App.
 2. Hệ thống hiển thị hộp thoại lựa chọn định dạng xuất:
-   - **File kết quả chuẩn `results.csv`**: Kế thừa 2 cột ban đầu từ `students.csv` và bổ sung đầy đủ 5 cột kết quả:
+   - **File kết quả chuẩn `results.csv`**: Gồm 2 cột định danh (`MSSV`, `File`) và bổ sung đầy đủ 5 cột kết quả:
      - Cột 1: `MSSV`
      - Cột 2: `File`
      - Cột 3: `Điểm số` (thang điểm 10)

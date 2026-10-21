@@ -633,10 +633,11 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   function plagiarismData(overrides: Record<string, unknown> = {}) {
     return {
       data: {
-        is_plagiarized: true,
-        confidence_percentage: 92,
-        evidence_summary: 'Structurally identical loops.',
-        cloned_segments: [{ student_a_lines: '1-5', student_b_lines: '1-5', technique: 'rename' }],
+        ket_luan: 'Hai đoạn mã có cấu trúc vòng lặp tương đồng cao.',
+        do_tin_cay: 92,
+        bang_chung: [{ mo_ta: 'Cùng duyệt mảng và cộng dồn phần tử.', dong_a: [1, 1], dong_b: [1, 1] }],
+        khac_biet: ['Tên biến khác nhau.'],
+        de_xuat: ['Yêu cầu sinh viên giải thích cách hoạt động của vòng lặp.'],
         ...overrides,
       },
       tokensConsumed: 700,
@@ -711,38 +712,42 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
   });
 
   describe('UT03_AiVerifyPlagiarism_TC011: Xác thực thành công đạo văn tinh vi', () => {
-    it('trả is_plagiarized và confidence', async () => {
+    it('trả nhận xét tiếng Việt có cấu trúc', async () => {
       provider.generateJson.mockResolvedValue(plagiarismData());
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism } as VerifyPlagiarismDto);
-      expect(result.message).toBe('Phân tích bằng chứng đạo văn thành công');
-      expect((result.data as any).is_plagiarized).toBe(true);
-      expect((result.data as any).confidence_percentage).toBe(92);
+      expect(result.message).toBe('Đối soát đạo văn bằng AI hoàn tất');
+      expect((result.data as any).ket_luan).toContain('cấu trúc vòng lặp');
+      expect((result.data as any).do_tin_cay).toBe(92);
+      expect((result.data as any).bang_chung).toHaveLength(1);
+      expect((result.data as any).khac_biet).toContain('Tên biến khác nhau.');
+      expect((result.data as any).de_xuat).toHaveLength(1);
     });
   });
 
   describe('UT03_AiVerifyPlagiarism_TC012: Biên dưới 80% (trùng hợp ngẫu nhiên)', () => {
-    it('hợp lệ và trả is_plagiarized false', async () => {
+    it('hợp lệ ở ngưỡng dưới và trả độ tin cậy thấp', async () => {
       await expect(validate(VerifyPlagiarismDto, { ...validPlagiarism, ast_similarity_percentage: 80 })).resolves.toBeDefined();
-      provider.generateJson.mockResolvedValue(plagiarismData({ is_plagiarized: false, confidence_percentage: 30, evidence_summary: 'Common boilerplate.' }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ ket_luan: 'Độ tương đồng có thể đến từ cấu trúc phổ biến.', do_tin_cay: 30, bang_chung: [] }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, ast_similarity_percentage: 80 } as VerifyPlagiarismDto);
-      expect((result.data as any).is_plagiarized).toBe(false);
+      expect((result.data as any).do_tin_cay).toBe(30);
+      expect((result.data as any).bang_chung).toEqual([]);
     });
   });
 
   describe('UT03_AiVerifyPlagiarism_TC013: Biên trên 100% (sao chép nguyên văn)', () => {
     it('hợp lệ và trả confidence 100', async () => {
       await expect(validate(VerifyPlagiarismDto, { ...validPlagiarism, ast_similarity_percentage: 100 })).resolves.toBeDefined();
-      provider.generateJson.mockResolvedValue(plagiarismData({ confidence_percentage: 100 }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ do_tin_cay: 100 }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, ast_similarity_percentage: 100 } as VerifyPlagiarismDto);
-      expect((result.data as any).confidence_percentage).toBe(100);
+      expect((result.data as any).do_tin_cay).toBe(100);
     });
   });
 
-  describe('UT03_AiVerifyPlagiarism_TC014: Tách hàm con Java với cloned_segments rỗng', () => {
+  describe('UT03_AiVerifyPlagiarism_TC014: Tách hàm con Java với bằng chứng rỗng', () => {
     it('mảng rỗng vẫn hợp lệ', async () => {
-      provider.generateJson.mockResolvedValue(plagiarismData({ cloned_segments: [] }));
+      provider.generateJson.mockResolvedValue(plagiarismData({ bang_chung: [] }));
       const result = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism, language: 'JAVA' } as VerifyPlagiarismDto);
-      expect((result.data as any).cloned_segments).toEqual([]);
+      expect((result.data as any).bang_chung).toEqual([]);
     });
   });
 

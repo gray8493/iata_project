@@ -60,16 +60,22 @@ describe('System (docs: docs/testcases/3-system/system-test-specification.md)', 
   describe('ST03_PlagiarismVong2_TC001: AI phân tích ngữ nghĩa cặp bài nghi vấn (Vòng 2)', () => {
     it('trả về bằng chứng sao chép đúng cấu trúc', async () => {
       provider.generateJson.mockResolvedValue({
-        data: { is_plagiarized: true, confidence_percentage: 86, evidence_summary: 'Đổi tên biến và đảo vị trí hàm', cloned_segments: [{ student_a_lines: '1-3', student_b_lines: '2-4', technique: 'rename' }] },
+        data: {
+          ket_luan: 'Hai bài có dấu hiệu tương đồng về cấu trúc.',
+          do_tin_cay: 86,
+          bang_chung: [{ mo_ta: 'Cùng cấu trúc xử lý.', dong_a: [1, 1], dong_b: [1, 1] }],
+          khac_biet: ['Tên biến khác nhau.'],
+          de_xuat: ['Trao đổi với sinh viên về cách xây dựng lời giải.'],
+        },
         tokensConsumed: 900,
       });
 
       const result = await ai.verifyPlagiarism('u1', { student_a_code: 'a'.repeat(20), student_b_code: 'b'.repeat(20), ast_similarity_percentage: 86, language: 'C' } as any);
 
-      expect(result.message).toBe('Phân tích bằng chứng đạo văn thành công');
+      expect(result.message).toBe('Đối soát đạo văn bằng AI hoàn tất');
       expect(result.data.tokens_consumed).toBe(900);
-      expect((result.data as any).is_plagiarized).toBe(true);
-      expect((result.data as any).cloned_segments).toHaveLength(1);
+      expect((result.data as any).do_tin_cay).toBe(86);
+      expect((result.data as any).bang_chung).toHaveLength(1);
     });
   });
 

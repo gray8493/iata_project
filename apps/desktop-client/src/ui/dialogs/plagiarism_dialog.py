@@ -693,6 +693,18 @@ class PlagiarismDialog(QDialog):
             for row in existing_reports
         }
         subs = self.db.get_submissions_by_class(self.class_id)
+        # DB cũ có thể chứa nhiều kết quả đang hoạt động cho một bài, khiến JOIN
+        # lặp dòng và tạo cặp tự so sánh MSSV với chính nó. Chọn bài có ID mới nhất.
+        latest_submission_by_mssv: Dict[str, Dict[str, Any]] = {}
+        for submission in subs:
+            mssv = str(submission.get("student_mssv", "")).strip().upper()
+            if not mssv:
+                continue
+            current = latest_submission_by_mssv.get(mssv)
+            if current is None or int(submission.get("id", 0) or 0) >= int(current.get("id", 0) or 0):
+                latest_submission_by_mssv[mssv] = submission
+        duplicate_rows_removed = len(subs) - len(latest_submission_by_mssv)
+        subs = sorted(latest_submission_by_mssv.values(), key=lambda item: item["student_mssv"].upper())
         if len(subs) < 2:
             self._show_empty_state(f"Đợt chấm này hiện có {len(subs)} bài nộp. Cần tối thiểu 2 bài để đối soát chéo.")
             return
@@ -791,6 +803,8 @@ class PlagiarismDialog(QDialog):
         self.pairs_data = pairs_found
         scope = f"{len(questions_checked)} câu" if questions_checked else "1 câu"
         filter_note = " Đã loại mã khung sườn dùng chung của lớp." if report.get("boilerplate_filtered") else ""
+        if duplicate_rows_removed:
+            filter_note += f" Đã gộp {duplicate_rows_removed} dòng dữ liệu MSSV trùng."
         if pairs_found:
             self.lbl_status_subtitle.setText(
                 f"Đã đối soát {total_pairs_checked} lượt so sánh theo {scope}. "
@@ -1087,6 +1101,10 @@ class PlagiarismDialog(QDialog):
         if not self._selected_pair:
             self.btn_run_ai_plag.setEnabled(False)
             self.btn_run_ai_plag.setToolTip("Chọn một cặp ở bảng bên trái")
+        elif self._selected_pair["sv_a"].strip().upper() == self._selected_pair["sv_b"].strip().upper():
+            self.btn_run_ai_plag.setText("Không thể thẩm định")
+            self.btn_run_ai_plag.setEnabled(False)
+            self.btn_run_ai_plag.setToolTip("Không thể thẩm định một MSSV với chính mình. Hãy quét lại đợt chấm.")
         elif float(self._selected_pair.get("sim", 0)) < 80:
             self.btn_run_ai_plag.setEnabled(False)
             self.btn_run_ai_plag.setToolTip("AI thẩm định áp dụng cho cặp có độ trùng lặp từ 80% trở lên.")
@@ -1113,6 +1131,11 @@ class PlagiarismDialog(QDialog):
     def _run_ai_plagiarism_verification(self):
         pair = self._selected_pair
         if not pair:
+            return
+        if pair["sv_a"].strip().upper() == pair["sv_b"].strip().upper():
+            logging.error("Refusing AI plagiarism review for a self-pair (%s).", pair["sv_a"])
+            self.ai_review_browser.setHtml(self._empty_ai_html("Cặp có MSSV trùng nhau nên không thể thẩm định. Hãy bấm 'Bắt Đầu Quét Đạo Văn' để làm mới danh sách cặp."))
+            self._update_ai_button_state()
             return
         if float(pair.get("sim", 0)) < 80:
             self._update_ai_button_state()

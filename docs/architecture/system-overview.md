@@ -15,7 +15,7 @@ Trong công tác giảng dạy các môn lập trình nền tảng tại trườ
 
 ### 1.2. Mục tiêu của dự án AITA
 **AITA** là một ứng dụng Desktop chuyên nghiệp dành riêng cho **Giảng viên và Trợ giảng**, cho phép:
-- Nạp danh sách sinh viên qua file CSV tinh gọn 2 cột (`MSSV`, `File`) và chọn thư mục bài nộp.
+- Nạp bài nộp trực tiếp từ thư mục bài làm (mỗi thư mục con là một MSSV, tự động nhận diện bằng regex — không cần file `students.csv`), hoặc nhập danh sách link cho chế độ Chấm Web.
 - Nạp bộ testcase linh hoạt bằng tay trên giao diện hoặc qua file cấu hình JSON.
 - Tự động thực thi bài nộp với bộ testcase chuẩn và so khớp kết quả đầu ra theo 7 chiến lược (Strategy Pattern).
 - Trả về bảng điểm chi tiết ngay lập tức (Pass/Fail từng testcase, thời gian chạy, mã lỗi biên dịch/thực thi).
@@ -42,12 +42,12 @@ Hệ thống được tối ưu hóa cho trải nghiệm của một Giảng vi�
 
 ```text
 [GIAI ĐOẠN 1: THIẾT LẬP]
-Bước 1: Mở app AITA (PyQt6/PySide6) & Chọn môn học
-Bước 2: Nạp bộ Testcase (Nhập tay trên GUI VÀ/HOẶC Import file JSON)
-Bước 3: Nạp file CSV (MSSV, File) & Chọn thư mục bài nộp
+Bước 1: Mở app AITA (PyQt6) & Đăng nhập JWT (lấy quyền gọi AI Hub từ Backend)
+Bước 2: Chọn chế độ làm việc: Chấm Console (C/Java/Python) hoặc Chấm Web (HTML/CSS/JS/PHP)
+Bước 3: Tạo đợt chấm: nhập tên lớp, chọn thư mục bài nộp (mỗi thư mục con = 1 MSSV) & cấu hình sandbox
 
 [GIAI ĐOẠN 2: CHẤM BÀI TỰ ĐỘNG]
-Bước 4: Chọn 1 trong 7 chế độ so khớp (Matching Strategy)
+Bước 4: Nạp bộ Testcase (nhập tay GUI và/hoặc Import file JSON) & chọn chiến lược so khớp (7 chiến lược đơn hoặc kết hợp đa cờ)
 Bước 5: Bấm "BẮT ĐẦU CHẤM" (Chấm song song 4-8 sinh viên cùng lúc)
 
 [GIAI ĐOẠN 3: XEM KẾT QUẢ & SOI LỖI]
@@ -58,11 +58,13 @@ Bước 7: Bấm vào sinh viên bị lỗi để soi code & Xem nhận xét t�
 Bước 8: Bấm "XUẤT BẢNG ĐIỂM CSV" hoàn chỉnh để nộp phòng đào tạo
 ```
 
-### 3.1. Chuẩn hóa File CSV đầu vào (Input) & đầu ra (Output):
-- **File CSV đầu vào do Giảng viên nạp** (ví dụ: `students.csv`): Chỉ gồm đúng **2 cột**:
-  - Cột 1: `MSSV` (Mã số sinh viên, ví dụ: `SE180001`).
-  - Cột 2: `File` (Tên file bài làm, ví dụ: `SE180001_Lab1.c`).
-- **File CSV kết quả do Tool xuất ra** (ví dụ: `results.csv`): Giữ nguyên 2 cột trên và tự động bổ sung:
+### 3.1. Chuẩn hóa Đầu vào (Input) & Đầu ra (Output):
+- **Đầu vào (Chế độ Console)**: Giảng viên chọn thư mục bài nộp — mỗi thư mục con hoặc file trong thư mục gốc là một sinh viên; hệ thống tự tách MSSV và họ tên bằng regex để hiển thị, chỉ lưu MSSV làm định danh duy nhất. **Không còn nạp qua file `students.csv`**.
+- **Đầu vào (Chế độ Chấm Web)**: Nạp từ thư mục liên kết (mỗi MSSV có file `.txt` chứa Live URL / GitHub Repo), thêm/dán thủ công nhiều link, hoặc nhập file CSV theo chế độ chấm:
+  - `LIVE_ONLY`: 2 cột `MSSV,LiveURL`.
+  - `REPO_ONLY`: 2 cột `MSSV,GitHubRepoURL`.
+  - `HYBRID`: từ 3 cột `MSSV,Link1,Link2` (tự phân loại link Live/GitHub).
+- **File CSV kết quả do Tool xuất ra** (ví dụ: `results.csv`): gồm 2 cột định danh và tự động bổ sung:
   - Cột 3: `Điểm số` (thang điểm 10).
   - Cột 4: `Số testcase đạt` (ví dụ: `9/10`).
   - Cột 5: `Trạng thái` (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`).
@@ -139,7 +141,7 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 +------------------------------------+       +------------------------------------+
 |  WEB ADMIN DASHBOARD (Next.js FE)  |       |   DESKTOP APP CLIENT (PyQt6/Python)|
 |  - Dành cho Quản trị viên (Admin)  |       |  - Dành cho Giảng viên (Instructor)|
-|  - Quản lý User, Môn học, Quota AI |       |  - Chấm bài CSV hàng loạt tốc độ cao|
+|  - Quản lý User, Quota AI, Báo cáo  |       |  - Chấm bài hàng loạt tốc độ cao    |
 |  - Giám sát hạn ngạch AI Hub    |       |  - Chạy Sandbox Runner C/Java/Py      |
 +------------------------------------+       +------------------------------------+
                   │                                             │
@@ -149,7 +151,7 @@ Hệ thống AITA được thiết kế thành một hệ sinh thái phần mề
 |                   WEB SERVER BACKEND (NestJS / TypeScript)                      |
 |  - Tầng API Gateway & Định tuyến: NestJS Controllers & RESTful Endpoints        |
 |  - Xác thực & Phân quyền (Auth & RBAC): Passport-JWT, Guards (@Roles)           |
-|  - Quản lý nghiệp vụ: Quản lý Tài khoản Giảng viên, Danh mục Môn học, Hạn ngạch AI |
+|  - Quản lý nghiệp vụ: Tài khoản Giảng viên, Hạn ngạch AI, Báo cáo & Nhật ký kiểm toán |
 |  - Tích hợp AI Hub: Cầu nối điều phối hạn ngạch gọi AI Gateway API              |
 |  - Cơ sở dữ liệu trung tâm: PostgreSQL trên Neon Serverless Cloud qua Prisma   |
 +---------------------------------------------------------------------------------+
@@ -164,25 +166,25 @@ Web Admin Dashboard là hệ thống quản trị nội bộ **dành riêng cho 
 | **Đăng nhập hệ thống (Auth JWT)** | ✅ Đăng nhập Web Admin | ✅ Đăng nhập Desktop App | Web Backend API |
 | **Quản lý tài khoản Giảng viên (Thêm/Sửa/Khóa)** | ✅ Toàn quyền | ❌ | Web Admin Dashboard |
 | **Phân quyền hệ thống (Gán Role Admin/Instructor)** | ✅ | ❌ | Web Admin Dashboard |
-| **Quản lý quota AI Hub** | ✅ Qua API quản trị | ❌ | Web Admin Dashboard; AI API key do vận hành cấu hình bằng biến môi trường máy chủ        |
+| **Quản lý quota AI Hub** | ✅ Qua API quản trị | ❌ | Web Admin Dashboard; AI API key do vận hành cấu hình bằng biến môi trường máy chủ `OPENROUTER_API_KEYS`        |
 | **Giám sát nhật ký sử dụng Token AI toàn trường** | ✅ Xem toàn bộ logs | ❌ | Web Admin Dashboard |
 | **Nạp Testcase & Cấu hình bài tập** | ❌ | ✅ Toàn quyền trên lớp | Desktop App Client |
-| **Chấm bài tự động từ file CSV (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
+| **Chấm bài tự động từ thư mục bài nộp (MSSV, File)** | ❌ | ✅ Chấm bài của lớp | Desktop App Client |
 | **Chấm bài tập Web tự động (HTML/CSS/JS/PHP)** | ❌ | ✅ Chấm bài theo Rubric | Desktop App Client |
 | **Xuất bảng điểm CSV kết quả (results.csv)** | ❌ | ✅ Xuất lớp phụ trách | Desktop App Client |
 
-*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách nạp từ file CSV mà Giảng viên thực hiện chấm điểm cục bộ. Bảng điểm và mã nguồn sinh viên được bảo vệ tuyệt đối trên máy tính cá nhân của Giảng viên - Local-First Data Privacy).*
+*(Lưu ý: Sinh viên không có tài khoản và không truy cập vào Web. Sinh viên chỉ là danh sách bài nộp trong thư mục cục bộ (hoặc CSV link của chế độ Chấm Web) mà Giảng viên thực hiện chấm điểm. Bảng điểm và mã nguồn sinh viên được bảo vệ tuyệt đối trên máy tính cá nhân của Giảng viên - Local-First Data Privacy).*
 
 ---
 
 ### 5.2. Kiến trúc nội bộ của Desktop App Client (PyQt6)
 Khi Giảng viên sử dụng Desktop App, ứng dụng vận hành theo mô hình Clean Architecture:
 - **Tầng Giao diện (UI)**: PyQt6 / PySide6 hiện đại, xử lý đa luồng qua `QThread` để không đơ màn hình khi chấm bài.
-- **Tầng Nghiệp vụ**: Động cơ so khớp 7 chế độ (`MatchingStrategy`), bộ thẩm định Rubric chấm Web 4 thành phần, quản lý đọc/ghi file CSV (`students.csv`, `results.csv`).
+- **Tầng Nghiệp vụ**: Động cơ so khớp 7 chiến lược đơn + tổ hợp đa cờ (`MatchingStrategy` & `FlexibleMatchingStrategy`), bộ thẩm định Rubric chấm Web 4 thành phần, nạp bài nộp từ thư mục và xuất file kết quả `results.csv` (kèm Excel/PDF).
 - **Tầng Thực thi an toàn & Trình duyệt (Sandbox & Web Runner Engine)**:
   - Subprocess cô lập gọi `gcc`, `java`, `python` kết hợp thư viện `psutil` để kiểm soát RAM (bắt `MLE`) và cưỡng chế kill khi quá giờ (bắt `TLE`).
   - Tích hợp `playwright` (Chromium Headless), `beautifulsoup4` (DOM parser) và `tinycss2` (W3C linter) để chấm điểm tự động bài tập Web (HTML/CSS/JS/PHP).
-- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi dịch vụ AI Hub (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2, đánh giá chất lượng giao diện Web).
+- **Tầng Kết nối Mạng & AI (Network & AI Gateway Client)**: Kết nối với Web Server Backend qua REST API để xác thực tài khoản và gọi các dịch vụ AI Hub qua Backend (sinh testcase biên, review bài WA, phát hiện đạo văn vòng 2, đánh giá giao diện Web, rubric chấm bài thực hành PE).
 
 ---
 
@@ -194,10 +196,10 @@ Web Server Backend đóng vai trò "Bộ não trung tâm" kết nối và điề
    - Mã hóa mật khẩu một chiều chuẩn công nghiệp bằng **Bcrypt**.
    - Kiểm soát quyền truy cập tài nguyên thông qua NestJS Guards & Decorators (`@UseGuards(JwtAuthGuard, RolesGuard)`, `@Roles('admin')`).
 3. **AI Hub & Hạn ngạch (Quota Management)**:
-   - Lưu trữ bí mật AI Gateway API Key tại máy chủ, ngăn chặn lộ key ra phía client.
-   - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày/hàng tháng cho từng giảng viên.
+   - Lưu trữ bí mật danh sách API Key của OpenRouter tại máy chủ (`OPENROUTER_API_KEYS`), ngăn chặn lộ key ra phía client.
+   - Kiểm soát số lượt gọi AI (Rate Limiting) và quota token hàng ngày (UTC) cho từng giảng viên; báo cáo tiêu thụ theo ngày/tháng trên Web Admin.
 4. **Bảo Mật Tập Trung & Nguyên Tắc Local-First (Neon PostgreSQL)**:
-   - Lưu trữ an toàn danh mục môn học, tài khoản, cấu hình hạn ngạch và nhật ký kiểm toán AI.
+   - Lưu trữ an toàn tài khoản người dùng, cấu hình hạn ngạch và nhật ký kiểm toán AI.
    - Đảm bảo nguyên tắc bảo mật Local-First: Toàn bộ bảng điểm thi cử và mã nguồn sinh viên được lưu giữ cục bộ 100% trên máy Giảng viên, Backend không lưu giữ bài thi của sinh viên.
 
 ---
@@ -219,7 +221,7 @@ Giao diện Web Admin chuyên dụng dành riêng cho Quản trị viên (Admin)
 ## 6. Hiện thực hóa 3 Mẫu thiết kế (Design Patterns) theo yêu cầu SWD392
 
 ### 6.1. Strategy Pattern (Behavioral Pattern) – Động cơ so khớp 7 chế độ (`MatchingStrategy`)
-Hệ thống cung cấp 7 chiến lược so khớp đầu ra để phù hợp với mọi dạng bài tập lập trình:
+Hệ thống cung cấp 7 chiến lược so khớp đầu ra đơn lẻ để phù hợp với mọi dạng bài tập lập trình, cộng thêm chiến lược tổ hợp `FlexibleMatchingStrategy` (ghép nhiều cờ so khớp cùng lúc theo từng testcase, được chọn mặc định khi giảng viên tick nhiều chế độ trên giao diện):
 1. **`ExactMatchStrategy`**: So sánh chính xác 100% từng ký tự.
 2. **`IgnoreWhitespaceStrategy`**: Bỏ qua khoảng trắng và dấu xuống dòng thừa ở cuối.
 3. **`CaseInsensitiveStrategy`**: Không phân biệt chữ hoa, chữ thường (ví dụ: `YES` / `yes`).
