@@ -49,8 +49,8 @@ erDiagram
     AI_QUOTA_LOGS {
         uuid id PK "Khóa chính log"
         uuid user_id FK "Giảng viên sử dụng"
-        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM | UI_EVALUATION"
-        varchar model_name "gemini-3.8-flash"
+        varchar feature_type "TESTCASE_GEN | CODE_REVIEW | PLAGIARISM | UI_EVALUATION | PE_CODE_EVAL"
+        varchar model_name "Tên model OpenRouter đã gọi (VD: google/gemma-4-31b-it:free)"
         integer prompt_tokens "Số token đầu vào"
         integer completion_tokens "Số token đầu ra"
         integer total_tokens "Tổng số token tiêu thụ"
@@ -86,7 +86,7 @@ erDiagram
         varchar course_code "PRF | PRO | DSA | PHP"
         varchar programming_language "Ngôn ngữ: C | JAVA | PYTHON | WEB"
         varchar session_folder_path "Đường dẫn thư mục bài nộp của lớp"
-        varchar students_csv_path "Đường dẫn file students.csv"
+        varchar students_csv_path "Đường dẫn students.csv (không còn dùng, luôn để trống)"
         integer total_submissions "Tổng số bài nộp được nạp"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
@@ -101,7 +101,7 @@ erDiagram
         varchar status "Trạng thái: PENDING | GRADED | ERROR"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
         datetime deleted_at "Thời điểm xóa mềm"
-        datetime created_at "Thời điểm nạp từ CSV"
+        datetime created_at "Thời điểm nạp bài nộp từ thư mục"
     }
 
     LOCAL_TEST_CASES {
@@ -137,8 +137,21 @@ erDiagram
         datetime graded_at "Thời điểm chấm xong"
     }
 
+    LOCAL_CLASSES ||--o{ LOCAL_WEB_SESSIONS : "hosts"
+    LOCAL_WEB_SESSIONS ||--o{ LOCAL_WEB_SUBMISSIONS : "contains"
+
+    LOCAL_WEB_SESSIONS {
+        integer id PK "Tự tăng"
+        varchar session_name "Tên phiên chấm Web"
+        varchar course_code "Mã môn học"
+        varchar class_name "Tên lớp"
+        datetime created_at "Thời điểm tạo phiên"
+        boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+    }
+
     LOCAL_WEB_SUBMISSIONS {
         integer id PK "Tự tăng"
+        integer session_id FK "Thuộc phiên chấm Web nào"
         varchar course_code "Mã môn học (WEB201c)"
         varchar class_name "Lớp học (SE1806)"
         varchar mssv "Mã số sinh viên"
@@ -161,6 +174,7 @@ erDiagram
         boolean link_changed "Cờ link .txt đã đổi"
         boolean is_missing "Cờ thiếu/không truy cập được"
         boolean is_deleted "Cờ xóa mềm (0: Chưa xóa, 1: Đã xóa)"
+        datetime graded_at "Thời điểm chấm xong bài nộp"
         datetime created_at "Thời điểm thêm bài nộp"
     }
 
@@ -202,12 +216,12 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | `updated_at`    | `TIMESTAMPTZ`  | **NOT NULL**         | `CURRENT_TIMESTAMP` | Thời điểm cập nhật thông tin gần nhất.           |
 
 * **Chỉ mục (Indexes)**:
-  - `idx_users_username`: Tìm kiếm nhanh khi xử lý đăng nhập JWT.
-  - `idx_users_role`: Lọc danh sách Giảng viên phục vụ giao diện Web Admin.
+  - `idx_users_username_trgm`, `idx_users_full_name_trgm`, `idx_users_email_trgm`: Chỉ mục GIN `pg_trgm` tìm kiếm gần đúng (LIKE/ILIKE) khi đăng nhập và tìm kiếm trên Web Admin.
+  - `idx_users_role`, `idx_users_role_created`: Lọc và phân trang danh sách theo vai trò, giảm dần theo `created_at`.
 
 ---
 
-### 2.3. Bảng `ai_quota_configs` (Cấu hình hạn ngạch AI Hub)
+### 2.2. Bảng `ai_quota_configs` (Cấu hình hạn ngạch AI Hub)
 
 * **Mục đích**: Quản trị viên (Admin) cấu hình trần số Token gọi AI tối đa trong ngày cho từng Giảng viên nhằm kiểm soát chi phí.
 
@@ -224,7 +238,7 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 
 ---
 
-### 2.4. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
+### 2.3. Bảng `ai_quota_logs` (Nhật ký tiêu thụ tài nguyên AI)
 
 * **Mục đích**: Ghi vết minh bạch từng lượt gọi AI Hub (sinh testcase, review bài WA, quét đạo văn, đánh giá UI) để phục vụ báo cáo kiểm toán (Audit Logs).
 
@@ -232,8 +246,8 @@ CSDL này được quản lý tập trung trên nền tảng **Neon Serverless P
 | :-------------------- | :-------------- | :------------------------------ | :--------------------- | :---------------------------------------------------- |
 | `id`                | `UUID`        | **PRIMARY KEY**           | `gen_random_uuid()`  | Khóa chính nhật ký.                               |
 | `user_id`           | `UUID`        | **FOREIGN KEY, NOT NULL** |                        | Tham chiếu`users(id)`.                             |
-| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`. |
-| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên mô hình AI phục vụ yêu cầu.                |
+| `feature_type`      | `VARCHAR(30)` | **NOT NULL**              |                        | `TESTCASE_GEN`, `CODE_REVIEW`, `PLAGIARISM`, `UI_EVALUATION`, `PE_CODE_EVAL`. |
+| `model_name`        | `VARCHAR(50)` | **NOT NULL**              | `'gemini-3.8-flash'` | Tên model thực tế đã gọi (ghi theo `OPENROUTER_MODEL`, VD: `google/gemma-4-31b-it:free`). |
 | `prompt_tokens`     | `INTEGER`     | **NOT NULL**              | `0`                  | Số token của prompt gửi đi.                       |
 | `completion_tokens` | `INTEGER`     | **NOT NULL**              | `0`                  | Số token phản hồi nhận về từ AI Hub.            |
 | `total_tokens`      | `INTEGER`     | **NOT NULL**              | `0`                  | Tổng token = prompt + completion.                    |
@@ -245,7 +259,7 @@ Chỉ mục: `idx_ai_quota_logs_user_created` phục vụ lịch sử theo ngư�
 
 ---
 
-### 2.5. Bảng `refresh_tokens` (Phiên gia hạn JWT)
+### 2.4. Bảng `refresh_tokens` (Phiên gia hạn JWT)
 
 Backend lưu SHA-256 hash của refresh token để xoay vòng token một lần, thu hồi token cũ sau khi gia hạn và không lưu token dạng rõ.
 
@@ -275,15 +289,15 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `course_code`          | `TEXT`        | **NOT NULL**                  | Mã môn học (`PRF`, `PRO`, `DSA`, `PHP`).           |
 | `programming_language` | `TEXT`        | **NOT NULL DEFAULT 'C'**      | Ngôn ngữ lập trình (`C`, `JAVA`, `PYTHON`, `WEB`). |
 | `session_folder_path`  | `TEXT`        | **NOT NULL**                  | Đường dẫn thư mục chứa bài nộp của đợt thi.        |
-| `students_csv_path`    | `TEXT`        |                                     | Đường dẫn file `students.csv` tương ứng.           |
+| `students_csv_path`    | `TEXT`        |                                     | Đường dẫn file `students.csv` — **thuộc tính kế thừa, không còn dùng** (đợt chấm mới luôn để trống vì nạp bài từ thư mục). |
 | `total_submissions`    | `INTEGER`     | **DEFAULT 0**                 | Tổng số bài nộp được import vào đợt thi.          |
 | `is_deleted`           | `INTEGER`     | **DEFAULT 0**                 | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                |
 | `deleted_at`           | `DATETIME`    |                                     | Thời điểm xóa mềm đợt chấm.                           |
 | `created_at`           | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP** | Thời điểm khởi tạo đợt chấm.                          |
 
-### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ `students.csv`)
+### 3.2. Bảng `local_student_submissions` (Danh sách bài nộp nạp từ thư mục bài thi)
 
-* **Nguyên tắc**: Nạp trực tiếp từ file CSV chuẩn (`MSSV,File`) hoặc quét thư mục bài thi (mỗi sinh viên một thư mục con, mỗi câu một file `Q1`, `Q2`...).
+* **Nguyên tắc**: Nạp bằng cách quét thư mục bài thi (mỗi sinh viên một thư mục con hoặc một file, tự tách MSSV/họ tên bằng regex; mỗi câu một file `Q1`, `Q2`...). Dữ liệu chỉ lưu MSSV — **không còn nạp qua file `students.csv`**.
 * **Chế độ chấm (theo `source_file_path`)**:
     * Trỏ vào **FILE mã nguồn** → chấm chuyên sâu (làm refactoring-bounded) một câu.
     * Trỏ vào **THƯ MỤC của sinh viên** → chấm nhiều câu (multi-question): mỗi testcase tự ánh xạ file mã nguồn `Q<nn>.<ext>` trong thư mục sinh viên theo trường `question_number` của nó.
@@ -338,13 +352,29 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `deleted_at`             | `DATETIME`    |                                                                    | Thời điểm xóa mềm kết quả.                              |
 | `graded_at`              | `DATETIME`    | **DEFAULT CURRENT_TIMESTAMP**                                | Thời điểm chấm xong.                                       |
 
-### 3.5. Bảng `local_web_submissions` (Danh sách & kết quả chấm bài tập Web - UC-19)
+### 3.5. Bảng `local_web_sessions` (Phiên chấm bài tập Web)
+
+* **Mục đích**: Quản lý các phiên (session) chấm Web riêng biệt — mỗi phiên thuộc một môn/lớp, chứa danh sách bài nộp liên kết tương ứng. Tạo/truy vấn qua `WebGradingWindow` khi giảng viên chọn hoặc tạo phiên chấm.
+
+| Tên Cột         | Kiểu Dữ Liệu | Ràng Buộc                        | Ý Nghĩa Nghiệp Vụ                                  |
+| :-------------- | :----------- | :------------------------------- | :------------------------------------------------- |
+| `id`            | `INTEGER`    | **PRIMARY KEY AUTOINCREMENT**    | Khóa tự tăng.                                     |
+| `session_name`  | `TEXT`       | **NOT NULL**                     | Tên phiên chấm Web.                                |
+| `course_code`   | `TEXT`       | **NOT NULL**                     | Mã môn học của phiên.                              |
+| `class_name`    | `TEXT`       | **NOT NULL**                     | Lớp học của phiên.                                 |
+| `created_at`    | `DATETIME`   | **DEFAULT CURRENT_TIMESTAMP**    | Thời điểm tạo phiên.                               |
+| `is_deleted`    | `INTEGER`    | **DEFAULT 0**                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).             |
+
+---
+
+### 3.6. Bảng `local_web_submissions` (Danh sách & kết quả chấm bài tập Web - UC-19)
 
 * **Mục đích**: Lưu danh sách bài nộp đồ án Web (nhập từ thư mục cục bộ) cùng kết quả thẩm định tự động theo Rubric 4 thành phần, phục vụ phân hệ "Chấm Bài Tập & Đồ Án Web" trên Desktop App. Mỗi bài nộp tương ứng một mã số sinh viên (MSSV) và một thư mục bài nộp.
 
 | Tên Cột              | Kiểu Dữ Liệu | Ràng Buộc                        | Ý Nghĩa Nghiệp Vụ                                                                                     |
 | :------------------- | :----------- | :------------------------------- | :---------------------------------------------------------------------------------------------------- |
 | `id`                 | `INTEGER`    | **PRIMARY KEY AUTOINCREMENT**    | Khóa tự tăng.                                                                                         |
+| `session_id`         | `INTEGER`    | **FOREIGN KEY** REFERENCES `local_web_sessions(id)` | Thuộc phiên chấm Web nào (xóa mềm phiên thì xóa bài nộp kèm theo).                    |
 | `course_code`        | `TEXT`       | **NOT NULL DEFAULT 'WEB201c'**   | Mã môn học của đợt chấm Web.                                                                          |
 | `class_name`         | `TEXT`       | **NOT NULL DEFAULT 'SE1806'**    | Lớp học của đợt chấm Web.                                                                             |
 | `mssv`               | `TEXT`       | **NOT NULL**                     | Mã số sinh viên (định danh bài nộp).                                                                  |
@@ -367,11 +397,12 @@ CSDL này nằm dưới dạng file nhị phân **`local_grading.db`** đặt tr
 | `link_changed`       | `INTEGER`    | **DEFAULT 0**                    | Cờ báo link trong file `.txt` đã thay đổi so với lần nhập trước.                                      |
 | `is_missing`         | `INTEGER`    | **DEFAULT 0**                    | Cờ báo thư mục/link bài nộp thiếu hoặc không truy cập được.                                           |
 | `is_deleted`         | `INTEGER`    | **DEFAULT 0**                    | Cờ xóa mềm (0: Hoạt động, 1: Đã xóa).                                                                 |
-| `created_at`         | `DATETIME`   | **DEFAULT CURRENT_TIMESTAMP**    | Thời điểm thêm bài nộp vào danh sách (chỉ lưu khi chấm, ngày chấm không tách riêng).                  |
+| `graded_at`          | `DATETIME`   |                                  | Thời điểm chấm xong bài nộp (NULL nếu chưa thẩm định).                                               |
+| `created_at`         | `DATETIME`   | **DEFAULT CURRENT_TIMESTAMP**    | Thời điểm thêm bài nộp vào danh sách.                                                                 |
 
 > **Ghi chú:** Kết quả từng bài được cập nhật trực tiếp vào các cột `score_dom`, `score_lint`, `score_e2e`, `score_ui`, `total_score`, `verdict` cùng bằng chứng thẩm định (`rubric_log`, `screenshot_path`, `ai_feedback`) qua `DatabaseManager.update_web_submission_scores()`. Ảnh chụp màn hình được lưu trên đĩa tại `data/web_screenshots/` và hiển thị lại ở hộp thoại chi tiết.
 
-### 3.6. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
+### 3.7. Bảng `local_plagiarism_reports` (Kết quả kiểm tra gian lận thi cử)
 
 | Tên Cột                 | Kiểu Dữ Liệu | Ràng Buộc                                            | Ý Nghĩa Nghiệp Vụ                                           |
 | :------------------------ | :-------------- | :----------------------------------------------------- | :-------------------------------------------------------------- |

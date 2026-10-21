@@ -40,7 +40,7 @@ Theo quy định tích hợp sản phẩm phần mềm hoàn chỉnh của môn 
 1. **Phân hệ Web Admin Dashboard (Next.js FE)**: Giao diện quản trị nội bộ dành riêng cho **Quản trị viên (Admin)** của trường đại học nhằm quản lý tài khoản giảng viên, quota và giám sát tiêu thụ Token AI; AI API key do vận hành cấu hình trong môi trường máy chủ.
 2. **Phân hệ Desktop App Client (PyQt6 / Python)**: Ứng dụng máy tính chuyên dụng dành riêng cho **Giảng viên (Instructor)** trực tiếp chấm điểm bài thi lập trình offline-first tốc độ cao, quản lý testcase, chạy sandbox cô lập và xuất bảng điểm `results.csv`.
 3. **Phân hệ Web Server Backend (NestJS / TypeScript)**: Máy chủ dịch vụ cung cấp RESTful API, quản lý xác thực phân quyền (RBAC qua JWT), đóng vai trò **AI Hub** bảo mật API Key của nhà cung cấp AI và lưu trữ cơ sở dữ liệu học thuật tập trung.
-4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách nạp từ file CSV (`students.csv`) mà Giảng viên thực hiện chấm điểm.
+4. *(Lưu ý về Sinh viên)*: **Sinh viên (Student) không có tài khoản và không truy cập vào Web hay Desktop App**. Sinh viên chỉ là đối tượng trong danh sách bài nộp mà Giảng viên nạp từ thư mục bài thi cục bộ (hoặc file CSV liên kết của chế độ Chấm Web) để thực hiện chấm điểm.
 
 ---
 
@@ -76,14 +76,14 @@ classDiagram
 
 | Tác nhân | Giao diện sử dụng | Vai trò & Trách nhiệm chính trong hệ sinh thái AITA |
 | :--- | :--- | :--- |
-| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. AI API key được vận hành cấu hình trong biến môi trường máy chủ `AI_API_KEY`, không nhập qua Web Admin.         |
+| **Quản trị viên (System Administrator - Admin)** | **Web Admin Dashboard** | Đăng nhập; quản lý tài khoản và phân quyền; cấu hình quota ngày cho giảng viên; xem báo cáo, nhật ký AI và nhật ký kiểm toán. AI API key được vận hành cấu hình trong biến môi trường máy chủ `OPENROUTER_API_KEYS`, không nhập qua Web Admin.         |
 | **Giảng viên (Instructor / Lecturer)** | **Desktop App Client (PyQt6)** | Đăng nhập; cấu hình compiler và sandbox; quản lý đợt chấm, sinh viên, testcase; gọi các tính năng AI qua backend; chấm bài và xuất kết quả cục bộ ra CSV/Excel. |
 
 ### 2.2. Tác nhân Hệ thống & Dịch vụ Ngoài (External Supporting Actors)
 
 | Tác nhân ngoài                                                   | Bản chất kỹ thuật                                                                                                                                         | Vai trò tương tác đối với hệ thống AITA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AI Service Provider (AI Hub)**               | Dịch vụ AI đám mây của Google, được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép.                |
+| **AI Service Provider (AI Hub)**               | Nền tảng tổng hợp mô hình AI **OpenRouter** (`openrouter.ai`), được điều phối tập trung qua Web Server Backend                                                                   | - Tiếp nhận prompt nghiệp vụ và sinh danh sách 5-10 cặp`INPUT` & `OUTPUT kỳ vọng` (bao gồm các giá trị biên) mà không cần code giải mẫu.<br />- Tiếp nhận yêu cầu phân tích lỗi On-Demand: đọc mã nguồn bài bị `WA`, giải thích nguyên nhân lỗi và sinh nhận xét sư phạm gợi ý cho sinh viên.<br />- Tiếp nhận các cặp bài nghi vấn đạo văn vượt ngưỡng (> 80%) từ vòng lọc AST offline để phân tích ngữ nghĩa chuyên sâu và trích xuất bằng chứng sao chép.                |
 | **Sandbox Execution Runner (OS Process Watcher & Compilers)** | Môi trường subprocess cô lập của Hệ điều hành kết hợp trình biên dịch (`GCC/MinGW`, `Javac`, `Python Runtime`) và thư viện `psutil` | - Biên dịch mã nguồn sinh viên sang file nhị phân trung gian.<br />- Khởi chạy chương trình độc lập qua điểm khởi nhập là hàm `main()`, truyền dữ liệu `INPUT` qua `stdin` và hứng `OUTPUT thực tế` qua `stdout`.<br />- Đo lường thời gian chạy (ms) và mức tiêu thụ RAM (MB) bằng `psutil`.<br />- Bắt các phán quyết lỗi: `TLE` (quá giờ), `MLE` (tràn RAM), `CE` (lỗi biên dịch), `RE` (crash/runtime error).                                                        |
 | **Web Server Backend (NestJS Central Server)**               | Máy chủ trung tâm cung cấp RESTful API và lưu trữ cơ sở dữ liệu tập trung                                                                         | - Cung cấp cơ chế xác thực tập trung (Passport-JWT, băm mật khẩu Bcrypt).<br />- Lưu trữ danh mục người dùng và hạn ngạch AI.<br />- Cung cấp API AI Gateway (sinh testcase, code review bài WA, phát hiện đạo văn vòng 2).<br />- Đảm bảo nguyên tắc bảo mật Local-First: Không lưu trữ hay đồng bộ bài thi của sinh viên lên máy chủ. |
 
@@ -104,7 +104,7 @@ Toàn bộ hệ thống AITA được phân rã thành **6 phân hệ chức nă
 | **Phân hệ 2: Quản lý Đợt Chấm & Dữ liệu Sinh viên (Session & Submission Management)**        |                                                           |                                                        |                                   |                         |                                             |
 | **UC-06**                                                                                              | Cấu hình Môi trường Biên dịch & Sandbox Cục bộ   | Configure Local Compilers & Sandbox Settings           | Giảng viên                      | Desktop App Client      | Sandbox Execution Runner                    |
 | **UC-07**                                                                                              | Quản lý Đợt Chấm & Lớp học                         | Manage Classes & Grading Sessions                      | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
-| **UC-08**                                                                                              | Nạp Danh Sách Sinh Viên & Bài Nộp từ File CSV       | Import Submissions via`students.csv` (MSSV, File)    | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
+| **UC-08**                                                                                              | Nạp Danh Sách Bài Nộp từ Thư Mục Cục Bộ      | Import Submissions from Local Folder (MSSV, File)     | Giảng viên                      | Desktop App Client      | *(Tương tác File System)*              |
 | **Phân hệ 3: Quản lý Bộ Kiểm thử & Chiến lược So khớp (Testcase & Matching Strategy)**      |                                                           |                                                        |                                   |                         |                                             |
 | **UC-09**                                                                                              | Quản lý Bộ Testcase Kiểm thử Black-box Thủ công    | Manage Black-box Testcases Manually (Input/Output)     | Giảng viên                      | Desktop App Client      | *(Tương tác Local DB)*                 |
 | **UC-10**                                                                                              | Tự động Sinh Testcase Biên bằng AI                   | Auto-Generate Boundary Testcases with AI Hub        | Giảng viên                      | Desktop App Client      | AI Hub                                       |
@@ -195,9 +195,9 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 * **Tên Use Case**: Thực thi Chấm điểm Tự động Hàng loạt (Batch Automated Grading Pipeline)
 * **Tác nhân chính**: Giảng viên (Instructor)
 * **Tác nhân hỗ trợ ngoài**: Sandbox Execution Runner (GCC/MinGW, Javac, Python Runtime)
-* **Mô tả tóm tắt**: Hệ thống tự động duyệt qua toàn bộ bài nộp trong danh sách `students.csv` (chuẩn 2 cột: `MSSV,File`), kích hoạt nhóm tiến trình chạy song song (Parallel Subprocess: 4-8 bài đồng thời). Với mỗi câu hỏi là một file độc lập, hệ thống nạp `INPUT` vào hàm `main()` qua `stdin`, hứng `OUTPUT thực tế` qua `stdout` để so khớp với `OUTPUT kỳ vọng`, tính điểm từng câu và cộng dồn thành tổng điểm bài thi mà không gọi AI trong lúc chấm.
+* **Mô tả tóm tắt**: Hệ thống tự động duyệt qua toàn bộ bài nộp đã nạp từ thư mục bài thi (`UC-08`), kích hoạt nhóm tiến trình chạy song song (Parallel Subprocess: 4-8 bài đồng thời). Với mỗi câu hỏi là một file độc lập, hệ thống nạp `INPUT` vào hàm `main()` qua `stdin`, hứng `OUTPUT thực tế` qua `stdout` để so khớp với `OUTPUT kỳ vọng`, tính điểm từng câu và cộng dồn thành tổng điểm bài thi mà không gọi AI trong lúc chấm.
 * **Tiền điều kiện (Preconditions)**:
-  1. Đợt chấm đã được nạp file `students.csv` (`UC-08`).
+  1. Đợt chấm đã được nạp danh sách bài nộp từ thư mục bài thi (`UC-08`).
   2. Đợt chấm đã có ít nhất một cặp `INPUT` / `OUTPUT kỳ vọng` (`UC-09` hoặc `UC-10`).
   3. Đường dẫn trình biên dịch môi trường đã được cấu hình sẵn sàng (`UC-06`).
 * **Hậu điều kiện (Postconditions)**:
@@ -207,7 +207,7 @@ Dưới đây là bản đặc tả chi tiết theo chuẩn Kỹ nghệ Phần m
 
 #### Luồng sự kiện chính (Main Flow):
 
-1. Giảng viên kiểm tra danh sách sinh viên nạp từ `students.csv`, chọn chiến lược so khớp trong 7 chiến lược (`MatchingStrategy`), sau đó nhấn **"Bắt đầu chấm bài"**.
+1. Giảng viên kiểm tra danh sách sinh viên nạp từ thư mục bài nộp, chọn chiến lược so khớp trong 7 chiến lược (`MatchingStrategy`), sau đó nhấn **"Bắt đầu chấm bài"**.
 2. Hệ thống kiểm tra môi trường biên dịch (`gcc`, `javac`, `python`).
 3. Hệ thống khởi tạo hàng đợi chấm và kích hoạt luồng xử lý nền (`QThread` Worker Pool: chạy song song 4-8 subprocess) để đảm bảo không làm đơ giao diện Desktop UI.
 4. Với từng sinh viên trong hàng đợi:
@@ -398,7 +398,7 @@ rectangle "Hệ Sinh Thái Toàn Diện AITA" {
         package "Cấu hình & Quản lý Đợt Chấm" {
             usecase "UC-06: Cấu hình Trình biên dịch & Sandbox Cục bộ" as UC06
             usecase "UC-07: Quản lý Đợt Chấm & Lớp học" as UC07
-            usecase "UC-08: Nạp DS Sinh viên từ File CSV (students.csv)" as UC08
+            usecase "UC-08: Nạp DS Bài nộp từ Thư mục (MSSV, File)" as UC08
         }
 
         package "Quản lý Testcase & Chiến lược So khớp" {
