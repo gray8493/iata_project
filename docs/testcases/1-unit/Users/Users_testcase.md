@@ -22,6 +22,7 @@
   - `DELETE /admin/users/:id`: 08 Testcases (01 Normal, 03 Boundary, 04 Exception)
 
 > **Ghi chú thiết kế (khớp mã nguồn `UsersService`, `CreateUserDto`, `UpdateUserDto`, `ListUsersDto`)**:
+>
 > - Toàn bộ controller dùng `JwtAuthGuard, RolesGuard, AdaptiveThrottlerGuard` và `@Roles('ADMIN')`. `:id` bắt buộc qua `ParseUUIDPipe` (sai UUID ⇒ 400 `BAD_REQUEST`).
 > - `CreateUserDto.username`: chuỗi `3..30`, khớp `^[a-z0-9_]+$`. `password`: `8..100`, khớp `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$`. `full_name`: `2..100`. `email`: `@IsEmail`, tối đa 120. `role`: `{ ADMIN, INSTRUCTOR }`. `daily_token_quota`: số nguyên `>= 0` (KHÔNG có giới hạn trên).
 > - `UpdateUserDto`: mọi trường tùy chọn, cùng ràng buộc; thêm `is_active` (boolean).
@@ -63,7 +64,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -93,7 +94,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -123,7 +124,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -153,7 +154,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -183,7 +184,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -213,7 +214,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -243,7 +244,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -273,7 +274,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -333,7 +334,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -365,7 +366,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -395,7 +396,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -425,7 +426,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -461,7 +462,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -491,7 +492,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -521,7 +522,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -551,7 +552,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -582,7 +583,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -612,7 +613,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -642,7 +643,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -672,7 +673,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -702,7 +703,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -732,7 +733,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -762,7 +763,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -792,7 +793,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -822,7 +823,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -852,7 +853,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -882,7 +883,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -912,7 +913,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -943,7 +944,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -973,7 +974,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1034,7 +1035,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1064,7 +1065,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1094,7 +1095,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1130,7 +1131,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1160,7 +1161,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1190,7 +1191,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1220,7 +1221,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1281,7 +1282,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1311,7 +1312,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1347,7 +1348,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1377,7 +1378,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1407,7 +1408,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1437,7 +1438,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1467,7 +1468,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1497,7 +1498,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1527,7 +1528,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1557,7 +1558,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1587,7 +1588,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1617,7 +1618,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1647,7 +1648,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1708,7 +1709,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1739,7 +1740,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1769,7 +1770,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1805,7 +1806,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1835,7 +1836,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1865,7 +1866,7 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1895,7 +1896,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -1925,7 +1926,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |    FAILED    |          |
 
 ---
 
@@ -1955,7 +1956,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -2016,4 +2017,4 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |            |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |

@@ -13,7 +13,8 @@
   - `GET /health`: 04 Testcases (01 Normal, 01 Boundary, 02 Exception)
 
 > **Ghi chú thiết kế (khớp mã nguồn `HealthController`)**:
-> - `HealthController.health()` chạy `prisma.$queryRaw\`SELECT 1\`` để kiểm tra PostgreSQL, rồi phản hồi `{ message: "Dịch vụ đang hoạt động", data: { status: "ok", database: "ok", rate_limit_storage } }`.
+>
+> - `HealthController.health()` chạy `prisma.$queryRaw\`SELECT 1\``để kiểm tra PostgreSQL, rồi phản hồi`{ message: "Dịch vụ đang hoạt động", data: { status: "ok", database: "ok", rate_limit_storage } }`.
 > - `rate_limit_storage` = `"redis"` nếu `ThrottlerStorage` là Redis (`isRedisStorage = true`), ngược lại là `"memory"`.
 > - Nếu Redis đang bật nhưng không khỏe (`isHealthy = false`), ném `ServiceUnavailableException` 503 `RATE_LIMIT_STORAGE_UNAVAILABLE` trước khi trả kết quả.
 > - Lỗi không phải `HttpException` (ví dụ mất kết nối DB) được `ApiExceptionFilter` chuẩn hóa thành 500 `INTERNAL_SERVER_ERROR`.
@@ -53,7 +54,7 @@ Normal
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -144,4 +145,4 @@ Boundary
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
