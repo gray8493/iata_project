@@ -77,7 +77,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  | 19/10/2026 | Kim Chi Ha         |                                     |                  |     PASS     |          |
 
 ---
 
@@ -107,7 +107,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
@@ -137,7 +137,7 @@ Exception
 
 | Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
 | :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
-|  Lần 1  |            |                    |                                     |                  |              |          |
+|  Lần 1  |            |                    |                                     |                  |     PASS     |          |
 
 ---
 
