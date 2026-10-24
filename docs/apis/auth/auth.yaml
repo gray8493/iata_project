@@ -115,6 +115,13 @@ paths:
                 message: Gia hạn mã truy cập thành công
                 data:
                   access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token: def502005a76c8e3...
+                  token_type: Bearer
+                  expires_in: 900
+                  user:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    username: teacher_hung
+                    role: INSTRUCTOR
                 timestamp: '2026-09-30T12:00:00.000Z'
         '401':
           description: Refresh Token không hợp lệ

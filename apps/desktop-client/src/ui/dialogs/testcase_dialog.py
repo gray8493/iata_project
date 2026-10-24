@@ -1797,9 +1797,12 @@ class TestcaseDialog(QDialog):
         self.chk_regex.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_regex, 1, 1)
 
-        # 6. Kiểm tra kịch bản chấm tùy biến
-        self.chk_special = QCheckBox("Kiểm tra kịch bản chấm tùy biến", strat_card)
-        self.chk_special.setToolTip("Chạy script chấm điểm riêng biệt cho bài toán nhiều đáp án (Special Judge)")
+        # 6. Quy tắc hiện có: kiểm tra các dòng kết quả kỳ vọng có trong output.
+        self.chk_special = QCheckBox("Chấp nhận kết quả chứa các dòng kỳ vọng", strat_card)
+        self.chk_special.setToolTip(
+            "Bài toán có nhiều đáp án: đạt nếu output thực tế chứa đủ các dòng trong kết quả kỳ vọng. "
+            "Ứng dụng hiện chưa chạy script chấm tùy biến."
+        )
         self.chk_special.setStyleSheet(cb_style)
         self.chk_special.stateChanged.connect(self._on_matching_flags_changed)
         grid_strat.addWidget(self.chk_special, 1, 2)
@@ -1856,6 +1859,12 @@ class TestcaseDialog(QDialog):
                 self.db.update_class_matching_strategy(self.class_id, strat_code)
             except Exception as ex:
                 logger.error("Lỗi cập nhật chiến lược so khớp: %s", str(ex))
+                QMessageBox.warning(
+                    self,
+                    "Không lưu được",
+                    "Không thể lưu tiêu chí so khớp. Cửa sổ vẫn mở để bạn thử lại.",
+                )
+                return
         self.accept()
 
     def _open_ai_dialog(self):
@@ -1917,13 +1926,8 @@ class TestcaseDialog(QDialog):
         self.chk_special.blockSignals(False)
 
     def _on_matching_flags_changed(self):
-        strat_code = self._get_selected_strategy_code()
-        if self.class_id:
-            try:
-                self.db.update_class_matching_strategy(self.class_id, strat_code)
-                self._load_testcases_from_db()
-            except Exception as ex:
-                logger.error("Lỗi cập nhật cờ so khớp: %s", str(ex))
+        # Giữ lựa chọn trên dialog như bản nháp; chỉ ghi CSDL khi người dùng bấm "Lưu".
+        self._pending_matching_strategy = self._get_selected_strategy_code()
 
     # --------------------------------------------------------------------------
     # CRUD Operations: Thêm / Sửa / Xóa Testcase

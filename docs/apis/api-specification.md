@@ -22,7 +22,7 @@ Authorization: Bearer <access_token>
 
 ### 1.2.1. Giới hạn tần suất yêu cầu
 - API đã xác thực thông thường: tối đa 80 request/phút/User.
-- Bốn API tạo nội dung AI Hub: tối đa 15 request/phút/User, áp dụng chung cho nhóm endpoint AI.
+- Năm API tạo nội dung AI Hub (`generate-testcases`, `review-code`, `verify-plagiarism`, `evaluate-web-ui`, `evaluate-pe-code`): tối đa 15 request/phút/User.
 - Đăng nhập: 10 request/phút/IP; refresh token: 30 request/phút/IP.
 - Khi vượt giới hạn, backend trả HTTP 429 với `error_code: RATE_LIMIT_EXCEEDED`. Giới hạn này tách biệt với quota token AI theo ngày.
 
@@ -84,6 +84,10 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 +--------+--------------------------------------+-----------+----------------------------------------+
 | GET    | /api/v1/admin/reports/overview       | Reports   | Thống kê kiểm toán người dùng & AI     |
 | GET    | /api/v1/admin/reports/ai-usage       | Reports   | Nhật ký AI có lọc theo User/thời gian  |
++--------+--------------------------------------+-----------+----------------------------------------+
+| GET    | /api/v1/ai/provider-status           | AI Hub    | Trạng thái key/model OpenRouter (Admin) |
+| GET    | /api/v1/health                       | Health    | Kiểm tra API, PostgreSQL & rate-limit   |
+| GET    | /api/v1/system/version               | System    | Manifest cập nhật Desktop App (Public)  |
 +----------------------------------------------------------------------------------------------------+
 ```
 
@@ -238,7 +242,12 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "refresh_token": "def502005a76c8e4...",
     "token_type": "Bearer",
-    "expires_in": 900
+    "expires_in": 900,
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "username": "teacher_hung",
+      "role": "INSTRUCTOR"
+    }
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
@@ -284,6 +293,8 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
         "email": "admin@fe.edu.vn",
         "role": "ADMIN",
         "is_active": true,
+        "daily_token_quota": 50000,
+        "used_tokens_today": 0,
         "created_at": "2026-09-01T00:00:00.000Z"
       },
       {
@@ -293,6 +304,8 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
         "email": "hungnv@fe.edu.vn",
         "role": "INSTRUCTOR",
         "is_active": true,
+        "daily_token_quota": 50000,
+        "used_tokens_today": 12450,
         "created_at": "2026-09-10T08:30:00.000Z"
       }
     ],
@@ -331,7 +344,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   - `full_name`: Kiểu chuỗi, độ dài 2-100 ký tự, bắt buộc (`required`).
   - `email`: Kiểu chuỗi, đúng định dạng email RFC 5322, bắt buộc (`required`), là duy nhất.
   - `role`: Kiểu chuỗi, giá trị hợp lệ: `"ADMIN"` hoặc `"INSTRUCTOR"`, bắt buộc (`required`).
-  - `daily_token_quota`: Số nguyên, từ 1000 đến 1000000, mặc định 50000.
+  - `daily_token_quota`: Số nguyên, từ 0 trở lên, mặc định 50000.
 
 ##### Body Input mẫu:
 ```json
@@ -393,7 +406,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   - `email`: Định dạng email chuẩn, tùy chọn.
   - `role`: Giá trị thuộc `["ADMIN", "INSTRUCTOR"]`, tùy chọn.
   - `is_active`: Kiểu boolean (`true` / `false`), tùy chọn.
-  - `daily_token_quota`: Số nguyên từ 1000 đến 1000000, tùy chọn.
+  - `daily_token_quota`: Số nguyên từ 0 trở lên, tùy chọn.
 
 ##### Body Input mẫu:
 ```json
@@ -439,7 +452,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ### 3.3. Phân Hệ AI Gateway & Quản Lý Hạn Ngạch (AI Hub API)
 
-#### 3.4.1. `GET /api/v1/ai/quota`
+#### 3.3.1. `GET /api/v1/ai/quota`
 * **Mô tả**: Trả về thống kê hạn ngạch tiêu thụ Token AI hôm nay của Giảng viên.
 * **Xác thực**: Yêu cầu Bearer Token.
 
@@ -453,7 +466,6 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
     "daily_limit_tokens": 50000,
     "used_tokens_today": 12450,
     "remaining_tokens": 37550,
-    "percentage_used": 24.9,
     "reset_at_utc": "2026-10-01T00:00:00.000Z"
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
@@ -462,7 +474,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ---
 
-#### 3.4.2. `POST /api/v1/ai/generate-testcases` (UC-10)
+#### 3.3.2. `POST /api/v1/ai/generate-testcases` (UC-10)
 * **Mô tả**: Gọi AI Hub để tự động sinh testcase biên (Boundary Testcases) dựa trên đề bài.
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
@@ -533,7 +545,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ---
 
-#### 3.4.3. `POST /api/v1/ai/review-code` (UC-16)
+#### 3.3.3. `POST /api/v1/ai/review-code` (UC-16)
 * **Mô tả**: Phân tích nguyên nhân lỗi và sinh nhận xét sư phạm On-Demand cho bài nộp bị `WA` (Wrong Answer).
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
@@ -575,33 +587,34 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ---
 
-#### 3.4.4. `POST /api/v1/ai/verify-plagiarism` (UC-17 Vòng 2)
+#### 3.3.4. `POST /api/v1/ai/verify-plagiarism` (UC-17 Vòng 2)
 * **Mô tả**: Phân tích ngữ nghĩa chuyên sâu cặp bài nộp có độ tương đồng AST > 80% để trích xuất bằng chứng sao chép.
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
   - `student_a_code`: Mã nguồn bài nộp 1 (string, 10 - 10000 ký tự).
   - `student_b_code`: Mã nguồn bài nộp 2 (string, 10 - 10000 ký tự).
   - `ast_similarity_percentage`: Số thực, từ 80.0 đến 100.0, bắt buộc.
-  - `language`: Ngôn ngữ lập trình.
+  - `language`: Ngôn ngữ lập trình, thuộc enum `["C", "JAVA", "PYTHON", "PHP"]`, bắt buộc.
 
 ##### Kịch bản THÀNH CÔNG (`success: true`) - HTTP 200 OK:
 ```json
 {
   "success": true,
   "status_code": 200,
-  "message": "Phân tích bằng chứng đạo văn thành công",
+  "message": "Đối soát đạo văn bằng AI hoàn tất",
   "data": {
     "tokens_consumed": 510,
-    "is_plagiarized": true,
-    "confidence_percentage": 94.8,
-    "evidence_summary": "Phát hiện đổi tên biến n -> m, sum -> total, hoán đổi thứ tự câu lệnh if không làm thay đổi luồng điều khiển; cấu trúc giải thuật giống nhau 100%.",
-    "cloned_segments": [
+    "ket_luan": "Hai đoạn mã có nhiều dấu hiệu sao chép có chủ đích.",
+    "do_tin_cay": 94.8,
+    "bang_chung": [
       {
-        "student_a_lines": "5-9",
-        "student_b_lines": "6-10",
-        "technique": "VARIABLE_RENAMING"
+        "mo_ta": "Cùng đổi tên biến n -> m, sum -> total nhưng cấu trúc lặp giống hệt.",
+        "dong_a": [5, 9],
+        "dong_b": [6, 10]
       }
-    ]
+    ],
+    "khac_biet": ["Phần xử lý lỗi đầu vào ở cuối hai chương trình khác nhau."],
+    "de_xuat": ["Yêu cầu sinh viên giải thích thuật toán trước hội đồng."]
   },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
@@ -609,7 +622,7 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ---
 
-#### 3.4.5. `POST /api/v1/ai/evaluate-web-ui` (UC-19 Web Multimodal)
+#### 3.3.5. `POST /api/v1/ai/evaluate-web-ui` (UC-19 Web Multimodal)
 * **Mô tả**: Đánh giá thẩm mỹ và độ tương thích giao diện trang web bài thi qua ảnh chụp màn hình bằng AI Vision (Central AI Gateway gọi OpenRouter).
 * **Xác thực**: Giảng viên (`role == 'INSTRUCTOR'`).
 * **Ràng buộc đầu vào (Input Constraints)**:
@@ -642,13 +655,15 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
         "criterion": "Bố cục cân đối có thanh điều hướng navbar trên đầu",
         "score": 10.0,
         "verdict": "PASS",
-        "comment": "Navbar thiết kế rõ ràng, logo bên trái và link bên phải chuẩn mực."
+        "comment": "Navbar thiết kế rõ ràng, logo bên trái và link bên phải chuẩn mực.",
+        "bounding_box": [0, 0, 1280, 64]
       },
       {
         "criterion": "Form đăng ký gồm 3 input và nút bấm nổi bật",
         "score": 8.0,
         "verdict": "PASS",
-        "comment": "Có đủ input nhưng khoảng cách padding giữa các trường hơi sát nhau."
+        "comment": "Có đủ input nhưng khoảng cách padding giữa các trường hơi sát nhau.",
+        "bounding_box": [320, 240, 640, 320]
       }
     ],
     "overall_feedback": "Trang web có bố cục hài hòa, màu sắc nhã nhặn, đáp ứng tốt yêu cầu đề thi."
@@ -659,9 +674,67 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
 
 ---
 
-### 3.5. Phân Hệ Báo Cáo & Kiểm Toán Hệ Thống (Audit & Reports API - Admin Only)
+#### 3.3.6. `POST /api/v1/ai/evaluate-pe-code` (Chấm chất lượng mã nguồn PE)
+* **Mô tả**: Đánh giá mã nguồn bài thực hành theo 5 tiêu chí Rubric White-box (`clean_code`, `complexity`, `structure`, `format`, `documentation`) — mỗi tiêu chí PASS = 1.0 điểm, tối đa 5.0.
+* **Xác thực**: Yêu cầu Bearer Token; giới hạn 15 request/phút.
+* **Ràng buộc đầu vào (Input Constraints)**:
+  - `source_code`: Mã nguồn sinh viên, chuỗi 10 - 20000 ký tự, bắt buộc (`required`).
+  - `language`: Thuộc enum `["C", "JAVA", "PYTHON", "PHP"]`, bắt buộc (`required`).
+  - `problem_statement`: mô tả đề bài, tùy chọn (tối đa 5000 ký tự).
 
-#### 3.5.1. `GET /api/v1/admin/reports/overview`
+##### Kịch bản THÀNH CÔNG (`success: true`) - HTTP 200 OK:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Đánh giá chất lượng code PE thành công",
+  "data": {
+    "tokens_consumed": 950,
+    "rubric": {
+      "clean_code": { "passed": true, "reason": "Không có biến/hàm đặt tên trùng lặp." },
+      "complexity": { "passed": false, "reason": "Vòng lặp lồng 3 cấp ở hàm main." },
+      "structure": { "passed": true, "reason": "Tách hàm xử lý đầu vào và tính toán rõ ràng." },
+      "format": { "passed": true, "reason": "Thụt lề và ngoặc nhất quán." },
+      "documentation": { "passed": false, "reason": "Thiếu chú thích hàm chính." }
+    },
+    "overall_feedback": "Bài làm đạt 3/5 tiêu chí, cần giảm độ phức tạp lồng nhau và bổ sung chú thích."
+  },
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+
+---
+
+#### 3.3.7. `GET /api/v1/ai/provider-status` (Chỉ ADMIN)
+* **Mô tả**: Trạng thái nhà cung cấp AI (OpenRouter): model chính, model dự phòng, danh sách account key kèm trạng thái `READY`/`COOLDOWN` và thời gian cooldown còn lại.
+* **Xác thực**: Quyền Admin (`role == 'ADMIN'`).
+
+##### Kịch bản THÀNH CÔNG (`success: true`) - HTTP 200 OK:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Lấy trạng thái AI Hub thành công",
+  "data": {
+    "provider": "openrouter",
+    "model": "google/gemma-4-31b-it:free",
+    "fallback_models": ["google/gemma-4-26b-a4b-it:free"],
+    "accounts_configured": 3,
+    "structured_outputs_supported": true,
+    "accounts": [
+      { "account": "ACC-01", "key_hint": "sk-or-v1-…fbea", "state": "READY", "cooldown_remaining_seconds": 0 },
+      { "account": "ACC-02", "key_hint": "sk-or-v1-…81ac", "state": "COOLDOWN", "cooldown_remaining_seconds": 42 }
+    ]
+  },
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+
+---
+
+### 3.4. Phân Hệ Báo Cáo & Kiểm Toán Hệ Thống (Audit & Reports API - Admin Only)
+
+#### 3.4.1. `GET /api/v1/admin/reports/overview`
 * **Mô tả**: Trả về số liệu thống kê tổng thể toàn trường cho Quản trị viên trên Web Admin Dashboard (UC-05).
 * **Xác thực**: Quyền Admin (`role == 'ADMIN'`).
 
@@ -691,6 +764,58 @@ Mọi phản hồi từ hệ thống đều tuân thủ 2 mẫu vỏ bọc nhấ
   "error_code": "FORBIDDEN_ADMIN_ONLY",
   "message": "Chỉ Quản trị viên mới có quyền xem báo cáo thống kê này.",
   "details": null,
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+
+---
+
+### 3.5. Phân Hệ Sức Khỏe & Hệ Thống (Health & System API - Công khai)
+
+#### 3.5.1. `GET /api/v1/health`
+* **Mô tả**: Kiểm tra trạng thái API, kết nối PostgreSQL (`SELECT 1`) và kho rate-limit. Public, không cần Bearer Token.
+* **Mã lỗi kèm theo**: `503` `RATE_LIMIT_STORAGE_UNAVAILABLE` khi kho rate-limit (Redis) không khả dụng.
+
+##### Kịch bản THÀNH CÔNG (`success: true`) - HTTP 200 OK:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Dịch vụ đang hoạt động",
+  "data": {
+    "status": "ok",
+    "database": "ok",
+    "rate_limit_storage": "memory"
+  },
+  "timestamp": "2026-09-30T12:00:00.000Z"
+}
+```
+
+#### 3.5.2. `GET /api/v1/system/version`
+* **Mô tả**: Trả về manifest cập nhật cho Desktop Client (Auto-Update). Public, không cần Bearer Token. Nguồn ưu tiên là release mới nhất trên GitHub (`APP_UPDATE_SOURCE=github`), fallback về biến môi trường `APP_UPDATE_*`.
+
+##### Kịch bản THÀNH CÔNG (`success: true`) - HTTP 200 OK:
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Lấy thông tin phiên bản thành công",
+  "data": {
+    "latest_version": "1.0.0",
+    "min_supported_version": "1.0.0",
+    "mandatory": false,
+    "notes": "- Sửa lỗi chấm bài Java",
+    "published_at": "2026-10-19T00:00:00Z",
+    "platforms": {
+      "windows": {
+        "artifact_type": "zip",
+        "url": "https://github.com/gray8493/iata_project/releases/download/v1.0.0/AITA_Grader_v1.zip",
+        "sha256": "6f1c0f0e1a2b3c4d5e6f70819293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5",
+        "size_bytes": 157286400,
+        "entrypoint": "AITA_Grader_v1.exe"
+      }
+    }
+  },
   "timestamp": "2026-09-30T12:00:00.000Z"
 }
 ```

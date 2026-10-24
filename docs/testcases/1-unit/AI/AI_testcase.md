@@ -1722,7 +1722,7 @@ Normal
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 92`, `cloned_segments` có 1 phần tử.
+- OpenRouter trả `ket_luan = "Hai đoạn mã có cấu trúc vòng lặp tương đồng cao."`, `do_tin_cay = 92`, `bang_chung` có 1 phần tử (`mo_ta`, `dong_a`, `dong_b`).
 
 #### Các bước thực hiện (Test Steps)
 
@@ -1730,7 +1730,7 @@ Normal
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP `200`, `message = "Phân tích bằng chứng đạo văn thành công"`, `data.is_plagiarized = true`, `data.confidence_percentage = 92`.
+- HTTP `200`, `message = "Đối soát đạo văn bằng AI hoàn tất"`, `data.ket_luan` không rỗng, `data.do_tin_cay = 92`, `data.bang_chung` có 1 phần tử.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1752,16 +1752,16 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 80`; OpenRouter trả `is_plagiarized = false`, `confidence_percentage = 30`.
+- `ast_similarity_percentage = 80`; OpenRouter trả `do_tin_cay = 30`, `bang_chung = []`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = false`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `do_tin_cay = 30`, `bang_chung = []`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Hợp lệ, HTTP `200`, `data.is_plagiarized = false` (kết luận trùng hợp ngẫu nhiên).
+- Hợp lệ, HTTP `200`, `data.do_tin_cay = 30` (kết luận trùng hợp ngẫu nhiên), `data.bang_chung = []`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1783,16 +1783,16 @@ Boundary
 
 #### Dữ liệu kiểm thử (Test Data)
 
-- `ast_similarity_percentage = 100`; OpenRouter trả `is_plagiarized = true`, `confidence_percentage = 100`.
+- `ast_similarity_percentage = 100`; OpenRouter trả `do_tin_cay = 100`.
 
 #### Các bước thực hiện (Test Steps)
 
 1. Gọi `ValidationPipe.transform(...)` — không ném lỗi.
-2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `is_plagiarized = true`.
+2. Gọi `AiGatewayService.verifyPlagiarism(userId, dto)` với OpenRouter trả `do_tin_cay = 100`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- Hợp lệ, HTTP `200`, `data.confidence_percentage = 100`.
+- Hợp lệ, HTTP `200`, `data.do_tin_cay = 100`.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -1818,11 +1818,11 @@ Normal
 
 #### Các bước thực hiện (Test Steps)
 
-1. `provider.generateJson` trả `cloned_segments` = `[]` nhưng `is_plagiarized = true`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
+1. `provider.generateJson` trả `bang_chung = []` nhưng `do_tin_cay = 90`; gọi `AiGatewayService.verifyPlagiarism(userId, dto)`.
 
 #### Kết quả kỳ vọng (Expected Result)
 
-- HTTP `200`, `data.cloned_segments = []` vẫn hợp lệ (mảng rỗng được chấp nhận).
+- HTTP `200`, `data.bang_chung = []` vẫn hợp lệ (mảng rỗng được chấp nhận, `normalizePlagiarismResponse` giữ nguyên).
 
 #### Bảng kết quả kiểm thử (Execution Result)
 
@@ -2310,6 +2310,126 @@ Boundary
 #### Kết quả kỳ vọng (Expected Result)
 
 - HTTP `422`, `error_code = "VALIDATION_FAILED"`, `details` chứa `field = "screenshot_base64"` với issue `screenshot_base64 must be shorter than or equal to 7000000 characters`.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC017: Model diễn đạt lại tên tiêu chí thay vì chép nguyên văn (Normal)
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- OpenRouter trả `evaluation_details` với `criterion` khác nguyên văn rubric, một `verdict` viết thường (`"pass"`).
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả 3 mục có tiêu chí diễn đạt lại; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; `criterion` của từng mục được bù từ `rubric_requirements` theo vị trí; `ui_score` bằng trung bình điểm (7.0).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC018: score dạng chuỗi, verdict ngoài enum, thiếu comment/overall_feedback (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- OpenRouter trả `score` là chuỗi (`"9"`), một `verdict` ngoài enum, thiếu `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả dữ liệu lệch kiểu; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; điểm được ép kiểu số, verdict suy ra từ điểm (9 → PASS, 3 → FAIL), `overall_feedback` rỗng, `ui_score` bằng trung bình (6.0).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC019: Phản hồi sai định dạng được thử lại một lần (Exception)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Lần 1 `provider.generateJson` trả `evaluation_details` rỗng; lần 2 trả dữ liệu hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` mock trả sai định dạng lần đầu rồi hợp lệ lần hai; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200` với `ui_score` từ lần 2; `generateJson` được gọi đúng 2 lần.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC020: Sai định dạng cả hai lần thử (Exception)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `provider.generateJson` luôn trả `evaluation_details` rỗng.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` mock trả sai định dạng cho cả hai lần; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"`; `generateJson` được gọi đúng 2 lần trước khi báo lỗi.
 
 #### Bảng kết quả kiểm thử (Execution Result)
 

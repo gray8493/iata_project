@@ -12,7 +12,7 @@ Hệ sinh thái phần mềm **AITA** được thiết kế theo mô hình **Ki�
 Mô hình này mang lại 3 ưu thế vượt trội:
 1. **Tốc độ chấm bài tối đa**: Toàn bộ quá trình biên dịch mã nguồn C, Java, Python và so khớp testcase diễn ra trực tiếp trên phần cứng máy tính của Giảng viên mà không chịu độ trễ mạng (Network Latency) hay nguy cơ nghẽn hàng đợi (Queue Bottleneck).
 2. **Khả năng hoạt động ngoại tuyến (Offline-First)**: Giảng viên vẫn có thể chấm bài thi bình thường trong phòng thi bị ngắt kết nối Internet; kết quả chấm được lưu đệm an toàn vào SQLite và xuất thẳng ra file `results.csv`.
-3. **Quản trị bảo mật & kiểm soát chi phí AI**: Quản trị viên quản lý danh mục môn học, phân quyền tài khoản Giảng viên và kiểm soát hạn ngạch token AI Hub tập trung tại máy chủ, ngăn chặn tuyệt đối lộ API Key ra phía người dùng cuối.
+3. **Quản trị bảo mật & kiểm soát chi phí AI**: Quản trị viên quản lý phân quyền tài khoản Giảng viên và kiểm soát hạn ngạch token AI Hub tập trung tại máy chủ, ngăn chặn tuyệt đối lộ API Key ra phía người dùng cuối.
 
 Sơ đồ PlantUML tương ứng: [deployment_diagram.puml](file:///e:/AITA/docs/diagrams/puml/deployment_diagram.puml).
 

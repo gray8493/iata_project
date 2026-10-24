@@ -20,6 +20,7 @@ paths:
                   daily_limit_tokens: 50000
                   used_tokens_today: 12450
                   remaining_tokens: 37550
+                  reset_at_utc: '2026-10-22T00:00:00.000Z'
                 timestamp: '2026-09-30T12:00:00.000Z'
   /ai/generate-testcases:
     post:
@@ -79,7 +80,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [student_a_code, student_b_code, ast_similarity_percentage]
+              required: [student_a_code, student_b_code, ast_similarity_percentage, language]
               properties:
                 student_a_code:
                   type: string
@@ -88,9 +89,29 @@ paths:
                 ast_similarity_percentage:
                   type: number
                   minimum: 80.0
+                language:
+                  type: string
+                  enum: [C, JAVA, PYTHON, PHP]
       responses:
         '200':
-          description: Thành công
+          description: Thành công — data gồm tokens_consumed + ket_luan, do_tin_cay, bang_chung[{mo_ta, dong_a, dong_b}], khac_biet, de_xuat
+          content:
+            application/json:
+              example:
+                success: true
+                status_code: 200
+                message: Đối soát đạo văn bằng AI hoàn tất
+                data:
+                  tokens_consumed: 510
+                  ket_luan: Hai đoạn mã có nhiều dấu hiệu sao chép có chủ đích.
+                  do_tin_cay: 94.8
+                  bang_chung:
+                    - mo_ta: Cùng đổi tên biến nhưng cấu trúc lặp giống hệt.
+                      dong_a: [5, 9]
+                      dong_b: [6, 10]
+                  khac_biet: [Hai đoạn có phần xử lý lỗi khác nhau ở cuối.]
+                  de_xuat: [Yêu cầu sinh viên giải thích thuật toán trước hội đồng.]
+                timestamp: '2026-09-30T12:00:00.000Z'
   /ai/evaluate-web-ui:
     post:
       summary: Đánh giá giao diện Web bằng AI Vision
@@ -110,7 +131,7 @@ paths:
                     type: string
       responses:
         '200':
-          description: Thành công
+          description: Thành công — data gồm tokens_consumed, ui_score, evaluation_details[{criterion, score, verdict, comment, bounding_box}], overall_feedback
   /ai/evaluate-pe-code:
     post:
       summary: Chấm chất lượng mã nguồn PE theo 5 tiêu chí Rubric (mỗi tiêu chí 1.0 điểm)

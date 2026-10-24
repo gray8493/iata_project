@@ -33,6 +33,7 @@ if str(SRC_DIR) not in sys.path:
 
 from database.db_manager import DatabaseManager
 from services.ai_service import AiService
+from services.api_client import ApiClient
 from services.web_rubric_service import WebRubricEngine, classify_url
 from ui.dialogs.web_session_manager_dialog import WebSessionManagerDialog
 from ui.components import make_aita_avatar_pixmap
@@ -95,6 +96,7 @@ class WebGradingWorker(QThread):
             st["rubric_log"] = result.rubric_log
             st["ai_feedback"] = result.ai_feedback
             st["screenshot_path"] = result.screenshot_path
+            st["ui_error"] = result.ui_error
             self.graded_one.emit(st)
 
         self.all_done.emit(total)
@@ -1569,6 +1571,7 @@ class WebGradingMainWindow(QMainWindow):
 
         # Status Badge AI (mục 7: 1 lớp viền bo góc, cao 32px, số liệu thật, không icon)
         self._ai_quota_exhausted = False
+        self._ai_auth_failed = False
         self.lbl_ai_quota = QLabel("AI Vision: Đang tải...", header)
         self.lbl_ai_quota.setFixedHeight(32)
         self.lbl_ai_quota.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1606,8 +1609,8 @@ class WebGradingMainWindow(QMainWindow):
         return header
 
     def _style_ai_pill(self):
-        """Applies the normal (blue) or warning (orange, hết token) style to the AI pill."""
-        if self._ai_quota_exhausted:
+        """Applies the normal (blue) or warning (orange, hết token / chưa đăng nhập) style to the AI pill."""
+        if self._ai_quota_exhausted or getattr(self, "_ai_auth_failed", False):
             bg, color = COLOR_WARNING_BG, COLOR_WARNING
         else:
             bg, color = COLOR_PRIMARY_BG, COLOR_PRIMARY
@@ -2453,6 +2456,25 @@ class WebGradingMainWindow(QMainWindow):
         if not students:
             return
 
+        # Tiền kiểm: các chế độ LIVE_ONLY/HYBRID cần AI Vision cho tiêu chí UI/UX (30% điểm).
+        # Không có phiên đăng nhập thì backend chắc chắn trả "Token không hợp lệ" —
+        # cảnh báo trước thay vì để cả lô bài âm thầm nhận UI/UX = 0.
+        needs_ai = any((st.get("mode") or "HYBRID").upper() != "REPO_ONLY" for st in students)
+        if needs_ai and not ApiClient.get_instance().access_token:
+            ret = QMessageBox.warning(
+                self,
+                "Chưa Đăng Nhập Hệ Thống",
+                "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập, nên tiêu chí UI/UX "
+                "(trọng số 30%) sẽ bị tính 0.0 cho mọi bài trong lô này.\n\n"
+                "Khuyến nghị: đăng nhập lại rồi chấm để có điểm UI/UX chính xác.\n"
+                "Vẫn tiếp tục chấm mà không có AI Vision?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ret != QMessageBox.StandardButton.Yes:
+                return
+
+        self._ai_auth_fail_count = 0
         self.btn_start.setEnabled(False)
         self.progress_bar.setValue(0)
         self.lbl_progress_status.setText("Đang khởi tạo Playwright Chromium & BeautifulSoup...")
@@ -2470,6 +2492,8 @@ class WebGradingMainWindow(QMainWindow):
 
     def _on_web_submission_graded(self, st: Dict[str, Any]):
         """Persists one freshly graded submission and refreshes the row."""
+        if st.get("ui_error") in ("AUTH_INVALID_TOKEN", "HTTP_401"):
+            self._ai_auth_fail_count = getattr(self, "_ai_auth_fail_count", 0) + 1
         sub_id = st.get("id")
         if sub_id:
             try:
@@ -2497,13 +2521,26 @@ class WebGradingMainWindow(QMainWindow):
         self.lbl_progress_status.setText(f"Đã chấm {total}/{total} bài")
         self.btn_start.setEnabled(True)
 
-        QMessageBox.information(
-            self,
-            "Chấm Điểm Hoàn Tất",
-            f"Đã thẩm định thành công {total} bài tập Web (chỉ những bài chưa chấm)!\n"
+        summary_msg = (
+            f"Đã thẩm định thành công {total}/{total} bài tập Web (chỉ những bài chưa chấm)!\n"
             "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán thực tế.\n"
             "• Dữ liệu đã được lưu an toàn vào CSDL SQLite.\n"
             "• Bạn có thể bấm 'Xuất Bảng Điểm' để lưu file Excel (.xlsx) hoặc PDF."
+        )
+        auth_failed = getattr(self, "_ai_auth_fail_count", 0)
+        if auth_failed:
+            summary_msg += (
+                f"\n\n⚠ CẢNH BÁO: {auth_failed} bài bị lỗi 'Token không hợp lệ' khi chấm UI/UX — "
+                "tiêu chí này đang tạm tính 0.0 cho các bài đó.\n"
+                "Hãy đăng nhập lại hệ thống (Đăng xuất → Đăng nhập) rồi bấm "
+                "'Chấm Lại Bài Này' cho từng bài bị lỗi."
+            )
+            self._refresh_ai_quota()
+
+        QMessageBox.information(
+            self,
+            "Chấm Điểm Hoàn Tất",
+            summary_msg
         )
 
     def _import_csv_submissions(self):
@@ -2877,11 +2914,22 @@ class WebGradingMainWindow(QMainWindow):
         if not (hasattr(self, "lbl_ai_quota") and self.lbl_ai_quota):
             return
         if not res.get("success"):
+            if res.get("status_code") == 401 or res.get("error_code") == "AUTH_INVALID_TOKEN":
+                self._ai_auth_failed = True
+                self.lbl_ai_quota.setText("AI Vision: Chưa đăng nhập")
+                self.lbl_ai_quota.setToolTip(
+                    "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập — AI Vision không chấm được "
+                    "tiêu chí UI/UX (sẽ tính 0.0). Đăng nhập lại hệ thống để bật AI Vision."
+                )
+                self._style_ai_pill()
+                return
             self.lbl_ai_quota.setText("AI Vision: Chưa có dữ liệu")
             self.lbl_ai_quota.setToolTip(
                 "Chưa đọc được hạn ngạch AI từ máy chủ. Chức năng chấm vẫn hoạt động bình thường."
             )
             return
+
+        self._ai_auth_failed = False
 
         rem = int(res.get("remaining_tokens", 0) or 0)
         limit = int(res.get("daily_limit_tokens", 0) or 0)

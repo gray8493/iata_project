@@ -108,14 +108,19 @@ e:/AITA/
 ├── docs/
 │   ├── architecture/
 │   │   ├── system-overview.md     <-- Tài liệu này (Tổng quan bài toán môn học SWD392)
-│   │   └── database-design.md     <-- Database Schema cho Eval 2
-│   ├── apis/                      <-- Đặc tả API cho từng subsystem
+│   │   ├── database_schema.md     <-- Database Schema cho Eval 2
+│   │   └── ...                    <-- tech-stack, design-patterns, api-response-codes...
+│   ├── apis/                      <-- Đặc tả API cho từng subsystem (OpenAPI YAML + Markdown)
 │   ├── diagrams/puml/             <-- Chứa 7 sơ đồ UML (Use Case, Activity, Sequence, Communication, Component, Deployment, Class)
 │   └── testcases/                 <-- Kịch bản kiểm thử theo 4 levels (Unit, Integration, System, Acceptance)
 │
 ├── rules/
-│   └── branch-naming-rules.md     <-- Quy chuẩn làm việc nhóm Git: docs-*, code-*, test-*
+│   ├── git-rules.md               <-- Quy chuẩn làm việc nhóm Git: docs-*, code-*, test-*
+│   └── testcase-rules.md          <-- Quy chuẩn ID & định dạng testcase
 │
-├── src/                           <-- Toàn bộ mã nguồn hoàn chỉnh (Desktop App, 3 Design Patterns)
+├── apps/
+│   ├── desktop-client/src/        <-- Mã nguồn Desktop App (PyQt6, 3 Design Patterns)
+│   ├── central-backend/src/       <-- Mã nguồn Backend NestJS
+│   └── web-admin/src/             <-- Mã nguồn Web Admin Next.js
 └── tests/                         <-- Code kiểm thử tự động phục vụ nghiệm thu sản phẩm
 ```

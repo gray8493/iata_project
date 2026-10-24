@@ -184,3 +184,41 @@ def test_grade_repo_only_ui_score_is_none(monkeypatch):
     assert res.total_score > 0
     assert "Không áp dụng (chế độ chỉ chấm GitHub Repo)" in res.rubric_log
 
+
+
+# ------------------------------------------------------------------------------
+# UI/UX scoring: AI auth failure propagation (IT11 — "Token không hợp lệ")
+# ------------------------------------------------------------------------------
+class _StubAiService:
+    def __init__(self, result):
+        self._result = result
+
+    def evaluate_web_ui(self, **kwargs):
+        return self._result
+
+
+def test_score_ui_propagates_auth_error_code(engine):
+    stub = _StubAiService({
+        "success": False,
+        "message": "Token không hợp lệ.",
+        "error_code": "AUTH_INVALID_TOKEN",
+    })
+    engine._ai_service = stub
+    score, feedback, log, error_code = engine._score_ui(b"fake-png")
+    assert error_code == "AUTH_INVALID_TOKEN"
+    assert score == 0.0
+    assert feedback == ""
+
+
+def test_score_ui_success_returns_no_error_code(engine):
+    stub = _StubAiService({
+        "success": True,
+        "ui_score": 8.0,
+        "overall_feedback": "Bố cục tốt",
+        "tokens_consumed": 10,
+    })
+    engine._ai_service = stub
+    score, feedback, log, error_code = engine._score_ui(b"fake-png")
+    assert error_code is None
+    assert score == 8.0
+    assert "8.0/10" in log

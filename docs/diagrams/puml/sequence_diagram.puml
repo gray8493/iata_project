@@ -90,8 +90,8 @@ deactivate Backend
 DeskCore --> DeskUI : 23. Đăng nhập thành công & Lưu JWT vào bộ nhớ tạm
 deactivate DeskCore
 
-Instructor -> DeskUI : 24. Nạp file danh sách sinh viên `students.csv` (MSSV, File)
-DeskUI -> DeskCore : 25. parseCSVAndVerifyFiles(folderPath, "students.csv")
+Instructor -> DeskUI : 24. Chọn thư mục bài nộp của lớp (mỗi thư mục con = 1 MSSV, không dùng `students.csv`)
+DeskUI -> DeskCore : 25. scanSubmissionsFolder(folderPath) — tách MSSV/họ tên bằng regex, gắn cờ trùng/lỗi
 activate DeskCore
 DeskCore -> LocalDB : 26. Lưu danh sách bài nộp vào CSDL cục bộ của lớp
 activate LocalDB

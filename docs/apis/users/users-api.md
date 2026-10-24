@@ -43,6 +43,8 @@
         "email": "admin@fe.edu.vn",
         "role": "ADMIN",
         "is_active": true,
+        "daily_token_quota": 50000,
+        "used_tokens_today": 0,
         "created_at": "2026-09-01T00:00:00.000Z"
       }
     ],
@@ -74,7 +76,7 @@
   - `full_name`: 2-100 ký tự, bắt buộc.
   - `email`: Định dạng email RFC 5322, duy nhất (`unique`), bắt buộc.
   - `role`: `"ADMIN"` hoặc `"INSTRUCTOR"`, bắt buộc.
-  - `daily_token_quota`: Số nguyên từ 1,000 đến 1,000,000 (mặc định 50,000).
+  - `daily_token_quota`: Số nguyên từ 0 trở lên (mặc định 50,000).
 
 #### Body Input mẫu:
 ```json
@@ -127,7 +129,7 @@
 - **Mục đích**: Cập nhật thông tin hoặc Khóa/Mở khóa tài khoản.
 - **Ràng buộc**: `id` là UUID.
 - Các trường `username`, `password`, `full_name`, `email`, `role`, `is_active` và `daily_token_quota` có thể được cập nhật tùy chọn; mật khẩu mới được băm trước khi lưu.
-- `daily_token_quota` nếu có phải từ 1000 đến 1000000 token/ngày.
+- `daily_token_quota` nếu có phải là số nguyên từ 0 trở lên (token/ngày, UTC).
 
 #### Kịch bản phản hồi:
 * **Thành công (`success: true`) - HTTP 200 OK**:

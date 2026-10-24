@@ -543,16 +543,16 @@ sequenceDiagram
     participant Strategy as IMatchingStrategy (Behavioral)
 
     Instructor->>UI: Bấm nút "BẮT ĐẦU CHẤM"
-    UI->>Factory: create_runner("SE180001_Q1.c")
+    UI->>Factory: get_runner(language="C")
     Factory-->>UI: Trả về đối tượng CRunner
     
-    UI->>Runner: compile()
-    Runner->>Adapter: compile("SE180001_Q1.c", temp_dir)
-    Adapter-->>Runner: CompileResult(is_success=True, exe_path)
-    Runner-->>UI: Biên dịch thành công
+    UI->>Runner: compile(source_path="SE180001_Q1.c")
+    Runner->>Adapter: compile(source_path)
+    Adapter-->>Runner: CompileResult(success=True, target="Q1_build.exe")
+    Runner-->>UI: Biên dịch thành công (success, log, target)
     
-    UI->>Runner: execute_main(testcase.input)
-    Runner-->>UI: ExecutionResult(stdout="15\n", runtime_ms=45)
+    UI->>Runner: execute(target, input_data=testcase.input, time_limit_ms, memory_limit_mb)
+    Runner-->>UI: SandboxResult(stdout="15\n", execution_time_ms=45, verdict="OK")
     
     UI->>Context: compare(actual="15\n", expected="15")
     Context->>Strategy: compare("15\n", "15")

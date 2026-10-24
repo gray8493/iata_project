@@ -85,7 +85,7 @@ node "Instructor Workstation\n<<Client Machine>>\n[HĐH: Windows 10 / 11 64-bit]
 
     node "Local File Storage\n<<Execution Environment / Local NTFS>>" as LocalStorage #ECEFF1 {
         database "local_grading.db\n<<SQLite 3 Database>>\n(Offline Testcases & Grading Results)" as LocalDB
-        artifact "Input Submissions\n[students.csv, *.c, *.java, *.py]" as StudentFiles
+        artifact "Input Submissions\n[Thư mục lớp/MSSV/*.c, *.java, *.py]" as StudentFiles
         artifact "Output Grade Sheet\n[results.csv (7 columns)]" as ResultCSV
     }
 
@@ -141,9 +141,9 @@ node "Neon Serverless Postgres\n<<Managed Cloud Database Service>>\n[Lakebase Po
 ' ==============================================================================
 ' 5. EXTERNAL CLOUD AI SERVICE TIER (DỊCH VỤ TRÍ TUỆ NHÂN TẠO ĐÁM MÂY)
 ' ==============================================================================
-node "Google Cloud Platform (GCP)\n<<Public Cloud Infrastructure>>\nRegion: us-central1 / asia-southeast1" as CloudAINode #FFFDE7 {
-    node "Google AI Foundation Services\n<<Managed Cloud PaaS>>" as AiEnv #FFFFFF {
-        component "AI Model API\n<<LLM Inference Endpoint>>\n[generativelanguage.googleapis.com]" as AiApi
+node "OpenRouter AI Service\n<<Public Cloud Infrastructure>>\nMulti-model Aggregator (US / Global)" as CloudAINode #FFFDE7 {
+    node "OpenRouter Inference Platform\n<<Managed Cloud PaaS>>" as AiEnv #FFFFFF {
+        component "AI Model API\n<<LLM Inference Endpoint>>\n[openrouter.ai/api/v1]" as AiApi
     }
 }
 
