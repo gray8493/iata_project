@@ -2319,6 +2319,126 @@ Boundary
 
 ---
 
+# UT03_AiEvaluateWebUI_TC017: Model diễn đạt lại tên tiêu chí thay vì chép nguyên văn (Normal)
+
+#### Loại test
+
+Normal
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- OpenRouter trả `evaluation_details` với `criterion` khác nguyên văn rubric, một `verdict` viết thường (`"pass"`).
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả 3 mục có tiêu chí diễn đạt lại; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; `criterion` của từng mục được bù từ `rubric_requirements` theo vị trí; `ui_score` bằng trung bình điểm (7.0).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC018: score dạng chuỗi, verdict ngoài enum, thiếu comment/overall_feedback (Biên)
+
+#### Loại test
+
+Boundary
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- OpenRouter trả `score` là chuỗi (`"9"`), một `verdict` ngoài enum, thiếu `overall_feedback`.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` trả dữ liệu lệch kiểu; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200`; điểm được ép kiểu số, verdict suy ra từ điểm (9 → PASS, 3 → FAIL), `overall_feedback` rỗng, `ui_score` bằng trung bình (6.0).
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC019: Phản hồi sai định dạng được thử lại một lần (Exception)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- Lần 1 `provider.generateJson` trả `evaluation_details` rỗng; lần 2 trả dữ liệu hợp lệ.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` mock trả sai định dạng lần đầu rồi hợp lệ lần hai; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `200` với `ui_score` từ lần 2; `generateJson` được gọi đúng 2 lần.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
+# UT03_AiEvaluateWebUI_TC020: Sai định dạng cả hai lần thử (Exception)
+
+#### Loại test
+
+Exception
+
+#### Tiền điều kiện (Pre-condition)
+
+- Giảng viên đã xác thực, còn hạn ngạch.
+
+#### Dữ liệu kiểm thử (Test Data)
+
+- `provider.generateJson` luôn trả `evaluation_details` rỗng.
+
+#### Các bước thực hiện (Test Steps)
+
+1. `provider.generateJson` mock trả sai định dạng cho cả hai lần; gọi `AiGatewayService.evaluateWebUi(userId, dto)`.
+
+#### Kết quả kỳ vọng (Expected Result)
+
+- HTTP `502`, `error_code = "AI_INVALID_RESPONSE"`; `generateJson` được gọi đúng 2 lần trước khi báo lỗi.
+
+#### Bảng kết quả kiểm thử (Execution Result)
+
+| Lần test | Ngày test | Người chạy test | Kết quả thực tế (Actual Result) | Thời gian chạy | Trạng thái | Ghi chú |
+| :-------: | :--------: | :----------------- | :---------------------------------- | :--------------: | :----------: | :------- |
+|  Lần 1  |            |                    |                                     |                  |              |          |
+
+---
+
 # ==============================================================================
 
 # PHẦN 6: API POST /api/v1/ai/evaluate-pe-code (CHẤM RUBRIC CHẤT LƯỢNG MÃ PE)

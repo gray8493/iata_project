@@ -892,6 +892,72 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
+  describe('UT03_AiEvaluateWebUI_TC017: Model diễn đạt lại tên tiêu chí (không chép nguyên văn)', () => {
+    it('vẫn chấm: criterion được bù từ rubric theo vị trí', async () => {
+      const rubric = ['Layout', 'Color', 'Typography'];
+      provider.generateJson.mockResolvedValue({
+        data: {
+          ui_score: 7,
+          evaluation_details: [
+            { criterion: 'Bố cục tổng thể của trang', score: 8, verdict: 'PASS', comment: 'ok' },
+            { criterion: 'Màu sắc hài hòa', score: 7, verdict: 'pass', comment: 'được' },
+            { criterion: 'Font chữ dễ đọc', score: 6, verdict: 'PARTIAL', comment: 'cần cải thiện' },
+          ],
+          overall_feedback: 'Khá.',
+        },
+        tokensConsumed: 1200,
+      });
+      const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
+      const details = (result.data as any).evaluation_details;
+      expect(details.map((d: any) => d.criterion)).toEqual(rubric);
+      expect((result.data as any).ui_score).toBe(7);
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC018: score dạng chuỗi, verdict thường, thiếu comment/feedback', () => {
+    it('ép kiểu điểm và suy verdict từ điểm', async () => {
+      const rubric = ['Layout', 'Color'];
+      provider.generateJson.mockResolvedValue({
+        data: {
+          ui_score: '5',
+          evaluation_details: [
+            { score: '9', comment: 'tốt' },
+            { score: 3, verdict: 'bad verdict', comment: 'kém' },
+          ],
+        },
+        tokensConsumed: 1000,
+      });
+      const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
+      const details = (result.data as any).evaluation_details;
+      expect(details[0]).toMatchObject({ score: 9, verdict: 'PASS', comment: 'tốt', criterion: 'Layout' });
+      expect(details[1]).toMatchObject({ score: 3, verdict: 'FAIL' });
+      expect((result.data as any).ui_score).toBe(6);
+      expect((result.data as any).overall_feedback).toBe('');
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC019: Phản hồi sai định dạng được thử lại một lần', () => {
+    it('lần 2 hợp lệ thì chấm thành công', async () => {
+      const rubric = ['Layout'];
+      provider.generateJson
+        .mockResolvedValueOnce({ data: { ui_score: 5, evaluation_details: [], overall_feedback: 'x' }, tokensConsumed: 100 })
+        .mockResolvedValueOnce(evalData(rubric, [7], ['PARTIAL'], 7));
+      const result = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: rubric } as EvaluateWebUiDto);
+      expect((result.data as any).ui_score).toBe(7);
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('UT03_AiEvaluateWebUI_TC020: Sai định dạng cả hai lần thử', () => {
+    it('trả 502 AI_INVALID_RESPONSE', async () => {
+      provider.generateJson.mockResolvedValue({ data: { ui_score: 5, evaluation_details: [] }, tokensConsumed: 100 });
+      const error = await ai.evaluateWebUi(instructorId, { screenshot_base64: pngBase64, rubric_requirements: ['Layout'] } as EvaluateWebUiDto).catch((e) => e);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
+
   // =========================================================================
   // PHẦN 6: POST /api/v1/ai/evaluate-pe-code (UC-19 - RUBRIC CHẤT LƯỢNG MÃ PE)
   // =========================================================================
