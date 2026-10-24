@@ -81,6 +81,9 @@ class WebRubricResult:
     rubric_log: str = ""
     ai_feedback: str = ""
     error: Optional[str] = None
+    # Mã lỗi AI Vision nếu tiêu chí UI/UX không chấm được (VD: "AUTH_INVALID_TOKEN"
+    # khi phiên đăng nhập backend hết hạn) — để UI cảnh báo thay vì âm thầm 0 điểm.
+    ui_error: Optional[str] = None
     details: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -251,14 +254,20 @@ class WebRubricEngine:
         screenshot_path = None
         ui_score: Optional[float] = None
         ai_feedback = ""
+        ui_error: Optional[str] = None
 
         if norm_mode == "REPO_ONLY":
             log_lines.append("[UI/UX]: Không áp dụng (chế độ chỉ chấm GitHub Repo).")
         else:
             if screenshot_bytes:
                 screenshot_path = self._save_screenshot(screenshot_bytes, mssv)
-                raw_ui, ai_feedback, ui_log = self._score_ui(screenshot_bytes)
+                raw_ui, ai_feedback, ui_log, ui_error = self._score_ui(screenshot_bytes)
                 ui_score = raw_ui
+                if ui_error in ("AUTH_INVALID_TOKEN", "HTTP_401"):
+                    ui_log = (
+                        "Token không hợp lệ — phiên đăng nhập backend đã hết hạn, "
+                        "đăng nhập lại rồi chấm lại bài để có điểm UI/UX (tạm tính 0.0/10)."
+                    )
                 log_lines.append(f"[UI/UX]: {ui_log}")
             else:
                 log_lines.append("[UI/UX]: Không có ảnh chụp màn hình để AI Vision thẩm định.")
@@ -286,6 +295,7 @@ class WebRubricEngine:
             screenshot_path=screenshot_path,
             rubric_log="\n".join(log_lines),
             ai_feedback=ai_feedback,
+            ui_error=ui_error,
             details=components
         )
 
@@ -463,7 +473,8 @@ class WebRubricEngine:
         score = min(score, 10.0)
         return score, f"{scripts} script, {evt} listener, {onclick} onclick, {interactive} thành phần tương tác -> {score:.1f}/10"
 
-    def _score_ui(self, screenshot_bytes: bytes) -> Tuple[float, str, str]:
+    def _score_ui(self, screenshot_bytes: bytes) -> Tuple[float, str, str, Optional[str]]:
+        """Returns (score, feedback, log_line, error_code); error_code rỗng khi thành công."""
         try:
             b64 = base64.b64encode(screenshot_bytes).decode("ascii")
             res = self.ai_service.evaluate_web_ui(
@@ -479,10 +490,11 @@ class WebRubricEngine:
                 ui = float(res.get("ui_score", 0.0))
                 ui = max(0.0, min(ui, 10.0))
                 feedback = res.get("overall_feedback", "") or ""
-                return ui, feedback, f"AI Vision đánh giá {ui:.1f}/10 ({res.get('tokens_consumed', 0)} tokens)."
-            return 0.0, "", f"AI Gateway không đánh giá được: {res.get('message', 'không rõ lý do')}"
+                return ui, feedback, f"AI Vision đánh giá {ui:.1f}/10 ({res.get('tokens_consumed', 0)} tokens).", None
+            error_code = res.get("error_code") or f"HTTP_{res.get('status_code', 0)}"
+            return 0.0, "", f"AI Gateway không đánh giá được: {res.get('message', 'không rõ lý do')}", error_code
         except Exception as ex:
-            return 0.0, "", f"Lỗi gọi AI Vision: {self._short(ex)}"
+            return 0.0, "", f"Lỗi gọi AI Vision: {self._short(ex)}", "EXCEPTION"
 
     # ------------------------------------------------------------------
     # Helpers
