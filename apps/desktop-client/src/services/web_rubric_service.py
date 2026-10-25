@@ -15,8 +15,9 @@ Pipeline per submission:
   5. UI/UX scoring           -> AI Vision (OpenRouter) via the Central AI Gateway
      (`POST /api/v1/ai/evaluate-web-ui`) using the base64 screenshot.
 
-When Playwright/Chromium is unavailable the engine degrades gracefully to a
-static-file analysis (DOM/CSS/JS) and records the reason in the rubric log.
+When Playwright/Chromium is unavailable the engine degrades gracefully: it first
+fetches the live URL over plain HTTP (server-rendered HTML) and, failing that, falls
+back to a static-file analysis (DOM/CSS/JS) and records the reason in the rubric log.
 """
 
 import base64
@@ -29,6 +30,11 @@ from typing import Any, Dict, List, Optional, Tuple
 SEMANTIC_TAGS = ("header", "nav", "main", "footer", "section", "article", "aside", "form")
 WEIGHTS = {"dom": 0.2, "lint": 0.2, "func": 0.3, "ui": 0.3}
 GITHUB_HOST = "github.com"
+INDEX_HTML_CANDIDATES = (
+    "index.html", "Index.html", "index.htm",
+    "public/index.html", "client/index.html", "web/index.html",
+    "src/index.html", "frontend/index.html", "app/index.html",
+)
 
 
 def classify_url(raw_url: str) -> Tuple[Optional[str], str, str]:
@@ -105,58 +111,124 @@ class WebRubricEngine:
         return self._ai_service
 
     @staticmethod
-    def _fetch_github_raw(repo_url: Optional[str]) -> Tuple[str, List[str]]:
+    def _fetch_github_raw(repo_url: Optional[str]) -> Tuple[str, List[str], str]:
         """
         Fetches index.html and stylesheets directly from GitHub raw content (0 disk footprint).
-        Supports branches: main, master.
+        Supports branches main/master and common monorepo/SPA index.html locations.
+        Returns (html, css_texts, hint); hint mô tả repo khi không có index.html
+        (VD: Next.js/SPA) để caller giải thích rõ lý do cho giảng viên.
         """
         if not repo_url:
-            return "", []
+            return "", [], ""
         import urllib.request
         from urllib.parse import urlparse
 
         parsed = urlparse(repo_url.strip())
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
         if len(path_parts) < 2:
-            return "", []
+            return "", [], ""
         user, repo = path_parts[0], path_parts[1]
         if repo.endswith(".git"):
             repo = repo[:-4]
 
+        def _raw_get(url: str, timeout: int = 10) -> Optional[str]:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "AITA-Web-Grader"})
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        return resp.read().decode("utf-8", errors="replace")
+            except Exception:
+                return None
+            return None
+
         html = ""
-        branches = ["main", "master"]
         matched_branch = ""
-        for br in branches:
-            for file_name in ["index.html", "Index.html", "index.htm"]:
-                raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{br}/{file_name}"
-                try:
-                    req = urllib.request.Request(raw_url, headers={"User-Agent": "AITA-Web-Grader"})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        if resp.status == 200:
-                            html = resp.read().decode("utf-8", errors="replace")
-                            matched_branch = br
-                            break
-                except Exception:
-                    continue
+        matched_index = ""
+        for br in ("main", "master"):
+            for file_name in INDEX_HTML_CANDIDATES:
+                content = _raw_get(f"https://raw.githubusercontent.com/{user}/{repo}/{br}/{file_name}")
+                if content is not None:
+                    html = content
+                    matched_branch = br
+                    matched_index = file_name
+                    break
             if html:
                 break
 
         css_texts: List[str] = []
         if matched_branch:
-            for css_candidate in ["style.css", "styles.css", "css/style.css", "css/styles.css", "main.css"]:
-                css_url = f"https://raw.githubusercontent.com/{user}/{repo}/{matched_branch}/{css_candidate}"
-                try:
-                    req = urllib.request.Request(css_url, headers={"User-Agent": "AITA-Web-Grader"})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        if resp.status == 200:
-                            css_texts.append(resp.read().decode("utf-8", errors="replace"))
-                except Exception:
-                    continue
+            base_dir = matched_index.rsplit("/", 1)[0] if "/" in matched_index else ""
+            css_candidates = [
+                "style.css", "styles.css", "css/style.css", "css/styles.css", "main.css",
+            ]
+            if base_dir:
+                css_candidates = [f"{base_dir}/{c}" for c in css_candidates] + css_candidates
+            for css_candidate in css_candidates:
+                content = _raw_get(
+                    f"https://raw.githubusercontent.com/{user}/{repo}/{matched_branch}/{css_candidate}"
+                )
+                if content:
+                    css_texts.append(content)
 
         if html:
             for block in re.findall(r"<style[^>]*>(.*?)</style>", html, flags=re.DOTALL | re.IGNORECASE):
                 css_texts.append(block)
+            return html, css_texts, ""
 
+        hint = ""
+        pkg = (
+            _raw_get(f"https://raw.githubusercontent.com/{user}/{repo}/main/package.json")
+            or _raw_get(f"https://raw.githubusercontent.com/{user}/{repo}/master/package.json")
+        )
+        if pkg:
+            if '"next"' in pkg:
+                hint = "Repo có vẻ là Next.js/SPA (không có index.html tĩnh)."
+            elif '"react"' in pkg or '"vue"' in pkg:
+                hint = "Repo có vẻ là ứng dụng SPA React/Vue (không có index.html tĩnh)."
+        if not hint:
+            hint = "Repo không có index.html (có thể là Next.js/SPA hoặc cấu trúc thư mục khác)."
+        return "", [], hint
+
+    @staticmethod
+    def _fetch_http_html(url: str, timeout: int = 20) -> Tuple[str, List[str]]:
+        """
+        Plain-HTTP fallback for a live URL when Playwright/Chromium cannot render:
+        lấy HTML server-rendered (SSR Next.js/SPA) + inline <style> + stylesheet liên kết.
+        Không chạy JS, không chụp ảnh — các scorer tĩnh (DOM/CSS/JS) vẫn chấm được.
+        """
+        import urllib.request
+        from urllib.parse import urljoin
+
+        def _get(u: str, t: int = timeout) -> Optional[str]:
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "AITA-Web-Grader"})
+                with urllib.request.urlopen(req, timeout=t) as resp:
+                    if resp.status == 200:
+                        return resp.read().decode("utf-8", errors="replace")
+            except Exception:
+                return None
+            return None
+
+        html = _get(url)
+        if not html:
+            return "", []
+
+        css_texts: List[str] = []
+        for block in re.findall(r"<style[^>]*>(.*?)</style>", html, flags=re.DOTALL | re.IGNORECASE):
+            css_texts.append(block)
+
+        hrefs: List[str] = []
+        for match in re.finditer(r"<link\b[^>]*>", html, flags=re.IGNORECASE):
+            tag = match.group(0)
+            if "stylesheet" not in tag.lower():
+                continue
+            href = re.search(r'href\s*=\s*["\']([^"\']+)["\']', tag, flags=re.IGNORECASE)
+            if href:
+                hrefs.append(href.group(1))
+        for href in hrefs[:10]:
+            content = _get(urljoin(url, href), t=15)
+            if content:
+                css_texts.append(content)
         return html, css_texts
 
     # ------------------------------------------------------------------
@@ -197,44 +269,75 @@ class WebRubricEngine:
             try:
                 html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
                 log_lines.append(f"[PLAYWRIGHT]: Render thành công '{target_url}'.")
+                bundled_exe = self._bundled_chromium_executable()
+                if bundled_exe:
+                    log_lines.append(f"[PLAYWRIGHT]: Dùng Chromium đóng gói: {bundled_exe}.")
             except Exception as ex:
                 log_lines.append(f"[PLAYWRIGHT]: Không render được bằng Chromium ({self._short(ex)}).")
-                return WebRubricResult(
-                    verdict="FAILED",
-                    rubric_log="\n".join(log_lines) + f"\n[RESULT]: Lỗi kết nối Live URL: {self._short(ex)}.",
-                    error="RENDER_FAILED"
-                )
+                self._log_chromium_hint(log_lines, ex)
+                html, css_texts = self._fetch_http_html(target_url)
+                if html:
+                    log_lines.append(
+                        f"[FALLBACK]: Chấm HTML tĩnh từ Live URL qua HTTP ({len(html)} ký tự HTML, "
+                        f"{len(css_texts)} nguồn CSS) — không chạy JS, không ảnh chụp, bỏ tiêu chí UI/UX."
+                    )
+                else:
+                    return WebRubricResult(
+                        verdict="FAILED",
+                        rubric_log="\n".join(log_lines)
+                        + f"\n[RESULT]: Không render được Live URL bằng Chromium và không lấy được HTML qua HTTP: {self._short(ex)}.",
+                        error="RENDER_FAILED"
+                    )
 
         elif norm_mode == "REPO_ONLY":
             log_lines.append(f"[GITHUB]: Đọc mã nguồn từ repo '{repo_url}'...")
-            html, css_texts = self._fetch_github_raw(repo_url)
+            html, css_texts, repo_hint = self._fetch_github_raw(repo_url)
             if not html and local_dir:
                 log_lines.append("[STATIC]: Tải trực tiếp từ repo không thấy index.html, kiểm tra thư mục cục bộ...")
                 html, css_texts = self._load_static(local_dir)
             if not html:
                 return WebRubricResult(
                     verdict="FAILED",
-                    rubric_log="\n".join(log_lines) + f"\n[RESULT]: Không tìm thấy index.html trên repo '{repo_url}'.",
+                    rubric_log="\n".join(log_lines)
+                    + f"\n[RESULT]: Không tìm thấy index.html trên repo '{repo_url}'. {repo_hint} "
+                    + "Hãy chuyển chế độ Hybrid và cung cấp Live URL để chấm tự động.",
                     error="NO_HTML_IN_REPO"
                 )
             log_lines.append(f"[GITHUB]: Lấy mã nguồn thành công ({len(html)} ký tự HTML, {len(css_texts)} nguồn CSS).")
 
         else: # HYBRID
             target_url = self._resolve_target_url(live_url, local_dir)
+            repo_hint = ""
             if target_url:
                 try:
                     html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
                     log_lines.append(f"[PLAYWRIGHT]: Render thành công Live URL '{target_url}'.")
+                    bundled_exe = self._bundled_chromium_executable()
+                    if bundled_exe:
+                        log_lines.append(f"[PLAYWRIGHT]: Dùng Chromium đóng gói: {bundled_exe}.")
                 except Exception as ex:
-                    log_lines.append(f"[PLAYWRIGHT]: Không render được Live URL ({self._short(ex)}). Thử lấy mã nguồn từ repo.")
+                    log_lines.append(f"[PLAYWRIGHT]: Không render được Live URL ({self._short(ex)}). Thử lấy HTML qua HTTP.")
+                    self._log_chromium_hint(log_lines, ex)
+                    html, css_texts = self._fetch_http_html(target_url)
+                    if html:
+                        log_lines.append(
+                            f"[FALLBACK]: Chấm HTML tĩnh từ Live URL qua HTTP ({len(html)} ký tự HTML, "
+                            f"{len(css_texts)} nguồn CSS) — không chạy JS, không ảnh chụp, bỏ tiêu chí UI/UX."
+                        )
             if not html and repo_url:
-                html, css_texts = self._fetch_github_raw(repo_url)
+                html, css_texts, repo_hint = self._fetch_github_raw(repo_url)
+                if html:
+                    log_lines.append(f"[GITHUB]: Lấy mã nguồn từ repo thành công ({len(html)} ký tự HTML, {len(css_texts)} nguồn CSS).")
             if not html and local_dir:
                 html, css_texts = self._load_static(local_dir)
             if not html:
                 return WebRubricResult(
                     verdict="FAILED",
-                    rubric_log="\n".join(log_lines) + "\n[RESULT]: Không tìm thấy mã nguồn HTML từ Live URL lẫn GitHub Repo để thẩm định.",
+                    rubric_log="\n".join(log_lines)
+                    + "\n[RESULT]: Không tìm thấy mã nguồn HTML để thẩm định "
+                    + "(render Chromium và lấy HTML qua HTTP đều thất bại với Live URL; "
+                    + f"repo cũng không có index.html — {repo_hint if repo_hint else 'có thể là Next.js/SPA'}). "
+                    + "Hãy kiểm tra lại link bài nộp hoặc chuyển chế độ Hybrid với Live URL khả dụng.",
                     error="NO_HTML"
                 )
 
@@ -316,11 +419,37 @@ class WebRubricEngine:
                 return entry.resolve().as_uri()
         return None
 
+    @staticmethod
+    def _bundled_chromium_executable() -> Optional[Path]:
+        """File .exe Chromium đóng kèm bản phát hành (ưu tiên headless shell); None nếu không có."""
+        try:
+            from core.app_paths import bundled_browsers_dir
+        except Exception:
+            return None
+        browsers_dir = bundled_browsers_dir()
+        if not browsers_dir:
+            return None
+        for exe_name in ("chrome-headless-shell.exe", "chrome.exe"):
+            matches = sorted(browsers_dir.rglob(exe_name))
+            if matches:
+                return matches[0]
+        return None
+
     def _render(self, url: str) -> Tuple[str, List[str], Dict[str, int], bytes]:
         from playwright.sync_api import sync_playwright
 
+        bundled_exe = self._bundled_chromium_executable()
+        launch_kwargs: Dict[str, Any] = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+        if bundled_exe:
+            # executable_path bỏ qua kiểm tra revision của Playwright -> chạy được
+            # với browser đóng kèm bản phát hành kể cả khi máy chưa cài Playwright.
+            launch_kwargs["executable_path"] = str(bundled_exe)
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(**launch_kwargs)
             try:
                 page = browser.new_page(viewport={"width": 1440, "height": 900})
                 page.goto(url, wait_until="load", timeout=30000)
@@ -523,6 +652,16 @@ class WebRubricEngine:
             return str(out)
         except Exception:
             return None
+
+    @staticmethod
+    def _log_chromium_hint(log_lines: List[str], ex: Exception) -> None:
+        """Logs a targeted hint when Playwright fails because Chromium is not installed."""
+        msg = str(ex)
+        if "Executable doesn't exist" in msg or "ms-playwright" in msg:
+            log_lines.append(
+                "[PLAYWRIGHT]: Máy chưa cài Chromium cho Playwright — chạy 'playwright install chromium' "
+                "hoặc để máy chấm tự dùng fallback HTTP (không cần Chromium)."
+            )
 
     @staticmethod
     def _short(ex: Exception) -> str:

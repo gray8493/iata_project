@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from services.web_rubric_service import WebRubricEngine, WEIGHTS, classify_url
+from services.web_rubric_service import (
+    INDEX_HTML_CANDIDATES,
+    WEIGHTS,
+    WebRubricEngine,
+    classify_url,
+)
 
 
 SEMANTIC_HTML = """
@@ -175,7 +180,7 @@ def test_engine_screenshots_dir_defaults_under_data():
 
 def test_grade_repo_only_ui_score_is_none(monkeypatch):
     eng = WebRubricEngine()
-    monkeypatch.setattr(eng, "_fetch_github_raw", lambda url: (SEMANTIC_HTML, ["body { color: red; }"]))
+    monkeypatch.setattr(eng, "_fetch_github_raw", lambda url: (SEMANTIC_HTML, ["body { color: red; }"], ""))
     res = eng.grade(repo_url="https://github.com/test/project", mode="REPO_ONLY")
     assert res.score_ui is None
     assert res.score_dom is not None
@@ -183,6 +188,94 @@ def test_grade_repo_only_ui_score_is_none(monkeypatch):
     assert res.score_func is not None
     assert res.total_score > 0
     assert "Không áp dụng (chế độ chỉ chấm GitHub Repo)" in res.rubric_log
+
+
+# ------------------------------------------------------------------------------
+# HTTP fallback & repo layout hints (UC-19 — Next.js/SPA submissions)
+# ------------------------------------------------------------------------------
+def _render_raises(url):
+    raise RuntimeError("boom")
+
+
+def test_grade_hybrid_http_fallback_when_render_fails(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+    monkeypatch.setattr(eng, "_render", _render_raises)
+    monkeypatch.setattr(eng, "_fetch_http_html", lambda url: (SEMANTIC_HTML, ["body { color: red; }"]))
+    res = eng.grade(live_url="https://demo.vercel.app/", mode="HYBRID")
+    assert res.error is None
+    assert res.total_score > 0
+    assert res.score_ui is None
+    assert "[FALLBACK]" in res.rubric_log
+
+
+def test_grade_hybrid_chromium_missing_hint(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+
+    def _raise_no_executable(url):
+        raise RuntimeError("Executable doesn't exist at ms-playwright")
+
+    monkeypatch.setattr(eng, "_render", _raise_no_executable)
+    monkeypatch.setattr(eng, "_fetch_http_html", lambda url: (SEMANTIC_HTML, []))
+    res = eng.grade(live_url="https://demo.vercel.app/", mode="HYBRID")
+    assert "playwright install chromium" in res.rubric_log
+
+
+def test_grade_live_only_http_fallback_when_render_fails(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+    monkeypatch.setattr(eng, "_render", _render_raises)
+    monkeypatch.setattr(eng, "_fetch_http_html", lambda url: (SEMANTIC_HTML, ["body { color: red; }"]))
+    res = eng.grade(live_url="https://demo.vercel.app/", mode="LIVE_ONLY")
+    assert res.error is None
+    assert res.total_score > 0
+    assert "[FALLBACK]" in res.rubric_log
+
+
+def test_grade_live_only_render_and_http_both_fail(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+    monkeypatch.setattr(eng, "_render", _render_raises)
+    monkeypatch.setattr(eng, "_fetch_http_html", lambda url: ("", []))
+    res = eng.grade(live_url="https://demo.vercel.app/", mode="LIVE_ONLY")
+    assert res.error == "RENDER_FAILED"
+    assert res.total_score == 0.0
+
+
+def test_grade_hybrid_no_html_anywhere_reports_clear_error(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+    monkeypatch.setattr(eng, "_render", _render_raises)
+    monkeypatch.setattr(eng, "_fetch_http_html", lambda url: ("", []))
+    monkeypatch.setattr(
+        eng,
+        "_fetch_github_raw",
+        lambda url: ("", [], "Repo có vẻ là Next.js/SPA (không có index.html tĩnh)."),
+    )
+    res = eng.grade(
+        live_url="https://demo.vercel.app/",
+        repo_url="https://github.com/x/y",
+        mode="HYBRID",
+    )
+    assert res.error == "NO_HTML"
+    assert "Next.js/SPA" in res.rubric_log
+
+
+def test_grade_repo_only_nextjs_repo_hint(monkeypatch):
+    eng = WebRubricEngine(ai_service=None)
+    monkeypatch.setattr(
+        eng,
+        "_fetch_github_raw",
+        lambda url: ("", [], "Repo có vẻ là Next.js/SPA (không có index.html tĩnh)."),
+    )
+    res = eng.grade(repo_url="https://github.com/x/y", mode="REPO_ONLY")
+    assert res.error == "NO_HTML_IN_REPO"
+    assert res.total_score == 0.0
+    assert "Next.js/SPA" in res.rubric_log
+    assert "Hybrid" in res.rubric_log
+    assert "Live URL" in res.rubric_log
+
+
+def test_index_html_candidates_include_monorepo_paths():
+    assert INDEX_HTML_CANDIDATES[0] == "index.html"
+    assert "public/index.html" in INDEX_HTML_CANDIDATES
+    assert "client/index.html" in INDEX_HTML_CANDIDATES
 
 
 
@@ -222,3 +315,28 @@ def test_score_ui_success_returns_no_error_code(engine):
     assert error_code is None
     assert score == 8.0
     assert "8.0/10" in log
+
+
+# ------------------------------------------------------------------------------
+# Bundled Chromium resolution (browsers/ folder shipped inside the exe)
+# ------------------------------------------------------------------------------
+def test_bundled_chromium_executable_prefers_headless_shell(engine, tmp_path, monkeypatch):
+    browsers = tmp_path / "browsers"
+    shell = browsers / "chrome-headless-shell-win64" / "chrome-headless-shell.exe"
+    shell.parent.mkdir(parents=True)
+    shell.write_bytes(b"fake-exe")
+    full = browsers / "chromium-1243" / "chrome-win64" / "chrome.exe"
+    full.parent.mkdir(parents=True)
+    full.write_bytes(b"fake-exe")
+
+    import core.app_paths as app_paths
+    monkeypatch.setattr(app_paths, "bundled_browsers_dir", lambda: browsers)
+
+    assert engine._bundled_chromium_executable() == shell
+
+
+def test_bundled_chromium_executable_none_without_browsers_dir(engine, monkeypatch):
+    import core.app_paths as app_paths
+    monkeypatch.setattr(app_paths, "bundled_browsers_dir", lambda: None)
+
+    assert engine._bundled_chromium_executable() is None

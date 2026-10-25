@@ -19,6 +19,9 @@ from typing import Any, Dict, Optional
 # Thư mục con chứa toolchain portable đi kèm bản đóng gói.
 TOOLCHAINS_DIR_NAME = "toolchains"
 
+# Thư mục con chứa Chromium headless đi kèm (chấm web không cần cài Playwright).
+BROWSERS_DIR_NAME = "browsers"
+
 # Tên file cấu hình do hộp thoại "Cấu Hình Môi Trường" ghi ra.
 CONFIG_FILE_NAME = "config.json"
 
@@ -56,6 +59,28 @@ def bundled_toolchains_dir() -> Optional[Path]:
     if is_frozen():
         candidates.append(Path(sys.executable).resolve().parent / TOOLCHAINS_DIR_NAME)
     candidates.append(Path(__file__).resolve().parents[2] / TOOLCHAINS_DIR_NAME)
+
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def bundled_browsers_dir() -> Optional[Path]:
+    """Thư mục Chromium headless đi kèm bản đóng gói (nếu có).
+
+    Thứ tự dò giống `bundled_toolchains_dir()`:
+    1. `_MEIPASS/browsers` (bundle onedir: `_internal/browsers`).
+    2. `<thư mục chứa AITA.exe>/browsers`.
+    3. `apps/desktop-client/browsers` (khi chạy dev).
+    """
+    candidates = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / BROWSERS_DIR_NAME)
+    if is_frozen():
+        candidates.append(Path(sys.executable).resolve().parent / BROWSERS_DIR_NAME)
+    candidates.append(Path(__file__).resolve().parents[2] / BROWSERS_DIR_NAME)
 
     for candidate in candidates:
         if candidate.is_dir():

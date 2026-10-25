@@ -62,6 +62,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 - **Môi trường thực thi & Công cụ biên dịch tại chỗ (Local Execution Environment)**:
   - **Môi trường ảo AITA**: File thực thi `AITA_Grader_v1.exe` tích hợp sẵn Python 3.11 Runtime, PyQt6 Native Engine.
   - **Toolchain portable đi kèm**: Thư mục `toolchains/` nằm cạnh file chạy (trong `_internal/toolchains/`) chứa MinGW-w64 GCC, OpenJDK rút gọn bằng `jlink` và Python embeddable. App **ưu tiên** dùng bộ này trước, nên máy giảng viên không cần cài đặt gì thêm; nếu giảng viên muốn dùng bản cài riêng thì chỉ định trong **Cấu Hình Môi Trường** (lưu tại `config.json`).
+  - **Trình duyệt Chromium headless đi kèm**: Thư mục `browsers/` (trong `_internal/browsers/`) chứa `chrome-headless-shell-win64/chrome-headless-shell.exe` để phân hệ chấm web render Live URL và chụp ảnh cho AI Vision ngay cả khi máy chưa cài Playwright. Nếu thiếu, engine tự chuyển sang fallback HTTP (chấm HTML tĩnh, không có tiêu chí UI/UX).
   - **Trình biên dịch C**: MinGW-w64 GCC 13+ (`toolchains/mingw64/bin/gcc.exe`).
   - **Trình biên dịch & Máy ảo Java**: OpenJDK 17/21 (`toolchains/jdk/bin/javac.exe`, `toolchains/jdk/bin/java.exe`).
   - **Trình thông dịch Python**: Python 3.11 embeddable (`toolchains/python/python.exe`) hoặc Python 3.10+ trên máy.
@@ -174,6 +175,7 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
     - `mingw64/bin/gcc.exe`: MinGW-w64 GCC đã cắt bộ tối thiểu (chỉ giữ `cc1`, `as`, `ld`, `collect2`, các thư viện `libgcc`/`libmingwex`/`crt*.o`), ~277 MB.
     - `jdk/bin/{javac,java}.exe`: OpenJDK rút gọn bằng `jlink` (`java.base, java.compiler, jdk.compiler, java.logging, jdk.jfr, java.management, jdk.unsupported`), ~44 MB.
     - `python/python.exe`: Python 3.11 embeddable chính thức của python.org, ~21 MB.
+    - `browsers/chrome-headless-shell-win64/chrome-headless-shell.exe`: Playwright Chromium headless shell, ~271 MB (nén ~115 MB), kèm `winldd/` — phát hiện qua `core/app_paths.bundled_browsers_dir()`.
   - Tạo toolchain bằng script tái lập được (chạy trên máy dev đã cài sẵn GCC/JDK):
     ```bash
     python apps/desktop-client/scripts/build_toolchains.py \
@@ -182,10 +184,14 @@ Do hệ thống phải thực thi trực tiếp các file mã nguồn do sinh vi
         --out apps/desktop-client/toolchains \
         --smoke-test
     ```
+  - Tạo thư mục browser bằng script tái lập được (chạy trên máy dev đã `python -m playwright install chromium`, đúng phiên bản pin trong `requirements.txt`):
+    ```bash
+    python apps/desktop-client/scripts/build_browsers.py --smoke-test
+    ```
   - Build bản phát hành: `python -m PyInstaller apps/desktop-client/AITA_Grader_v1.spec --noconfirm`
-    (kết quả `dist/AITA_Grader_v1/`, tổng ~590 MB, nén ZIP còn ~150 MB).
+    (kết quả `dist/AITA_Grader_v1/`, tổng ~860 MB, nén ZIP còn ~320 MB).
   - **Thứ tự dò công cụ** (áp dụng cho cả `gcc`, `javac`, `java`, `python`): toolchain đóng kèm → đường dẫn giảng viên lưu trong `config.json` → `JAVA_HOME` / biến môi trường (`AITA_PYTHON`) → `PATH` → registry / WinGet. Nhờ vậy bản đóng gói chấm được ngay cả khi máy đích **chưa cài** GCC/JDK/Python, mà vẫn ưu tiên bản cài trên máy nếu giảng viên muốn dùng bản mới hơn.
-  - **Tự kiểm tra môi trường**: `AITA_Grader_v1.exe --selftest` chạy thật `gcc`/`javac`+`java`/`python` trên một chương trình `a + b`, in kết quả ra console **và** ghi `aita_selftest.txt` cạnh file exe (tự mở bằng Notepad nếu chạy bằng double-click). Đây là công cụ hỗ trợ từ xa khi giảng viên gặp lỗi môi trường.
+  - **Tự kiểm tra môi trường**: `AITA_Grader_v1.exe --selftest` chạy thật `gcc`/`javac`+`java`/`python` trên một chương trình `a + b`, đồng thời (khi có kèm `browsers/`) khởi chạy Chromium headless đóng gói để render một trang thử `OK (Chromium web render)`, in kết quả ra console **và** ghi `aita_selftest.txt` cạnh file exe (tự mở bằng Notepad nếu chạy bằng double-click). Đây là công cụ hỗ trợ từ xa khi giảng viên gặp lỗi môi trường.
   - **Dữ liệu người dùng**: CSDL SQLite và `config.json` được ghi vào `%LOCALAPPDATA%/AITA/data/` (không ghi vào thư mục tạm của PyInstaller, tránh mất điểm đã chấm sau khi tắt app).
 
 ### 6.2. Triển khai Máy chủ Trung tâm trên Render.com & Neon Cloud
@@ -221,7 +227,7 @@ lỗi (401/404/rate-limit/timeout) thì manifest rơi về các biến `APP_UPDA
 | 1 | Tăng phiên bản | Sửa `APP_VERSION` (và `APP_BUILD`) trong `apps/desktop-client/src/core/version.py` — nguồn duy nhất cho màn hình đăng nhập, `User-Agent` và phép so sánh cập nhật. |
 | 2 | Chạy kiểm thử | `pytest` (desktop) và `npx jest` (backend). |
 | 3 | Đóng gói | Chạy `build.bat` ở gốc repo → sinh `dist/AITA_Grader_v1/` và `dist/AITA_Grader_v1_portable.zip`, in ra **kích thước (byte)** và **SHA-256** (dùng để đối chiếu thủ công khi cần). |
-| 4 | Kiểm tra gói | `AITA_Grader_v1.exe --selftest` phải báo GCC/JDK/Python đều `OK (3+4=7)`, sau đó mở app chấm thử một bài. Chỉ chạy file trong `dist/`; **không** chạy file trong `build/` (file trung gian, thiếu `_internal/` nên báo lỗi "Failed to load Python DLL"). |
+| 4 | Kiểm tra gói | `AITA_Grader_v1.exe --selftest` phải báo GCC/JDK/Python đều `OK (3+4=7)` và (khi có kèm `browsers/`) `OK (Chromium web render)`, sau đó mở app chấm thử một bài. Chỉ chạy file trong `dist/`; **không** chạy file trong `build/` (file trung gian, thiếu `_internal/` nên báo lỗi "Failed to load Python DLL"). |
 | 5 | Phát hành | Tạo GitHub Release với **tag mới** và upload gói ZIP:<br>`gh release create v1.0.1 dist/AITA_Grader_v1_portable.zip --target master --title "AITA Grader v1.0.1" --notes-file notes.md --latest` |
 | 6 | Cấu hình backend (chỉ làm **một lần**) | Khai báo trên Render: `APP_UPDATE_SOURCE=github`, `APP_UPDATE_GITHUB_REPO=<owner>/<repo>`, `GITHUB_TOKEN` (chỉ cần khi repo **private** — fine-grained PAT có quyền `Contents: Read-only`), `APP_MIN_SUPPORTED_VERSION`, `APP_UPDATE_ENTRYPOINT=AITA_Grader_v1.exe`, `APP_UPDATE_ARTIFACT_TYPE=zip`, (tuỳ chọn) `APP_UPDATE_MANDATORY`. **Không phải sửa `APP_LATEST_VERSION` / `APP_UPDATE_URL_WINDOWS` / `APP_UPDATE_SHA256_WINDOWS` / `APP_UPDATE_SIZE_WINDOWS` mỗi bản** — backend tự lấy từ release. Chỉ dùng nhóm biến đó khi muốn tắt nguồn GitHub (`APP_UPDATE_SOURCE=env`). |
 | 7 | Nghiệm thu | `curl https://iata-project-o4z6.onrender.com/api/v1/system/version` để xem manifest, rồi mở bản cũ trên máy giảng viên và xác nhận hộp thoại "Cập nhật AITA". |

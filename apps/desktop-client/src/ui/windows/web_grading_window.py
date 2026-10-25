@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QSettings, QUrl, QRectF, QTimer
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, pyqtBoundSignal, QSettings, QUrl, QRectF, QTimer
 from PyQt6.QtGui import (
     QFont, QColor, QCursor, QPixmap, QGuiApplication, QDesktopServices,
     QTextDocument, QPageSize, QPageLayout, QPen, QBrush
@@ -54,9 +54,9 @@ from ui.components.table_actions import make_action_cell
 class WebGradingWorker(QThread):
     """Runs the real 4-criteria web rubric engine off the UI thread."""
 
-    progress = pyqtSignal(int, str)
-    graded_one = pyqtSignal(dict)
-    all_done = pyqtSignal(int)
+    progress: pyqtBoundSignal = pyqtSignal(int, str)  # type: ignore[assignment]
+    graded_one: pyqtBoundSignal = pyqtSignal(dict)  # type: ignore[assignment]
+    all_done: pyqtBoundSignal = pyqtSignal(int)  # type: ignore[assignment]
 
     def __init__(self, students: List[Dict[str, Any]], engine: WebRubricEngine, parent=None):
         super().__init__(parent)
@@ -2899,7 +2899,7 @@ class WebGradingMainWindow(QMainWindow):
     def _refresh_ai_quota(self):
         """Fetches live AI quota from Neon Postgres via GET /api/v1/ai/quota asynchronously."""
         class QuotaWorker(QThread):
-            quota_received = pyqtSignal(dict)
+            quota_received: pyqtBoundSignal = pyqtSignal(dict)  # type: ignore[assignment]
             def run(self):
                 ai_service = AiService()
                 res = ai_service.get_quota()

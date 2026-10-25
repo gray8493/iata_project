@@ -22,6 +22,8 @@ REPO_ROOT = APP_DIR.parent.parent           # repo root
 
 # toolchains/ đặt cạnh spec (do build_toolchains.py tạo ra).
 TOOLCHAINS_DIR = APP_DIR / "toolchains"
+# browsers/ đặt cạnh spec (do build_browsers.py tạo ra) - Chromium headless cho chấm web.
+BROWSERS_DIR = APP_DIR / "browsers"
 # assets: ưu tiên bản của desktop-client, fallback về assets/ ở repo root.
 ASSETS_DIR = APP_DIR / "assets"
 if not ASSETS_DIR.is_dir():
@@ -32,6 +34,10 @@ if TOOLCHAINS_DIR.is_dir():
     datas.append((str(TOOLCHAINS_DIR), "toolchains"))
 else:
     print("[spec] CẢNH BÁO: không thấy toolchains/ - exe sẽ cần GCC/JDK/Python trên máy đích.")
+if BROWSERS_DIR.is_dir():
+    datas.append((str(BROWSERS_DIR), "browsers"))
+else:
+    print("[spec] CẢNH BÁO: không thấy browsers/ - chấm web sẽ dùng fallback HTTP (không có UI/UX).")
 
 hiddenimports = [
     # PyQt6 backends + plugin động mà PyInstaller không tự suy ra.
@@ -49,6 +55,8 @@ hiddenimports = [
     "services.document_reader",
     "core.adapters.compiler_adapter",
     "core.app_paths",
+    # Playwright nạp lười trong web_rubric_service._render - kê rõ để driver luôn được gom.
+    "playwright.sync_api",
 ]
 
 excludes = [

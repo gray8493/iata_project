@@ -80,6 +80,15 @@ if not exist "%TOOLCHAINS%" (
 )
 echo [3/6] Toolchains  : %TOOLCHAINS%
 
+rem --- 3b/6 Browsers (Chromium headless cho cham web; thieu thi dung fallback HTTP) ---
+set "BROWSERS=%APP_DIR%\browsers"
+if exist "%BROWSERS%\chrome-headless-shell-win64\chrome-headless-shell.exe" (
+    echo [3/6] Browsers    : Chromium headless OK
+) else (
+    echo [WARN ] No %BROWSERS% - web grading will use HTTP fallback ^(no UI/UX score^).
+    echo         Create it with: python apps\desktop-client\scripts\build_browsers.py --smoke-test
+)
+
 rem --- 4/6 Build -------------------------------------------------------------
 echo [4/6] Building with PyInstaller (about 2 minutes, please wait)...
 "%PYTHON_CMD%" -m PyInstaller "%SPEC%" --noconfirm --clean --distpath "%DIST%" --workpath "%WORK%"
@@ -108,6 +117,16 @@ if "%SELFTEST_OK%"=="1" (
     echo [WARN] Selftest not fully OK. Open this file to see why:
     echo        %REPORT%
     echo        ^(missing toolchains^? run scripts\build_toolchains.py, then build again^)
+)
+set "CHROMIUM_OK=0"
+if exist "%REPORT%" (
+    findstr /C:"OK (Chromium" "%REPORT%" >nul 2>&1
+    if not errorlevel 1 set "CHROMIUM_OK=1"
+)
+if "%CHROMIUM_OK%"=="1" (
+    echo [ OK ] Bundled Chromium web render works inside the bundle.
+) else (
+    echo [WARN] Chromium not bundled or failed - web grading will use the HTTP fallback.
 )
 
 rem --- 6/6 Package -----------------------------------------------------------
