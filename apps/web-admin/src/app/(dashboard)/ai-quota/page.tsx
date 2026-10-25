@@ -3,8 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher, apiGet, API_URL } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { swrFetcher, apiGet, API_URL, getAccessToken } from "@/lib/api";
+import { Loader2, Inbox } from "lucide-react";
+import { featureLabel, featureBadgeClass } from "@/lib/feature-labels";
+import Alert from "@/components/ui/alert";
+import Modal from "@/components/ui/modal";
 
 interface OverviewData {
   total_instructors: number;
@@ -61,13 +64,6 @@ interface ProviderStatus {
   structured_outputs_supported: boolean;
   accounts: ProviderAccountStatus[];
 }
-
-const FEATURE_NAMES: Record<string, string> = {
-  TESTCASE_GEN: "Sinh testcase tự động",
-  CODE_REVIEW: "Đánh giá & review code",
-  PLAGIARISM: "Kiểm tra đạo văn",
-  UI_EVALUATION: "Đánh giá giao diện web",
-};
 
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -137,7 +133,7 @@ export default function AiQuotaPage() {
   }, [fetchHub]);
 
   const getApiConfig = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
+    const token = getAccessToken();
     return { token, apiUrl: API_URL };
   };
 
@@ -304,7 +300,7 @@ export default function AiQuotaPage() {
       log.id,
       `"${log.full_name}"`,
       log.username,
-      `"${FEATURE_NAMES[log.feature_type] || log.feature_type}"`,
+      `"${featureLabel(log.feature_type)}"`,
       log.model_name,
       log.prompt_tokens,
       log.completion_tokens,
@@ -324,30 +320,22 @@ export default function AiQuotaPage() {
   };
 
   const topFeatureRaw = overview?.ai_token_usage?.top_consuming_feature;
-  const topFeatureDisplay = topFeatureRaw
-    ? FEATURE_NAMES[topFeatureRaw] || topFeatureRaw
-    : null;
+  const topFeatureDisplay = topFeatureRaw ? featureLabel(topFeatureRaw) : null;
 
   return (
     <div className="flex flex-col w-full gap-6">
       {/* Thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng thông báo">
-            Đóng
-          </button>
-        </div>
+        <Alert variant="error" onClose={() => setErrorMessage("")}>
+          {errorMessage}
+        </Alert>
       )}
 
       {/* Thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng thông báo">
-            Đóng
-          </button>
-        </div>
+        <Alert variant="success" onClose={() => setSuccessMessage("")}>
+          {successMessage}
+        </Alert>
       )}
 
       {/* ================= HEADER TRANG ================= */}
@@ -540,7 +528,7 @@ export default function AiQuotaPage() {
 
       {/* Thông báo lỗi tải hạn ngạch + nút Thử lại */}
       {quotaError && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium">
+        <Alert variant="error" onClose={() => setQuotaError("")}>
           <span>{quotaError}</span>
           <button
             type="button"
@@ -550,7 +538,7 @@ export default function AiQuotaPage() {
           >
             Thử lại
           </button>
-        </div>
+        </Alert>
       )}
 
       {/* ================= TAB CONTROLS ================= */}
@@ -617,13 +605,13 @@ export default function AiQuotaPage() {
             <table className="w-full text-left text-[13px]">
               <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4 font-medium">Giảng viên</th>
-                  <th className="py-3 px-4 font-medium">Email</th>
-                  <th className="py-3 px-4 text-right font-medium">Hạn ngạch ngày</th>
-                  <th className="py-3 px-4 text-right font-medium">Đã dùng hôm nay</th>
-                  <th className="py-3 px-4 text-right font-medium">Còn lại</th>
-                  <th className="py-3 px-4 text-center font-medium">Trạng thái</th>
-                  <th className="py-3 px-4 text-right font-medium">Thao tác</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Giảng viên</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Email</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Hạn ngạch ngày</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Đã dùng hôm nay</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Còn lại</th>
+                  <th scope="col" className="py-3 px-4 text-center font-medium">Trạng thái</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
@@ -706,6 +694,7 @@ export default function AiQuotaPage() {
                   <tr>
                     <td colSpan={7} className="py-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
+                        <Inbox className="w-8 h-8 text-slate-300 mb-1" aria-hidden="true" />
                         <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
                         <p className="text-[13px] text-slate-500">Không có giảng viên nào phù hợp với bộ lọc hiện tại.</p>
                       </div>
@@ -750,14 +739,14 @@ export default function AiQuotaPage() {
             <table className="w-full text-left text-[13px]">
               <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4 font-medium">Mã log</th>
-                  <th className="py-3 px-4 font-medium">Giảng viên</th>
-                  <th className="py-3 px-4 font-medium">Tác vụ AI</th>
-                  <th className="py-3 px-4 font-medium">Mô hình</th>
-                  <th className="py-3 px-4 text-right font-medium">Prompt</th>
-                  <th className="py-3 px-4 text-right font-medium">Completion</th>
-                  <th className="py-3 px-4 text-right font-medium">Tổng token</th>
-                  <th className="py-3 px-4 text-right font-medium">Thời gian</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Mã log</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Giảng viên</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Tác vụ AI</th>
+                  <th scope="col" className="py-3 px-4 font-medium">Mô hình</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Prompt</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Completion</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Tổng token</th>
+                  <th scope="col" className="py-3 px-4 text-right font-medium">Thời gian</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
@@ -779,8 +768,8 @@ export default function AiQuotaPage() {
                         <div className="text-[13px] text-slate-500 font-normal">@{log.username}</div>
                       </td>
                       <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                        <span className="inline-block px-2 py-0.5 rounded text-[13px] bg-slate-100 text-slate-700">
-                          {FEATURE_NAMES[log.feature_type] || log.feature_type}
+                        <span className={`inline-block px-2 py-0.5 rounded text-[13px] ${featureBadgeClass(log.feature_type)}`}>
+                          {featureLabel(log.feature_type)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">
@@ -804,6 +793,7 @@ export default function AiQuotaPage() {
                   <tr>
                     <td colSpan={8} className="py-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
+                        <Inbox className="w-8 h-8 text-slate-300 mb-1" aria-hidden="true" />
                         <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
                         <p className="text-[13px] text-slate-500">Chưa có bản ghi nhật ký nào.</p>
                       </div>
@@ -847,67 +837,63 @@ export default function AiQuotaPage() {
       )}
 
       {/* ================= MODAL ĐIỀU CHỈNH HẠN NGẠCH ================= */}
-      {editingInstructor && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="font-semibold text-slate-900 text-base">
-                  Điều chỉnh hạn ngạch AI
-                </h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  {editingInstructor.full_name} (@{editingInstructor.username})
-                </p>
-              </div>
+      <Modal
+        open={!!editingInstructor}
+        onClose={() => setEditingInstructor(null)}
+        title="Điều chỉnh hạn ngạch AI"
+        description={
+          editingInstructor
+            ? `${editingInstructor.full_name} (@${editingInstructor.username})`
+            : undefined
+        }
+        maxWidthClass="max-w-md"
+      >
+        {editingInstructor && (
+          <form onSubmit={handleUpdateQuota} className="space-y-4 text-[13px]">
+            {errorMessage && (
+              <Alert variant="error" onClose={() => setErrorMessage("")}>
+                {errorMessage}
+              </Alert>
+            )}
+
+            <div>
+              <label htmlFor="quota-value" className="block font-medium text-slate-700 mb-1">
+                Định mức tokens mỗi ngày
+              </label>
+              <input
+                id="quota-value"
+                type="number"
+                min="0"
+                required
+                value={newQuotaValue}
+                onChange={(e) => setNewQuotaValue(e.target.value)}
+                className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              />
+              <p className="text-[13px] text-slate-500 mt-1">
+                Mặc định: 50,000 tokens/ngày. Đã dùng hôm nay: {(editingInstructor.used_tokens_today || 0).toLocaleString()} tokens.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setEditingInstructor(null)}
-                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
-                aria-label="Đóng"
+                className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-[13px] transition-colors"
               >
-                Đóng
+                Hủy bỏ
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Lưu thay đổi</span>
               </button>
             </div>
-
-            <form onSubmit={handleUpdateQuota} className="space-y-4 mt-4 text-[13px]">
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Định mức tokens mỗi ngày
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={newQuotaValue}
-                  onChange={(e) => setNewQuotaValue(e.target.value)}
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-                <p className="text-[13px] text-slate-500 mt-1">
-                  Mặc định: 50,000 tokens/ngày. Đã dùng hôm nay: {(editingInstructor.used_tokens_today || 0).toLocaleString()} tokens.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingInstructor(null)}
-                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-[13px] transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Lưu thay đổi</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -3,8 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { swrFetcher, API_URL } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { swrFetcher, API_URL, getAccessToken } from "@/lib/api";
+import { Loader2, Inbox } from "lucide-react";
+import { featureLabel, featureBadgeClass, FEATURE_META } from "@/lib/feature-labels";
+import Alert from "@/components/ui/alert";
+import Modal from "@/components/ui/modal";
 
 // ==========================================
 // ĐỊNH NGHĨA DỮ LIỆU CHUẨN TỪ CENTRAL BACKEND
@@ -47,30 +50,6 @@ export interface InstructorOption {
 
 const EMPTY_TEXT = "Chưa có dữ liệu";
 
-// Bảng ánh xạ tên tiếng Việt cho các tính năng AI
-const FEATURE_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  GENERATE_TESTCASES: {
-    label: "Sinh testcase tự động",
-    color: "text-primary",
-    bg: "bg-primary-bg",
-  },
-  REVIEW_CODE: {
-    label: "Đánh giá & review code",
-    color: "text-emerald-700",
-    bg: "bg-emerald-50",
-  },
-  VERIFY_PLAGIARISM: {
-    label: "Kiểm tra đạo văn",
-    color: "text-amber-700",
-    bg: "bg-amber-50",
-  },
-  EVALUATE_WEB_UI: {
-    label: "Đánh giá giao diện web",
-    color: "text-sky-700",
-    bg: "bg-sky-50",
-  },
-};
-
 export default function ReportsPage() {
   // ==========================================
   // STATE MANAGEMENT
@@ -107,7 +86,7 @@ export default function ReportsPage() {
 
   // Helper lấy cấu hình API
   const getApiConfig = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
+    const token = getAccessToken();
     return { token, apiUrl: API_URL };
   };
 
@@ -256,7 +235,7 @@ export default function ReportsPage() {
 
     return Object.entries(counts).map(([feat, data]) => ({
       feature: feat,
-      label: FEATURE_MAP[feat]?.label || feat,
+      label: featureLabel(feat),
       count: data.count,
       tokens: data.tokens,
       percentage: totalTokens > 0 ? Math.round((data.tokens / totalTokens) * 100) : 0,
@@ -296,6 +275,7 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setShowExportModal(false);
     setSuccessMessage("Đã tải tệp JSON báo cáo thành công.");
   };
 
@@ -319,7 +299,7 @@ export default function ReportsPage() {
       `"${log.full_name || ""}"`,
       `"${log.username || ""}"`,
       `"${log.user_id}"`,
-      `"${FEATURE_MAP[log.feature_type]?.label || log.feature_type}"`,
+      `"${featureLabel(log.feature_type)}"`,
       `"${log.model_name}"`,
       log.prompt_tokens,
       log.completion_tokens,
@@ -347,31 +327,24 @@ export default function ReportsPage() {
 
   const hasRecords = pagination.total_items > 0;
 
-  const topFeatureLabel =
-    FEATURE_MAP[overview?.ai_token_usage?.top_consuming_feature || ""]?.label ||
-    overview?.ai_token_usage?.top_consuming_feature ||
-    EMPTY_TEXT;
+  const topFeatureLabel = featureLabel(
+    overview?.ai_token_usage?.top_consuming_feature
+  );
 
   return (
     <div className="flex flex-col w-full gap-6 pb-12">
       {/* Toast thông báo lỗi */}
       {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng">
-            Đóng
-          </button>
-        </div>
+        <Alert variant="error" onClose={() => setErrorMessage("")}>
+          {errorMessage}
+        </Alert>
       )}
 
       {/* Toast thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng">
-            Đóng
-          </button>
-        </div>
+        <Alert variant="success" onClose={() => setSuccessMessage("")}>
+          {successMessage}
+        </Alert>
       )}
 
       {/* ==========================================
@@ -408,13 +381,6 @@ export default function ReportsPage() {
             aria-label="Làm mới dữ liệu"
           >
             <span>{loading ? "Đang tải..." : "Làm mới"}</span>
-          </button>
-
-          <button
-            onClick={handleDownloadJson}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-700 hover:text-slate-900 transition shadow-sm"
-          >
-            <span>Tải JSON</span>
           </button>
 
           <button
@@ -628,13 +594,15 @@ export default function ReportsPage() {
             <select
               value={selectedFeature}
               onChange={(e) => setSelectedFeature(e.target.value)}
+              aria-label="Lọc theo tác vụ AI"
               className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition"
             >
               <option value="ALL">Tất cả tác vụ AI</option>
-              <option value="GENERATE_TESTCASES">Sinh testcase tự động</option>
-              <option value="REVIEW_CODE">Đánh giá & review code</option>
-              <option value="VERIFY_PLAGIARISM">Kiểm tra đạo văn</option>
-              <option value="EVALUATE_WEB_UI">Đánh giá giao diện web</option>
+              {Object.entries(FEATURE_META).map(([key, meta]) => (
+                <option key={key} value={key}>
+                  {meta.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -690,14 +658,14 @@ export default function ReportsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[13px] font-medium text-slate-500">
-                <th className="py-3 px-4">Mã bản ghi</th>
-                <th className="py-3 px-4">Thời gian</th>
-                <th className="py-3 px-4">Giảng viên</th>
-                <th className="py-3 px-4">Tác vụ AI</th>
-                <th className="py-3 px-4">Mô hình</th>
-                <th className="py-3 px-4 text-right">Prompt / Completion</th>
-                <th className="py-3 px-4 text-right">Tổng tokens</th>
-                <th className="py-3 px-4 text-center">Chi tiết</th>
+                <th scope="col" className="py-3 px-4">Mã bản ghi</th>
+                <th scope="col" className="py-3 px-4">Thời gian</th>
+                <th scope="col" className="py-3 px-4">Giảng viên</th>
+                <th scope="col" className="py-3 px-4">Tác vụ AI</th>
+                <th scope="col" className="py-3 px-4">Mô hình</th>
+                <th scope="col" className="py-3 px-4 text-right">Prompt / Completion</th>
+                <th scope="col" className="py-3 px-4 text-right">Tổng tokens</th>
+                <th scope="col" className="py-3 px-4 text-center">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
@@ -712,6 +680,7 @@ export default function ReportsPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-1.5">
+                      <Inbox className="w-8 h-8 text-slate-300 mb-1" aria-hidden="true" />
                       <span className="text-sm font-medium text-slate-600">{EMPTY_TEXT}</span>
                       <p className="text-[13px] text-slate-500">Không có bản ghi nhật ký nào phù hợp với bộ lọc.</p>
                     </div>
@@ -719,12 +688,6 @@ export default function ReportsPage() {
                 </tr>
               ) : (
                 displayedLogs.map((log) => {
-                  const featureInfo = FEATURE_MAP[log.feature_type] || {
-                    label: log.feature_type,
-                    color: "text-slate-700",
-                    bg: "bg-slate-100",
-                  };
-
                   return (
                     <tr
                       key={log.id}
@@ -750,9 +713,9 @@ export default function ReportsPage() {
                       {/* Tính năng AI */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium ${featureInfo.bg} ${featureInfo.color}`}
+                          className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium ${featureBadgeClass(log.feature_type)}`}
                         >
-                          {featureInfo.label}
+                          {featureLabel(log.feature_type)}
                         </span>
                       </td>
 
@@ -844,165 +807,159 @@ export default function ReportsPage() {
       {/* ==========================================
           MODAL CHI TIẾT BẢN GHI (LOG DETAIL MODAL)
       ========================================== */}
-      {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-xl rounded-xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <Modal
+        open={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        title="Chi tiết nhật ký sử dụng AI"
+        description={selectedLog?.id}
+        maxWidthClass="max-w-xl"
+        cardClassName="max-h-[90vh] flex flex-col overflow-hidden"
+        contentClassName="flex-1 min-h-0 overflow-y-auto mt-4"
+        footer={
+          <button
+            onClick={() => setSelectedLog(null)}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-[13px] transition"
+          >
+            Đóng
+          </button>
+        }
+      >
+        {selectedLog && (
+          <div className="space-y-4 text-[13px] text-slate-700">
+            <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200/70">
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">Chi tiết nhật ký sử dụng AI</h3>
-                <p className="text-[13px] text-slate-500">{selectedLog.id}</p>
-              </div>
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="px-2.5 py-1 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/50 transition"
-                aria-label="Đóng"
-              >
-                Đóng
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-4 text-[13px] text-slate-700">
-              <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200/70">
-                <div>
-                  <span className="text-[13px] text-slate-500 font-medium">Thời gian gọi:</span>
-                  <div className="font-medium text-slate-900 mt-0.5">
-                    {new Date(selectedLog.created_at).toLocaleString("vi-VN")}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[13px] text-slate-500 font-medium">Mô hình AI:</span>
-                  <div className="text-slate-900 mt-0.5 font-medium">
-                    {selectedLog.model_name}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[13px] text-slate-500 font-medium">Giảng viên:</span>
-                  <div className="font-medium text-slate-900 mt-0.5">{selectedLog.full_name}</div>
-                  <div className="text-[13px] text-slate-500">@{selectedLog.username}</div>
-                </div>
-                <div>
-                  <span className="text-[13px] text-slate-500 font-medium">Mã User ID:</span>
-                  <div className="text-[13px] text-slate-600 truncate mt-0.5">
-                    {selectedLog.user_id}
-                  </div>
+                <span className="text-[13px] text-slate-500 font-medium">Thời gian gọi:</span>
+                <div className="font-medium text-slate-900 mt-0.5">
+                  {new Date(selectedLog.created_at).toLocaleString("vi-VN")}
                 </div>
               </div>
-
               <div>
-                <label className="text-[13px] font-medium text-slate-500 block mb-1">
-                  Nghiệp vụ thực thi:
-                </label>
-                <div className="p-3 bg-white border border-slate-200 rounded-lg font-medium text-slate-800">
-                  {FEATURE_MAP[selectedLog.feature_type]?.label || selectedLog.feature_type}
+                <span className="text-[13px] text-slate-500 font-medium">Mô hình AI:</span>
+                <div className="text-slate-900 mt-0.5 font-medium">
+                  {selectedLog.model_name}
                 </div>
               </div>
-
               <div>
-                <label className="text-[13px] font-medium text-slate-500 block mb-1">
-                  Chi tiết phân bổ Tokens:
-                </label>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <span className="text-[13px] text-slate-500 font-medium block">Prompt</span>
-                    <span className="font-semibold text-slate-900 text-sm mt-1 block">
-                      {selectedLog.prompt_tokens.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <span className="text-[13px] text-slate-500 font-medium block">Completion</span>
-                    <span className="font-semibold text-slate-900 text-sm mt-1 block">
-                      {selectedLog.completion_tokens.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-primary-bg border border-primary rounded-lg">
-                    <span className="text-[13px] text-primary font-medium block">Tổng cộng</span>
-                    <span className="font-semibold text-primary text-sm mt-1 block">
-                      {selectedLog.total_tokens.toLocaleString()}
-                    </span>
-                  </div>
+                <span className="text-[13px] text-slate-500 font-medium">Giảng viên:</span>
+                <div className="font-medium text-slate-900 mt-0.5">{selectedLog.full_name}</div>
+                <div className="text-[13px] text-slate-500">@{selectedLog.username}</div>
+              </div>
+              <div>
+                <span className="text-[13px] text-slate-500 font-medium">Mã User ID:</span>
+                <div className="text-[13px] text-slate-600 truncate mt-0.5">
+                  {selectedLog.user_id}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-[13px] transition"
-              >
-                Đóng
-              </button>
+            <div>
+              <label className="text-[13px] font-medium text-slate-500 block mb-1">
+                Nghiệp vụ thực thi:
+              </label>
+              <div className="p-3 bg-white border border-slate-200 rounded-lg font-medium text-slate-800">
+                {featureLabel(selectedLog.feature_type)}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[13px] font-medium text-slate-500 block mb-1">
+                Chi tiết phân bổ Tokens:
+              </label>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <span className="text-[13px] text-slate-500 font-medium block">Prompt</span>
+                  <span className="font-semibold text-slate-900 text-sm mt-1 block">
+                    {selectedLog.prompt_tokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <span className="text-[13px] text-slate-500 font-medium block">Completion</span>
+                  <span className="font-semibold text-slate-900 text-sm mt-1 block">
+                    {selectedLog.completion_tokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-3 bg-primary-bg border border-primary rounded-lg">
+                  <span className="text-[13px] text-primary font-medium block">Tổng cộng</span>
+                  <span className="font-semibold text-primary text-sm mt-1 block">
+                    {selectedLog.total_tokens.toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* ==========================================
-          MODAL XUẤT BÁO CÁO (EXCEL / IN)
+          MODAL XUẤT BÁO CÁO (CSV / PDF / JSON)
       ========================================== */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-semibold text-slate-900 text-sm">Xuất báo cáo kiểm toán</h3>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-2.5 py-1 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg"
-                aria-label="Đóng"
-              >
-                Đóng
-              </button>
-            </div>
+      <Modal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Xuất báo cáo kiểm toán"
+        maxWidthClass="max-w-md"
+        footer={
+          <button
+            onClick={() => setShowExportModal(false)}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-[13px] transition"
+          >
+            Hủy bỏ
+          </button>
+        }
+      >
+        <div className="space-y-4 text-[13px] text-slate-600">
+          <p>
+            Chọn định dạng xuất dữ liệu cho <b>{displayedLogs.length}</b> bản ghi nhật ký hiện đang hiển thị:
+          </p>
 
-            <div className="p-6 space-y-4 text-[13px] text-slate-600">
-              <p>
-                Chọn định dạng xuất dữ liệu cho <b>{displayedLogs.length}</b> bản ghi nhật ký hiện đang hiển thị:
-              </p>
-
-              <div className="space-y-3">
-                <button
-                  onClick={handleExportCsv}
-                  className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
-                >
-                  <div>
-                    <div className="font-semibold text-slate-900">
-                      Bảng tính Excel (.CSV UTF-8)
-                    </div>
-                    <div className="text-[13px] text-slate-500">
-                      Mở trực tiếp trên Microsoft Excel, Google Sheets không lỗi font tiếng Việt
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowExportModal(false);
-                    window.print();
-                  }}
-                  className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
-                >
-                  <div>
-                    <div className="font-semibold text-slate-900">
-                      In báo cáo / Lưu PDF (Print)
-                    </div>
-                    <div className="text-[13px] text-slate-500">
-                      In trực tiếp ra văn bản hoặc lưu định dạng PDF
-                    </div>
-                  </div>
-                </button>
+          <div className="space-y-3">
+            <button
+              onClick={handleExportCsv}
+              className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
+            >
+              <div>
+                <div className="font-semibold text-slate-900">
+                  Bảng tính Excel (.CSV UTF-8)
+                </div>
+                <div className="text-[13px] text-slate-500">
+                  Mở trực tiếp trên Microsoft Excel, Google Sheets không lỗi font tiếng Việt
+                </div>
               </div>
-            </div>
+            </button>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-[13px] transition"
-              >
-                Hủy bỏ
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setShowExportModal(false);
+                window.print();
+              }}
+              className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
+            >
+              <div>
+                <div className="font-semibold text-slate-900">
+                  In báo cáo / Lưu PDF (Print)
+                </div>
+                <div className="text-[13px] text-slate-500">
+                  In trực tiếp ra văn bản hoặc lưu định dạng PDF
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={handleDownloadJson}
+              className="w-full p-3.5 border border-slate-200 hover:border-primary hover:bg-primary-bg rounded-xl flex items-center justify-between text-left transition"
+            >
+              <div>
+                <div className="font-semibold text-slate-900">
+                  Dữ liệu thô (.JSON)
+                </div>
+                <div className="text-[13px] text-slate-500">
+                  Tệp JSON đầy đủ để xử lý dữ liệu hoặc tích hợp hệ thống khác
+                </div>
+              </div>
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

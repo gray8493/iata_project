@@ -5,15 +5,53 @@ export const API_URL = (
   (process.env.NODE_ENV === "development" ? DEFAULT_DEV_API_URL : "")
 ).replace(/\/+$/, "");
 
-export function getAccessToken(): string | null {
+const ACCESS_TOKEN_KEY = "aita_access_token";
+const USER_KEY = "aita_user";
+
+function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("aita_access_token");
+  return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+}
+
+export function getAccessToken(): string | null {
+  return readStorage(ACCESS_TOKEN_KEY);
+}
+
+export function getStoredUser<T = unknown>(): T | null {
+  if (typeof window === "undefined") return null;
+  const raw = readStorage(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function storeSession(token: string, user: unknown, remember: boolean): void {
+  if (typeof window === "undefined") return;
+  const target = remember ? window.localStorage : window.sessionStorage;
+  const other = remember ? window.sessionStorage : window.localStorage;
+  target.setItem(ACCESS_TOKEN_KEY, token);
+  target.setItem(USER_KEY, JSON.stringify(user));
+  other.removeItem(ACCESS_TOKEN_KEY);
+  other.removeItem(USER_KEY);
+}
+
+export function updateStoredUser(user: unknown): void {
+  if (typeof window === "undefined") return;
+  const target = window.localStorage.getItem(ACCESS_TOKEN_KEY)
+    ? window.localStorage
+    : window.sessionStorage;
+  target.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("aita_access_token");
-  localStorage.removeItem("aita_user");
+  [window.localStorage, window.sessionStorage].forEach((storage) => {
+    storage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(USER_KEY);
+  });
 }
 
 export class ApiError extends Error {

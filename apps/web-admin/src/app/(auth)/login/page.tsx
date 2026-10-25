@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { API_URL, getAccessToken, storeSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,11 +15,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+
+  // Đã có phiên đăng nhập thì không cần đăng nhập lại
+  useEffect(() => {
+    if (getAccessToken()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+    setInfoMessage("");
     setLoading(true);
 
     try {
@@ -43,8 +52,7 @@ export default function LoginPage() {
       if (res.ok && data.success) {
         setSuccessMessage("Đăng nhập thành công! Đang chuyển hướng...");
         if (data.data?.access_token) {
-          localStorage.setItem("aita_access_token", data.data.access_token);
-          localStorage.setItem("aita_user", JSON.stringify(data.data.user));
+          storeSession(data.data.access_token, data.data.user, rememberMe);
         }
         setTimeout(() => {
           router.replace("/dashboard");
@@ -108,9 +116,11 @@ export default function LoginPage() {
               </label>
               <input
                 id="username"
+                name="username"
                 type="text"
                 required
                 autoFocus
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Nhập tài khoản hoặc email"
@@ -131,7 +141,7 @@ export default function LoginPage() {
                   href="#forgot"
                   onClick={(e) => {
                     e.preventDefault();
-                    setErrorMessage("Vui lòng liên hệ Quản trị viên phòng IT để được cấp lại mật khẩu.");
+                    setInfoMessage("Vui lòng liên hệ Quản trị viên phòng IT để được cấp lại mật khẩu.");
                   }}
                   className="text-xs font-medium text-primary hover:text-primary-hover transition"
                 >
@@ -141,8 +151,10 @@ export default function LoginPage() {
               <div className="relative flex items-center">
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="aita-input w-full pl-4 pr-14 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 transition"
@@ -151,6 +163,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-0 py-1.5 px-2 text-xs font-medium text-slate-500 hover:text-slate-700 transition"
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
                   {showPassword ? "Ẩn" : "Hiện"}
                 </button>
@@ -172,6 +185,11 @@ export default function LoginPage() {
                 />
                 <span>Ghi nhớ phiên đăng nhập</span>
               </label>
+              {!rememberMe && (
+                <p className="text-[13px] text-slate-500 mt-1">
+                  Phiên sẽ tự kết thúc khi bạn đóng trình duyệt.
+                </p>
+              )}
             </div>
 
             {/* Nút Đăng nhập */}
@@ -208,6 +226,16 @@ export default function LoginPage() {
               className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs"
             >
               {successMessage}
+            </div>
+          )}
+
+          {/* Thông báo thông tin — hiển thị dưới form */}
+          {infoMessage && (
+            <div
+              role="status"
+              className="mt-4 p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs"
+            >
+              {infoMessage}
             </div>
           )}
         </div>
