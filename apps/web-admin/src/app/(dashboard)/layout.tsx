@@ -4,12 +4,26 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { API_URL } from "@/lib/api";
+import {
+  LayoutDashboard,
+  Users,
+  Gauge,
+  ScrollText,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  API_URL,
+  getAccessToken,
+  getStoredUser,
+  updateStoredUser,
+  clearSession,
+} from "@/lib/api";
 
 interface UserProfile {
   id?: string | number;
   username: string;
   fullName?: string;
+  full_name?: string;
   email?: string;
   role: string;
 }
@@ -19,6 +33,19 @@ const ROLE_LABELS: Record<string, string> = {
   INSTRUCTOR: "Giảng viên",
 };
 
+const FALLBACK_USER: UserProfile = {
+  username: "Nguyễn Hoàng Đức",
+  email: "admin@aita.edu.vn",
+  role: "ADMIN",
+};
+
+const MENU_ITEMS: { title: string; href: string; icon: LucideIcon }[] = [
+  { title: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Quản lý giảng viên", href: "/users", icon: Users },
+  { title: "Giám sát hạn ngạch AI", href: "/ai-quota", icon: Gauge },
+  { title: "Báo cáo & kiểm toán", href: "/reports", icon: ScrollText },
+];
+
 export default function DashboardLayout({
   children,
 }: {
@@ -27,54 +54,61 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<UserProfile>({
-    username: "Nguyễn Hoàng Đức",
-    email: "admin@aita.edu.vn",
-    role: "ADMIN",
-  });
+  const [user, setUser] = useState<UserProfile>(FALLBACK_USER);
 
-  // Fetch current user from Backend or LocalStorage
+  // Bảo vệ route: chưa có phiên đăng nhập thì chuyển về /login
   useEffect(() => {
-    const storedUser = localStorage.getItem("aita_user");
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setUser((prev) => ({
-          ...prev,
-          username: parsed.fullName || parsed.username || prev.username,
-          email: parsed.email || prev.email,
-          role: parsed.role || prev.role,
-        }));
-      } catch (e) {
-        console.error("Lỗi đọc dữ liệu người dùng từ cache", e);
-      }
+    const token = getAccessToken();
+    if (!token) {
+      router.replace("/login");
+      return;
     }
 
-    const token = localStorage.getItem("aita_access_token");
-    if (token) {
-      fetch(`${API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.success && data?.data) {
-            const fetched = data.data;
-            setUser({
-              id: fetched.id,
-              username: fetched.fullName || fetched.username || "Nguyễn Hoàng Đức",
-              email: fetched.email || "admin@aita.edu.vn",
-              role: fetched.role || "ADMIN",
-            });
-            localStorage.setItem("aita_user", JSON.stringify(fetched));
-          }
-        })
-        .catch(() => {
-          // Giữ fallback an toàn
-        });
+    const storedUser = getStoredUser<UserProfile>();
+    if (storedUser) {
+      setUser({
+        ...FALLBACK_USER,
+        username:
+          storedUser.full_name || storedUser.fullName || storedUser.username || FALLBACK_USER.username,
+        email: storedUser.email || FALLBACK_USER.email,
+        role: storedUser.role || FALLBACK_USER.role,
+      });
     }
-  }, []);
+
+    // Đồng bộ hồ sơ mới nhất từ Backend
+    fetch(`${API_URL}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && data?.data) {
+          const fetched = data.data;
+          setUser({
+            id: fetched.id,
+            username:
+              fetched.full_name || fetched.fullName || fetched.username || FALLBACK_USER.username,
+            email: fetched.email || FALLBACK_USER.email,
+            role: fetched.role || FALLBACK_USER.role,
+          });
+          updateStoredUser(fetched);
+        }
+      })
+      .catch(() => {
+        // Giữ dữ liệu cache làm fallback an toàn
+      });
+  }, [router]);
+
+  // Cập nhật tiêu đề tab theo trang đang mở
+  useEffect(() => {
+    const active = MENU_ITEMS.find(
+      (item) =>
+        pathname === item.href ||
+        (item.href !== "/dashboard" && pathname?.startsWith(item.href))
+    );
+    document.title = active ? `${active.title} • AITA Quản trị` : "AITA Quản trị";
+  }, [pathname]);
 
   // Đóng mobile menu khi chuyển trang
   useEffect(() => {
@@ -82,51 +116,34 @@ export default function DashboardLayout({
   }, [pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem("aita_access_token");
-    localStorage.removeItem("aita_user");
+    clearSession();
     router.push("/login");
   };
-
-  const menuItems = [
-    {
-      title: "Tổng quan",
-      href: "/dashboard",
-    },
-    {
-      title: "Quản lý giảng viên",
-      href: "/users",
-    },
-    {
-      title: "Giám sát hạn ngạch AI",
-      href: "/ai-quota",
-    },
-    {
-      title: "Báo cáo & kiểm toán",
-      href: "/reports",
-    },
-  ];
 
   const firstLetter = (user.username || "A").charAt(0).toUpperCase();
   const roleLabel = ROLE_LABELS[user.role] || user.role;
 
   const renderNavLinks = () => (
-    <nav className="space-y-1">
-      {menuItems.map((item) => {
+    <nav aria-label="Điều hướng chính" className="space-y-1">
+      {MENU_ITEMS.map((item) => {
         const isActive =
           pathname === item.href ||
           (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+        const Icon = item.icon;
 
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center px-3 h-10 rounded-lg text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+            aria-current={isActive ? "page" : undefined}
+            className={`flex items-center gap-2.5 px-3 h-10 rounded-lg text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isActive
                 ? "bg-primary-bg text-primary font-semibold"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
             }`}
           >
-            <span>{item.title}</span>
+            <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{item.title}</span>
           </Link>
         );
       })}

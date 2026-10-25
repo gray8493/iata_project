@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { swrFetcher, API_URL } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { Loader2, Inbox } from "lucide-react";
+import { featureLabel, featureBadgeClass } from "@/lib/feature-labels";
+import Alert from "@/components/ui/alert";
 
 interface OverviewData {
   total_instructors: number;
@@ -35,13 +37,6 @@ interface PaginationData {
   total_pages: number;
 }
 
-const FEATURE_NAMES: Record<string, string> = {
-  GENERATE_TESTCASES: "Sinh testcase tự động",
-  REVIEW_CODE: "Đánh giá & review code",
-  VERIFY_PLAGIARISM: "Kiểm tra đạo văn",
-  EVALUATE_WEB_UI: "Đánh giá giao diện web",
-};
-
 export default function DashboardOverviewPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,6 +64,26 @@ export default function DashboardOverviewPage() {
   });
 
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Đóng menu xuất báo cáo khi click ra ngoài hoặc nhấn Esc
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowExportMenu(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showExportMenu]);
 
   // Fetch real data from NestJS Backend APIs
   const fetchDashboardData = useCallback(async (pageNumber = 1) => {
@@ -163,7 +178,7 @@ export default function DashboardOverviewPage() {
 
     const totalConsumed = overview?.ai_token_usage?.total_tokens_consumed_month ?? 0;
     const totalBudget = overview?.ai_token_usage?.total_budget_limit ?? 0;
-    const topFeature = overview?.ai_token_usage?.top_consuming_feature || "Chưa có dữ liệu";
+    const topFeature = featureLabel(overview?.ai_token_usage?.top_consuming_feature);
 
     let csv = "\uFEFF";
     csv += "BÁO CÁO TỔNG QUAN HỆ THỐNG AITA\n";
@@ -182,7 +197,7 @@ export default function DashboardOverviewPage() {
 
     if (usageItems && usageItems.length > 0) {
       usageItems.forEach((log) => {
-        csv += `"${log.id}","${log.full_name}","${log.username}","${log.feature_type}","${log.model_name}",${log.prompt_tokens},${log.completion_tokens},${log.total_tokens},"${new Date(log.created_at).toLocaleString("vi-VN")}"\n`;
+        csv += `"${log.id}","${log.full_name}","${log.username}","${featureLabel(log.feature_type)}","${log.model_name}",${log.prompt_tokens},${log.completion_tokens},${log.total_tokens},"${new Date(log.created_at).toLocaleString("vi-VN")}"\n`;
       });
     } else {
       csv += "Chưa có dữ liệu\n";
@@ -205,9 +220,7 @@ export default function DashboardOverviewPage() {
   };
 
   const topFeatureRaw = overview?.ai_token_usage?.top_consuming_feature;
-  const topFeatureDisplay = topFeatureRaw
-    ? FEATURE_NAMES[topFeatureRaw] || topFeatureRaw
-    : null;
+  const topFeatureDisplay = topFeatureRaw ? featureLabel(topFeatureRaw) : null;
 
   const hasUsageRecords = pagination.total_items > 0;
 
@@ -230,8 +243,16 @@ export default function DashboardOverviewPage() {
             Bảng điều khiển tổng quan
           </h1>
           <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span>Cập nhật lúc {lastSyncText}</span>
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                errorMessage ? "bg-rose-500" : "bg-emerald-500"
+              }`}
+            />
+            <span>
+              {errorMessage
+                ? "Không kết nối được máy chủ"
+                : `Cập nhật lúc ${lastSyncText}`}
+            </span>
           </div>
         </div>
 
@@ -248,10 +269,12 @@ export default function DashboardOverviewPage() {
           </button>
 
           {/* Menu Xuất Báo Cáo - Nút Primary duy nhất */}
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <button
               type="button"
               onClick={() => setShowExportMenu(!showExportMenu)}
+              aria-haspopup="menu"
+              aria-expanded={showExportMenu}
               className="flex items-center gap-2 px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-colors min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               aria-label="Xuất báo cáo dữ liệu"
             >
@@ -282,7 +305,7 @@ export default function DashboardOverviewPage() {
 
       {/* Thông báo lỗi nếu có */}
       {errorMessage && (
-        <section className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-[13px] text-rose-700">
+        <Alert variant="error">
           <span>{errorMessage}</span>
           <Link
             href="/login"
@@ -290,7 +313,7 @@ export default function DashboardOverviewPage() {
           >
             Đăng nhập lại
           </Link>
-        </section>
+        </Alert>
       )}
 
       {/* ================= 4 THẺ KPI ================= */}
@@ -355,7 +378,7 @@ export default function DashboardOverviewPage() {
               <div className="text-lg font-medium text-slate-500">Chưa có dữ liệu</div>
             )}
             <div className="text-[13px] text-slate-500 mt-1">
-              Ghi nhận trong tháng này
+              Tổng lượt ghi nhận
             </div>
           </div>
         </div>
@@ -403,14 +426,14 @@ export default function DashboardOverviewPage() {
           <table className="w-full text-left text-[13px]">
             <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4 font-medium">Mã log</th>
-                <th className="py-3 px-4 font-medium">Giảng viên</th>
-                <th className="py-3 px-4 font-medium">Tính năng</th>
-                <th className="py-3 px-4 font-medium">Mô hình</th>
-                <th className="py-3 px-4 text-right font-medium">Prompt</th>
-                <th className="py-3 px-4 text-right font-medium">Completion</th>
-                <th className="py-3 px-4 text-right font-medium">Tổng token</th>
-                <th className="py-3 px-4 text-right font-medium">Thời gian</th>
+                <th scope="col" className="py-3 px-4 font-medium">Mã log</th>
+                <th scope="col" className="py-3 px-4 font-medium">Giảng viên</th>
+                <th scope="col" className="py-3 px-4 font-medium">Tính năng</th>
+                <th scope="col" className="py-3 px-4 font-medium">Mô hình</th>
+                <th scope="col" className="py-3 px-4 text-right font-medium">Prompt</th>
+                <th scope="col" className="py-3 px-4 text-right font-medium">Completion</th>
+                <th scope="col" className="py-3 px-4 text-right font-medium">Tổng token</th>
+                <th scope="col" className="py-3 px-4 text-right font-medium">Thời gian</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal">
@@ -437,8 +460,8 @@ export default function DashboardOverviewPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                      <span className="inline-block px-2 py-0.5 rounded text-[13px] bg-slate-100 text-slate-700">
-                        {FEATURE_NAMES[item.feature_type] || item.feature_type}
+                      <span className={`inline-block px-2 py-0.5 rounded text-[13px] ${featureBadgeClass(item.feature_type)}`}>
+                        {featureLabel(item.feature_type)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">
@@ -463,6 +486,7 @@ export default function DashboardOverviewPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-1.5">
+                      <Inbox className="w-8 h-8 text-slate-300 mb-1" aria-hidden="true" />
                       <span className="text-sm font-medium text-slate-600">
                         Chưa có dữ liệu
                       </span>

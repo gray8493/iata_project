@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { Loader2, Inbox } from "lucide-react";
+import { API_URL, getAccessToken, getStoredUser } from "@/lib/api";
+import Alert from "@/components/ui/alert";
+import Modal from "@/components/ui/modal";
 
 interface UserItem {
   id: string;
@@ -61,21 +63,20 @@ export default function UsersManagementPage() {
   const [editRole, setEditRole] = useState<"INSTRUCTOR" | "ADMIN">("INSTRUCTOR");
   const [editQuota, setEditQuota] = useState<string>("");
   const [editNewPassword, setEditNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Modal Xác Nhận Xóa
   const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Nạp thông tin tài khoản đang đăng nhập từ localStorage
+  const anyModalOpen = showCreateModal || showEditModal || showDeleteConfirm;
+
+  // Nạp thông tin tài khoản đang đăng nhập từ cache phiên
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("aita_user") : null;
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setCurrentUser({ id: parsed.id, username: parsed.username });
-      } catch {
-        // Bỏ qua nếu dữ liệu cache không hợp lệ
-      }
+    const parsed = getStoredUser<{ id?: string; username?: string }>();
+    if (parsed) {
+      setCurrentUser({ id: parsed.id, username: parsed.username });
     }
   }, []);
 
@@ -117,7 +118,7 @@ export default function UsersManagementPage() {
   }, [errorMessage]);
 
   const getApiConfig = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("aita_access_token") : null;
+    const token = getAccessToken();
     return { token, apiUrl: API_URL };
   };
 
@@ -377,7 +378,7 @@ export default function UsersManagementPage() {
 
       const json = await res.json();
       if (res.ok && json.success) {
-        setSuccessMessage(`Đã xóa tài khoản "${deletingUser.username}" thành công.`);
+        setSuccessMessage(`Đã xóa và vô hiệu hóa tài khoản "${deletingUser.username}" thành công.`);
         setShowDeleteConfirm(false);
         setDeletingUser(null);
         fetchUsers(1);
@@ -421,24 +422,18 @@ export default function UsersManagementPage() {
 
   return (
     <div className="flex flex-col w-full gap-6">
-      {/* Thông báo lỗi */}
-      {errorMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage("")} className="font-medium hover:text-rose-900" aria-label="Đóng thông báo">
-            Đóng
-          </button>
-        </div>
+      {/* Thông báo lỗi — ẩn khi modal đang mở (lỗi được hiển thị bên trong modal) */}
+      {errorMessage && !anyModalOpen && (
+        <Alert variant="error" onClose={() => setErrorMessage("")}>
+          {errorMessage}
+        </Alert>
       )}
 
       {/* Thông báo thành công */}
       {successMessage && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[13px] font-medium animate-in fade-in">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage("")} className="font-medium hover:text-emerald-950" aria-label="Đóng thông báo">
-            Đóng
-          </button>
-        </div>
+        <Alert variant="success" onClose={() => setSuccessMessage("")}>
+          {successMessage}
+        </Alert>
       )}
 
       {/* ================= HEADER TRANG ================= */}
@@ -492,12 +487,23 @@ export default function UsersManagementPage() {
           {/* Ô tìm kiếm */}
           <div className="relative min-w-[260px] flex-1 max-w-sm">
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo username, họ tên, email..."
-              className="w-full px-3 h-10 rounded-lg text-[13px] bg-slate-50 border border-slate-200 placeholder:text-slate-500 focus:outline-none focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+              aria-label="Tìm kiếm tài khoản"
+              className="w-full px-3 pr-9 h-10 rounded-lg text-[13px] bg-slate-50 border border-slate-200 placeholder:text-slate-500 focus:outline-none focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-0 top-0 h-10 px-2.5 text-slate-400 hover:text-slate-700 transition-colors"
+                aria-label="Xóa nội dung tìm kiếm"
+              >
+                ×
+              </button>
+            )}
           </div>
 
           {/* Lọc Vai trò */}
@@ -534,13 +540,13 @@ export default function UsersManagementPage() {
           <table className="w-full text-left text-[13px]">
             <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4 font-medium">Tên đăng nhập</th>
-                <th className="py-3 px-4 font-medium">Họ và tên</th>
-                <th className="py-3 px-4 font-medium">Email</th>
-                <th className="py-3 px-4 font-medium">Vai trò</th>
-                <th className="py-3 px-4 text-center font-medium">Trạng thái</th>
-                <th className="py-3 px-4 font-medium">Ngày tạo</th>
-                <th className="py-3 px-4 text-right font-medium">Thao tác</th>
+                <th scope="col" className="py-3 px-4 font-medium">Tên đăng nhập</th>
+                <th scope="col" className="py-3 px-4 font-medium">Họ và tên</th>
+                <th scope="col" className="py-3 px-4 font-medium">Email</th>
+                <th scope="col" className="py-3 px-4 font-medium">Vai trò</th>
+                <th scope="col" className="py-3 px-4 text-center font-medium">Trạng thái</th>
+                <th scope="col" className="py-3 px-4 font-medium">Ngày tạo</th>
+                <th scope="col" className="py-3 px-4 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal">
@@ -672,6 +678,7 @@ export default function UsersManagementPage() {
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-1.5">
+                      <Inbox className="w-8 h-8 text-slate-300 mb-1" aria-hidden="true" />
                       <span className="text-sm font-medium text-slate-600">Chưa có dữ liệu</span>
                       <p className="text-[13px] text-slate-500">
                         Không có tài khoản nào phù hợp với bộ lọc hiện tại.
@@ -724,271 +731,297 @@ export default function UsersManagementPage() {
       </section>
 
       {/* ================= MODAL CẤP TÀI KHOẢN MỚI ================= */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="font-semibold text-slate-900 text-base">
-                  Cấp tài khoản mới
-                </h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  Tạo tài khoản quản trị hoặc giảng viên trong hệ thống
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
-                aria-label="Đóng"
-              >
-                Đóng
-              </button>
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Cấp tài khoản mới"
+        description="Tạo tài khoản quản trị hoặc giảng viên trong hệ thống"
+      >
+        <form onSubmit={handleCreateUser} className="space-y-3.5 text-[13px]">
+          {errorMessage && (
+            <Alert variant="error" onClose={() => setErrorMessage("")}>
+              {errorMessage}
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="new-username" className="block font-medium text-slate-700 mb-1">
+                Tên đăng nhập <span className="text-rose-500">*</span>
+              </label>
+              <input
+                id="new-username"
+                type="text"
+                required
+                autoComplete="off"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
+                placeholder="vd: teacher_nam"
+                className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              />
+              <p className="text-[13px] text-slate-500 mt-0.5">Chữ thường, số, dấu _ (3-30 ký tự)</p>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-3.5 mt-4 text-[13px]">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Tên đăng nhập <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
-                    placeholder="vd: teacher_nam"
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                  />
-                  <p className="text-[13px] text-slate-500 mt-0.5">Chữ thường, số, dấu _ (3-30 ký tự)</p>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Vai trò <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                  >
-                    <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
-                    <option value="ADMIN">Quản trị viên (ADMIN)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Mật khẩu khởi tạo <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-                <p className="text-[13px] text-slate-500 mt-0.5">Tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số</p>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Họ và tên đầy đủ <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newFullName}
-                  onChange={(e) => setNewFullName(e.target.value)}
-                  placeholder="vd: ThS. Nguyễn Văn A"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Địa chỉ email <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="vd: nguyenvana@aita.edu.vn"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Hạn ngạch AI (Tokens/ngày)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newQuota}
-                  onChange={(e) => setNewQuota(e.target.value)}
-                  placeholder="Mặc định: 50,000 (Không bắt buộc)"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-                <p className="text-[13px] text-slate-500 mt-0.5">Để trống sẽ tự động áp dụng 50,000 tokens/ngày</p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isActionLoading}
-                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Xác nhận tạo tài khoản</span>
-                </button>
-              </div>
-            </form>
+            <div>
+              <label htmlFor="new-role" className="block font-medium text-slate-700 mb-1">
+                Vai trò <span className="text-rose-500">*</span>
+              </label>
+              <select
+                id="new-role"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
+                className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              >
+                <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
+                <option value="ADMIN">Quản trị viên (ADMIN)</option>
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label htmlFor="new-password" className="block font-medium text-slate-700 mb-1">
+              Mật khẩu khởi tạo <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative flex items-center">
+              <input
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                required
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3 pr-14 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-0 py-1.5 px-2.5 text-[13px] font-medium text-slate-500 hover:text-slate-700 transition"
+                aria-label={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showNewPassword ? "Ẩn" : "Hiện"}
+              </button>
+            </div>
+            <p className="text-[13px] text-slate-500 mt-0.5">Tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số</p>
+          </div>
+
+          <div>
+            <label htmlFor="new-fullname" className="block font-medium text-slate-700 mb-1">
+              Họ và tên đầy đủ <span className="text-rose-500">*</span>
+            </label>
+            <input
+              id="new-fullname"
+              type="text"
+              required
+              value={newFullName}
+              onChange={(e) => setNewFullName(e.target.value)}
+              placeholder="vd: ThS. Nguyễn Văn A"
+              className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="new-email" className="block font-medium text-slate-700 mb-1">
+              Địa chỉ email <span className="text-rose-500">*</span>
+            </label>
+            <input
+              id="new-email"
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="vd: nguyenvana@aita.edu.vn"
+              className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="new-quota" className="block font-medium text-slate-700 mb-1">
+              Hạn ngạch AI (Tokens/ngày)
+            </label>
+            <input
+              id="new-quota"
+              type="number"
+              min="0"
+              value={newQuota}
+              onChange={(e) => setNewQuota(e.target.value)}
+              placeholder="Mặc định: 50,000 (Không bắt buộc)"
+              className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+            />
+            <p className="text-[13px] text-slate-500 mt-0.5">Để trống sẽ tự động áp dụng 50,000 tokens/ngày</p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(false)}
+              className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+            >
+              Hủy bỏ
+            </button>
+
+            <button
+              type="submit"
+              disabled={isActionLoading}
+              className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>Xác nhận tạo tài khoản</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* ================= MODAL CHỈNH SỬA TÀI KHOẢN ================= */}
-      {showEditModal && editingUser && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="font-semibold text-slate-900 text-base">
-                  Chỉnh sửa tài khoản
-                </h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  @{editingUser.username}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditModal(false)}
-                className="px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
-                aria-label="Đóng"
-              >
-                Đóng
-              </button>
+      <Modal
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Chỉnh sửa tài khoản"
+        description={editingUser ? `@${editingUser.username}` : undefined}
+      >
+        {editingUser && (
+          <form onSubmit={handleUpdateUser} className="space-y-3.5 text-[13px]">
+            {errorMessage && (
+              <Alert variant="error" onClose={() => setErrorMessage("")}>
+                {errorMessage}
+              </Alert>
+            )}
+
+            <div>
+              <label htmlFor="edit-fullname" className="block font-medium text-slate-700 mb-1">
+                Họ và tên
+              </label>
+              <input
+                id="edit-fullname"
+                type="text"
+                required
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+                className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              />
             </div>
 
-            <form onSubmit={handleUpdateUser} className="space-y-3.5 mt-4 text-[13px]">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Họ và tên
+                <label htmlFor="edit-email" className="block font-medium text-slate-700 mb-1">
+                  Email
                 </label>
                 <input
-                  type="text"
+                  id="edit-email"
+                  type="email"
                   required
-                  value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Vai trò
-                  </label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
-                    disabled={isSelf(editingUser)}
-                    title={isSelf(editingUser) ? "Không thể hạ quyền tài khoản đang đăng nhập" : undefined}
-                    className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors disabled:text-slate-400 disabled:cursor-not-allowed"
-                  >
-                    <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
-                    <option value="ADMIN">Quản trị viên (ADMIN)</option>
-                  </select>
-                  {isSelf(editingUser) && (
-                    <p className="text-[13px] text-slate-500 mt-0.5">Không thể đổi vai trò của tài khoản đang đăng nhập.</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Hạn ngạch AI (Tokens/ngày)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editQuota}
-                  onChange={(e) => setEditQuota(e.target.value)}
-                  placeholder="Nhập số token/ngày"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Đổi mật khẩu mới (Bỏ trống nếu không đổi)
+                <label htmlFor="edit-role" className="block font-medium text-slate-700 mb-1">
+                  Vai trò
                 </label>
+                <select
+                  id="edit-role"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as "INSTRUCTOR" | "ADMIN")}
+                  disabled={isSelf(editingUser)}
+                  title={isSelf(editingUser) ? "Không thể hạ quyền tài khoản đang đăng nhập" : undefined}
+                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  <option value="INSTRUCTOR">Giảng viên (INSTRUCTOR)</option>
+                  <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                </select>
+                {isSelf(editingUser) && (
+                  <p className="text-[13px] text-slate-500 mt-0.5">Không thể đổi vai trò của tài khoản đang đăng nhập.</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="edit-quota" className="block font-medium text-slate-700 mb-1">
+                Hạn ngạch AI (Tokens/ngày)
+              </label>
+              <input
+                id="edit-quota"
+                type="number"
+                min="0"
+                value={editQuota}
+                onChange={(e) => setEditQuota(e.target.value)}
+                placeholder="Nhập số token/ngày"
+                className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-password" className="block font-medium text-slate-700 mb-1">
+                Đổi mật khẩu mới (Bỏ trống nếu không đổi)
+              </label>
+              <div className="relative flex items-center">
                 <input
-                  type="password"
+                  id="edit-password"
+                  type={showEditPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={editNewPassword}
                   onChange={(e) => setEditNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
+                  className="w-full px-3 pr-14 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
                 />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  className="absolute right-0 py-1.5 px-2.5 text-[13px] font-medium text-slate-500 hover:text-slate-700 transition"
+                  aria-label={showEditPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
-                  Hủy bỏ
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isActionLoading}
-                  className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Lưu thay đổi</span>
+                  {showEditPassword ? "Ẩn" : "Hiện"}
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="px-4 h-10 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+              >
+                Hủy bỏ
+              </button>
+
+              <button
+                type="submit"
+                disabled={isActionLoading}
+                className="px-4 h-10 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Lưu thay đổi</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* ================= MODAL XÁC NHẬN XÓA ================= */}
-      {showDeleteConfirm && deletingUser && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="font-semibold text-slate-900 text-base">
-              Xác nhận xóa tài khoản?
-            </h3>
-            <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">
-              Bạn có chắc chắn muốn xóa tài khoản <strong className="text-slate-800">@{deletingUser.username}</strong> ({deletingUser.full_name})? Thao tác này sẽ vô hiệu hóa quyền truy cập của người dùng.
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeletingUser(null);
+        }}
+        title="Xác nhận xóa tài khoản?"
+        maxWidthClass="max-w-sm"
+      >
+        {deletingUser && (
+          <>
+            {errorMessage && (
+              <Alert variant="error" onClose={() => setErrorMessage("")}>
+                {errorMessage}
+              </Alert>
+            )}
+
+            <p className="text-[13px] text-slate-500 leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản{" "}
+              <strong className="text-slate-800">@{deletingUser.username}</strong>{" "}
+              ({deletingUser.full_name})? Tài khoản sẽ bị vô hiệu hóa vĩnh viễn,
+              không thể đăng nhập lại và toàn bộ phiên đang hoạt động sẽ bị thu hồi.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-5 mt-4 border-t border-slate-100">
@@ -1013,9 +1046,9 @@ export default function UsersManagementPage() {
                 <span>Xác nhận xóa</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
