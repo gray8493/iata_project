@@ -68,8 +68,9 @@ dist/
 *.egg-info/
 .eggs/
 
-# --- 7.1 Toolchains được tải/đóng gói cục bộ ---
+# --- 7.1 Toolchains & Browsers được tải/đóng gói cục bộ ---
 /apps/desktop-client/toolchains/
+/apps/desktop-client/browsers/
 aita_selftest.txt
 
 # --- 8. Cấu Hình IDE & Editor Cá Nhân ---

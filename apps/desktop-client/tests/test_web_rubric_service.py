@@ -315,3 +315,28 @@ def test_score_ui_success_returns_no_error_code(engine):
     assert error_code is None
     assert score == 8.0
     assert "8.0/10" in log
+
+
+# ------------------------------------------------------------------------------
+# Bundled Chromium resolution (browsers/ folder shipped inside the exe)
+# ------------------------------------------------------------------------------
+def test_bundled_chromium_executable_prefers_headless_shell(engine, tmp_path, monkeypatch):
+    browsers = tmp_path / "browsers"
+    shell = browsers / "chrome-headless-shell-win64" / "chrome-headless-shell.exe"
+    shell.parent.mkdir(parents=True)
+    shell.write_bytes(b"fake-exe")
+    full = browsers / "chromium-1243" / "chrome-win64" / "chrome.exe"
+    full.parent.mkdir(parents=True)
+    full.write_bytes(b"fake-exe")
+
+    import core.app_paths as app_paths
+    monkeypatch.setattr(app_paths, "bundled_browsers_dir", lambda: browsers)
+
+    assert engine._bundled_chromium_executable() == shell
+
+
+def test_bundled_chromium_executable_none_without_browsers_dir(engine, monkeypatch):
+    import core.app_paths as app_paths
+    monkeypatch.setattr(app_paths, "bundled_browsers_dir", lambda: None)
+
+    assert engine._bundled_chromium_executable() is None

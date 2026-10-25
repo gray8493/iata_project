@@ -269,6 +269,9 @@ class WebRubricEngine:
             try:
                 html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
                 log_lines.append(f"[PLAYWRIGHT]: Render thành công '{target_url}'.")
+                bundled_exe = self._bundled_chromium_executable()
+                if bundled_exe:
+                    log_lines.append(f"[PLAYWRIGHT]: Dùng Chromium đóng gói: {bundled_exe}.")
             except Exception as ex:
                 log_lines.append(f"[PLAYWRIGHT]: Không render được bằng Chromium ({self._short(ex)}).")
                 self._log_chromium_hint(log_lines, ex)
@@ -309,6 +312,9 @@ class WebRubricEngine:
                 try:
                     html, css_texts, js_metrics, screenshot_bytes = self._render(target_url)
                     log_lines.append(f"[PLAYWRIGHT]: Render thành công Live URL '{target_url}'.")
+                    bundled_exe = self._bundled_chromium_executable()
+                    if bundled_exe:
+                        log_lines.append(f"[PLAYWRIGHT]: Dùng Chromium đóng gói: {bundled_exe}.")
                 except Exception as ex:
                     log_lines.append(f"[PLAYWRIGHT]: Không render được Live URL ({self._short(ex)}). Thử lấy HTML qua HTTP.")
                     self._log_chromium_hint(log_lines, ex)
@@ -413,11 +419,37 @@ class WebRubricEngine:
                 return entry.resolve().as_uri()
         return None
 
+    @staticmethod
+    def _bundled_chromium_executable() -> Optional[Path]:
+        """File .exe Chromium đóng kèm bản phát hành (ưu tiên headless shell); None nếu không có."""
+        try:
+            from core.app_paths import bundled_browsers_dir
+        except Exception:
+            return None
+        browsers_dir = bundled_browsers_dir()
+        if not browsers_dir:
+            return None
+        for exe_name in ("chrome-headless-shell.exe", "chrome.exe"):
+            matches = sorted(browsers_dir.rglob(exe_name))
+            if matches:
+                return matches[0]
+        return None
+
     def _render(self, url: str) -> Tuple[str, List[str], Dict[str, int], bytes]:
         from playwright.sync_api import sync_playwright
 
+        bundled_exe = self._bundled_chromium_executable()
+        launch_kwargs: Dict[str, Any] = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+        if bundled_exe:
+            # executable_path bỏ qua kiểm tra revision của Playwright -> chạy được
+            # với browser đóng kèm bản phát hành kể cả khi máy chưa cài Playwright.
+            launch_kwargs["executable_path"] = str(bundled_exe)
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(**launch_kwargs)
             try:
                 page = browser.new_page(viewport={"width": 1440, "height": 900})
                 page.goto(url, wait_until="load", timeout=30000)

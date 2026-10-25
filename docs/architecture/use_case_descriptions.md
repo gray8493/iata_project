@@ -600,7 +600,7 @@ Mỗi Use Case được đặc tả bao gồm:
 * **Mô tả tóm tắt**: Cung cấp phân hệ chấm điểm các bài tập thiết kế web (HTML5, CSS3, JavaScript) trực tiếp trên Desktop App của Giảng viên. Giảng viên nhập danh sách bài nộp từ **thư mục bài nộp cục bộ** (mỗi thư mục con tên là MSSV, bên trong có một file `.txt` chứa link **Live Website** và/hoặc **GitHub Repo**) — **không sử dụng `students.csv`**. Hệ thống thẩm định theo Rubric 4 thành phần rồi quy đổi về thang điểm 10. Kết quả được lưu vào bảng `local_web_submissions` trong SQLite cục bộ.
 * **Tiền điều kiện (Preconditions)**:
   1. Giảng viên đã nhập danh sách bài nộp từ thư mục (mỗi thư mục con là một MSSV kèm file `.txt` chứa link), hoặc thêm/sửa thủ công từng bài nộp.
-  2. Môi trường Desktop App đã tích hợp Playwright Headless Chromium cùng các thư viện phân tích cú pháp (`BeautifulSoup4`, `tinycss2`). Nếu thiếu Playwright/Chromium, engine tự động chuyển sang phân tích tĩnh mã nguồn HTML/CSS cục bộ.
+  2. Môi trường Desktop App đã tích hợp Playwright Headless Chromium (đóng gói sẵn thư mục `browsers/` trong exe, không cần cài trên máy giảng viên) cùng các thư viện phân tích cú pháp (`BeautifulSoup4`, `tinycss2`). Nếu thiếu Playwright/Chromium, engine tự động chuyển sang tải HTML tĩnh qua HTTP rồi phân tích tĩnh mã nguồn HTML/CSS cục bộ.
 * **Hậu điều kiện (Postconditions)**:
   1. Điểm 4 tiêu chí (`score_dom`, `score_lint`, `score_e2e`, `score_ui`), điểm tổng `total_score` và `verdict` được cập nhật vào bảng `local_web_submissions` qua `DatabaseManager.update_web_submission_scores()`.
   2. Ảnh chụp màn hình toàn trang được lưu trên đĩa tại `data/web_screenshots/`; nhật ký thẩm định (`rubric_log`) hiển thị tại hộp thoại chi tiết để phục vụ phúc khảo.
@@ -614,7 +614,7 @@ Mỗi Use Case được đặc tả bao gồm:
 3. Hệ thống nạp danh sách bài nộp từ bảng `local_web_submissions` và hiển thị trên bảng kết quả.
 4. Giảng viên nhấn nút **"Bắt Đầu Thẩm Định Web"**.
 5. Desktop App khởi tạo `WebRubricEngine` và `WebGradingWorker` (chạy trên `QThread`) rồi chấm tuần tự từng bài nộp theo pipeline:
-   - **Bước 5.1 - Render trang**: Playwright Chromium headless mở Live URL (hoặc file `index.html` cục bộ), trích xuất DOM HTML, CSS, các chỉ số tương tác và chụp ảnh toàn trang. Nếu render lỗi, engine ghi lý do vào nhật ký và chuyển sang phân tích tĩnh từ thư mục bài nộp.
+   - **Bước 5.1 - Render trang**: Playwright Chromium headless (ưu tiên bản đóng gói trong `browsers/` của exe, phát hiện qua `app_paths.bundled_browsers_dir()`) mở Live URL (hoặc file `index.html` cục bộ), trích xuất DOM HTML, CSS, các chỉ số tương tác và chụp ảnh toàn trang. Nếu render lỗi, engine ghi lý do vào nhật ký rồi thử tải HTML tĩnh của Live URL qua HTTP (fallback), tiếp đó mới chuyển sang phân tích tĩnh từ thư mục bài nộp.
    - **Bước 5.2 - Chấm DOM & Ngữ nghĩa (HTML Semantic Analysis)**: `BeautifulSoup4` kiểm tra sự hiện diện của các thẻ ngữ nghĩa (`header`, `nav`, `main`, `footer`, `section`, `article`, `aside`, `form`), phân cấp heading (`h1`/`h2`/`h3`), thuộc tính `alt` của ảnh và cấu trúc form.
    - **Bước 5.3 - Chấm chuẩn CSS (CSS Linting)**: `tinycss2` phát hiện lỗi cú pháp stylesheet, đánh giá việc dùng `@media` (responsive) và mức độ lạm dụng inline-style.
    - **Bước 5.4 - Chấm chức năng/tương tác**: đánh giá qua chỉ số số lượng `script`, số phần tử tương tác (`button`, `a`, `form`, `input`, `select`, `textarea`), số event listener và `onclick`.
@@ -626,9 +626,9 @@ Mỗi Use Case được đặc tả bao gồm:
 
 ##### Luồng rẽ nhánh & Ngoại lệ (Alternative & Exception Flows):
 * **A1 - Chấm bài web không cần AI (Hoàn toàn Offline)**: Nếu máy trạm không có Internet hoặc không cấu hình AI, tiêu chí $S_{UI}$ (AI Vision) trả 0 điểm và hệ thống tự động phân bổ lại trọng số cho 3 tiêu chí offline ($S_{DOM}, S_{Lint}, S_{Func}$) theo tỷ lệ tương ứng để đạt tổng 100%.
-* **A2 - Không có Playwright/Chromium**: Engine ghi nhận lý do vào nhật ký và chuyển sang phân tích tĩnh mã nguồn HTML/CSS trong thư mục bài nộp.
+* **A2 - Không có Playwright/Chromium**: Engine ghi nhận lý do vào nhật ký, chuyển sang tải HTML tĩnh qua HTTP (fallback) nếu có Live URL, rồi mới phân tích tĩnh mã nguồn HTML/CSS trong thư mục bài nộp.
 * **A3 - Điều chỉnh điểm từng tiêu chí thủ công**: Tương tự `UC-15`, tại màn hình xem chi tiết kết quả web, Giảng viên có thể ghi đè điểm kèm ghi chú giải trình.
-* **E1 - Không tìm thấy mã nguồn HTML**: Nếu không render được Live URL và thư mục cục bộ không có `index.html`, engine trả `verdict = FAILED` với mã lỗi `NO_HTML`.
+* **E1 - Không tìm thấy mã nguồn HTML**: Nếu không render được Live URL, tải HTTP fallback cũng thất bại và thư mục cục bộ không có `index.html`, engine trả `verdict = FAILED` với mã lỗi `NO_HTML` kèm gợi ý chuyển chế độ Hybrid.
 * **E2 - Website URL không truy cập được (HTTP 404 / 500 / Connection Refused)**: Playwright bắt exception, ghi nhận vào nhật ký và chuyển sang phân tích tĩnh; các tiêu chí không đánh giá được nhận 0 điểm.
 * **E3 - Vòng lặp vô tận trong JavaScript (Infinite Loop / TLE)**: Playwright Timeout Guard (mặc định 5000ms) tự động ngắt tab, tiêu chí $S_{Func}$ nhận 0 điểm và hệ thống tiếp tục chấm các tiêu chí còn lại bình thường.
 

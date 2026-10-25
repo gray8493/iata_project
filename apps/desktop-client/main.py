@@ -176,6 +176,41 @@ def _run_selftest_body() -> int:
         print(f"       {ex}")
         results.append(("Python", False))
 
+    print("\n[Chromium]")
+    exe = None
+    try:
+        from services.web_rubric_service import WebRubricEngine
+
+        exe = WebRubricEngine._bundled_chromium_executable()
+    except Exception:
+        exe = None
+
+    if not exe:
+        print("       CẢNH BÁO: không có Chromium đóng kèm (browsers/) - chấm web sẽ dùng fallback HTTP.")
+    else:
+        print(f"       {exe}")
+        try:
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    executable_path=str(exe),
+                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                )
+                try:
+                    page = browser.new_page()
+                    page.goto("data:text/html,<h1>AITA</h1>")
+                    heading = (page.text_content("h1") or "").strip()
+                finally:
+                    browser.close()
+            ok = heading == "AITA"
+            print(f"       Render trang test: {'OK (Chromium web render)' if ok else 'LỖI'}")
+            results.append(("Chromium", ok))
+        except Exception as exc:
+            print(f"       Lỗi khởi động Chromium: {exc}")
+            results.append(("Chromium", False))
+
     print("\n" + "=" * 60)
     failed = [name for name, ok in results if not ok]
     if failed:
@@ -183,7 +218,8 @@ def _run_selftest_body() -> int:
         print("Cách xử lý: mở app -> 'Cấu Hình Môi Trường' -> chọn đúng file .exe,")
         print("hoặc dùng bản phát hành có kèm thư mục toolchains/ cạnh AITA_Grader_v1.exe.")
         return 1
-    print("KẾT QUẢ: Môi trường sẵn sàng chấm C / Java / Python.")
+    web_tested = any(name == "Chromium" for name, _ in results)
+    print(f"KẾT QUẢ: Môi trường sẵn sàng chấm C / Java / Python{' / Web' if web_tested else ''}.")
     return 0
 
 
