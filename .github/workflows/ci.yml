@@ -162,11 +162,11 @@ jobs:
           npm run build --if-present
 
   # ============================================================================
-  # 4. DESKTOP CLIENT (PyQt6 + GCC Sandbox) CI PIPELINE (Windows Runner)
+  # 4. DESKTOP CLIENT FAST TESTS (Ubuntu) - unit + integration feedback loop
   # ============================================================================
-  desktop-client-ci:
-    name: Desktop Client & Sandbox (Windows)
-    runs-on: windows-latest
+  desktop-client-test-ubuntu:
+    name: Desktop Client Fast Tests (Ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -181,6 +181,48 @@ jobs:
       - name: Install Desktop Client Dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r apps/desktop-client/requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Fast Test Suite (unit + integration)
+        run: |
+          mkdir -p reports
+          python -m pytest tests/unit tests/integration -v --junitxml=reports/junit-ubuntu.xml --durations=10
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-reports-ubuntu
+          path: reports/
+          if-no-files-found: ignore
+
+  # ============================================================================
+  # 5. DESKTOP CLIENT FULL TEST SUITE (Windows) - PyQt6 offscreen + real toolchains
+  # ============================================================================
+  desktop-client-ci:
+    name: Desktop Client Full Tests & Sandbox (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "apps/desktop-client/requirements.txt"
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Desktop Client Dependencies
+        run: |
+          python -m pip install --upgrade pip
           if (Test-Path apps/desktop-client/requirements.txt) {
               pip install -r apps/desktop-client/requirements.txt
           }
@@ -191,20 +233,31 @@ jobs:
           gcc --version
           g++ --version
 
-      - name: Run Pytest Test Suite (Desktop + Monorepo)
+      - name: Run Full Pytest Test Suite (unit/integration/system/acceptance/e2e/performance)
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          python -m pytest tests/ apps/desktop-client/tests/ -v --continue-on-collection-errors
+          New-Item -ItemType Directory -Force -Path reports | Out-Null
+          python -m pytest tests/ apps/desktop-client/tests/ -v --continue-on-collection-errors `
+            --cov=apps/desktop-client/src --cov-report=term --cov-report=xml:reports/coverage.xml `
+            --junitxml=reports/junit.xml --durations=10
           if ($LASTEXITCODE -ne 0) { throw "Pytest suite failed (exit $LASTEXITCODE)" }
 
+      - name: Upload Test Reports & Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-reports-windows
+          path: reports/
+          if-no-files-found: ignore
+
   # ============================================================================
-  # 5. MONOREPO STRUCTURE & INTEGRATION VERIFICATION
+  # 6. MONOREPO STRUCTURE & INTEGRATION VERIFICATION
   # ============================================================================
   monorepo-verification:
     name: Monorepo Integrity Check
     runs-on: ubuntu-latest
-    needs: [lint-and-validate, backend-nestjs-ci, web-admin-nextjs-ci, desktop-client-ci]
+    needs: [lint-and-validate, backend-nestjs-ci, web-admin-nextjs-ci, desktop-client-test-ubuntu, desktop-client-ci]
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
