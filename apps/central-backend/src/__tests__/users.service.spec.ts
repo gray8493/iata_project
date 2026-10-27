@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../modules/users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { REPORTS_OVERVIEW_CACHE_KEY } from '../common/redis.service';
 
 jest.mock('bcrypt');
 
@@ -172,6 +173,60 @@ describe('UsersService (Web Admin Unit Tests)', () => {
       prisma.user.findFirst.mockResolvedValue(mockAdmin);
 
       await expect(service.delete(mockAdmin.id, mockAdmin.id)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('UT02_Users_TC006: response quota mới + xóa cache báo cáo tổng quan', () => {
+    it('create trả daily_token_quota theo yêu cầu và xóa cache overview', async () => {
+      const redis = { del: jest.fn().mockResolvedValue(undefined) };
+      const withCache = new UsersService(prisma as unknown as PrismaService, redis as any);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('new_hashed_password');
+      prisma.user.create.mockResolvedValue(mockInstructor);
+
+      const result = await withCache.create({
+        username: 'teacher_binh',
+        password: 'Abc12345',
+        full_name: 'Thầy Bình',
+        email: 'binh@aita.edu.vn',
+        role: 'INSTRUCTOR',
+        daily_token_quota: 7777,
+      });
+
+      expect(result.data.daily_token_quota).toBe(7777);
+      expect(result.data.used_tokens_today).toBe(0);
+      expect(redis.del).toHaveBeenCalledWith(REPORTS_OVERVIEW_CACHE_KEY);
+    });
+
+    it('update trả quota vừa lưu thay vì snapshot cũ trước khi upsert', async () => {
+      const redis = { del: jest.fn().mockResolvedValue(undefined) };
+      const withCache = new UsersService(prisma as unknown as PrismaService, redis as any);
+      prisma.user.findFirst.mockResolvedValue(mockInstructor);
+      prisma.user.update.mockResolvedValue({
+        ...mockInstructor,
+        fullName: 'Thầy Nguyễn Văn An (Updated)',
+        quotaConfig: { dailyTokenLimit: 50000, usedTokensToday: 12000 },
+        updatedAt: new Date(),
+      });
+
+      const result = await withCache.update(mockInstructor.id, { daily_token_quota: 80000 } as any, mockAdmin.id);
+
+      expect(result.data.daily_token_quota).toBe(80000);
+      expect(result.data.used_tokens_today).toBe(12000);
+      expect(redis.del).toHaveBeenCalledWith(REPORTS_OVERVIEW_CACHE_KEY);
+    });
+
+    it('delete cũng xóa cache overview', async () => {
+      const redis = { del: jest.fn().mockResolvedValue(undefined) };
+      const withCache = new UsersService(prisma as unknown as PrismaService, redis as any);
+      prisma.user.findFirst.mockResolvedValue(mockInstructor);
+      prisma.user.update.mockResolvedValue({ ...mockInstructor, isDeleted: true });
+      prisma.aiQuotaConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await withCache.delete(mockInstructor.id, mockAdmin.id);
+
+      expect(result.message).toBe('Xóa người dùng thành công');
+      expect(redis.del).toHaveBeenCalledWith(REPORTS_OVERVIEW_CACHE_KEY);
     });
   });
 });

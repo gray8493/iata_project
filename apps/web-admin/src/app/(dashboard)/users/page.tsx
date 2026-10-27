@@ -273,31 +273,15 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleOpenEditModal = async (u: UserItem) => {
+  const handleOpenEditModal = (u: UserItem) => {
     setEditingUser(u);
     setEditFullName(u.full_name);
     setEditEmail(u.email);
     setEditRole(u.role);
     setEditNewPassword("");
+    // Prefill đồng bộ trực tiếp từ dữ liệu list (luôn có daily_token_quota);
+    // không reload async ở đây nữa để tránh phản hồi GET ghi đè giá trị người dùng vừa gõ.
     setEditQuota(u.daily_token_quota !== undefined && u.daily_token_quota !== null ? String(u.daily_token_quota) : "");
-
-    const { token, apiUrl } = getApiConfig();
-    if (token) {
-      try {
-        const res = await fetch(`${apiUrl}/admin/users/${u.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data?.daily_token_quota !== undefined && json.data?.daily_token_quota !== null) {
-            setEditQuota(String(json.data.daily_token_quota));
-          }
-        }
-      } catch {
-        // Tiếp tục với hạn ngạch rỗng nếu không tải được
-      }
-    }
-
     setShowEditModal(true);
   };
 

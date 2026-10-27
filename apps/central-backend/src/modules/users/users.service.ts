@@ -1,7 +1,8 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService, REPORTS_OVERVIEW_CACHE_KEY } from '../../common/redis.service';
 import { toAppRole } from '../../common/decorators/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersDto } from './dto/list-users.dto';
@@ -15,7 +16,15 @@ const publicUserSelect = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redis?: RedisService,
+  ) {}
+
+  private async invalidateReportsOverviewCache(): Promise<void> {
+    await this.redis?.del(REPORTS_OVERVIEW_CACHE_KEY);
+  }
+
 
   async list(query: ListUsersDto) {
     const where: Prisma.UserWhereInput = {
@@ -56,7 +65,10 @@ export class UsersService {
         } });
         return created;
       });
-      return { message: 'Tạo tài khoản người dùng mới thành công', data: this.toPublicUser(user) };
+      await this.invalidateReportsOverviewCache();
+      return { message: 'Tạo tài khoản người dùng mới thành công', data: {
+        ...this.toPublicUser(user), daily_token_quota: input.daily_token_quota ?? 50000, used_tokens_today: 0,
+      } };
     } catch (error) {
       this.rethrowUniqueConflict(error);
     }
@@ -106,8 +118,17 @@ export class UsersService {
         if (input.is_active === false || input.role !== undefined || input.password !== undefined) {
           await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
         }
-        return updated;
+        // Trả về snapshot hạn ngạch vừa lưu; dùng `{ ...updated }` trước khi upsert
+        // sẽ khiến response hiện quota cũ dù CSDL đã cập nhật.
+        return {
+          ...updated,
+          quotaConfig: {
+            dailyTokenLimit: input.daily_token_quota ?? updated.quotaConfig?.dailyTokenLimit ?? 50000,
+            usedTokensToday: updated.quotaConfig?.usedTokensToday ?? 0,
+          },
+        };
       });
+      await this.invalidateReportsOverviewCache();
       return { message: 'Cập nhật tài khoản thành công', data: { ...this.toPublicUser(user), updated_at: user.updatedAt.toISOString() } };
     } catch (error) {
       this.rethrowUniqueConflict(error);
@@ -133,6 +154,7 @@ export class UsersService {
       this.prisma.aiQuotaConfig.updateMany({ where: { userId: id, isDeleted: false }, data: { isDeleted: true, deletedAt: now } }),
       this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now } }),
     ]);
+    await this.invalidateReportsOverviewCache();
     return { message: 'Xóa người dùng thành công', data: null };
   }
 

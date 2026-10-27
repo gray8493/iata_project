@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { API_URL, getAccessToken, storeSession } from "@/lib/api";
+import { ADMIN_ONLY_LOGIN_NOTICE, API_URL, getAccessToken, getStoredUser, storeSession, clearSession, consumeLoginNotice } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,10 +17,20 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
-  // Đã có phiên đăng nhập thì không cần đăng nhập lại
+  // Đã có phiên đăng nhập thì không cần đăng nhập lại; phiên không phải Quản trị viên thì thu hồi
   useEffect(() => {
-    if (getAccessToken()) {
+    const notice = consumeLoginNotice();
+    if (notice) {
+      setInfoMessage(notice);
+    }
+    if (!getAccessToken()) return;
+
+    const storedRole = getStoredUser<{ role?: string }>()?.role;
+    if (storedRole === "ADMIN") {
       router.replace("/dashboard");
+    } else {
+      // Token không thuộc Quản trị viên (hoặc thiếu dữ liệu vai trò) -> xóa sạch để đăng nhập lại
+      clearSession();
     }
   }, [router]);
 
@@ -50,6 +60,11 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        // Web admin chỉ dành cho Quản trị viên; Giảng viên dùng ứng dụng AITA trên máy tính
+        if (data.data?.user?.role !== "ADMIN") {
+          setErrorMessage(ADMIN_ONLY_LOGIN_NOTICE);
+          return;
+        }
         setSuccessMessage("Đăng nhập thành công! Đang chuyển hướng...");
         if (data.data?.access_token) {
           storeSession(data.data.access_token, data.data.user, rememberMe);

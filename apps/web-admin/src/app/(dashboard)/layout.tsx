@@ -17,6 +17,8 @@ import {
   getStoredUser,
   updateStoredUser,
   clearSession,
+  setLoginNotice,
+  ADMIN_ONLY_LOGIN_NOTICE,
 } from "@/lib/api";
 
 interface UserProfile {
@@ -34,10 +36,17 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const FALLBACK_USER: UserProfile = {
-  username: "Nguyễn Hoàng Đức",
-  email: "admin@aita.edu.vn",
-  role: "ADMIN",
+  username: "",
+  email: "",
+  role: "",
 };
+
+/** Đưa người dùng không đủ quyền ra trang đăng nhập kèm thông báo. */
+function kickToLogin(router: ReturnType<typeof useRouter>) {
+  setLoginNotice(ADMIN_ONLY_LOGIN_NOTICE);
+  clearSession();
+  router.replace("/login");
+}
 
 const MENU_ITEMS: { title: string; href: string; icon: LucideIcon }[] = [
   { title: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
@@ -56,7 +65,7 @@ export default function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<UserProfile>(FALLBACK_USER);
 
-  // Bảo vệ route: chưa có phiên đăng nhập thì chuyển về /login
+  // Bảo vệ route: chưa có phiên đăng nhập thì chuyển về /login; phiên không phải ADMIN thì thu hồi
   useEffect(() => {
     const token = getAccessToken();
     if (!token) {
@@ -65,6 +74,10 @@ export default function DashboardLayout({
     }
 
     const storedUser = getStoredUser<UserProfile>();
+    if (storedUser?.role === "INSTRUCTOR") {
+      kickToLogin(router);
+      return;
+    }
     if (storedUser) {
       setUser({
         ...FALLBACK_USER,
@@ -85,6 +98,10 @@ export default function DashboardLayout({
       .then((data) => {
         if (data?.success && data?.data) {
           const fetched = data.data;
+          if (fetched.role !== "ADMIN") {
+            kickToLogin(router);
+            return;
+          }
           setUser({
             id: fetched.id,
             username:

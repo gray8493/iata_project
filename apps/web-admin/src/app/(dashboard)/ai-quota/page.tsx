@@ -276,9 +276,9 @@ export default function AiQuotaPage() {
       `"${ins.full_name}"`,
       ins.username,
       ins.email,
-      ins.daily_token_quota || 50000,
-      ins.used_tokens_today || 0,
-      Math.max(0, (ins.daily_token_quota || 50000) - (ins.used_tokens_today || 0)),
+      ins.daily_token_quota ?? 50000,
+      ins.used_tokens_today ?? 0,
+      Math.max(0, (ins.daily_token_quota ?? 50000) - (ins.used_tokens_today ?? 0)),
       ins.is_active ? "Hoạt động" : "Đã khóa",
     ]);
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -639,8 +639,8 @@ export default function AiQuotaPage() {
                   </tr>
                 ) : filteredInstructors.length > 0 ? (
                   filteredInstructors.map((ins) => {
-                    const quota = ins.daily_token_quota || 50000;
-                    const used = ins.used_tokens_today || 0;
+                    const quota = ins.daily_token_quota ?? 50000;
+                    const used = ins.used_tokens_today ?? 0;
                     const remaining = Math.max(0, quota - used);
                     const percent = Math.min(100, Math.round((used / quota) * 100));
 
@@ -680,7 +680,7 @@ export default function AiQuotaPage() {
                             type="button"
                             onClick={() => {
                               setEditingInstructor(ins);
-                              setNewQuotaValue(String(ins.daily_token_quota || 50000));
+                              setNewQuotaValue(String(ins.daily_token_quota ?? 50000));
                             }}
                             className="inline-flex items-center px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[13px] font-medium transition-colors"
                           >
@@ -870,7 +870,7 @@ export default function AiQuotaPage() {
                 className="w-full px-3 h-10 rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-primary focus:bg-white transition-colors"
               />
               <p className="text-[13px] text-slate-500 mt-1">
-                Mặc định: 50,000 tokens/ngày. Đã dùng hôm nay: {(editingInstructor.used_tokens_today || 0).toLocaleString()} tokens.
+                Mặc định: 50,000 tokens/ngày. Đã dùng hôm nay: {(editingInstructor.used_tokens_today ?? 0).toLocaleString()} tokens.
               </p>
             </div>
 

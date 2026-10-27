@@ -7,6 +7,26 @@ export const API_URL = (
 
 const ACCESS_TOKEN_KEY = "aita_access_token";
 const USER_KEY = "aita_user";
+const LOGIN_NOTICE_KEY = "aita_login_notice";
+
+const ADMIN_ONLY_NOTICE =
+  "Tài khoản Giảng viên không có quyền truy cập trang quản trị. Giảng viên vui lòng sử dụng ứng dụng AITA trên máy tính.";
+
+/** Rút thông báo tạm đặt trước khi chuyển hướng (ví dụ bị đá vì không đủ quyền). */
+export function consumeLoginNotice(): string | null {
+  if (typeof window === "undefined") return null;
+  const notice = window.sessionStorage.getItem(LOGIN_NOTICE_KEY);
+  if (notice) window.sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+  return notice;
+}
+
+/** Đặt thông báo sẽ hiển thị trên trang đăng nhập sau khi chuyển hướng. */
+export function setLoginNotice(message: string): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(LOGIN_NOTICE_KEY, message);
+}
+
+export const ADMIN_ONLY_LOGIN_NOTICE = ADMIN_ONLY_NOTICE;
 
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
