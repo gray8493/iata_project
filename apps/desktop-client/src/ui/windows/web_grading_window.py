@@ -45,7 +45,7 @@ from ui.styles.theme import (
     COLOR_SUCCESS, COLOR_SUCCESS_BG, COLOR_ERROR, COLOR_ERROR_BG,
     COLOR_WARNING, COLOR_WARNING_BG, RADIUS_CARD, RADIUS_BUTTON, RADIUS_PILL
 )
-from ui.components.table_actions import make_action_cell
+from ui.components.table_actions import make_action_cell, make_row_button
 
 
 # ==============================================================================
@@ -1444,14 +1444,14 @@ class WebGradingMainWindow(QMainWindow):
 
         layout.addSpacing(10)
 
-        # 2. Section Label
-        lbl_sec = QLabel("PHÂN HỆ", sidebar)
-        lbl_sec.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {COLOR_TEXT_MUTED}; padding-left: 12px; margin-bottom: 2px;")
+        # 2. Nhãn nhóm điều hướng (đồng bộ với cửa sổ chấm PE)
+        lbl_sec = QLabel("CHẤM ĐIỂM", sidebar)
+        lbl_sec.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {COLOR_TEXT_MUTED}; padding-left: 12px; margin-top: 6px; margin-bottom: 2px;")
         layout.addWidget(lbl_sec)
 
-        # 3. Item Điều hướng
+        # 3. Item Điều hướng (kiểu active giống PE)
         btn_nav_web = QPushButton("Bảng Điểm Đồ Án Web", sidebar)
-        btn_nav_web.setFixedHeight(42)
+        btn_nav_web.setFixedHeight(40)
         btn_nav_web.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_nav_web.setStyleSheet(f"""
             QPushButton {{
@@ -1460,7 +1460,7 @@ class WebGradingMainWindow(QMainWindow):
                 font-weight: 600;
                 font-size: 13px;
                 text-align: left;
-                padding-left: 16px;
+                padding-left: 14px;
                 border: none;
                 border-radius: 8px;
                 border-left: 3px solid {COLOR_PRIMARY};
@@ -1468,30 +1468,45 @@ class WebGradingMainWindow(QMainWindow):
         """)
         layout.addWidget(btn_nav_web)
 
-        # 4. Session & Class Info Button (Tên Phiên, Lớp và Mã Môn)
-        self.btn_class = QPushButton(sidebar)
-        self.btn_class.setMinimumHeight(46)
-        self.btn_class.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_class.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {COLOR_SURFACE};
-                color: {COLOR_TEXT_PRIMARY};
-                font-weight: 500;
-                font-size: 12px;
-                text-align: left;
-                padding-left: 14px;
-                padding-top: 6px;
-                padding-bottom: 6px;
-                border: 1px solid {COLOR_BORDER_DEFAULT};
-                border-radius: 8px;
-            }}
-            QPushButton:hover {{
-                background-color: {COLOR_SURFACE_SECONDARY};
-                border-color: {COLOR_PRIMARY};
-            }}
-        """)
-        self.btn_class.clicked.connect(self._open_session_manager)
-        layout.addWidget(self.btn_class)
+        layout.addSpacing(12)
+
+        # 4. Nhóm CÔNG CỤ (đồng bộ với sidebar PE: Tạo Phiên, Kết Thúc Phiên, Hướng Dẫn)
+        def create_nav_item(text: str, on_click) -> QPushButton:
+            btn = QPushButton(text, sidebar)
+            btn.setFixedHeight(40)
+            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {COLOR_TEXT_PRIMARY};
+                    font-weight: 500;
+                    font-size: 13px;
+                    text-align: left;
+                    padding-left: 14px;
+                    border: none;
+                    border-radius: 8px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_SURFACE_SECONDARY};
+                    color: {COLOR_PRIMARY};
+                }}
+            """)
+            if on_click:
+                btn.clicked.connect(on_click)
+            return btn
+
+        lbl_sec2 = QLabel("CÔNG CỤ", sidebar)
+        lbl_sec2.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {COLOR_TEXT_MUTED}; padding-left: 12px; margin-top: 6px; margin-bottom: 2px;")
+        layout.addWidget(lbl_sec2)
+
+        btn_create_session = create_nav_item("Tạo Phiên Chấm", self._open_session_manager)
+        layout.addWidget(btn_create_session)
+
+        btn_end_session = create_nav_item("Kết Thúc Phiên", self._end_web_session)
+        layout.addWidget(btn_end_session)
+
+        btn_guide_nav = create_nav_item("Hướng Dẫn Chấm", self._open_grading_guide)
+        layout.addWidget(btn_guide_nav)
 
         layout.addStretch(1)
 
@@ -1518,25 +1533,18 @@ class WebGradingMainWindow(QMainWindow):
         btn_back_mode.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_back_mode.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLOR_SURFACE};
-                color: {COLOR_PRIMARY};
+                background-color: #FFFFFF;
+                color: #334155;
                 font-weight: 600;
                 font-size: 13px;
                 text-align: center;
-                border: 1.5px solid {COLOR_PRIMARY};
-                border-radius: {RADIUS_BUTTON};
-                padding: 0 12px;
+                border: 1px solid {COLOR_BORDER_DEFAULT};
+                border-radius: 8px;
             }}
             QPushButton:hover {{
-                background-color: {COLOR_PRIMARY_BG};
-            }}
-            QPushButton:focus {{
-                border-color: {COLOR_PRIMARY_ACTIVE};
-            }}
-            QPushButton:disabled {{
-                background-color: {COLOR_SURFACE};
-                color: {COLOR_TEXT_DISABLED};
-                border-color: {COLOR_BORDER_DEFAULT};
+                background-color: {COLOR_SURFACE_SECONDARY};
+                color: {COLOR_PRIMARY};
+                border-color: {COLOR_PRIMARY};
             }}
         """)
         btn_back_mode.clicked.connect(self._back_to_mode_selection)
@@ -1560,7 +1568,7 @@ class WebGradingMainWindow(QMainWindow):
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
         lbl_title = QLabel("Chấm Bài Tập & Đồ Án Web", header)
-        lbl_title.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
+        lbl_title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};")
         self.lbl_session_badge = QLabel(header)
         self.lbl_session_badge.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
         title_box.addWidget(lbl_title)
@@ -1683,16 +1691,7 @@ class WebGradingMainWindow(QMainWindow):
 
         layout.addSpacing(10)
 
-        # Nút "Quản Lý Phiên"
-        self.btn_session_mgr = QPushButton("Quản Lý Phiên", card)
-        self.btn_session_mgr.setProperty("class", "SecondaryBtn")
-        self.btn_session_mgr.setFixedHeight(38)
-        self.btn_session_mgr.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_session_mgr.setToolTip("Quản lý, tạo mới hoặc chuyển đổi giữa các đợt/phiên chấm bài Web.")
-        self.btn_session_mgr.clicked.connect(self._open_session_manager)
-        layout.addWidget(self.btn_session_mgr)
-
-        # 2. MỘT nút "Thêm Bài Nộp" duy nhất (Mục 2)
+        # Nút "Thêm Bài Nộp" duy nhất (Mục 2)
         self.btn_add = QPushButton("Thêm Bài Nộp", card)
         self.btn_add.setProperty("class", "PrimaryBtn")
         self.btn_add.setFixedHeight(38)
@@ -1792,23 +1791,55 @@ class WebGradingMainWindow(QMainWindow):
         )
 
     def _update_session_display(self):
-        """Updates header and sidebar with the current active session information."""
+        """Cập nhật nhãn phiên hiện tại trên thanh tiêu đề (header)."""
         if self.current_session_id:
             self.lbl_session_badge.setText(
                 f"Phiên: {self.current_session_name} · Lớp {self.current_class_name} ({self.current_course_code})"
             )
-            self.btn_class.setText(
-                f"Phiên: {self.current_session_name}\nLớp {self.current_class_name} · {self.current_course_code}"
-            )
-            self.btn_class.setToolTip(
-                f"Bấm để quản lý hoặc chuyển đổi phiên chấm.\nPhiên hiện tại: {self.current_session_name}"
-            )
         else:
             self.lbl_session_badge.setText(
-                "Chưa chọn phiên chấm · Bấm 'Quản Lý Phiên' để tạo mới hoặc chọn"
+                "Chưa chọn phiên chấm · Bấm 'Tạo Phiên Chấm' để tạo mới hoặc chọn"
             )
-            self.btn_class.setText("Chưa Chọn Phiên\nBấm để tạo/chọn")
-            self.btn_class.setToolTip("Chưa có phiên chấm nào. Bấm để tạo hoặc chọn phiên.")
+
+    def _open_grading_guide(self):
+        """Mở tài liệu hướng dẫn chấm bài tập & đồ án web."""
+        from ui.dialogs.web_grading_guide_dialog import WebGradingGuideDialog
+        dlg = WebGradingGuideDialog(parent=self)
+        dlg.exec()
+
+    def _end_web_session(self):
+        """Kết thúc phiên chấm Web hiện tại (kết quả vẫn được giữ, mở lại được bất kỳ lúc nào)."""
+        if not self.current_session_id:
+            QMessageBox.information(
+                self, "Chưa Chọn Phiên",
+                "Không có phiên chấm nào đang được mở để kết thúc!"
+            )
+            return
+
+        ret = QMessageBox.question(
+            self,
+            "Xác Nhận Kết Thúc Phiên Chấm",
+            f"Bạn có chắc chắn muốn kết thúc phiên chấm '{self.current_session_name}' không?\n\n"
+            "Điều gì sẽ xảy ra:\n"
+            "• Kết quả chấm đã được lưu an toàn trong hệ thống và không bị mất.\n"
+            "• Bảng làm việc đóng lại; chọn và mở lại phiên này bất kỳ lúc nào nếu cần chấm lại hoặc bổ sung bài nộp.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if ret == QMessageBox.StandardButton.Yes:
+            session_name = self.current_session_name
+            self.current_session_id = None
+            self.current_session_name = "Chưa Chọn Phiên"
+            self._settings.remove("current_session_id")
+            self._update_session_display()
+            self._load_submissions_from_db()
+            QMessageBox.information(
+                self,
+                "Đã Kết Thúc Phiên Chấm",
+                f"Đã kết thúc phiên chấm thành công cho '{session_name}'.\n"
+                "Bạn có thể mở lại phiên này bất kỳ lúc nào từ mục 'Tạo Phiên Chấm' hoặc 'Quản Lý Phiên'."
+            )
 
     def _open_session_manager(self):
         """Opens the session management modal dialog to switch, create, or delete sessions."""
@@ -1867,23 +1898,11 @@ class WebGradingMainWindow(QMainWindow):
         top_l.addWidget(self.lbl_progress_status)
         layout.addLayout(top_l)
 
-        # Thanh tiến độ dày 11px
+        # Thanh tiến độ 8px chuẩn theme (đồng bộ với cửa sổ chấm PE)
         self.progress_bar = QProgressBar(card)
-        self.progress_bar.setFixedHeight(11)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background-color: {COLOR_SURFACE_SECONDARY};
-                border: 1px solid {COLOR_BORDER_LIGHT};
-                border-radius: 5px;
-            }}
-            QProgressBar::chunk {{
-                background-color: {COLOR_PRIMARY};
-                border-radius: 4px;
-            }}
-        """)
         layout.addWidget(self.progress_bar)
 
         return card
@@ -1998,14 +2017,14 @@ class WebGradingMainWindow(QMainWindow):
             if it:
                 it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter)
 
-        # Tooltips giải thích cho các cột
+        # Tooltips giải thích cho các cột (khớp đúng vị trí cột hiện tại)
         tooltip_map = {
-            4: "Cấu trúc HTML5 ngữ nghĩa, thẻ SEO, alt ảnh, heading hierarchy",
-            5: "Kiểm tra cú pháp CSS bằng tinycss2, hạn chế inline-style, responsive media queries",
-            6: "Chỉ số tương tác JS và các thành phần tương tác trong HTML",
-            7: "AI Vision đánh giá ảnh chụp màn hình theo tiêu chí thẩm mỹ (Không áp dụng cho chế độ GitHub)",
-            8: "Tổng điểm theo rubric các tiêu chí áp dụng (thang 10)",
-            9: "PASSED ≥ 7.0, PARTIAL ≥ 5.0, FAILED < 5.0"
+            5: "Cấu trúc HTML5 ngữ nghĩa, thẻ SEO, alt ảnh, heading hierarchy",
+            6: "Kiểm tra cú pháp CSS bằng tinycss2, hạn chế inline-style, responsive media queries",
+            7: "Chỉ số tương tác JS và các thành phần tương tác trong HTML",
+            8: "AI Vision đánh giá ảnh chụp màn hình theo tiêu chí thẩm mỹ (Không áp dụng cho chế độ GitHub)",
+            9: "Tổng điểm theo rubric các tiêu chí áp dụng (thang 10)",
+            10: "PASSED ≥ 7.0, PARTIAL ≥ 5.0, FAILED < 5.0"
         }
         for col, tip in tooltip_map.items():
             item = self.table.horizontalHeaderItem(col)
@@ -2017,6 +2036,51 @@ class WebGradingMainWindow(QMainWindow):
         self.table.verticalHeader().setMinimumSectionSize(48)
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+        # QSS bảng đồng bộ với cửa sổ chấm PE: chọn cả dòng nền xanh nhạt, thanh cuộn 11px
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER_DEFAULT};
+                border-radius: 12px;
+                gridline-color: transparent;
+                outline: none;
+                selection-background-color: {COLOR_PRIMARY_BG};
+                selection-color: {COLOR_TEXT_PRIMARY};
+            }}
+            QTableWidget::item {{
+                border: none;
+                border-bottom: 1px solid {COLOR_BORDER_LIGHT};
+                padding: 6px 12px;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {COLOR_PRIMARY_BG};
+                color: {COLOR_TEXT_PRIMARY};
+                border: none;
+                border-bottom: 1px solid {COLOR_BORDER_LIGHT};
+            }}
+            QTableWidget::item:hover {{
+                background-color: {COLOR_SURFACE_SECONDARY};
+            }}
+            QScrollBar:vertical {{
+                border: none;
+                background: #F1F5F9;
+                width: 11px;
+                border-radius: 5px;
+                margin: 2px 0 2px 0;
+            }}
+            QScrollBar::handle:vertical {{
+                background: #CBD5E1;
+                border-radius: 5px;
+                min-height: 32px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: #94A3B8;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
 
         # Sắp xếp khi bấm tiêu đề cột (bỏ qua cột Thao Tác)
         self._sort_key: Optional[str] = None
@@ -2239,75 +2303,14 @@ class WebGradingMainWindow(QMainWindow):
             verdict = item.get("verdict") or "PENDING"
             self.table.setCellWidget(r, 10, WebVerdictPill(verdict, self.table))
 
-            # 11. Cột Thao Tác (Xem Chi Tiết, Sửa, Xóa)
-            btn_view = QPushButton("Xem Chi Tiết")
-            btn_view.setFixedWidth(98)
-            btn_view.setFixedHeight(28)
-            btn_view.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {COLOR_PRIMARY_BG};
-                    color: {COLOR_PRIMARY};
-                    border: 1px solid {COLOR_PRIMARY_LIGHT};
-                    border-radius: 6px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    min-height: 28px;
-                    max-height: 28px;
-                    height: 28px;
-                    padding: 0 4px;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_PRIMARY};
-                    color: #FFFFFF;
-                }}
-            """)
+            # 11. Cột Thao Tác (Xem Chi Tiết, Sửa, Xóa — dùng helper chung giống bảng PE/testcase)
+            btn_view = make_row_button("Xem Chi Tiết", COLOR_PRIMARY, parent=self.table, width=98, height=28)
             btn_view.clicked.connect(lambda _, st=item: self._view_student_detail(st))
 
-            btn_edit = QPushButton("Sửa")
-            btn_edit.setFixedWidth(52)
-            btn_edit.setFixedHeight(28)
-            btn_edit.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FFFFFF;
-                    color: {COLOR_TEXT_PRIMARY};
-                    border: 1px solid {COLOR_BORDER_DEFAULT};
-                    border-radius: 6px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    min-height: 28px;
-                    max-height: 28px;
-                    height: 28px;
-                    padding: 0 4px;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_SURFACE_SECONDARY};
-                    border-color: {COLOR_PRIMARY};
-                    color: {COLOR_PRIMARY};
-                }}
-            """)
+            btn_edit = make_row_button("Sửa", COLOR_PRIMARY, parent=self.table, width=52, height=28)
             btn_edit.clicked.connect(lambda _, st=item: self._edit_student_submission(st))
 
-            btn_del = QPushButton("Xóa")
-            btn_del.setFixedWidth(52)
-            btn_del.setFixedHeight(28)
-            btn_del.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FFFFFF;
-                    color: {COLOR_ERROR};
-                    border: 1px solid {COLOR_ERROR}55;
-                    border-radius: 6px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    min-height: 28px;
-                    max-height: 28px;
-                    height: 28px;
-                    padding: 0 4px;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_ERROR_BG};
-                    border-color: {COLOR_ERROR};
-                }}
-            """)
+            btn_del = make_row_button("Xóa", COLOR_ERROR, parent=self.table, width=52, height=28)
             btn_del.clicked.connect(lambda _, st=item: self._delete_student_submission(st))
 
             self.table.setCellWidget(r, 11, make_action_cell([btn_view, btn_edit, btn_del], self.table))
@@ -2524,13 +2527,13 @@ class WebGradingMainWindow(QMainWindow):
         summary_msg = (
             f"Đã thẩm định thành công {total}/{total} bài tập Web (chỉ những bài chưa chấm)!\n"
             "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán thực tế.\n"
-            "• Dữ liệu đã được lưu an toàn vào CSDL SQLite.\n"
+            "• Dữ liệu đã được lưu an toàn.\n"
             "• Bạn có thể bấm 'Xuất Bảng Điểm' để lưu file Excel (.xlsx) hoặc PDF."
         )
         auth_failed = getattr(self, "_ai_auth_fail_count", 0)
         if auth_failed:
             summary_msg += (
-                f"\n\n⚠ CẢNH BÁO: {auth_failed} bài bị lỗi 'Token không hợp lệ' khi chấm UI/UX — "
+                f"\n\nCẢNH BÁO: {auth_failed} bài bị lỗi 'Token không hợp lệ' khi chấm UI/UX — "
                 "tiêu chí này đang tạm tính 0.0 cho các bài đó.\n"
                 "Hãy đăng nhập lại hệ thống (Đăng xuất → Đăng nhập) rồi bấm "
                 "'Chấm Lại Bài Này' cho từng bài bị lỗi."

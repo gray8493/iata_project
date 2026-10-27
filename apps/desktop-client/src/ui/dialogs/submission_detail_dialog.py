@@ -346,7 +346,11 @@ class SubmissionDetailDialog(QDialog):
         self.lbl_verdict_badge = QLabel(top_card)
         self.lbl_verdict_badge.setFixedHeight(32)
         if self.verdict == "CE":
-            self.lbl_verdict_badge.setToolTip("CE = Compile Error (lỗi biên dịch cú pháp mã nguồn)")
+            self.lbl_verdict_badge.setToolTip(
+                "CE = Compile Error (lỗi biên dịch mã nguồn).\n"
+                "Với bài nhiều câu, CE có thể chỉ do thiếu file của một câu "
+                "(xem chi tiết từng testcase bên dưới)."
+            )
         t_layout.addWidget(self.lbl_verdict_badge)
 
         self.lbl_score_badge = QLabel(top_card)
@@ -504,13 +508,13 @@ class SubmissionDetailDialog(QDialog):
         
         self.tabs.addTab(tab_ai, "AI Nhận Xét Mã")
             
-        # TAB 3: Ghi Đè Điểm Thủ Công (7. Bỏ icon)
+        # TAB 3: Cập Nhật Điểm Thủ Công (7. Bỏ icon)
         tab_override = QWidget()
         to_layout = QVBoxLayout(tab_override)
         to_layout.setSpacing(12)
         to_layout.setContentsMargins(12, 12, 12, 12)
         
-        to_layout.addWidget(QLabel("Điểm Số Mới Cần Ghi Đè (Thang điểm 10.0):"))
+        to_layout.addWidget(QLabel("Điểm Số Mới Cần Cập Nhật (Thang điểm 10.0):"))
         self.sp_new_score = QDoubleSpinBox(tab_override)
         self.sp_new_score.setRange(0.0, 10.0)
         self.sp_new_score.setSingleStep(0.5)
@@ -530,13 +534,13 @@ class SubmissionDetailDialog(QDialog):
         self.txt_override_reason.setStyleSheet("border-radius: 8px; padding: 10px; line-height: 1.4;")
         to_layout.addWidget(self.txt_override_reason)
         
-        btn_save_override = QPushButton("Xác Nhận Ghi Đè Điểm Vào CSDL SQLite", tab_override)
+        btn_save_override = QPushButton("Xác Nhận Cập Nhật Điểm", tab_override)
         btn_save_override.setProperty("class", "PrimaryBtn")
         btn_save_override.setFixedHeight(38)
         btn_save_override.clicked.connect(self._save_override)
         to_layout.addWidget(btn_save_override)
         
-        self.tabs.addTab(tab_override, "Ghi Đè Điểm")
+        self.tabs.addTab(tab_override, "Cập Nhật Điểm")
         
         r_layout.addWidget(self.tabs)
         splitter.addWidget(right_widget)
@@ -1031,17 +1035,12 @@ class SubmissionDetailDialog(QDialog):
                 exp_display = self._truncate_cell(exp)
                 act_tooltip = ""
 
-                # 3. Khi CE: Cột Actual Output để trống, không ghi Khớp hay Không chạy được
-                if is_ce:
-                    act_display = ""
-                    tc_verdict = "Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else "CE"
-                    v_color = Qt.GlobalColor.darkRed
-                    ev = None
-                else:
-                    ev = evidence_items[r] if evidence_items and r < len(evidence_items) else None
+                # Bằng chứng JSON ưu tiên: hiển thị đúng verdict riêng từng testcase,
+                # kể cả khi cả bài bị CE (multi-question: thiếu file 1 câu không làm
+                # mất kết quả PASS của các câu trước).
+                ev = evidence_items[r] if evidence_items and r < len(evidence_items) else None
 
                 if ev is not None:
-                    # Có bằng chứng JSON mới: hiển thị đúng verdict riêng của từng testcase
                     tc_verdict, v_color = self._verdict_style(str(ev.get("verdict", "WA")))
                     actual = str(ev.get("actual", "") or "")
                     if not actual and str(ev.get("stderr", "") or ""):
@@ -1051,7 +1050,13 @@ class SubmissionDetailDialog(QDialog):
                         f"Actual Output đầy đủ:\n{actual or '(trống)'}\n\n"
                         f"Strategy: {ev.get('strategy', '')} | Weight: {ev.get('weight', '')}"
                     )
-                elif not is_ce:
+                elif is_ce:
+                    # Bài CE kiểu cũ (chưa có bằng chứng JSON): toàn bộ testcase là CE,
+                    # cột Actual Output để trống.
+                    act_display = ""
+                    tc_verdict = "Lỗi hệ thống" if "Không tìm thấy trình biên dịch" in c_log else "CE"
+                    v_color = Qt.GlobalColor.darkRed
+                else:
                     # Fallback hành vi cũ khi không có bằng chứng (bài chấm trước khi có JSON)
                     if final_verdict == "AC":
                         act_display = exp_display
@@ -1083,7 +1088,7 @@ class SubmissionDetailDialog(QDialog):
                 # Cột 3: Actual Output (thật theo từng testcase khi có bằng chứng JSON)
                 item_act = QTableWidgetItem(act_display)
                 item_act.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                if is_ce:
+                if str(tc_verdict) in ("CE", "Lỗi hệ thống"):
                     item_act.setForeground(Qt.GlobalColor.gray)
                 if act_tooltip:
                     item_act.setToolTip(act_tooltip)
@@ -1235,7 +1240,7 @@ class SubmissionDetailDialog(QDialog):
     def _save_override(self):
         """Saves manual score override directly into SQLite database."""
         if not self.submission_id:
-            QMessageBox.warning(self, "Không Xác Định", "Không xác định được ID bài nộp để ghi đè điểm!")
+            QMessageBox.warning(self, "Không Xác Định", "Không xác định được ID bài nộp để cập nhật điểm!")
             return
 
         reason = self.txt_override_reason.toPlainText().strip()
@@ -1253,9 +1258,9 @@ class SubmissionDetailDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Đã Cập Nhật Điểm",
-                f"Đã ghi đè điểm số thành công thành {new_score}/10.0 vào CSDL SQLite (local_grading.db)!\n"
+                f"Đã cập nhật điểm số thành công thành {new_score}/10.0!\n"
                 f"Lý do ghi nhận: \"{reason}\""
             )
             self.accept()
         except Exception as ex:
-            QMessageBox.critical(self, "Lỗi Ghi CSDL", f"Không thể lưu điểm ghi đè:\n{str(ex)}")
+            QMessageBox.critical(self, "Lỗi Ghi CSDL", f"Không thể cập nhật điểm:\n{str(ex)}")

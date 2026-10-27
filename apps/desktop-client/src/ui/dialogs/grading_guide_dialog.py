@@ -66,8 +66,8 @@ class GradingGuideDialog(QDialog):
         h_layout.addWidget(lbl_title)
 
         lbl_desc = QLabel(
-            "Tài liệu quy chuẩn quy trình 4 bước chấm tự động, 7 tiêu chí so khớp đầu ra "
-            "và bảng tra cứu các mã phán quyết trong hệ thống AITA.",
+            "Tài liệu quy chuẩn quy trình 6 bước chấm tự động, 7 tiêu chí so khớp đầu ra, "
+            "hướng dẫn chi tiết 5 tính năng AI và bảng tra cứu các mã phán quyết trong hệ thống AITA.",
             header_card
         )
         lbl_desc.setStyleSheet("font-size: 14px; color: #475569; line-height: 1.45; border: none; background: transparent;")
@@ -131,10 +131,13 @@ class GradingGuideDialog(QDialog):
              "mà không cần viết mã giải mẫu. Sau đó tick chọn các tiêu chí so khớp phù hợp và nhấn [Lưu Testcase]."),
             ("Bước 3: Bắt đầu chấm hàng loạt",
              "Nhấn nút [3. Bắt Đầu Chấm Hàng Loạt]. Động cơ Sandbox Runner sẽ tự động biên dịch và thực thi an toàn từng bài làm "
-             "trong môi trường cách ly độc lập, kiểm soát chặt chẽ giới hạn thời gian (ms) và bộ nhớ RAM (MB)."),
+             "trong môi trường cách ly độc lập, kiểm soát chặt chẽ giới hạn thời gian (ms) và bộ nhớ RAM (MB). "
+             "Tick chọn 'Chấm chất lượng mã bằng AI (Hybrid)' trước khi chấm nếu muốn AI chấm thêm 5 tiêu chí "
+             "chất lượng mã nguồn (điểm tổng = Sandbox 5đ + AI Rubric 5đ)."),
             ("Bước 4: Quét đạo văn AST",
              "Nhấn nút [4. Quét Đạo Văn AST] để phân tích cây cú pháp trừu tượng, đối soát gian lận chép mã nguồn chéo "
-             "giữa tất cả sinh viên trong đợt chấm."),
+             "giữa tất cả sinh viên trong đợt chấm. Các cặp nghi vấn có độ trùng từ 80% trở lên có thể kích hoạt "
+             "AI thẩm định chuyên sâu (Vòng 2) để nhận kết luận kèm độ tin cậy."),
             ("Bước 5: Xuất bảng điểm",
              "Nhấn nút [5. Xuất Bảng Điểm] để xuất kết quả hoàn chỉnh ra bảng tính Excel (.xlsx), tệp báo cáo PDF hoặc CSV theo yêu cầu."),
             ("Bước 6: Kết thúc phiên chấm",
@@ -220,7 +223,70 @@ class GradingGuideDialog(QDialog):
         c_layout.addWidget(card_strat)
 
         # ======================================================================
-        # PHẦN 3: BẢNG TRA CỨU CÁC PHÁN QUYẾT CHẤM ĐIỂM (VERDICTS)
+        # PHẦN 3: HƯỚNG DẪN CHI TIẾT CÁC TÍNH NĂNG AI (AI HUB)
+        # ======================================================================
+        c_layout.addSpacing(16)
+        lbl_ai_t = QLabel("Hướng Dẫn Chi Tiết Các Tính Năng AI (AI Hub)", container)
+        lbl_ai_t.setStyleSheet("font-size: 19px; font-weight: 700; color: #0284C7; margin-bottom: 2px;")
+        c_layout.addWidget(lbl_ai_t)
+
+        ai_features = [
+            ("1. AI Hub Sinh Testcase Biên Tự Động",
+             "Nơi sử dụng: [2. Cấu Hình Testcase & So Khớp] > nút kích hoạt AI Hub.\n"
+             "AI suy luận và sinh 5-10 testcase biên cho câu hỏi mà không cần viết mã giải mẫu. "
+             "Các testcase sinh ra nên được giảng viên rà soát và chỉnh sửa trước khi lưu để đảm bảo đúng ý đồ chấm."),
+            ("2. Chấm Chất Lượng Mã Bằng AI (Chế Độ Hybrid)",
+             "Nơi sử dụng: tick 'Chấm chất lượng mã bằng AI' ở thẻ [3. Bắt Đầu Chấm Hàng Loạt].\n"
+             "Điểm tổng = Sandbox (tối đa 5đ) + AI Rubric (tối đa 5đ). AI Rubric chấm 5 tiêu chí, mỗi tiêu chí 1đ:\n"
+             "• Clean Code: đặt tên biến/hàm rõ nghĩa, không mã rối.\n"
+             "• Complexity: độ phức tạp thuật toán hợp lý.\n"
+             "• Structure: chia hàm/module hóa rõ ràng.\n"
+             "• Format: thụt lề chuẩn, không code rác.\n"
+             "• Documentation: comment, tiêu đề bài làm đầy đủ.\n"
+             "Kết quả chi tiết từng tiêu chí xem ở tab 'AI Review' trong cửa sổ chi tiết bài nộp."),
+            ("3. AI Hub Phân Tích Lỗi Mã Nguồn Từng Bài",
+             "Nơi sử dụng: mở chi tiết một bài nộp > tab 'AI Review' > nút 'Kích Hoạt AI Hub Phân Tích Lỗi Mã Nguồn Bài Này'.\n"
+             "AI chỉ ra vị trí dòng lỗi thuật toán và đưa nhận xét sư phạm cho từng bài làm. "
+             "Nhận xét được lưu lại để lần sau mở bài không cần gọi lại AI."),
+            ("4. AI Thẩm Định Đạo Văn Chuyên Sâu (Vòng 2)",
+             "Nơi sử dụng: [4. Quét Đạo Văn AST] > chọn một cặp nghi vấn > nút 'Kích Hoạt AI Thẩm Định Chuyên Sâu'.\n"
+             "Vòng 1: đối soát cấu trúc mã theo từng câu (token hóa + Winnowing) để tìm các cặp nghi vấn.\n"
+             "Vòng 2: AI thẩm định các cặp có độ trùng từ 80% trở lên, kết luận 'AI xác nhận' hoặc "
+             "'không đủ bằng chứng' kèm độ tin cậy %. Giảng viên là người quyết định cuối cùng."),
+            ("5. Hạn Mức Sử Dụng AI Hub (Quota Tokens)",
+             "Pill trạng thái AI Hub ở góc giao diện hiển thị hạn mức token trong ngày:\n"
+             "• 'AI Hub: Sẵn Sàng' - còn đủ hạn mức sử dụng.\n"
+             "• 'AI Hub: Còn X / Y Tokens' - đang tiêu hao hạn mức.\n"
+             "• 'AI Hub: Hết Token Hôm Nay' - các tính năng AI tạm khóa, phần chấm tự động vẫn hoạt động bình thường.\n"
+             "Khóa API AI nằm hoàn toàn phía máy chủ; máy trạm chỉ gửi yêu cầu qua AI Gateway.")
+        ]
+
+        for feat_title, feat_desc in ai_features:
+            card_ai = QFrame(container)
+            card_ai.setStyleSheet("""
+                QFrame {
+                    background-color: #FFFFFF;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 10px;
+                }
+            """)
+            ca_layout = QVBoxLayout(card_ai)
+            ca_layout.setContentsMargins(18, 16, 18, 16)
+            ca_layout.setSpacing(6)
+
+            lbl_ft = QLabel(feat_title, card_ai)
+            lbl_ft.setStyleSheet("font-size: 15px; font-weight: 700; color: #0F172A; border: none; background: transparent;")
+            ca_layout.addWidget(lbl_ft)
+
+            lbl_fd = QLabel(feat_desc, card_ai)
+            lbl_fd.setStyleSheet("font-size: 14px; color: #475569; line-height: 1.45; border: none; background: transparent;")
+            lbl_fd.setWordWrap(True)
+            ca_layout.addWidget(lbl_fd)
+
+            c_layout.addWidget(card_ai)
+
+        # ======================================================================
+        # PHẦN 4: BẢNG TRA CỨU CÁC PHÁN QUYẾT CHẤM ĐIỂM (VERDICTS)
         # ======================================================================
         c_layout.addSpacing(16)
         lbl_verd_t = QLabel("Bảng Tra Cứu Các Phán Quyết Chấm Điểm (Verdicts)", container)
