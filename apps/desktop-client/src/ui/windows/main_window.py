@@ -2154,7 +2154,7 @@ class AITAMainWindow(QMainWindow):
             show_toast(
                 self,
                 f"Chấm xong {count} bài trong {elapsed_seconds:.1f} giây! "
-                "Điểm đã ghi an toàn vào local SQLite (local_grading.db).",
+                "Điểm đã được lưu an toàn.",
                 kind="success",
             )
         # Cập nhật hạn mức AI sau khi đợt chấm kết thúc (có thể vừa dùng token AI review)

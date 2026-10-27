@@ -1710,6 +1710,15 @@ class WebGradingMainWindow(QMainWindow):
         self.btn_import_csv.clicked.connect(self._import_csv_submissions)
         layout.addWidget(self.btn_import_csv)
 
+        # Nút "Hướng Dẫn Chấm" mở tài liệu quy chuẩn của phần chấm Web
+        self.btn_guide = QPushButton("Hướng Dẫn Chấm", card)
+        self.btn_guide.setProperty("class", "SecondaryBtn")
+        self.btn_guide.setFixedHeight(38)
+        self.btn_guide.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_guide.setToolTip("Mở tài liệu hướng dẫn quy trình, chế độ, tiêu chí rubric và AI Vision của phần chấm Web.")
+        self.btn_guide.clicked.connect(self._open_grading_guide)
+        layout.addWidget(self.btn_guide)
+
         layout.addStretch(1)
 
         # 3. Xuất Bảng Điểm (disable khi chưa có điểm)
@@ -1809,6 +1818,12 @@ class WebGradingMainWindow(QMainWindow):
             )
             self.btn_class.setText("Chưa Chọn Phiên\nBấm để tạo/chọn")
             self.btn_class.setToolTip("Chưa có phiên chấm nào. Bấm để tạo hoặc chọn phiên.")
+
+    def _open_grading_guide(self):
+        """Mở tài liệu hướng dẫn chấm bài tập & đồ án web."""
+        from ui.dialogs.web_grading_guide_dialog import WebGradingGuideDialog
+        dlg = WebGradingGuideDialog(parent=self)
+        dlg.exec()
 
     def _open_session_manager(self):
         """Opens the session management modal dialog to switch, create, or delete sessions."""
@@ -2524,7 +2539,7 @@ class WebGradingMainWindow(QMainWindow):
         summary_msg = (
             f"Đã thẩm định thành công {total}/{total} bài tập Web (chỉ những bài chưa chấm)!\n"
             "• Điểm số 4 tiêu chí (DOM, Lint, Function, UI) đã được tính toán thực tế.\n"
-            "• Dữ liệu đã được lưu an toàn vào CSDL SQLite.\n"
+            "• Dữ liệu đã được lưu an toàn.\n"
             "• Bạn có thể bấm 'Xuất Bảng Điểm' để lưu file Excel (.xlsx) hoặc PDF."
         )
         auth_failed = getattr(self, "_ai_auth_fail_count", 0)
