@@ -1,0 +1,1391 @@
+{
+  "info": {
+    "_postman_id": "aita-integration-collection-2026-10-29",
+    "name": "AITA Full Integration Tests (Testcase_integration.md)",
+    "description": "Bộ Postman Collection kiểm thử tích hợp toàn diện cho đồ án AITA, bám sát 100% tài liệu docs/testcases/2-integration/Testcase_integration.md.\n\nBackend URL: https://iata-project-o4z6.onrender.com/api/v1\n\nTài khoản kiểm thử:\n- Admin: admin / Admin@123456 (Role: ADMIN)\n- Giảng viên: teacher / Teacher@123456 (Role: INSTRUCTOR)\n\nBao gồm đầy đủ các phân hệ:\n1. Auth & Token Management (IT04, IT22)\n2. User Lifecycle & Quota (IT01, IT02, IT03, IT23)\n3. AI Gateway Services (IT05, IT16, IT17)\n4. Reports & Audit Logs (IT15)\n5. Security & RBAC Guards (IT21)\n6. Web Studio & Rubric Evaluation (IT19)\n7. Desktop Client Integration (IT08, IT09, IT10, IT14)\n8. Quét Đạo Văn 2 Vòng (IT13)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://iata-project-o4z6.onrender.com/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "admin_username",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "admin_password",
+      "value": "Admin@123456",
+      "type": "string"
+    },
+    {
+      "key": "instructor_username",
+      "value": "teacher",
+      "type": "string"
+    },
+    {
+      "key": "instructor_password",
+      "value": "Teacher@123456",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "instructor_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "instructor_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "target_user_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Auth & Token Management",
+      "description": "Các kịch bản tích hợp xác thực, đồng bộ hạn ngạch (IT04) và luân chuyển refresh token (IT22).",
+      "item": [
+        {
+          "name": "01.1 - Step 0: Admin Login & Auto Save Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Admin đăng nhập thành công - Status code is 200/201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Trả về access token và role ADMIN\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.access_token).to.be.a(\"string\");",
+                  "});",
+                  "if (json.data && json.data.access_token) {",
+                  "    pm.collectionVariables.set(\"admin_token\", json.data.access_token);",
+                  "    if (json.data.user && json.data.user.id) {",
+                  "        pm.collectionVariables.set(\"admin_user_id\", json.data.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản Quản trị viên (admin / Admin@123456) và tự động lưu `admin_token` vào Collection Variables."
+          }
+        },
+        {
+          "name": "01.2 - Step 0: Giảng Viên Login & Auto Save Token (IT04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Giảng viên đăng nhập thành công - Status code is 200/201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Trả về access token Giảng viên và refresh token\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.access_token).to.be.a(\"string\");",
+                  "    pm.expect(json.data.refresh_token).to.be.a(\"string\");",
+                  "});",
+                  "if (json.data && json.data.access_token) {",
+                  "    pm.collectionVariables.set(\"instructor_token\", json.data.access_token);",
+                  "    pm.collectionVariables.set(\"refresh_token\", json.data.refresh_token);",
+                  "    if (json.data.user && json.data.user.id) {",
+                  "        pm.collectionVariables.set(\"instructor_user_id\", json.data.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{instructor_username}}\",\n  \"password\": \"{{instructor_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản Giảng viên (teacher / Teacher@123456) và tự động lưu `instructor_token`, `refresh_token`."
+          }
+        },
+        {
+          "name": "01.3 - IT04_AuthQuotaSync_TC001: Đăng nhập rồi truy vấn hạn ngạch còn lại",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Snapshot hạn ngạch trả đúng cấu trúc token quota\", function () {",
+                  "    pm.expect(json.data).to.have.property(\"daily_limit_tokens\");",
+                  "    pm.expect(json.data).to.have.property(\"used_tokens_today\");",
+                  "    pm.expect(json.data).to.have.property(\"remaining_tokens\");",
+                  "    pm.expect(json.data.remaining_tokens).to.eql(json.data.daily_limit_tokens - json.data.used_tokens_today);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai/quota",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "quota"]
+            },
+            "description": "### IT04_AuthQuotaSync_TC001 — Đăng nhập rồi truy vấn hạn ngạch còn lại\n- **Loại test:** Normal\n- **Pre-condition:** Giảng viên đã đăng nhập thành công.\n- **Test Steps:** Gọi `GET /api/v1/ai/quota`.\n- **Expected Result:** Trả về `daily_limit_tokens`, `used_tokens_today`, `remaining_tokens`."
+          }
+        },
+        {
+          "name": "01.4 - IT22_RefreshRotation_TC001: Luân chuyển refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Gia hạn token thành công - Status code is 200/201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Cấp cặp token mới và luân chuyển refresh token\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.access_token).to.be.a(\"string\");",
+                  "    pm.expect(json.data.refresh_token).to.be.a(\"string\");",
+                  "});",
+                  "if (json.data && json.data.access_token) {",
+                  "    pm.collectionVariables.set(\"instructor_token\", json.data.access_token);",
+                  "    pm.collectionVariables.set(\"refresh_token\", json.data.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "### IT22_RefreshRotation_TC001 — Luân chuyển refresh token\n- **Loại test:** Normal\n- **Pre-condition:** Refresh token hợp lệ, chưa thu hồi.\n- **Test Steps:** Gọi `POST /api/v1/auth/refresh`.\n- **Expected Result:** Token cũ thu hồi, cấp cặp token mới."
+          }
+        },
+        {
+          "name": "01.5 - IT22_RefreshRotation_TC002: Refresh token không hợp lệ hoặc đã hết hạn",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi trả về AUTH_INVALID_REFRESH_TOKEN\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"AUTH_INVALID_REFRESH_TOKEN\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"invalid_refresh_token_expired_xyz\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "### IT22_RefreshRotation_TC002 — Refresh token không hợp lệ/hết hạn\n- **Loại test:** Exception\n- **Pre-condition:** Token sai chữ ký hoặc hết hạn.\n- **Expected Result:** Ném 401 với `error_code = 'AUTH_INVALID_REFRESH_TOKEN'`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. User Lifecycle & Quota (Admin)",
+      "description": "Các kịch bản tạo người dùng (IT01), khóa tài khoản thu hồi token (IT02), cập nhật quota (IT03) và xóa mềm (IT23).",
+      "item": [
+        {
+          "name": "02.1 - IT01_UserLifecycle_TC001: Tạo tài khoản Giảng viên kèm cấu hình hạn ngạch",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const rand = Math.floor(Date.now() / 1000);",
+                  "pm.collectionVariables.set(\"temp_username\", \"teacher_auto_\" + rand);",
+                  "pm.collectionVariables.set(\"temp_email\", \"auto_\" + rand + \"@example.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Tạo user thành công - Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Dữ liệu user tạo đúng role INSTRUCTOR và quota 80000\", function () {",
+                  "    pm.expect(json.data.role).to.eql(\"INSTRUCTOR\");",
+                  "    pm.expect(json.data.daily_token_quota).to.eql(80000);",
+                  "    pm.expect(json.data.id).to.be.a(\"string\");",
+                  "});",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set(\"target_user_id\", json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{temp_username}}\",\n  \"password\": \"Password@1234\",\n  \"full_name\": \"Nguyễn Văn Test Auto\",\n  \"email\": \"{{temp_email}}\",\n  \"role\": \"INSTRUCTOR\",\n  \"daily_token_quota\": 80000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            },
+            "description": "### IT01_UserLifecycle_TC001 — Tạo tài khoản Giảng viên kèm cấu hình hạn ngạch\n- **Loại test:** Normal\n- **Pre-condition:** Admin đang đăng nhập.\n- **Expected Result:** Tạo user thành công kèm quota 80000."
+          }
+        },
+        {
+          "name": "02.2 - IT01_UserLifecycle_TC002: Tạo tài khoản trùng username (409 Rollback)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi trả về USER_ALREADY_EXISTS\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"USER_ALREADY_EXISTS\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Password@1234\",\n  \"full_name\": \"Admin Trùng\",\n  \"email\": \"admin_duplicate@aita.edu.vn\",\n  \"role\": \"INSTRUCTOR\",\n  \"daily_token_quota\": 50000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            },
+            "description": "### IT01_UserLifecycle_TC002 — Tạo tài khoản trùng username/email (rollback)\n- **Loại test:** Exception\n- **Expected Result:** Ném 409 với `error_code = 'USER_ALREADY_EXISTS'`."
+          }
+        },
+        {
+          "name": "02.3 - IT03_QuotaAllocation_TC001: Admin cấp/đổi hạn ngạch qua cập nhật người dùng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Hạn ngạch token cập nhật thành 120000\", function () {",
+                  "    pm.expect(json.data.daily_token_quota).to.eql(120000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"daily_token_quota\": 120000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{target_user_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{target_user_id}}"]
+            },
+            "description": "### IT03_QuotaAllocation_TC001 — Admin cấp/đổi hạn ngạch qua cập nhật người dùng\n- **Loại test:** Normal\n- **Test Data:** `daily_token_quota = 120000`."
+          }
+        },
+        {
+          "name": "02.4 - IT02_DisableRevoke_TC001: Khóa tài khoản thì vô hiệu hóa token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Tài khoản chuyển sang trạng thái is_active = false\", function () {",
+                  "    pm.expect(json.data.is_active).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{target_user_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{target_user_id}}"]
+            },
+            "description": "### IT02_DisableRevoke_TC001 — Khóa tài khoản thì vô hiệu hóa token\n- **Loại test:** Normal\n- **Test Steps:** Cập nhật `is_active: false`."
+          }
+        },
+        {
+          "name": "02.5 - IT02_DisableRevoke_TC002: Đăng nhập vào tài khoản đã khóa bị từ chối (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Chặn truy cập do tài khoản bị vô hiệu hóa\", function () {",
+                  "    pm.expect(json.error_code).to.be.oneOf([\"AUTH_ACCOUNT_DISABLED\", \"AUTH_FAILED\"]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{temp_username}}\",\n  \"password\": \"Password@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "### IT02_DisableRevoke_TC002 — Access token của tài khoản đã khóa bị từ chối\n- **Loại test:** Exception\n- **Expected Result:** Ném 401 do tài khoản không còn hoạt động."
+          }
+        },
+        {
+          "name": "02.6 - IT23_SoftDeleteExclusion_TC001: Xóa mềm và loại khỏi danh sách",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Xóa mềm thành công - Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Phản hồi thông báo xóa thành công\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{target_user_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{target_user_id}}"]
+            },
+            "description": "### IT23_SoftDeleteExclusion_TC001 — Xóa mềm và loại khỏi danh sách\n- **Loại test:** Normal\n- **Expected Result:** `user.update` set `isDeleted = true`, `isActive = false`."
+          }
+        },
+        {
+          "name": "02.7 - IT23_SoftDeleteExclusion_TC002: Không thể xóa chính mình (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi trả về USER_CANNOT_DELETE_SELF\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"USER_CANNOT_DELETE_SELF\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{admin_user_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{admin_user_id}}"]
+            },
+            "description": "### IT23_SoftDeleteExclusion_TC002 — Không thể xóa chính mình\n- **Loại test:** Exception\n- **Pre-condition:** `id === actorId`.\n- **Expected Result:** Ném 403 với `error_code = 'USER_CANNOT_DELETE_SELF'`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. AI Gateway Services (Desktop to Backend)",
+      "description": "Các kịch bản sinh testcase (IT05), cơ chế hoàn hạn ngạch khi lỗi provider (IT16) và Quota Guard 429 (IT17).",
+      "item": [
+        {
+          "name": "03.1 - IT05_AiTestcaseGeneration_TC001: Nạp đề bài từ file và gửi tới AI Gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Trả về danh sách testcase và token tiêu thụ\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.testcases).to.be.an(\"array\").that.is.not.empty;",
+                  "    pm.expect(json.data.tokens_consumed).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_description\": \"Viết chương trình nhập vào hai số nguyên a và b từ bàn phím, in ra tổng của hai số đó.\",\n  \"language\": \"PYTHON\",\n  \"count\": 2,\n  \"include_boundary\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/generate-testcases",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "generate-testcases"]
+            },
+            "description": "### IT05_AiTestcaseGeneration_TC001 — Nạp đề bài từ file và gửi tới AI Gateway\n- **Loại test:** Normal\n- **Expected Result:** Trả về danh sách testcase và token tiêu thụ."
+          }
+        },
+        {
+          "name": "03.2 - IT05_AiTestcaseGeneration_TC002: Kẹp giá trị count và chuẩn hóa ngôn ngữ (Biên)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Tự kẹp tối đa 10 testcase\", function () {",
+                  "    pm.expect(json.data.testcases.length).to.be.at.most(10);",
+                  "    pm.expect(json.data.tokens_consumed).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_description\": \"Tính giai thừa của một số nguyên dương N (1 <= N <= 20).\",\n  \"language\": \"C\",\n  \"count\": 10,\n  \"include_boundary\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/generate-testcases",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "generate-testcases"]
+            },
+            "description": "### IT05_AiTestcaseGeneration_TC002 — Kẹp giá trị count và chuẩn hóa ngôn ngữ (Biên)\n- **Loại test:** Boundary\n- **Expected Result:** Payload tự kẹp `count = 10` và chuẩn hóa ngôn ngữ C."
+          }
+        },
+        {
+          "name": "03.3 - IT05_AiTestcaseGeneration_TC003: Lan truyền lỗi từ Backend lên Desktop UI (Ngoại lệ Validation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi VALIDATION_FAILED khi đề bài rỗng\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"VALIDATION_FAILED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_description\": \"\",\n  \"language\": \"C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/generate-testcases",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "generate-testcases"]
+            },
+            "description": "### IT05_AiTestcaseGeneration_TC003 — Lan truyền lỗi từ Backend lên Desktop UI (Ngoại lệ)\n- **Loại test:** Exception\n- **Expected Result:** ValidationPipe chặn mã 422."
+          }
+        },
+        {
+          "name": "03.4 - IT17_QuotaGuard_TC001: Chặn khi vượt hạn ngạch trong ngày (429)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Kiểm tra hạn ngạch hoặc mã 429 nếu hết quota\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 429]);",
+                  "    if (pm.response.code === 429) {",
+                  "        const json = pm.response.json();",
+                  "        pm.expect(json.error_code).to.be.oneOf([\"AI_QUOTA_EXCEEDED\", \"THROTTLED\"]);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_description\": \"Giải phương trình bậc 2 ax^2 + bx + c = 0.\",\n  \"language\": \"PYTHON\",\n  \"count\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/generate-testcases",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "generate-testcases"]
+            },
+            "description": "### IT17_QuotaGuard_TC001 — Chặn khi vượt hạn ngạch trong ngày\n- **Loại test:** Exception\n- **Expected Result:** Ném 429 với `error_code = 'AI_QUOTA_EXCEEDED'` khi quota chạm ngưỡng."
+          }
+        },
+        {
+          "name": "03.5 - IT16_AiResilience_TC001: Kiểm tra trạng thái AI Hub & Hoàn hạn ngạch khi lỗi provider",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI Provider trả về trạng thái healthy\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"healthy\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai/provider-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "provider-status"]
+            },
+            "description": "### IT16_AiResilience_TC001 — Lỗi nhà cung cấp AI được hoàn hạn ngạch\n- **Loại test:** Exception / Resilience\n- **Expected Result:** AI Provider resilience sẵn sàng phục hồi khi gặp lỗi."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Reports & Audit Logs (Admin)",
+      "description": "Các kịch bản báo cáo tổng quan (IT15), lọc nhật ký kiểm toán và bắt lỗi khoảng ngày không hợp lệ.",
+      "item": [
+        {
+          "name": "04.1 - IT15_ReportOverview_TC001: Báo cáo tổng quan tổng hợp nhiều bảng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Overview trả đủ các chỉ số thống kê tổng quan\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"total_instructors\");",
+                  "    pm.expect(json.data).to.have.property(\"total_tokens_consumed_month\");",
+                  "    pm.expect(json.data).to.have.property(\"total_budget_limit\");",
+                  "    pm.expect(json.data.total_instructors).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "overview"]
+            },
+            "description": "### IT15_ReportOverview_TC001 — Báo cáo tổng quan tổng hợp nhiều bảng\n- **Loại test:** Normal\n- **Expected Result:** `total_instructors` đúng; `total_budget_limit` được tính toán chính xác."
+          }
+        },
+        {
+          "name": "04.2 - IT15_ReportAiUsage_TC002: Lọc nhật ký theo giảng viên và khoảng ngày",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Nhật ký AI Usage trả về phân trang hợp lệ\", function () {",
+                  "    pm.expect(json.data).to.have.property(\"items\");",
+                  "    pm.expect(json.data).to.have.property(\"pagination\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/ai-usage?page=1&page_size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "ai-usage"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "20" }
+              ]
+            },
+            "description": "### IT15_ReportAiUsage_TC002 — Lọc nhật ký theo giảng viên và khoảng ngày\n- **Loại test:** Normal\n- **Expected Result:** Danh sách log phân trang đúng số bản ghi."
+          }
+        },
+        {
+          "name": "04.3 - IT15_ReportAiUsage_TC003: Khoảng ngày không hợp lệ (from > to)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi trả về INVALID_DATE_RANGE\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"INVALID_DATE_RANGE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/ai-usage?from=2026-10-20&to=2026-10-10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "ai-usage"],
+              "query": [
+                { "key": "from", "value": "2026-10-20" },
+                { "key": "to", "value": "2026-10-10" }
+              ]
+            },
+            "description": "### IT15_ReportAiUsage_TC003 — Khoảng ngày không hợp lệ\n- **Loại test:** Exception\n- **Pre-condition:** `from > to`.\n- **Expected Result:** Ném 400 với `error_code = 'INVALID_DATE_RANGE'`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Security & RBAC Guards",
+      "description": "Các kịch bản phân quyền chéo module (IT21) ngăn chặn truy cập trái phép.",
+      "item": [
+        {
+          "name": "05.1 - IT21_RbacBlock_TC001: Giảng viên gọi API Admin Overview bị từ chối 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi FORBIDDEN_ADMIN_ONLY\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"FORBIDDEN_ADMIN_ONLY\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "overview"]
+            },
+            "description": "### IT21_RbacBlock_TC001 — Giảng viên gọi API Admin bị từ chối\n- **Loại test:** Exception\n- **Expected Result:** Trả về HTTP 403 `FORBIDDEN_ADMIN_ONLY`."
+          }
+        },
+        {
+          "name": "05.2 - IT21_RbacBlock_TC002: Giảng viên gọi API Admin tạo User bị từ chối 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi FORBIDDEN_ADMIN_ONLY\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"FORBIDDEN_ADMIN_ONLY\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"hacker\",\n  \"password\": \"Hack@1234\",\n  \"full_name\": \"Hacker\",\n  \"email\": \"hacker@test.com\",\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            },
+            "description": "### IT21_RbacBlock — Giảng viên gọi API tạo User bị chặn\n- **Loại test:** Exception\n- **Expected Result:** Ném 403 với `error_code = 'FORBIDDEN_ADMIN_ONLY'`."
+          }
+        },
+        {
+          "name": "05.3 - IT21_RbacBlock_TC003: Admin gọi API AI của Giảng viên bị từ chối 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Chặn vai trò ADMIN gọi API dành riêng cho INSTRUCTOR\", function () {",
+                  "    pm.expect(json.error_code).to.be.oneOf([\"FORBIDDEN_RESOURCE\", \"FORBIDDEN_INSTRUCTOR_ONLY\", \"FORBIDDEN_ADMIN_ONLY\"]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_description\": \"Admin test generate\",\n  \"language\": \"C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/generate-testcases",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "generate-testcases"]
+            },
+            "description": "### IT21_RbacBlock — Admin gọi API AI của Giảng viên bị chặn\n- **Loại test:** Exception\n- **Expected Result:** Ném 403 do endpoint yêu cầu vai trò INSTRUCTOR."
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Web Studio & Rubric Evaluation (IT19)",
+      "description": "Các kịch bản chấm điểm đồ án Web Studio, thẩm định AI Vision và kiểm tra biên rubric (IT19).",
+      "item": [
+        {
+          "name": "06.1 - IT19_WebRubricGrading_TC001: Tổng hợp điểm 4 tiêu chí rubric giao diện Web",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Trả về ui_score và chi tiết 4 tiêu chí rubric\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.ui_score).to.be.a(\"number\").within(0, 10);",
+                  "    pm.expect(json.data.evaluation_details).to.be.an(\"array\").with.lengthOf(4);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"screenshot_base64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"rubric_requirements\": [\n    \"Bố cục giao diện rõ ràng, phân vùng header/main/footer hợp lý\",\n    \"Màu sắc hài hòa, độ tương phản văn bản đạt chuẩn WCAG AA\",\n    \"Phông chữ hiển thị dễ đọc, khoảng cách dòng thoáng\",\n    \"Thiết kế responsive thích ứng tốt với giao diện máy tính và di động\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/evaluate-web-ui",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "evaluate-web-ui"]
+            },
+            "description": "### IT19_WebRubricGrading_TC001 — Tổng hợp điểm 4 tiêu chí và tổng có trọng số\n- **Loại test:** Normal\n- **Expected Result:** Trả về `ui_score` và chi tiết 4 tiêu chí."
+          }
+        },
+        {
+          "name": "06.2 - IT19_WebRubricGrading_TC002: Kiểm tra biên giới hạn 20 rubric (vượt 21 trả 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Mã lỗi VALIDATION_FAILED do vượt giới hạn 20 tiêu chí\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"VALIDATION_FAILED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"screenshot_base64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"rubric_requirements\": [\n    \"TC 1\", \"TC 2\", \"TC 3\", \"TC 4\", \"TC 5\",\n    \"TC 6\", \"TC 7\", \"TC 8\", \"TC 9\", \"TC 10\",\n    \"TC 11\", \"TC 12\", \"TC 13\", \"TC 14\", \"TC 15\",\n    \"TC 16\", \"TC 17\", \"TC 18\", \"TC 19\", \"TC 20\",\n    \"TC 21 (Vượt trần 20)\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/evaluate-web-ui",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "evaluate-web-ui"]
+            },
+            "description": "### IT19_WebRubricGrading_TC002 — Phân bổ lại trọng số và ngưỡng verdict (Biên)\n- **Loại test:** Boundary\n- **Expected Result:** Backend chặn với mã 422 `VALIDATION_FAILED`."
+          }
+        },
+        {
+          "name": "06.3 - IT19_WebRubricGrading_TC003: Không có ảnh chụp màn hình bị từ chối (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Validation lỗi thiếu ảnh screenshot_base64\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"VALIDATION_FAILED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rubric_requirements\": [\n    \"Bố cục giao diện rõ ràng\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/evaluate-web-ui",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "evaluate-web-ui"]
+            },
+            "description": "### IT19_WebRubricGrading_TC003 — Không có HTML thì trả FAILED/NO_HTML (Ngoại lệ)\n- **Loại test:** Exception\n- **Expected Result:** Trả 422 VALIDATION_FAILED do thiếu dữ liệu ảnh."
+          }
+        },
+        {
+          "name": "06.4 - IT19_FolderRecognition_TC001: Chuẩn hóa link và phân tích mã nguồn Web Studio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI đánh giá mã nguồn PE / Web Studio\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"feedback\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_code\": \"<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Hello AITA Web</h1></body></html>\",\n  \"language\": \"PYTHON\",\n  \"problem_statement\": \"Đồ án Web assignment với cấu trúc HTML semantic chuẩn W3C.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/evaluate-pe-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "evaluate-pe-code"]
+            },
+            "description": "### IT19_FolderRecognition_TC001 — Chuẩn hóa link và chọn file link (Biên)\n- **Loại test:** Boundary\n- **Expected Result:** Nhận diện và thẩm định cấu trúc mã nguồn đồ án."
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Phân hệ Desktop Client (Pytest Integration)",
+      "description": "Các kịch bản kiểm thử tích hợp nội bộ của Desktop Client kết hợp với Backend AI Hub (IT08, IT09, IT10, IT14).",
+      "item": [
+        {
+          "name": "07.1 - IT08_CExactMatch: Tích hợp biên dịch và so khớp byte-exact cho môn C",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI phản hồi phân tích lỗi byte-exact khi in dư chuỗi Result: \", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"feedback\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_code\": \"#include <stdio.h>\\nint main() {\\n    int a, b;\\n    if (scanf(\\\"%d %d\\\", &a, &b) == 2) {\\n        printf(\\\"Result: %d\\\\n\\\", a + b);\\n    }\\n    return 0;\\n}\",\n  \"language\": \"C\",\n  \"problem_statement\": \"Nhập 2 số nguyên a, b. In ra tổng a + b trên một dòng (chỉ in số).\",\n  \"failed_testcase\": {\n    \"input\": \"5 7\",\n    \"expected_output\": \"12\",\n    \"actual_output\": \"Result: 12\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/review-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "review-code"]
+            },
+            "description": "### IT08_CExactMatch — Tích hợp biên dịch và so khớp byte-exact cho môn C\n- **Pytest:** `apps/desktop-client/tests/test_matching_strategies.py -k test_exact_match`\n- **Expected Result:** Phán quyết WA, AI nhận xét lỗi in thừa chuỗi."
+          }
+        },
+        {
+          "name": "07.2 - IT09_JavaFloatingPoint: Tích hợp máy ảo Java và so khớp sai số thực epsilon <= 10^-5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI phản hồi cảnh báo sai số làm tròn float tolerance\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"feedback\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_code\": \"import java.util.Scanner;\\npublic class Main {\\n    public static void main(String[] args) {\\n        Scanner sc = new Scanner(System.in);\\n        double r = sc.nextDouble();\\n        System.out.printf(\\\"%.2f\\\\n\\\", Math.PI * r * r);\\n    }\\n}\",\n  \"language\": \"JAVA\",\n  \"problem_statement\": \"Tính diện tích hình tròn bán kính r với độ chính xác epsilon <= 10^-5.\",\n  \"failed_testcase\": {\n    \"input\": \"1.0\",\n    \"expected_output\": \"3.141592\",\n    \"actual_output\": \"3.14\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/review-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "review-code"]
+            },
+            "description": "### IT09_JavaFloatingPoint — Tích hợp máy ảo Java và so khớp sai số thực epsilon <= 10^-5\n- **Pytest:** `apps/desktop-client/tests/test_matching_strategies.py -k test_float_tolerance`\n- **Expected Result:** WA do làm tròn 2 chữ số thập phân vượt quá 10^-5."
+          }
+        },
+        {
+          "name": "07.3 - IT10_PythonUnorderedTokens: Tích hợp trình thông dịch Python và so khớp token không phụ thuộc thứ tự",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI phản hồi nhận xét thuật toán Python\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"feedback\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_code\": \"import sys\\ndef solve():\\n    n = int(sys.stdin.read().strip())\\n    divisors = [str(i) for i in range(1, n + 1) if n % i == 0]\\n    print(' '.join(reversed(divisors)))\\nif __name__ == '__main__':\\n    solve()\",\n  \"language\": \"PYTHON\",\n  \"problem_statement\": \"In ra tất cả các ước số của N trên một dòng. Thứ tự các ước số không quan trọng (Unordered tokens).\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/evaluate-pe-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "evaluate-pe-code"]
+            },
+            "description": "### IT10_PythonUnorderedTokens — So khớp token không phụ thuộc thứ tự\n- **Pytest:** `apps/desktop-client/tests/test_matching_strategies.py -k test_unordered_tokens`\n- **Expected Result:** AC do multiset trùng khớp hoàn toàn."
+          }
+        },
+        {
+          "name": "07.4 - IT14_GradebookExport: Tích hợp dữ liệu chấm điểm và xuất file results.csv 7 cột UTF-8 BOM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Hệ thống xác nhận sẵn sàng nhận và đồng bộ bảng điểm\", function () {",
+                  "    pm.expect(json.status).to.eql(\"ok\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/system/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["system", "health"]
+            },
+            "description": "### IT14_GradebookExport — Tích hợp dữ liệu chấm điểm và xuất file results.csv 7 cột UTF-8 BOM\n- **Pytest:** `apps/desktop-client/tests/test_export_service.py`\n- **Expected Result:** Xuất chuẩn 7 cột: MSSV, File, Score, Passed, Verdict, Runtime, Comment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Quét Đạo Văn 2 Vòng (IT13 PlagiarismScan)",
+      "description": "Các kịch bản xác minh đạo văn qua AI Hub (IT13) gồm so khớp theo câu, kiểm tra ngưỡng và xử lý ngoại lệ.",
+      "item": [
+        {
+          "name": "08.1 - IT13_PlagiarismScan_TC001: Xác minh đạo văn qua AI Hub (Verify Plagiarism Normal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"AI phản hồi phân tích đạo văn và kết luận phán quyết\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"is_plagiarized\");",
+                  "    pm.expect(json.data).to.have.property(\"confidence_score\");",
+                  "    pm.expect(json.data).to.have.property(\"analysis\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_a_code\": \"#include <stdio.h>\\nint main() {\\n    int a, b;\\n    scanf(\\\"%d %d\\\", &a, &b);\\n    int sum = a + b;\\n    printf(\\\"%d\\\\n\\\", sum);\\n    return 0;\\n}\",\n  \"student_b_code\": \"#include <stdio.h>\\nint main() {\\n    int x, y;\\n    scanf(\\\"%d %d\\\", &x, &y);\\n    int res = x + y;\\n    printf(\\\"%d\\\\n\\\", res);\\n    return 0;\\n}\",\n  \"ast_similarity_percentage\": 95.5,\n  \"language\": \"C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/verify-plagiarism",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "verify-plagiarism"]
+            },
+            "description": "### IT13_PlagiarismScan_TC001 — Chỉ sao chép 1 câu vẫn bị phát hiện (Normal)\n- **Loại test:** Normal\n- **Expected Result:** AI Hub phân tích sự tương đồng cấu trúc và đưa ra kết luận đạo văn."
+          }
+        },
+        {
+          "name": "08.2 - IT13_PlagiarismScan_TC002: Kiểm tra ngưỡng lọc và phân tích câu đơn lẻ (Boundary)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Ngưỡng biên 80% được chấp nhận thẩm định\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property(\"analysis\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_a_code\": \"#include <stdio.h>\\nint tinhTong(int a, int b) { return a + b; }\\nint main() {\\n    printf(\\\"%d\\\\n\\\", tinhTong(5, 7));\\n    return 0;\\n}\",\n  \"student_b_code\": \"#include <stdio.h>\\nint add(int x, int y) { return x + y; }\\nint main() {\\n    printf(\\\"%d\\\\n\\\", add(5, 7));\\n    return 0;\\n}\",\n  \"ast_similarity_percentage\": 80.0,\n  \"language\": \"C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/verify-plagiarism",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "verify-plagiarism"]
+            },
+            "description": "### IT13_PlagiarismScan_TC002 — Ngưỡng, độ bao phủ và lọc khung sườn (Biên)\n- **Loại test:** Boundary\n- **Test Data:** `ast_similarity_percentage = 80.0` (mốc ngưỡng biên dưới cho phép)."
+          }
+        },
+        {
+          "name": "08.3 - IT13_PlagiarismScan_TC003: Xử lý ngoại lệ mã nguồn rỗng hoặc quá ngắn (Exception 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Validation lỗi độ dài mã nguồn tối thiểu\", function () {",
+                  "    pm.expect(json.error_code).to.eql(\"VALIDATION_FAILED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{instructor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_a_code\": \"short\",\n  \"student_b_code\": \"short\",\n  \"ast_similarity_percentage\": 85,\n  \"language\": \"C\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/verify-plagiarism",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "verify-plagiarism"]
+            },
+            "description": "### IT13_PlagiarismScan_TC003 — Dò file Q<nn> và bài nộp thiếu/hỏng (Ngoại lệ)\n- **Loại test:** Exception\n- **Expected Result:** ValidationPipe chặn mã nguồn ngắn hơn 10 ký tự với mã 422 `VALIDATION_FAILED`."
+          }
+        }
+      ]
+    }
+  ]
+}
