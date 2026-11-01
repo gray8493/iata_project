@@ -1,6 +1,6 @@
 """
 AITA Desktop Client - Central Backend API Client
-Handles HTTP communications with Central Backend (NestJS) on Render.
+Handles HTTP communications with Central Backend (NestJS) on Vercel.
 Supports automatic token injection, timeout handling, and server health checks.
 """
 
@@ -10,8 +10,8 @@ import httpx
 
 from core.version import APP_VERSION
 
-# Default Backend URL on Render
-DEFAULT_BACKEND_URL = "https://iata-project-o4z6.onrender.com/api/v1"
+# Default Backend URL on Vercel
+DEFAULT_BACKEND_URL = "https://aita-central-backend.vercel.app/api/v1"
 
 
 def parse_json(resp: httpx.Response) -> Optional[Dict[str, Any]]:
@@ -40,13 +40,13 @@ class ApiClient:
         elif env_url:
             self.base_url = env_url.rstrip("/")
         else:
-            # Ưu tiên kết nối backend local nếu đang chạy, nếu không kết nối Render
+            # Ưu tiên kết nối backend local nếu đang chạy, nếu không kết nối backend Vercel
             self.base_url = DEFAULT_BACKEND_URL
             self.reprobe_backend()
         self.access_token: Optional[str] = None
         self.refresh_token: Optional[str] = None
         self.current_user: Optional[Dict[str, Any]] = None
-        # Timeout 25s to gracefully handle Render.com free-tier cold starts
+        # Timeout 25s to gracefully handle Vercel serverless cold starts
         self.timeout = 25.0
 
     @classmethod
@@ -58,7 +58,7 @@ class ApiClient:
     def reprobe_backend(self) -> str:
         """Thăm dò lại backend local (dev). Khi bị ghim base_url/env thì giữ nguyên.
 
-        Dùng khi phiên phiên trước chọn Render vì backend local chưa kịp bật:
+        Dùng khi phiên phiên trước chọn backend cloud vì backend local chưa kịp bật:
         nút 'Thử Lại' gọi lại hàm này để tự chuyển về localhost mà không cần khởi động app.
         """
         if self._fixed_base or os.getenv("AITA_BACKEND_URL"):

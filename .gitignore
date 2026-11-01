@@ -12,11 +12,18 @@ data/
 *.sqlite
 *.sqlite3
 
+# Cho phép bài nộp MẪU của bộ test automation (tests/fixtures/submissions)
+!tests/fixtures/submissions/
+
 # --- 2. Kết Quả Xuất & Báo Cáo Chấm Thi ---
 results.csv
 plagiarism_report.csv
 students.csv
 *.csv.bak
+
+# --- 2.1 Báo Cáo Test Automation (pytest JUnit + coverage) ---
+reports/
+coverage.xml
 
 # --- 3. Trình Biên Dịch & File Nhị Phân Tạm (C, Java, Python) ---
 *.exe
