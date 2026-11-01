@@ -1,0 +1,2 @@
+Live: https://assignment-1-project-setup-and-depl.vercel.app/
+Repo: https://github.com/ThanhNam7791aaa/Assignment-2-crud-with-authentication

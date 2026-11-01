@@ -1,0 +1,8 @@
+Viết chương trình nhập vào hai số nguyên a và b từ bàn phím (ngăn cách bởi dấu cách hoặc xuống dòng).
+Hãy tính tổng của hai số và in kết quả ra màn hình trên một dòng duy nhất (chỉ in giá trị số nguyên).
+
+Ví dụ:
+Input:
+5 7
+Output:
+12
