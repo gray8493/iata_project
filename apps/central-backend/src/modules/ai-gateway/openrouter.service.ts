@@ -40,6 +40,8 @@ interface GenerateJsonArgs {
   schema: JsonSchemaDefinition;
   maxOutputTokens: number;
   image?: ProviderImage;
+  /** Giảm thời gian suy luận của reasoning model (OpenRouter `reasoning.effort`). */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -218,6 +220,7 @@ export class OpenRouterService {
     const body: Record<string, unknown> = { messages, temperature: 0.2, max_tokens: args.maxOutputTokens };
     if (this.models.length > 1) body.models = this.models;
     else body.model = this.model;
+    if (args.reasoningEffort) body.reasoning = { effort: args.reasoningEffort };
     if (structured) body.response_format = { type: 'json_schema', json_schema: { name: 'aita_response', strict: false, schema: args.schema } };
     return body;
   }
