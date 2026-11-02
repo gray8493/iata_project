@@ -365,12 +365,17 @@ class WebRubricEngine:
             if screenshot_bytes:
                 screenshot_path = self._save_screenshot(screenshot_bytes, mssv)
                 raw_ui, ai_feedback, ui_log, ui_error = self._score_ui(screenshot_bytes)
-                ui_score = raw_ui
-                if ui_error in ("AUTH_INVALID_TOKEN", "HTTP_401"):
-                    ui_log = (
-                        "Token không hợp lệ — phiên đăng nhập backend đã hết hạn, "
-                        "đăng nhập lại rồi chấm lại bài để có điểm UI/UX (tạm tính 0.0/10)."
-                    )
+                if ui_error:
+                    # Lỗi AI (hết hạn phiên, quota, rate limit, ảnh quá lớn...) không phải lỗi của bài nộp:
+                    # bỏ tiêu chí UI/UX khỏi tổng điểm thay vì tính 0 điểm (làm sai verdict).
+                    if ui_error in ("AUTH_INVALID_TOKEN", "HTTP_401"):
+                        ui_log = (
+                            "Token không hợp lệ — phiên đăng nhập backend đã hết hạn, "
+                            "đăng nhập lại rồi chấm lại bài để có điểm UI/UX."
+                        )
+                    ui_log += " Tiêu chí UI/UX không được tính vào tổng điểm."
+                else:
+                    ui_score = raw_ui
                 log_lines.append(f"[UI/UX]: {ui_log}")
             else:
                 log_lines.append("[UI/UX]: Không có ảnh chụp màn hình để AI Vision thẩm định.")
