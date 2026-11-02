@@ -34,4 +34,8 @@ describe('AI token budget regression', () => {
     await ai.evaluateWebUi('u1', { screenshot_base64: pngBase64, rubric_requirements: ['Bố cục'] } as any).catch(() => undefined);
     expect(provider.generateJson.mock.calls[0][0].maxOutputTokens).toBeGreaterThanOrEqual(4000);
   });
+  it('reviewCode dùng maxOutputTokens >= 4000', async () => {
+    await ai.reviewCode('u1', { source_code: C_CODE, language: 'C', problem_statement: 'Tính tổng', failed_testcase: { input: '1 2', expected_output: '3', actual_output: '0' } } as any).catch(() => undefined);
+    expect(provider.generateJson.mock.calls[0][0].maxOutputTokens).toBeGreaterThanOrEqual(4000);
+  });
 });
