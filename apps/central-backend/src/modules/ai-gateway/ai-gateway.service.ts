@@ -244,7 +244,7 @@ Mã nguồn sinh viên:
 ${input.source_code}`;
 
     const request = {
-      userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 4000, schema: peCodeSchema,
+      userId, feature: 'PE_CODE_EVAL' as const, maxOutputTokens: 4000, reasoningEffort: 'low' as const, schema: peCodeSchema,
     };
     let validData: Record<string, unknown> | undefined;
     let tokensConsumed = 0;

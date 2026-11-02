@@ -23,6 +23,7 @@ describe('AI token budget regression', () => {
     provider.generateJson.mockResolvedValue({ data: { rubric: {}, overall_feedback: 'x' }, tokensConsumed: 1 });
     await ai.evaluatePeCode('u1', { source_code: C_CODE, language: 'C', problem_statement: 'Tính tổng' } as any).catch(() => undefined);
     expect(provider.generateJson.mock.calls[0][0].maxOutputTokens).toBeGreaterThanOrEqual(4000);
+    expect(provider.generateJson.mock.calls[0][0].reasoningEffort).toBe('low');
   });
 
   it('verifyPlagiarism dùng maxOutputTokens >= 4000', async () => {
