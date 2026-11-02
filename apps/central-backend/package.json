@@ -5,6 +5,7 @@
   "description": "AITA central API built with NestJS, Prisma, and PostgreSQL",
   "scripts": {
     "build": "nest build",
+    "vercel-build": "prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
@@ -34,7 +35,7 @@
     "testEnvironment": "node"
   },
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
