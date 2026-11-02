@@ -27,11 +27,32 @@ jobs:
         with:
           node-version: 20
 
-      - name: Deploy to Vercel
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
         working-directory: apps/central-backend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel --prod --token="$VERCEL_TOKEN" --yes
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" --debug
+
+      - name: Build Project Artifacts
+        working-directory: apps/central-backend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          vercel build --prod --token="$VERCEL_TOKEN" --debug
+
+      - name: Deploy Project Artifacts to Vercel
+        working-directory: apps/central-backend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN" --debug
