@@ -39,8 +39,17 @@ class LoginWorker(QThread):
         self.password = password
 
     def run(self):
-        auth_service = AuthService()
-        result = auth_service.login(self.username, self.password)
+        # Exception chưa bắt trong QThread làm PyQt6 abort cả tiến trình (exit 0xC0000409),
+        # nên mọi lỗi phải được chuyển thành kết quả thất bại gửi về UI.
+        try:
+            auth_service = AuthService()
+            result = auth_service.login(self.username, self.password)
+        except Exception as ex:  # noqa: BLE001 - chặn mọi lỗi ở ranh giới thread
+            result = {
+                "success": False,
+                "message": f"Lỗi không mong muốn khi đăng nhập: {ex}",
+                "error_code": "UNEXPECTED_ERROR",
+            }
         self.login_finished.emit(result)
 
 

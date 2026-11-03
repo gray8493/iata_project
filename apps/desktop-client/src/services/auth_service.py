@@ -7,6 +7,9 @@ from typing import Dict, Any, Optional
 import httpx
 from .api_client import ApiClient, parse_json
 
+# Thời gian chờ đăng nhập: đủ cho lần đánh thức Render (gói free) sau khi ngủ.
+LOGIN_TIMEOUT_SECONDS = 60.0
+
 
 class AuthService:
     """
@@ -37,18 +40,34 @@ class AuthService:
         while True:
             attempt += 1
             try:
-                resp = self.api_client.post("auth/login", payload_login)
+                # Render (gói free) ngủ khi rảnh, lần đăng nhập đầu có thể mất ~40-60 s.
+                resp = self.api_client.post("auth/login", payload_login, timeout=LOGIN_TIMEOUT_SECONDS)
             except httpx.ConnectTimeout:
                 return {
                     "success": False,
                     "message": "Hết thời gian kết nối tới máy chủ. Vui lòng kiểm tra mạng và thử lại.",
                     "error_code": "CONNECT_TIMEOUT"
                 }
+            except httpx.TimeoutException:
+                return {
+                    "success": False,
+                    "message": (
+                        "Máy chủ phản hồi quá chậm (có thể đang khởi động lại sau thời gian nghỉ).\n"
+                        "Vui lòng chờ khoảng 1 phút rồi bấm 'Thử Lại'."
+                    ),
+                    "error_code": "READ_TIMEOUT"
+                }
             except httpx.ConnectError:
                 return {
                     "success": False,
                     "message": "Không kết nối được tới máy chủ xác thực. Vui lòng kiểm tra kết nối mạng.",
                     "error_code": "CONNECT_ERROR"
+                }
+            except httpx.HTTPError:
+                return {
+                    "success": False,
+                    "message": "Lỗi kết nối tới máy chủ xác thực. Vui lòng thử lại sau.",
+                    "error_code": "HTTP_ERROR"
                 }
             resp_data = parse_json(resp)
             if resp_data is not None or attempt >= 2:
