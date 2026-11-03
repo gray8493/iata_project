@@ -33,7 +33,9 @@ verification) stays in `services.ai_service`.
 
 import hashlib
 import itertools
+import math
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -54,6 +56,12 @@ MIN_SHARED_FINGERPRINTS = 15
 # Lọc boilerplate toàn lớp: chỉ áp dụng khi lớp đủ đông để "tần suất" có ý nghĩa.
 BOILERPLATE_RATIO = 0.5
 BOILERPLATE_MIN_DOCS = 5
+
+# Trọng số theo độ hiếm: gram xuất hiện ở ≤ RARE_DF_RATIO số bài của lớp được coi là "hiếm"
+# (bằng chứng mạnh). Cặp bài chỉ được xét khi có đủ MIN_RARE_SHARED gram hiếm chung,
+# để sự trùng ngẫu nhiên của cách làm chuẩn không tạo ra báo động.
+RARE_DF_RATIO = 0.2
+MIN_RARE_SHARED = 8
 
 # Khóa câu mặc định cho bài nộp 1 file (đồng bộ với `question_number` mặc định trong DB).
 DEFAULT_QUESTION_KEY = "Q1"
@@ -384,29 +392,61 @@ class PlagiarismEngine:
                 unit["fingerprints"] = winnow_fingerprints(unit["tokens"], k, window)
 
     @staticmethod
-    def _apply_boilerplate_filter(documents: List[Dict[str, Any]]) -> bool:
+    def _class_rarity(documents: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
-        Loại boilerplate chung của lớp theo từng câu. Chỉ chạy khi lớp đủ đông
-        (`BOILERPLATE_MIN_DOCS`) để không xóa mất chính cặp bài sao chép.
+        Với mỗi câu, đếm số bài của lớp chứa từng fingerprint (df). Chỉ câu có đủ
+        `BOILERPLATE_MIN_DOCS` bài mới có thông tin độ hiếm; lớp nhỏ trả về rỗng.
+        Không xóa fingerprint nào: fingerprint phổ biến chỉ được giảm trọng số.
         """
         by_question: Dict[str, List[set]] = {}
         for doc in documents:
             for key, unit in doc["units"].items():
                 by_question.setdefault(key, []).append(unit["fingerprints"])
 
-        filtered = False
+        info: Dict[str, Dict[str, Any]] = {}
         for key, fps_list in by_question.items():
-            if len(fps_list) < BOILERPLATE_MIN_DOCS:
+            n = len(fps_list)
+            if n < BOILERPLATE_MIN_DOCS:
                 continue
-            common = common_boilerplate(fps_list, BOILERPLATE_RATIO)
-            if not common:
-                continue
-            filtered = True
-            for doc in documents:
-                unit = doc["units"].get(key)
-                if unit is not None:
-                    unit["fingerprints"] = unit["fingerprints"] - common
-        return filtered
+            df: Counter = Counter()
+            for fps in fps_list:
+                df.update(fps)
+            cap = max(2, int(RARE_DF_RATIO * n))
+            info[key] = {
+                "df": df,
+                "n": n,
+                "cap": cap,
+                "has_common": any(c > cap for c in df.values()),
+            }
+        return info
+
+    @staticmethod
+    def _weighted_metrics(fa: set, fb: set, info: Dict[str, Any]) -> Optional[Dict[str, float]]:
+        """
+        Điểm có trọng số theo độ hiếm: tỷ lệ trọng số gram chung trên trọng số của tập
+        nhỏ hơn, với trọng số w(g) = log(1 + N/df(g)). Gram phổ biến đóng góp ít,
+        gram hiếm đóng góp nhiều. Trả về None khi không đủ gram hiếm chung.
+        """
+        shared = fa & fb
+        df, n, cap = info["df"], info["n"], info["cap"]
+        rare_shared = [g for g in shared if df.get(g, 1) <= cap]
+        if len(rare_shared) < MIN_RARE_SHARED:
+            return None
+
+        def weight(g: int) -> float:
+            return math.log(1.0 + n / max(df.get(g, 1), 1))
+
+        smaller = fa if len(fa) <= len(fb) else fb
+        denom = sum(weight(g) for g in smaller)
+        numer = sum(weight(g) for g in shared)
+        weighted = round(100.0 * numer / denom, 2) if denom > 0 else 0.0
+        base = PlagiarismEngine.compare_fingerprints(fa, fb)
+        return {
+            "jaccard": base["jaccard"],
+            "containment": base["containment"],
+            "sim": weighted,
+            "shared": float(len(shared)),
+        }
 
     # --------------------------------------------------------------------------
     # Quét toàn lớp
@@ -444,9 +484,8 @@ class PlagiarismEngine:
         """
         documents = self._prepare_documents(submissions, language)
         self._assign_fingerprints(documents)
-        boilerplate_filtered = (
-            self._apply_boilerplate_filter(documents) if self.boilerplate_filter else False
-        )
+        rarity = self._class_rarity(documents) if self.boilerplate_filter else {}
+        boilerplate_filtered = any(info["has_common"] for info in rarity.values())
 
         question_keys = sorted(
             {key for doc in documents for key in doc["units"].keys()},
@@ -456,14 +495,19 @@ class PlagiarismEngine:
         aggregated: Dict[Tuple[str, str], Dict[str, Any]] = {}
         total_pairs = 0
         for key in question_keys:
+            info = rarity.get(key)
             units = [(doc, doc["units"][key]) for doc in documents if key in doc["units"]]
             for (doc_a, unit_a), (doc_b, unit_b) in itertools.combinations(units, 2):
                 total_pairs += 1
-                metrics = self.compare_fingerprints(
-                    unit_a["fingerprints"], unit_b["fingerprints"]
-                )
-                if metrics["shared"] < MIN_SHARED_FINGERPRINTS:
-                    continue
+                fa, fb = unit_a["fingerprints"], unit_b["fingerprints"]
+                if info is None:
+                    metrics = self.compare_fingerprints(fa, fb)
+                    if metrics["shared"] < MIN_SHARED_FINGERPRINTS:
+                        continue
+                else:
+                    metrics = self._weighted_metrics(fa, fb, info)
+                    if metrics is None:
+                        continue
                 if metrics["sim"] < threshold:
                     continue
 
