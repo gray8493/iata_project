@@ -1,6 +1,6 @@
 """
 AITA Desktop Client - Central Backend API Client
-Handles HTTP communications with Central Backend (NestJS) on Vercel.
+Handles HTTP communications with Central Backend (NestJS) on Render.
 Supports automatic token injection, timeout handling, and server health checks.
 """
 
@@ -10,8 +10,8 @@ import httpx
 
 from core.version import APP_VERSION
 
-# Default Backend URL on Vercel
-DEFAULT_BACKEND_URL = "https://aita-central-backend.vercel.app/api/v1"
+# Default Backend URL on Render
+DEFAULT_BACKEND_URL = "https://iata-project-o4z6.onrender.com/api/v1"
 
 
 def parse_json(resp: httpx.Response) -> Optional[Dict[str, Any]]:

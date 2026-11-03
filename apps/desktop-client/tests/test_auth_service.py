@@ -28,7 +28,7 @@ class FakeApiClient:
         self.cleared = False
         self.refresh_calls = 0
 
-    def post(self, path, payload=None):
+    def post(self, path, payload=None, timeout=None):
         if self.raises:
             raise self.raises
         return self.response

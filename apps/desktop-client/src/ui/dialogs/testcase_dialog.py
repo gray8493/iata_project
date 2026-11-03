@@ -6,6 +6,7 @@ UC-11: Configure 7 Output Matching Strategies
 """
 
 import sys
+import re
 import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -75,6 +76,21 @@ DEFAULT_TIME_LIMIT_MS = 1000
 DEFAULT_MEMORY_LIMIT_MB = 128
 MAX_DATA_BYTES = 256 * 1024
 LIST_ROW_HEIGHT = 54
+
+
+# Đề có thể có nhiều câu (VD: PE 2020 có 9 câu), nên danh sách không gõ cứng Q1..Q5.
+QUESTION_MIN_CHOICES = 9
+
+
+def _question_choices(db, class_id: Optional[int], minimum: int = QUESTION_MIN_CHOICES) -> List[str]:
+    """Danh sách Q1..Qn: n lấy từ câu lớn nhất đã có testcase của đợt chấm, tối thiểu `minimum`."""
+    top = minimum
+    if db is not None and class_id:
+        for tc in db.get_testcases_by_class(class_id):
+            digits = re.sub(r"\D", "", str(tc.get("question_number") or ""))
+            if digits:
+                top = max(top, int(digits))
+    return [f"Q{i}" for i in range(1, top + 1)]
 
 
 def _style_spinbox(widget: QWidget):
@@ -348,7 +364,7 @@ class TestcaseEditDialog(QDialog):
         self.cb_q.setMinimumHeight(38)
         self.cb_q.setMinimumWidth(150)
         self.cb_q.setMaximumWidth(220)
-        self.cb_q.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
+        self.cb_q.addItems(_question_choices(self.db, self.class_id))
         self.cb_q.setStyleSheet(
             f"QComboBox {{ min-height: 36px; padding: 4px 10px; font-size: 13px;"
             f" border: 1px solid {COLOR_BORDER_DEFAULT}; border-radius: 8px; background-color: #FFFFFF; }}"
@@ -1187,10 +1203,14 @@ class AiTestcaseDialog(QDialog):
 
         self.cb_question = QComboBox(self.frame_options)
         self.cb_question.setFixedHeight(34)
-        self.cb_question.addItems(["Q1", "Q2", "Q3", "Q4", "Q5"])
+        # Có thể chọn trong danh sách hoặc gõ mã câu khác (VD: Q12).
+        self.cb_question.setEditable(True)
+        self.cb_question.addItems(_question_choices(self.db, self.class_id))
         q_idx = self.cb_question.findText(self.default_question)
         if q_idx >= 0:
             self.cb_question.setCurrentIndex(q_idx)
+        else:
+            self.cb_question.setEditText(self.default_question)
         opt_layout.addWidget(self.cb_question)
 
         lbl_opt_lang = QLabel("Ngôn ngữ lập trình:", self.frame_options)
@@ -1626,7 +1646,7 @@ class TestcaseDialog(QDialog):
         self.cb_question = QComboBox(tab_tc)
         self.cb_question.setFixedHeight(36)
         self.cb_question.setMinimumWidth(150)
-        self.cb_question.addItems(["Tất cả câu hỏi", "Q1", "Q2", "Q3", "Q4", "Q5"])
+        self.cb_question.addItems(["Tất cả câu hỏi"] + _question_choices(self.db, self.class_id))
         self.cb_question.currentIndexChanged.connect(self._filter_testcases)
         tool_row.addWidget(self.cb_question)
 
