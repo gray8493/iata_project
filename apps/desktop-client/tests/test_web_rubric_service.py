@@ -340,3 +340,33 @@ def test_bundled_chromium_executable_none_without_browsers_dir(engine, monkeypat
     monkeypatch.setattr(app_paths, "bundled_browsers_dir", lambda: None)
 
     assert engine._bundled_chromium_executable() is None
+
+
+# ------------------------------------------------------------------------------
+# Regression: lỗi AI Vision không được làm rớt điểm bài nộp (UI không tính vào tổng)
+# ------------------------------------------------------------------------------
+_LIVE_HTML = (
+    "<html><head><style>body{color:red}@media (min-width:1px){a{b:c}}</style></head>"
+    "<body><header></header><nav></nav><main><section><article><form>"
+    "<button>x</button><input></form></article></section></main><footer></footer>"
+    "<script>addEventListener('x',()=>{})</script></body></html>"
+)
+
+
+def _grade_with_ai(engine, ai_result):
+    engine._ai_service = _StubAiService(ai_result)
+    engine._render = lambda url: (_LIVE_HTML, [], {"scripts": 1, "evt": 1, "onclick": 0, "interactive": 3}, b"\x89PNG-fake")
+    return engine.grade(live_url="https://example.com", mode="LIVE_ONLY", mssv="SV01")
+
+
+def test_grade_ai_failure_excludes_ui_from_total(engine):
+    ok = _grade_with_ai(engine, {"success": True, "ui_score": 9.0, "overall_feedback": "ok", "tokens_consumed": 1})
+    failed = _grade_with_ai(engine, {"success": False, "message": "quota", "error_code": "AI_QUOTA_EXCEEDED"})
+    # Cùng một bài: AI lỗi không được kéo điểm xuống (trước đây ui=0 làm PASSED -> FAILED).
+    assert failed.score_ui is None
+    assert failed.ui_error == "AI_QUOTA_EXCEEDED"
+    assert failed.total_score == pytest.approx(
+        (failed.score_dom * 0.2 + failed.score_lint * 0.2 + failed.score_func * 0.3) / 0.7, abs=0.01
+    )
+    assert ok.score_ui == 9.0
+    assert "không được tính vào tổng điểm" in failed.rubric_log
