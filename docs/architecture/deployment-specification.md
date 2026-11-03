@@ -86,7 +86,7 @@ Toàn bộ hệ thống AITA được phân bổ trên **5 Node kiến trúc** c
 
 - **Vai trò**: Đóng vai trò Backend API tập trung, cung cấp endpoint xác thực JWT, quản lý tài khoản giảng viên, kiểm soát hạn ngạch và đóng vai trò AI Gateway Hub bảo mật trung gian khi gọi AI Hub.
 - **Nền tảng triển khai**: **Render.com Cloud Platform (Managed Web Service)**.
-  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://iata-project-o4z6.onrender.com/api/v1`.
+  - *Môi trường Production*: Triển khai trên Linux Containerized Runtime chạy Node.js 20 LTS tại địa chỉ `https://aita-central-backend.vercel.app/api/v1`.
   - *Môi trường Local Development*: Khởi chạy trực tiếp bằng Node.js 20 LTS qua lệnh `npm run start:dev` (lắng nghe tại `http://localhost:3000/api/v1`).
 - **Cấu hình & Quản lý lưu lượng**:
   - **Tự động quản lý SSL/TLS 1.3**: Nền tảng Render tự động cung cấp chứng chỉ SSL/TLS 1.3 Let's Encrypt, hỗ trợ HTTP/2 và cơ chế phòng chống DDoS tầng mạng.
@@ -230,7 +230,7 @@ lỗi (401/404/rate-limit/timeout) thì manifest rơi về các biến `APP_UPDA
 | 4 | Kiểm tra gói | `AITA_Grader_v1.exe --selftest` phải báo GCC/JDK/Python đều `OK (3+4=7)` và (khi có kèm `browsers/`) `OK (Chromium web render)`, sau đó mở app chấm thử một bài. Chỉ chạy file trong `dist/`; **không** chạy file trong `build/` (file trung gian, thiếu `_internal/` nên báo lỗi "Failed to load Python DLL"). |
 | 5 | Phát hành | Tạo GitHub Release với **tag mới** và upload gói ZIP:<br>`gh release create v1.0.1 dist/AITA_Grader_v1_portable.zip --target master --title "AITA Grader v1.0.1" --notes-file notes.md --latest` |
 | 6 | Cấu hình backend (chỉ làm **một lần**) | Khai báo trên Render: `APP_UPDATE_SOURCE=github`, `APP_UPDATE_GITHUB_REPO=<owner>/<repo>`, `GITHUB_TOKEN` (chỉ cần khi repo **private** — fine-grained PAT có quyền `Contents: Read-only`), `APP_MIN_SUPPORTED_VERSION`, `APP_UPDATE_ENTRYPOINT=AITA_Grader_v1.exe`, `APP_UPDATE_ARTIFACT_TYPE=zip`, (tuỳ chọn) `APP_UPDATE_MANDATORY`. **Không phải sửa `APP_LATEST_VERSION` / `APP_UPDATE_URL_WINDOWS` / `APP_UPDATE_SHA256_WINDOWS` / `APP_UPDATE_SIZE_WINDOWS` mỗi bản** — backend tự lấy từ release. Chỉ dùng nhóm biến đó khi muốn tắt nguồn GitHub (`APP_UPDATE_SOURCE=env`). |
-| 7 | Nghiệm thu | `curl https://iata-project-o4z6.onrender.com/api/v1/system/version` để xem manifest, rồi mở bản cũ trên máy giảng viên và xác nhận hộp thoại "Cập nhật AITA". |
+| 7 | Nghiệm thu | `curl https://aita-central-backend.vercel.app/api/v1/system/version` để xem manifest, rồi mở bản cũ trên máy giảng viên và xác nhận hộp thoại "Cập nhật AITA". |
 
 **Cơ chế tự cập nhật phía client** (`services/update_service.py`, `ui/dialogs/update_dialog.py`):
 

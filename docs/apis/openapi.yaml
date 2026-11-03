@@ -13,8 +13,8 @@ info:
 servers:
   - url: http://localhost:3000/api/v1
     description: Máy chủ phát triển cục bộ (Local Development)
-  - url: https://iata-project-o4z6.onrender.com/api/v1
-    description: Máy chủ chính thức (Production Server trên Render.com)
+  - url: https://aita-central-backend.vercel.app/api/v1
+    description: Máy chủ chính thức (Production Server trên Vercel)
 
 tags:
   - name: Auth

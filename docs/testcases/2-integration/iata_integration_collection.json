@@ -2,13 +2,13 @@
   "info": {
     "_postman_id": "aita-integration-collection-2026-10-29",
     "name": "AITA Full Integration Tests (Testcase_integration.md)",
-    "description": "Bộ Postman Collection kiểm thử tích hợp toàn diện cho đồ án AITA, bám sát 100% tài liệu docs/testcases/2-integration/Testcase_integration.md.\n\nBackend URL: https://iata-project-o4z6.onrender.com/api/v1\n\nTài khoản kiểm thử:\n- Admin: admin / Admin@123456 (Role: ADMIN)\n- Giảng viên: teacher / Teacher@123456 (Role: INSTRUCTOR)\n\nBao gồm đầy đủ các phân hệ:\n1. Auth & Token Management (IT04, IT22)\n2. User Lifecycle & Quota (IT01, IT02, IT03, IT23)\n3. AI Gateway Services (IT05, IT16, IT17)\n4. Reports & Audit Logs (IT15)\n5. Security & RBAC Guards (IT21)\n6. Web Studio & Rubric Evaluation (IT19)\n7. Desktop Client Integration (IT08, IT09, IT10, IT14)\n8. Quét Đạo Văn 2 Vòng (IT13)",
+    "description": "Bộ Postman Collection kiểm thử tích hợp toàn diện cho đồ án AITA, bám sát 100% tài liệu docs/testcases/2-integration/Testcase_integration.md.\n\nBackend URL: https://aita-central-backend.vercel.app/api/v1\n\nTài khoản kiểm thử:\n- Admin: admin / Admin@123456 (Role: ADMIN)\n- Giảng viên: teacher / Teacher@123456 (Role: INSTRUCTOR)\n\nBao gồm đầy đủ các phân hệ:\n1. Auth & Token Management (IT04, IT22)\n2. User Lifecycle & Quota (IT01, IT02, IT03, IT23)\n3. AI Gateway Services (IT05, IT16, IT17)\n4. Reports & Audit Logs (IT15)\n5. Security & RBAC Guards (IT21)\n6. Web Studio & Rubric Evaluation (IT19)\n7. Desktop Client Integration (IT08, IT09, IT10, IT14)\n8. Quét Đạo Văn 2 Vòng (IT13)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://iata-project-o4z6.onrender.com/api/v1",
+      "value": "https://aita-central-backend.vercel.app/api/v1",
       "type": "string"
     },
     {

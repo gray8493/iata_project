@@ -6,7 +6,7 @@
 - **Cập nhật lần cuối**: 26/10/2026
 - **Tài liệu căn cứ**: `rules/testcase-rules.md`, `docs/architecture/`, `docs/testcases/2-integration/`
 - **Môi trường Web Admin (Vercel)**: `https://iata-project1-jd8r.vercel.app`
-- **Môi trường Backend Hub (Render)**: `https://iata-project-o4z6.onrender.com/api/v1`
+- **Môi trường Backend Hub (Vercel)**: `https://aita-central-backend.vercel.app/api/v1`
 - **Tổng số Testcase nghiệm thu**: 10 (07 Normal, 01 Boundary, 02 Exception)
 
 ---
@@ -32,7 +32,7 @@ Normal
 #### Tiền điều kiện (Pre-condition)
 
 - Quản trị viên đăng nhập thành công với vai trò `ADMIN` trên Web Admin (`https://iata-project1-jd8r.vercel.app`).
-- Backend Hub đang hoạt động tại `https://iata-project-o4z6.onrender.com/api/v1`.
+- Backend Hub đang hoạt động tại `https://aita-central-backend.vercel.app/api/v1`.
 
 #### Các bước thực hiện (Test Steps)
 
