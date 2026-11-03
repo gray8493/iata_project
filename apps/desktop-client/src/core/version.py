@@ -6,5 +6,5 @@ thay vì hardcode rải rác, để việc phát hành bản mới chỉ cần s
 """
 
 APP_NAME = "AITA"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.3"
 APP_BUILD = "2026"
