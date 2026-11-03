@@ -404,22 +404,25 @@ class SubmissionDetailDialog(QDialog):
         
         # 1. Bảng Chi Tiết Testcase: Xóa cột số thứ tự thừa, căn tiêu đề & dữ liệu thẳng cột
         self.table_tc_results = QTableWidget(tab_tc)
-        self.table_tc_results.setColumnCount(6)
+        # Cột "Câu" + "#" (số thứ tự testcase trong từng câu, đánh lại từ 1 cho mỗi câu)
+        self.table_tc_results.setColumnCount(7)
         self.table_tc_results.setHorizontalHeaderLabels([
-            "#", "Input", "Expected Output", "Actual Output", "Kết Quả", "Thời Gian"
+            "Câu", "#", "Input", "Expected Output", "Actual Output", "Kết Quả", "Thời Gian"
         ])
         self.table_tc_results.verticalHeader().setVisible(False)  # Xóa cột số thứ tự thừa ngoài cùng bên trái
 
         header = self.table_tc_results.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table_tc_results.setColumnWidth(0, 45)  # # nhỏ
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Input rộng
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Expected Output rộng
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng (thật - pain #4)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self.table_tc_results.setColumnWidth(4, 95)  # Kết Quả vừa
+        self.table_tc_results.setColumnWidth(0, 60)  # Câu (Q1, Q2, ...)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.table_tc_results.setColumnWidth(1, 45)  # # nhỏ
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Input rộng
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Expected Output rộng
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Actual Output rộng (thật - pain #4)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self.table_tc_results.setColumnWidth(5, 82)  # Thời gian chạy hiệu dụng mỗi testcase
+        self.table_tc_results.setColumnWidth(5, 95)  # Kết Quả vừa
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        self.table_tc_results.setColumnWidth(6, 82)  # Thời gian chạy hiệu dụng mỗi testcase
         
         # 5. Bảng testcase cao vừa theo số dòng (tối thiểu 4 dòng)
         self.table_tc_results.setMinimumHeight(150)
@@ -1028,7 +1031,10 @@ class SubmissionDetailDialog(QDialog):
         # Nếu có danh sách testcase thật trong CSDL
         if real_testcases:
             self.table_tc_results.setRowCount(len(real_testcases))
+            per_question_index: Dict[str, int] = {}
             for r, tc in enumerate(real_testcases):
+                q_label = str(tc.get("question_number") or "Q1").strip() or "Q1"
+                per_question_index[q_label] = per_question_index.get(q_label, 0) + 1
                 inp = str(tc.get("input_data", "")).strip()
                 exp = str(tc.get("expected_output", "")).strip()
                 inp_display = self._truncate_cell(inp)
@@ -1068,40 +1074,46 @@ class SubmissionDetailDialog(QDialog):
                         v_color = Qt.GlobalColor.red
 
                 # Đưa vào từng cột thẳng hàng
-                # Cột 0: #
-                item_idx = QTableWidgetItem(str(r + 1))
-                item_idx.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.table_tc_results.setItem(r, 0, item_idx)
+                # Cột 0: Câu (Q1, Q2, ...)
+                item_q = QTableWidgetItem(q_label)
+                item_q.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item_q.setFont(QFont("Inter", 9, QFont.Weight.Bold))
+                self.table_tc_results.setItem(r, 0, item_q)
 
-                # Cột 1: Input (nội dung thật + tooltip)
+                # Cột 1: # (số thứ tự testcase trong câu)
+                item_idx = QTableWidgetItem(str(per_question_index[q_label]))
+                item_idx.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_tc_results.setItem(r, 1, item_idx)
+
+                # Cột 2: Input (nội dung thật + tooltip)
                 item_inp = QTableWidgetItem(inp_display)
                 item_inp.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 item_inp.setToolTip(f"Input đầy đủ:\n{inp}")
-                self.table_tc_results.setItem(r, 1, item_inp)
+                self.table_tc_results.setItem(r, 2, item_inp)
 
-                # Cột 2: Expected Output (nội dung thật + tooltip)
+                # Cột 3: Expected Output (nội dung thật + tooltip)
                 item_exp = QTableWidgetItem(exp_display)
                 item_exp.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 item_exp.setToolTip(f"Expected Output đầy đủ:\n{exp}")
-                self.table_tc_results.setItem(r, 2, item_exp)
+                self.table_tc_results.setItem(r, 3, item_exp)
 
-                # Cột 3: Actual Output (thật theo từng testcase khi có bằng chứng JSON)
+                # Cột 4: Actual Output (thật theo từng testcase khi có bằng chứng JSON)
                 item_act = QTableWidgetItem(act_display)
                 item_act.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 if str(tc_verdict) in ("CE", "Lỗi hệ thống"):
                     item_act.setForeground(Qt.GlobalColor.gray)
                 if act_tooltip:
                     item_act.setToolTip(act_tooltip)
-                self.table_tc_results.setItem(r, 3, item_act)
+                self.table_tc_results.setItem(r, 4, item_act)
 
-                # Cột 4: Kết Quả
+                # Cột 5: Kết Quả
                 item_verd = QTableWidgetItem(tc_verdict)
                 item_verd.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item_verd.setForeground(v_color)
                 item_verd.setFont(QFont("Inter", 9, QFont.Weight.Bold))
                 if ev is not None and str(ev.get("verdict", "")) == "SKIP":
                     item_verd.setToolTip("Testcase này không chạy: bài nộp dừng sớm ở một testcase trước (TLE/RE/MLE/CE).")
-                self.table_tc_results.setItem(r, 4, item_verd)
+                self.table_tc_results.setItem(r, 5, item_verd)
 
                 # Cột 5: Thời gian chạy hiệu dụng của testcase này (không có với bản cũ)
                 time_label = ""
@@ -1119,18 +1131,22 @@ class SubmissionDetailDialog(QDialog):
                 item_time.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item_time.setForeground(QColor("#64748B"))
                 item_time.setFont(QFont("Consolas", 9))
-                self.table_tc_results.setItem(r, 5, item_time)
+                self.table_tc_results.setItem(r, 6, item_time)
             return
 
         # Fallback nếu chưa có testcase trong CSDL
         self.table_tc_results.setRowCount(1)
+        item_q0 = QTableWidgetItem("—")
+        item_q0.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.table_tc_results.setItem(0, 0, item_q0)
+
         item_0 = QTableWidgetItem("1")
         item_0.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.table_tc_results.setItem(0, 0, item_0)
+        self.table_tc_results.setItem(0, 1, item_0)
 
         item_1 = QTableWidgetItem("(Trống)")
         item_1.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.table_tc_results.setItem(0, 1, item_1)
+        self.table_tc_results.setItem(0, 2, item_1)
 
         item_2 = QTableWidgetItem("(Trống)")
         item_2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -1162,11 +1178,11 @@ class SubmissionDetailDialog(QDialog):
         }
         if self.table_tc_results.rowCount() > 0:
             for r in range(self.table_tc_results.rowCount()):
-                item_v = self.table_tc_results.item(r, 4)
+                item_v = self.table_tc_results.item(r, 5)
                 if item_v and item_v.text() in ("WA", "TLE", "MLE", "RE"):
-                    item_in = self.table_tc_results.item(r, 1)
-                    item_exp = self.table_tc_results.item(r, 2)
-                    item_act = self.table_tc_results.item(r, 3)
+                    item_in = self.table_tc_results.item(r, 2)
+                    item_exp = self.table_tc_results.item(r, 3)
+                    item_act = self.table_tc_results.item(r, 4)
                     in_txt = item_in.text().strip() if item_in else ""
                     exp_txt = item_exp.text().strip() if item_exp else ""
                     act_txt = item_act.text().strip() if item_act else ""
