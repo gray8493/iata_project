@@ -751,6 +751,16 @@ describe('AI Gateway (docs: docs/testcases/1-unit/AI/AI_testcase.md)', () => {
     });
   });
 
+  describe('UT03_AiVerifyPlagiarism_TC015: Model chỉ lặp lại tên khóa schema', () => {
+    it('thử lại và trả 502 AI_INVALID_RESPONSE thay vì kết quả rỗng', async () => {
+      provider.generateJson.mockResolvedValue(plagiarismData({ ket_luan: 'bang_chung', do_tin_cay: 0, bang_chung: [], khac_biet: [], de_xuat: [] }));
+      const error = await ai.verifyPlagiarism(instructorId, { ...validPlagiarism } as VerifyPlagiarismDto).catch((e) => e);
+      expect(error.getStatus()).toBe(502);
+      expect((error.getResponse() as any).error_code).toBe('AI_INVALID_RESPONSE');
+      expect(provider.generateJson).toHaveBeenCalledTimes(2);
+    });
+  });
+
   // =========================================================================
   // PHẦN 5: POST /api/v1/ai/evaluate-web-ui
   // =========================================================================
