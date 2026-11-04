@@ -20,6 +20,18 @@ from .api_client import ApiClient
 AI_REQUEST_TIMEOUT = float(os.getenv("AITA_AI_TIMEOUT", "120"))
 
 
+# Tên khóa của schema đối soát đạo văn. Model đôi khi chỉ lặp lại các tên này làm kết luận.
+_PLAGIARISM_SCHEMA_KEYS = {"ket_luan", "do_tin_cay", "bang_chung", "khac_biet", "de_xuat", "mo_ta", "dong_a", "dong_b"}
+
+
+def _is_echoed_conclusion(value) -> bool:
+    """True khi 'ket_luan' không phải nhận xét thật (quá ngắn hoặc chỉ là tên khóa schema)."""
+    if not isinstance(value, str):
+        return True
+    text = value.strip()
+    return len(text) < 10 or text.lower() in _PLAGIARISM_SCHEMA_KEYS
+
+
 class AiService:
     """
     Service client for interacting with Central Backend AI Gateway.
@@ -211,6 +223,7 @@ class AiService:
                 suggestions = data.get("de_xuat", [])
                 if (
                     not isinstance(data.get("ket_luan"), str)
+                    or _is_echoed_conclusion(data.get("ket_luan"))
                     or not isinstance(data.get("do_tin_cay"), (int, float))
                     or not isinstance(evidence, list)
                     or not isinstance(differences, list)

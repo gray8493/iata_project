@@ -163,3 +163,22 @@ def test_evaluate_web_ui_returns_score_and_details():
     assert payload["rubric_requirements"] == ["layout"]
     assert result["success"] is True
     assert result["ui_score"] == 7.5
+
+
+def test_verify_plagiarism_rejects_schema_echo_conclusion():
+    response = FakeResponse(200, {"success": True, "data": {"ket_luan": "bang_chung", "do_tin_cay": 0, "bang_chung": [], "khac_biet": [], "de_xuat": [], "tokens_consumed": 5}, "message": "ok"})
+    service, _ = _service(response)
+
+    result = service.verify_plagiarism("a", "b", ast_similarity_percentage=90, language="C")
+
+    assert result["success"] is False
+    assert result["error_code"] == "AI_INVALID_RESPONSE"
+
+
+def test_verify_plagiarism_accepts_real_conclusion():
+    response = FakeResponse(200, {"success": True, "data": {"ket_luan": "Cấu trúc và thứ tự lệnh gần như trùng hoàn toàn.", "do_tin_cay": 88, "bang_chung": [], "khac_biet": [], "de_xuat": [], "tokens_consumed": 5}, "message": "ok"})
+    service, _ = _service(response)
+
+    result = service.verify_plagiarism("a", "b", ast_similarity_percentage=90, language="C")
+
+    assert result["success"] is True
