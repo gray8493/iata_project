@@ -93,6 +93,33 @@ def _question_choices(db, class_id: Optional[int], minimum: int = QUESTION_MIN_C
     return [f"Q{i}" for i in range(1, top + 1)]
 
 
+# Mục trong combo Câu của hộp thoại AI: sinh testcase cho mọi câu có trong đề.
+ALL_QUESTIONS_CHOICE = "Tất cả câu trong đề"
+_QUESTION_HEADER_RE = re.compile(
+    r"^[ \t]*(?:câu|cau|bài|bai|question|q)[ \t]*[:.\-]?[ \t]*(\d+)\b.*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def split_problem_by_question(text: str) -> tuple:
+    """
+    Tách đề nhiều câu thành (phần mở đầu chung, {"Q1": nội dung câu 1, ...}).
+    Tiêu đề câu là dòng bắt đầu bằng "Câu N", "Bài N", "Question N" hoặc "Qn".
+    Không có tiêu đề nào thì trả về ("", {}).
+    """
+    matches = list(_QUESTION_HEADER_RE.finditer(text))
+    if not matches:
+        return "", {}
+    preamble = text[:matches[0].start()].strip()
+    sections: Dict[str, str] = {}
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        q = f"Q{int(m.group(1))}"
+        if q not in sections:
+            sections[q] = text[m.start():end].strip()
+    return preamble, sections
+
+
 def _style_spinbox(widget: QWidget):
     """Áp style chung cho QSpinBox/QDoubleSpinBox.
 
@@ -1076,6 +1103,12 @@ class AiTestcaseDialog(QDialog):
         self.default_question = default_question or "Q1"
         self.generated_testcases: List[Dict[str, Any]] = []
         self.ai_worker: Optional[AiTestcaseWorker] = None
+        # Hàng đợi sinh theo từng câu (đề nhiều câu gọi AI lần lượt cho mỗi câu)
+        self._gen_queue: List[tuple] = []
+        self._gen_results: List[Dict[str, Any]] = []
+        self._gen_total = 0
+        self._gen_count = 4
+        self._gen_lang = "C"
 
         self.setWindowTitle("Sinh Testcase Bằng AI")
         self.setMinimumSize(720, 560)
@@ -1152,6 +1185,25 @@ class AiTestcaseDialog(QDialog):
         self.spin_count.setStyleSheet("QSpinBox { min-height: 36px; padding: 4px 8px; font-size: 13px; }")
         row_ctrl.addWidget(self.spin_count)
 
+        # Chọn câu ngay trên hàng điều khiển (không nằm trong "Tùy chọn" bị ẩn)
+        lbl_q = QLabel("Câu:", self)
+        lbl_q.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_TEXT_PRIMARY};")
+        row_ctrl.addWidget(lbl_q)
+
+        self.cb_question = QComboBox(self)
+        self.cb_question.setFixedHeight(36)
+        self.cb_question.setMinimumWidth(170)
+        # Có thể chọn một câu, hoặc "Tất cả câu trong đề" khi đề có nhiều câu;
+        # cũng có thể gõ mã câu khác (VD: Q12).
+        self.cb_question.setEditable(True)
+        self.cb_question.addItems([ALL_QUESTIONS_CHOICE] + _question_choices(self.db, self.class_id))
+        q_idx = self.cb_question.findText(self.default_question)
+        if q_idx >= 0:
+            self.cb_question.setCurrentIndex(q_idx)
+        else:
+            self.cb_question.setEditText(self.default_question)
+        row_ctrl.addWidget(self.cb_question)
+
         self.btn_toggle_opt = QPushButton("Tùy chọn", self)
         self.btn_toggle_opt.setProperty("class", "SecondaryBtn")
         self.btn_toggle_opt.setFixedHeight(36)
@@ -1197,22 +1249,6 @@ class AiTestcaseDialog(QDialog):
         opt_layout.setContentsMargins(14, 10, 14, 10)
         opt_layout.setSpacing(16)
 
-        lbl_opt_q = QLabel("Câu hỏi áp dụng:", self.frame_options)
-        lbl_opt_q.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
-        opt_layout.addWidget(lbl_opt_q)
-
-        self.cb_question = QComboBox(self.frame_options)
-        self.cb_question.setFixedHeight(34)
-        # Có thể chọn trong danh sách hoặc gõ mã câu khác (VD: Q12).
-        self.cb_question.setEditable(True)
-        self.cb_question.addItems(_question_choices(self.db, self.class_id))
-        q_idx = self.cb_question.findText(self.default_question)
-        if q_idx >= 0:
-            self.cb_question.setCurrentIndex(q_idx)
-        else:
-            self.cb_question.setEditText(self.default_question)
-        opt_layout.addWidget(self.cb_question)
-
         lbl_opt_lang = QLabel("Ngôn ngữ lập trình:", self.frame_options)
         lbl_opt_lang.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
         opt_layout.addWidget(lbl_opt_lang)
@@ -1244,13 +1280,17 @@ class AiTestcaseDialog(QDialog):
         v_table.addWidget(lbl_tbl_title)
 
         self.table_result = QTableWidget(self)
-        self.table_result.setColumnCount(3)
-        self.table_result.setHorizontalHeaderLabels(["Chọn", "Input (Đầu vào)", "Expected Output (Đầu ra kỳ vọng)"])
+        self.table_result.setColumnCount(4)
+        self.table_result.setHorizontalHeaderLabels(
+            ["Chọn", "Câu", "Input (Đầu vào)", "Expected Output (Đầu ra kỳ vọng)"]
+        )
         r_header = self.table_result.horizontalHeader()
         r_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        r_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        r_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         r_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        r_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table_result.setColumnWidth(0, 56)
+        self.table_result.setColumnWidth(1, 70)
         self.table_result.verticalHeader().setVisible(False)
         self.table_result.setShowGrid(True)
         self.table_result.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -1340,21 +1380,23 @@ class AiTestcaseDialog(QDialog):
             if choice == QMessageBox.StandardButton.No:
                 text = f"{existing}\n\n{text}"
 
-        note = ""
-        if len(text) > MAX_PROBLEM_CHARS:
-            text = text[:MAX_PROBLEM_CHARS]
-            note = f" — chỉ dùng {MAX_PROBLEM_CHARS:,} ký tự đầu (giới hạn máy chủ AI)"
-            QMessageBox.information(
-                self,
-                "Đề Bài Quá Dài",
-                f"Nội dung file vượt quá {MAX_PROBLEM_CHARS:,} ký tự.\n"
-                "Chỉ phần đầu được đưa vào để sinh testcase."
-            )
-
+        # Giữ nguyên toàn bộ đề: mỗi câu được gửi riêng (và cắt theo giới hạn lúc gửi),
+        # nên cắt ở đây sẽ làm mất các câu phía sau.
         self.txt_prompt.setPlainText(text)
-        self.lbl_doc_name.setText(
-            f"Đã nhập đề bài từ: {Path(file_path).name} ({len(text):,} ký tự){note}"
-        )
+        _, sections = split_problem_by_question(text)
+        if sections:
+            found = ", ".join(sections.keys())
+            self.lbl_doc_name.setText(
+                f"Đã nhập đề bài từ: {Path(file_path).name} ({len(text):,} ký tự). "
+                f"Đề có {len(sections)} câu: {found}. Chọn 'Tất cả câu trong đề' để sinh cho mọi câu."
+            )
+            if self.cb_question.findText(ALL_QUESTIONS_CHOICE) >= 0:
+                self.cb_question.setCurrentIndex(self.cb_question.findText(ALL_QUESTIONS_CHOICE))
+        else:
+            self.lbl_doc_name.setText(
+                f"Đã nhập đề bài từ: {Path(file_path).name} ({len(text):,} ký tự). "
+                "Không tìm thấy tiêu đề câu (VD: 'Câu 1'), đề được sinh như một câu duy nhất."
+            )
         self.lbl_doc_name.setVisible(True)
 
     def _start_generation(self):
@@ -1363,16 +1405,51 @@ class AiTestcaseDialog(QDialog):
             QMessageBox.warning(self, "Thiếu Thông Tin", "Vui lòng nhập mô tả hoặc yêu cầu đề bài trước khi sinh testcase.")
             return
 
-        lang = self.cb_language.currentText()
-        count = self.spin_count.value()
+        selected = self.cb_question.currentText().strip() or "Q1"
+        preamble, sections = split_problem_by_question(prompt)
 
-        self.btn_submit.setEnabled(False)
-        self.btn_submit.setText("Đang Sinh...")
-        self.btn_retry.setVisible(False)
-        self.btn_add_selected.setEnabled(False)
-        self.btn_select_all.setEnabled(False)
-        self.btn_deselect_all.setEnabled(False)
+        # Xác định các câu cần sinh: mỗi câu một lần gọi AI, kèm phần đề chung (nếu có).
+        if selected == ALL_QUESTIONS_CHOICE:
+            if not sections:
+                QMessageBox.warning(
+                    self, "Không Tách Được Câu",
+                    "Đề bài không có tiêu đề câu (VD: 'Câu 1', 'Câu 2').\n"
+                    "Hãy chọn một câu cụ thể hoặc thêm tiêu đề câu vào đề."
+                )
+                return
+            targets = list(sections.items())
+        elif sections:
+            if selected not in sections:
+                QMessageBox.warning(
+                    self, "Không Tìm Thấy Câu",
+                    f"Đề bài có các câu: {', '.join(sections)}.\n"
+                    f"Không tìm thấy {selected} trong đề. Hãy chọn lại câu hoặc 'Tất cả câu trong đề'."
+                )
+                return
+            targets = [(selected, sections[selected])]
+        else:
+            targets = [(selected, prompt)]
 
+        if preamble:
+            targets = [(q, f"{preamble}\n\n{body}") for q, body in targets]
+
+        # Giới hạn của máy chủ AI theo từng lần gọi: cắt từng câu nếu quá dài và báo lại.
+        too_long = [q for q, body in targets if len(body) > MAX_PROBLEM_CHARS]
+        if too_long:
+            QMessageBox.information(
+                self, "Đề Bài Quá Dài",
+                f"Nội dung {', '.join(too_long)} vượt quá {MAX_PROBLEM_CHARS:,} ký tự.\n"
+                "Chỉ phần đầu của câu đó được đưa vào để sinh testcase."
+            )
+            targets = [(q, body[:MAX_PROBLEM_CHARS]) for q, body in targets]
+
+        self._gen_queue = targets
+        self._gen_results = []
+        self._gen_total = len(targets)
+        self._gen_count = self.spin_count.value()
+        self._gen_lang = self.cb_language.currentText()
+
+        self._set_generating(True)
         self.lbl_status.setVisible(True)
         self.lbl_status.setText("Đang kết nối dịch vụ AI để phân tích đề bài và sinh testcase...")
         self.lbl_status.setStyleSheet(f"font-size: 13px; line-height: 1.4; color: {COLOR_PRIMARY};")
@@ -1380,44 +1457,87 @@ class AiTestcaseDialog(QDialog):
         self.table_result.setRowCount(0)
         self.generated_testcases.clear()
 
-        self.ai_worker = AiTestcaseWorker(prompt, lang, count, True)
-        self.ai_worker.finished.connect(self._on_generation_finished)
+        self._run_next_generation()
+
+    def _set_generating(self, busy: bool):
+        self.btn_submit.setEnabled(not busy)
+        self.btn_submit.setText("Đang Sinh..." if busy else "Sinh Testcase")
+        self.btn_retry.setVisible(False)
+        self.btn_add_selected.setEnabled(False)
+        self.btn_select_all.setEnabled(False)
+        self.btn_deselect_all.setEnabled(False)
+
+    def _run_next_generation(self):
+        question, body = self._gen_queue.pop(0)
+        step = self._gen_total - len(self._gen_queue)
+        if self._gen_total > 1:
+            self.lbl_status.setText(f"Đang sinh testcase cho {question} ({step}/{self._gen_total})...")
+
+        self.ai_worker = AiTestcaseWorker(body, self._gen_lang, self._gen_count, True)
+        self.ai_worker.finished.connect(
+            lambda result, q=question: self._on_generation_finished(result, q)
+        )
         self.ai_worker.start()
 
-    def _on_generation_finished(self, result: Dict[str, Any]):
-        self.btn_submit.setEnabled(True)
-        self.btn_submit.setText("Sinh Testcase")
-
+    def _on_generation_finished(self, result: Dict[str, Any], question: str = ""):
         if result.get("success"):
-            tcs = result.get("testcases", [])
-            self.generated_testcases = tcs
-            self._render_results_table(tcs)
-
-            self.lbl_status.setVisible(True)
-            self.lbl_status.setText(f"Đã sinh thành công {len(tcs)} testcase. Hãy đánh dấu chọn các testcase phù hợp để thêm vào đợt chấm.")
-            self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #15803d;")
-
-            self.btn_retry.setVisible(False)
-            has_data = len(tcs) > 0
-            self.btn_select_all.setEnabled(has_data)
-            self.btn_deselect_all.setEnabled(has_data)
-            self._update_add_button_state()
+            for tc in result.get("testcases", []):
+                self._gen_results.append({**tc, "_question": question})
+            if self._gen_queue:
+                self._run_next_generation()
+                return
+            self._show_generation_done()
         else:
-            err_code = result.get("error_code", "")
-            err_detail = result.get("message", "")
-            logger.warning("Lỗi dịch vụ AI sinh testcase: code=%s, detail=%s", err_code, err_detail)
+            self._gen_queue.clear()
+            self._show_generation_failed(result, question)
 
-            # Nói rõ nguyên nhân thay vì câu chung "không kết nối được": trước đây mọi
-            # lỗi (hết hạn mức, server thiếu API key, token hết hạn...) đều hiện cùng
-            # một câu nên giảng viên không biết phải làm gì.
-            self.lbl_status.setVisible(True)
-            self.lbl_status.setText(self._ai_error_message(result))
-            self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #b91c1c;")
+    def _show_generation_done(self):
+        tcs = self._gen_results
+        self.generated_testcases = tcs
+        self._set_generating(False)
+        self._render_results_table(tcs)
 
-            self.btn_retry.setVisible(True)
-            self.btn_add_selected.setEnabled(False)
-            self.btn_select_all.setEnabled(False)
-            self.btn_deselect_all.setEnabled(False)
+        n_questions = len({tc.get("_question") for tc in tcs})
+        self.lbl_status.setVisible(True)
+        self.lbl_status.setText(
+            f"Đã sinh thành công {len(tcs)} testcase cho {n_questions} câu. "
+            "Đánh dấu chọn các testcase phù hợp; mỗi testcase sẽ được thêm vào đúng câu của nó."
+        )
+        self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #15803d;")
+
+        has_data = len(tcs) > 0
+        self.btn_select_all.setEnabled(has_data)
+        self.btn_deselect_all.setEnabled(has_data)
+        self._update_add_button_state()
+
+    def _show_generation_failed(self, result: Dict[str, Any], question: str):
+        err_code = result.get("error_code", "")
+        err_detail = result.get("message", "")
+        logger.warning("Lỗi dịch vụ AI sinh testcase: code=%s, detail=%s", err_code, err_detail)
+
+        # Giữ lại testcase của các câu đã sinh xong trước đó (nếu có).
+        self._set_generating(False)
+        if self._gen_results:
+            self.generated_testcases = self._gen_results
+            self._render_results_table(self._gen_results)
+
+        # Nói rõ nguyên nhân thay vì câu chung "không kết nối được": trước đây mọi
+        # lỗi (hết hạn mức, server thiếu API key, token hết hạn...) đều hiện cùng
+        # một câu nên giảng viên không biết phải làm gì.
+        message = self._ai_error_message(result)
+        if self._gen_total > 1 and question:
+            message = f"[{question}] {message}"
+        if self._gen_results:
+            message += f"\nĐã giữ lại {len(self._gen_results)} testcase của các câu sinh trước đó."
+        self.lbl_status.setVisible(True)
+        self.lbl_status.setText(message)
+        self.lbl_status.setStyleSheet("font-size: 13px; line-height: 1.4; color: #b91c1c;")
+
+        self.btn_retry.setVisible(True)
+        has_data = bool(self._gen_results)
+        self.btn_select_all.setEnabled(has_data)
+        self.btn_deselect_all.setEnabled(has_data)
+        self._update_add_button_state()
 
     # Mã lỗi backend -> lời giải thích cho giảng viên (kèm cách xử lý).
     _AI_ERROR_HINTS = {
@@ -1461,19 +1581,25 @@ class AiTestcaseDialog(QDialog):
             chk_layout.addWidget(chk)
             self.table_result.setCellWidget(r, 0, chk_widget)
 
-            # Cột 1: Input (Đầu vào)
+            # Cột 1: Câu mà testcase thuộc về
+            question = str(tc.get("_question") or "")
+            it_q = QTableWidgetItem(question)
+            it_q.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table_result.setItem(r, 1, it_q)
+
+            # Cột 2: Input (Đầu vào)
             inp_text = str(tc.get("input", ""))
             it_inp = QTableWidgetItem(inp_text if inp_text else "(trống)")
             it_inp.setToolTip(inp_text)
             it_inp.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table_result.setItem(r, 1, it_inp)
+            self.table_result.setItem(r, 2, it_inp)
 
-            # Cột 2: Expected Output (Đầu ra kỳ vọng)
+            # Cột 3: Expected Output (Đầu ra kỳ vọng)
             out_text = str(tc.get("expected_output", ""))
             it_out = QTableWidgetItem(out_text if out_text else "(trống)")
             it_out.setToolTip(out_text)
             it_out.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table_result.setItem(r, 2, it_out)
+            self.table_result.setItem(r, 3, it_out)
 
     def _get_checkbox_at(self, row: int) -> Optional[QCheckBox]:
         w = self.table_result.cellWidget(row, 0)
@@ -1513,8 +1639,8 @@ class AiTestcaseDialog(QDialog):
             QMessageBox.warning(self, "Chưa Chọn Đợt Chấm", "Không xác định được đợt thi hiện tại để lưu testcase.")
             return
 
-        target_q = self.cb_question.currentText().strip() or "Q1"
         added_count = 0
+        added_questions: List[str] = []
 
         for r in range(self.table_result.rowCount()):
             chk = self._get_checkbox_at(r)
@@ -1522,6 +1648,8 @@ class AiTestcaseDialog(QDialog):
                 tc = self.generated_testcases[r]
                 inp = str(tc.get("input", ""))
                 outp = str(tc.get("expected_output", ""))
+                # Mỗi testcase thuộc đúng câu đã sinh ra nó
+                row_q = str(tc.get("_question") or "").strip() or "Q1"
                 try:
                     self.db.add_testcase(
                         class_id=self.class_id,
@@ -1530,9 +1658,11 @@ class AiTestcaseDialog(QDialog):
                         score_weight=1.0,
                         time_limit_ms=1000,
                         matching_strategy=self.matching_strategy,
-                        question_number=target_q
+                        question_number=row_q
                     )
                     added_count += 1
+                    if row_q not in added_questions:
+                        added_questions.append(row_q)
                 except Exception as ex:
                     logger.error("Lỗi khi thêm testcase vào CSDL: %s", str(ex))
 
@@ -1540,7 +1670,7 @@ class AiTestcaseDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Đã Thêm Testcase",
-                f"Đã thêm thành công {added_count} testcase vào câu {target_q}."
+                f"Đã thêm thành công {added_count} testcase vào câu {', '.join(added_questions)}."
             )
             self.accept()
         else:
