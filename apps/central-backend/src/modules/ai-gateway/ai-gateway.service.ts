@@ -161,7 +161,7 @@ Bài A:
 ${input.student_a_code}
 Bài B:
 ${input.student_b_code}`;
-    const request = { userId, feature: 'PLAGIARISM' as const, maxOutputTokens: 4000, schema: plagiarismSchema };
+    const request = { userId, feature: 'PLAGIARISM' as const, maxOutputTokens: 4000, reasoningEffort: 'low' as const, schema: plagiarismSchema };
     let validData: Record<string, unknown> | undefined;
     let tokensConsumed = 0;
     for (let attempt = 0; attempt < 2; attempt += 1) {
