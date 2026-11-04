@@ -79,7 +79,9 @@ def test_st01_testcaseimport_tc002_appends_when_prompt_not_empty(qapp, tmp_path,
 
 
 def test_st01_testcaseimport_tc003_truncates_to_backend_limit(qapp, tmp_path, monkeypatch):
-    """ST01_TestcaseImport_TC003: đề bài > 5000 ký tự bị cắt còn 5000 và cảnh báo (biên)."""
+    """ST01_TestcaseImport_TC003: đề bài > 5000 ký tự được giữ nguyên khi nhập, chỉ cắt khi gửi AI (biên)."""
+    import ui.dialogs.testcase_dialog as td
+
     f = tmp_path / "de_dai.txt"
     f.write_text("A" * 6000, encoding="utf-8")
     _pick_file(monkeypatch, f)
@@ -88,17 +90,33 @@ def test_st01_testcaseimport_tc003_truncates_to_backend_limit(qapp, tmp_path, mo
         QMessageBox, "information",
         lambda *a, **k: info_calls.append(a) or QMessageBox.StandardButton.Ok,
     )
+    sent = []
+
+    class _Signal:
+        def connect(self, _slot):
+            pass
+
+    class _CapturingWorker:
+        def __init__(self, body, *_args):
+            sent.append(body)
+            self.finished = _Signal()
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(td, "AiTestcaseWorker", _CapturingWorker)
 
     dlg = AiTestcaseDialog()
     dlg._import_problem_document()
+    assert len(dlg.txt_prompt.toPlainText()) == 6000  # nhập không cắt
 
-    assert len(dlg.txt_prompt.toPlainText()) == 5000
+    dlg._start_generation()
+    assert len(sent) == 1 and len(sent[0]) == 5000
     assert info_calls  # "Đề Bài Quá Dài" đã được thông báo
 
 
 # ------------------------------------------------------------------------------
 # Exception
-# ------------------------------------------------------------------------------
 def test_st01_testcaseimport_tc004_unsupported_file_shows_warning(qapp, tmp_path, monkeypatch):
     """ST01_TestcaseImport_TC004: file .doc không hỗ trợ -> cảnh báo, ô đề bài giữ nguyên."""
     f = tmp_path / "de_bai.doc"
