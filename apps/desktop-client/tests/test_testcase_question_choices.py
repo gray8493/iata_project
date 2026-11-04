@@ -15,3 +15,29 @@ def test_choices_grow_to_highest_existing_question():
     choices = _question_choices(db, cid)
     assert choices[-1] == "Q12"
     assert len(choices) == 12
+
+
+from ui.dialogs.testcase_dialog import split_problem_by_question  # noqa: E402
+
+
+def test_split_problem_by_question_keeps_preamble_and_each_question():
+    text = (
+        "Đề chung: đọc số nguyên từ stdin.\n"
+        "Câu 1: Tính tổng hai số.\nInput: a b\n"
+        "Câu 2: Tìm số lớn nhất.\nInput: n\n"
+        "Câu 10: Đảo ngược chuỗi.\n"
+    )
+    preamble, sections = split_problem_by_question(text)
+    assert preamble.startswith("Đề chung")
+    assert list(sections) == ["Q1", "Q2", "Q10"]
+    assert sections["Q1"].startswith("Câu 1") and "Tìm số" not in sections["Q1"]
+    assert "Input: n" in sections["Q2"]
+
+
+def test_split_problem_without_headers_returns_empty():
+    assert split_problem_by_question("Tính tổng hai số nguyên.") == ("", {})
+
+
+def test_split_problem_accepts_q_and_question_headers():
+    _, sections = split_problem_by_question("Q1 tổng\nQuestion 2: tích\n")
+    assert list(sections) == ["Q1", "Q2"]
