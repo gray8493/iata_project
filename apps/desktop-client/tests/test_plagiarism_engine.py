@@ -352,3 +352,41 @@ def test_scan_class_skips_boilerplate_filter_for_small_classes():
     report = PlagiarismEngine().scan_class(docs, language="C", threshold=80.0)
     assert report["boilerplate_filtered"] is False
     assert len(report["matches"]) == 1                 # cặp sao chép vẫn được giữ
+
+
+# ------------------------------------------------------------------------------
+# Sao chép cấu trúc toàn bài (bài ngắn, nhiều câu)
+# ------------------------------------------------------------------------------
+_COPY_SOURCE = {
+    "Q1": "int tinhTong(int a, int b) {\n    int s = a + b;\n    return s;\n}\n"
+          "int main(void) {\n    int x, y;\n    scanf(\"%d %d\", &x, &y);\n    printf(\"%d\", tinhTong(x, y));\n    return 0;\n}\n",
+    "Q2": "int tongDay(int n) {\n    int t = 0;\n    for (int i = 1; i <= n; i++) t += i;\n    return t;\n}\n"
+          "int main(void) {\n    int n;\n    scanf(\"%d\", &n);\n    printf(\"%d\", tongDay(n));\n    return 0;\n}\n",
+    "Q3": "int demChan(int n) {\n    int c = 0;\n    for (int i = 0; i < n; i++) if (i % 2 == 0) c++;\n    return c;\n}\n"
+          "int main(void) {\n    int n;\n    scanf(\"%d\", &n);\n    printf(\"%d\", demChan(n));\n    return 0;\n}\n",
+}
+
+
+def _renamed(code: str) -> str:
+    return code.replace("tinhTong", "tinhTongKhac").replace("int a", "int p").replace("int b", "int q")
+
+
+def test_structural_copy_of_all_questions_is_flagged_even_for_short_code():
+    subs = [
+        {"mssv": "SV1", "units": dict(_COPY_SOURCE)},
+        {"mssv": "SV2", "units": {k: _renamed(v) if k == "Q1" else v for k, v in _COPY_SOURCE.items()}},
+        {"mssv": "SV3", "units": {"Q1": "int tinhTong(int a,int b){return a*b;}", "Q2": "int tongDay(int n){return 0;}", "Q3": "int demChan(int n){return 1;}"}},
+    ]
+    report = PlagiarismEngine().scan_class(subs, language="C", threshold=80.0)
+    pairs = {(m["sv_a"], m["sv_b"]) for m in report["matches"]}
+    assert ("SV1", "SV2") in pairs
+    assert ("SV1", "SV3") not in pairs and ("SV2", "SV3") not in pairs
+
+
+def test_single_shared_question_is_not_a_structural_copy():
+    subs = [
+        {"mssv": "SV1", "units": {"Q1": _COPY_SOURCE["Q1"], "Q2": _COPY_SOURCE["Q2"], "Q3": _COPY_SOURCE["Q3"]}},
+        {"mssv": "SV2", "units": {"Q1": _COPY_SOURCE["Q1"], "Q2": "int tongDay(int n) { return n; }", "Q3": "int demChan(int n){return 2;}"}},
+    ]
+    documents = PlagiarismEngine()._prepare_documents(subs, "C")
+    assert ("SV1", "SV2") not in PlagiarismEngine._structural_copy_pairs(documents, "C")
