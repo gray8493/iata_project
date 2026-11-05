@@ -63,6 +63,12 @@ BOILERPLATE_MIN_DOCS = 5
 RARE_DF_RATIO = 0.2
 MIN_RARE_SHARED = 8
 
+# Sao chép cấu trúc toàn bài: bài ngắn (vài dòng/câu) không đủ fingerprint để vượt ngưỡng,
+# nên cặp trùng token ở MỌI câu chung (ít nhất MIN_COPY_QUESTIONS câu, mỗi câu >= MIN_COPY_TOKENS token)
+# được xét riêng, bỏ qua bộ lọc boilerplate và ngưỡng số gram chung.
+MIN_COPY_QUESTIONS = 3
+MIN_COPY_TOKENS = 20
+
 # Khóa câu mặc định cho bài nộp 1 file (đồng bộ với `question_number` mặc định trong DB).
 DEFAULT_QUESTION_KEY = "Q1"
 
@@ -451,6 +457,26 @@ class PlagiarismEngine:
     # --------------------------------------------------------------------------
     # Quét toàn lớp
     # --------------------------------------------------------------------------
+    @staticmethod
+    def _structural_copy_pairs(documents: List[Dict[str, Any]], language: str) -> set:
+        """Các cặp (MSSV_A, MSSV_B) có token giống hệt nhau ở mọi câu chung của hai bài."""
+        token_maps = {
+            doc["mssv"]: {
+                key: normalize_tokens(unit["code"], language) for key, unit in doc["units"].items()
+            }
+            for doc in documents
+        }
+        pairs = set()
+        for doc_a, doc_b in itertools.combinations(documents, 2):
+            ta, tb = token_maps[doc_a["mssv"]], token_maps[doc_b["mssv"]]
+            shared = [key for key in ta if key in tb]
+            if len(shared) < MIN_COPY_QUESTIONS:
+                continue
+            if all(ta[key] == tb[key] and len(ta[key]) >= MIN_COPY_TOKENS for key in shared):
+                pairs.add((doc_a["mssv"], doc_b["mssv"]))
+                pairs.add((doc_b["mssv"], doc_a["mssv"]))
+        return pairs
+
     def scan_class(
         self,
         submissions: List[Dict[str, Any]],
@@ -494,13 +520,17 @@ class PlagiarismEngine:
 
         aggregated: Dict[Tuple[str, str], Dict[str, Any]] = {}
         total_pairs = 0
+        structural_pairs = self._structural_copy_pairs(documents, language)
         for key in question_keys:
             info = rarity.get(key)
             units = [(doc, doc["units"][key]) for doc in documents if key in doc["units"]]
             for (doc_a, unit_a), (doc_b, unit_b) in itertools.combinations(units, 2):
                 total_pairs += 1
                 fa, fb = unit_a["fingerprints"], unit_b["fingerprints"]
-                if info is None:
+                if (doc_a["mssv"], doc_b["mssv"]) in structural_pairs:
+                    # Trùng cấu trúc toàn bài: token giống hệt nên fingerprint giống hệt (100%)
+                    metrics = self.compare_fingerprints(fa, fb)
+                elif info is None:
                     metrics = self.compare_fingerprints(fa, fb)
                     if metrics["shared"] < MIN_SHARED_FINGERPRINTS:
                         continue
