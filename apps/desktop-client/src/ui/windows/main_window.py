@@ -38,7 +38,7 @@ from ui.styles.theme import (
 )
 from ui.components.toast import show_toast
 from ui.components import make_aita_avatar_pixmap, start_spinner, stop_spinner
-from ui.dialogs.session_dialog import SessionDialog
+from ui.dialogs.session_dialog import SessionDialog, find_multi_question_files
 from ui.dialogs.history_dialog import HistoryDialog
 from ui.dialogs.grading_guide_dialog import GradingGuideDialog
 from ui.dialogs.testcase_dialog import TestcaseDialog
@@ -1508,6 +1508,11 @@ class AITAMainWindow(QMainWindow):
             is_duplicate = (mssv_counts.get(mssv, 0) > 1)
             file_path = sub["source_file_path"]
             fname = Path(file_path).name
+            if Path(file_path).is_dir():
+                # Bài nhiều câu: hiện số câu thay vì tên thư mục
+                question_files = find_multi_question_files(file_path, (".c", ".cpp", ".java", ".py"))
+                if question_files:
+                    fname = f"{len(question_files)} câu ({question_files[0]} … {question_files[-1]})"
             verdict = sub.get("final_verdict") or sub.get("status") or "PENDING"
             self._row_submissions[row_idx] = sub
             
@@ -1895,12 +1900,16 @@ class AITAMainWindow(QMainWindow):
 
                     mssv = match.group(1).upper()
 
+                    # Bố cục nhiều câu (Q1..Qn): chấm cả thư mục, không chỉ file đầu tiên
                     source_file = None
-                    for ext in valid_exts:
-                        candidates = list(entry.glob(f"*{ext}"))
-                        if candidates:
-                            source_file = candidates[0]
-                            break
+                    if find_multi_question_files(str(entry), tuple(valid_exts)):
+                        source_file = entry
+                    else:
+                        for ext in valid_exts:
+                            candidates = list(entry.glob(f"*{ext}"))
+                            if candidates:
+                                source_file = candidates[0]
+                                break
 
                     if not source_file:
                         invalid.append({"name": raw_name, "reason": f"Không tìm thấy file mã nguồn {programming_language} ({', '.join(valid_exts)})"})
