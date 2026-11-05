@@ -34,6 +34,24 @@ from database.db_manager import DatabaseManager
 DUPLICATE_STUDENT_SUBMISSION = "DUPLICATE_STUDENT_SUBMISSION"
 
 
+def find_multi_question_files(folder: str, valid_exts) -> List[str]:
+    """
+    Các file bài làm từng câu `Q<n>.<ext>` trong thư mục sinh viên (bố cục nhiều câu).
+    Trả về danh sách tên file đã sắp theo số câu; rỗng nếu không có file Q nào.
+    """
+    pattern = re.compile(r"^q\s*(\d+)\.(\w+)$", re.IGNORECASE)
+    found = []
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return found
+    for name in names:
+        m = pattern.match(name)
+        if m and os.path.isfile(os.path.join(folder, name)) and f".{m.group(2).lower()}" in valid_exts:
+            found.append((int(m.group(1)), name))
+    return [name for _, name in sorted(found)]
+
+
 class DuplicateStudentSubmissionError(Exception):
     """Business exception raised when the scanned folder contains a duplicated MSSV (IT20)."""
 
@@ -370,7 +388,11 @@ class SessionDialog(QDialog):
                 # Tìm file bài nộp bên trong thư mục con
                 target_file = os.path.join(full_p, entry_file)
                 found_file = None
-                if os.path.isfile(target_file):
+                multi_files = find_multi_question_files(full_p, valid_exts)
+                if multi_files:
+                    # Bố cục nhiều câu: Q1.c..Qn.c -> chấm cả thư mục (mỗi testcase chạy file đúng câu)
+                    found_file = full_p
+                elif os.path.isfile(target_file):
                     found_file = target_file
                 else:
                     # Tìm file khớp không phân biệt hoa thường hoặc có phần mở rộng hợp lệ
@@ -385,13 +407,15 @@ class SessionDialog(QDialog):
                                 break
 
                 if found_file:
+                    reason = (f"Hợp lệ ({len(multi_files)} câu: {', '.join(multi_files)})"
+                              if multi_files else "Hợp lệ")
                     raw_scanned.append({
                         "raw_name": entry,
                         "mssv": mssv,
                         "name": student_name,
                         "filepath": found_file.replace("\\", "/"),
                         "is_valid": True,
-                        "reason": "Hợp lệ"
+                        "reason": reason
                     })
                 else:
                     raw_scanned.append({
